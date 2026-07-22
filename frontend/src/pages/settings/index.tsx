@@ -12,7 +12,7 @@ import { GeneralSection } from './sections/general'
 export function SettingsPage() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['settings'],
-    queryFn: api.getSettings,
+    queryFn: ({ signal }) => api.getSettings(signal),
   })
 
   return (

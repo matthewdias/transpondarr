@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Search, Loader2 } from 'lucide-react'
+import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from 'lucide-react'
 import { api, ApiError, type Candidate } from '@/lib/api'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -35,10 +35,15 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
+  // Trim once and use the trimmed term everywhere: keying the cache on the raw
+  // value would make "frieren " a separate entry from "frieren" and fire a second
+  // identical request at AniList, which is the one rate-limited dependency here.
+  const query = debounced.trim()
+
   const search = useQuery({
-    queryKey: ['metadata-search', debounced],
-    queryFn: () => api.searchMetadata(debounced),
-    enabled: debounced.trim().length > 0,
+    queryKey: ['metadata-search', query],
+    queryFn: ({ signal }) => api.searchMetadata(query, signal),
+    enabled: query.length > 0,
   })
 
   const add = useMutation({
@@ -79,19 +84,44 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="mt-2 max-h-[56vh] min-h-[8rem] overflow-y-auto">
-        {search.isFetching && (
+        {/* `isPaused` covers a retry waiting on the browser coming back online —
+            still in flight as far as the user is concerned. */}
+        {(search.isFetching || search.isPaused) && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> Searching…
           </div>
         )}
 
-        {!search.isFetching && debounced.trim() && results.length === 0 && (
+        {/* A failed search must not read as "nothing matched" — AniList sits at
+            ~30 req/min, so a rate-limited query is a routine outcome here. */}
+        {!search.isFetching && !search.isPaused && search.isError && (
+          <div className="flex flex-col items-center px-4 py-8 text-center">
+            <TriangleAlert className="mb-3 size-6 text-dl" />
+            <h3 className="text-sm font-semibold">Couldn’t search AniList</h3>
+            <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+              {search.error instanceof ApiError
+                ? search.error.message
+                : String(search.error)}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-4"
+              onClick={() => search.refetch()}
+            >
+              <RefreshCw className="size-4" /> Try again
+            </Button>
+          </div>
+        )}
+
+        {/* Only claim "nothing matched" once a search actually came back. */}
+        {!search.isFetching && search.isSuccess && results.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            No titles found for “{debounced}”.
+            No titles found for “{query}”.
           </p>
         )}
 
-        {!debounced.trim() && (
+        {!query && (
           <p className="py-10 text-center text-sm text-faint">
             Type a title to search AniList.
           </p>
