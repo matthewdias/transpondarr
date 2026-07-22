@@ -24,12 +24,25 @@ export LC_ALL=C
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$ROOT/THIRD-PARTY-NOTICES.md"
 TMP_BIN="$(mktemp -t transpondarrd-notices.XXXXXX)"
-trap 'rm -f "$TMP_BIN"' EXIT
+TMP_MODS="$(mktemp -t transpondarrd-modlist.XXXXXX)"
+trap 'rm -f "$TMP_BIN" "$TMP_MODS"' EXIT
 
-echo "==> building a throwaway binary to read its linked module set"
-# CGO-free, matching the release build. web/dist already holds a committed
-# .gitkeep so the embed resolves even without a fresh frontend build.
-CGO_ENABLED=0 go build -o "$TMP_BIN" "$ROOT/cmd/transpondarrd"
+echo "==> building throwaway binaries to read the linked module set per target"
+# Union across every released GOOS/GOARCH (keep in sync with .goreleaser.yaml):
+# the linked module set differs per target (e.g. go-isatty only on darwin), and
+# each platform's archive carries this file — so all of them must be covered.
+# Building per-target also makes the output host-independent, which the CI
+# freshness check relies on. CGO-free, matching the release build; web/dist
+# already holds a committed .gitkeep so the embed resolves without a frontend
+# build.
+for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+  GOOS="${target%/*}" GOARCH="${target#*/}" CGO_ENABLED=0 \
+    go build -o "$TMP_BIN" "$ROOT/cmd/transpondarrd"
+  # `go version -m` prints tab-indented `dep <module> <version> <hash>` lines,
+  # and `=> <module> <version>` for any replace directive.
+  go version -m "$TMP_BIN" \
+    | awk '$1=="dep" || $1=="=>" {print $2"@"$3}' >> "$TMP_MODS"
+done
 
 echo "==> collecting Go module notices"
 # Header
@@ -52,11 +65,7 @@ dependencies (not build-time devDependencies).
 HEADER
 } > "$OUT"
 
-# `go version -m` prints tab-indented `dep <module> <version> <hash>` lines, and
-# `=> <module> <version>` for any replace directive (none today, but handled).
-go version -m "$TMP_BIN" \
-  | awk '$1=="dep" || $1=="=>" {print $2"@"$3}' \
-  | sort -u \
+sort -u "$TMP_MODS" \
   | while IFS= read -r modver; do
       [ -z "$modver" ] && continue
       # Ask the toolchain for the module's on-disk cache dir — avoids fragile
