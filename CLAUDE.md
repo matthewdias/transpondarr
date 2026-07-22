@@ -58,7 +58,8 @@ web/                   embeds web/dist; frontend/ is the Vite source
   `import_deferred`. A directory payload is *not* automatically deferred:
   `resolvePayloadFile` resolves it to one episode file at completion time, so
   `library.Target.Place` stays file-only and `import_deferred` means "we looked
-  and it really is a batch". Deferred grabs are never re-imported (the
+  and could not pick one file" — a real batch, or a payload nothing could
+  disambiguate. Deferred grabs are never re-imported (the
   no-infinite-retry property) but stay in the scan for missing-from-client
   reconciliation, so a vanished payload still frees its item.
 - **Auth is forms-based** (`internal/core/auth`): the web UI logs in (username +

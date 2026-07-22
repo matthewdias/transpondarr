@@ -14,8 +14,8 @@ var (
 	errAmbiguousPayload = errors.New("payload contains more than one episode file")
 )
 
-// videoExts are the extensions treated as episode content; everything else in a
-// payload is a sidecar.
+// videoExts are the extensions treated as episode content; every other file in a
+// payload is ignored.
 var videoExts = map[string]bool{
 	".mkv": true, ".mp4": true, ".avi": true, ".m4v": true, ".mov": true,
 	".ts": true, ".m2ts": true, ".webm": true, ".ogm": true, ".wmv": true,

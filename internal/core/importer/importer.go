@@ -8,10 +8,11 @@
 // needs the deferred identification layer).
 //
 // Every grab status but "grabbed" is settled. A directory payload is resolved to
-// its one episode file at completion time, so "import_deferred" means the
-// payload was examined and really is a batch, and nothing re-walks the same
-// bytes on a later tick. Deferred grabs still ride the scan for
-// missing-from-client reconciliation, so a vanished payload frees its item.
+// a single episode file at completion time, so "import_deferred" means the
+// payload was examined and no one file could be chosen — a real batch, or a
+// payload nothing could disambiguate — and nothing re-walks the same bytes on a
+// later tick. Deferred grabs stay in the scan for missing-from-client
+// reconciliation, so a vanished payload still frees its item.
 package importer
 
 import (
@@ -33,7 +34,7 @@ import (
 const (
 	statusGrabbed  = "grabbed"         // downloading / awaiting completion
 	statusImported = "imported"        // placed in the library, item marked had
-	statusDeferred = "import_deferred" // completed, but the payload is a real batch
+	statusDeferred = "import_deferred" // completed, but no single episode file could be resolved
 	statusFailed   = "failed"          // the download errored or vanished in the client (terminal)
 )
 
@@ -119,7 +120,7 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 			continue
 		}
 		if g.MissingSince.Valid {
-			// Forget the absence entirely, so the next blip gets a full window.
+			// Clear it, so a later absence is measured from itself, not from this one.
 			im.setMissingSince(ctx, g.ID, sql.NullString{})
 		}
 		switch st.State {
@@ -163,8 +164,8 @@ func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatus
 
 	since, err := time.Parse(missingSinceLayout, g.MissingSince.String)
 	if err != nil {
-		// An unreadable stamp must not decide the grab's fate; restamp instead.
-		im.log.Warn("importer: unreadable missing_since; restamping", "hash", g.InfoHash, "value", g.MissingSince.String, "err", err)
+		// A value we cannot parse must not fail the grab, so wait another full period.
+		im.log.Warn("importer: missing_since could not be parsed; setting it to now", "hash", g.InfoHash, "value", g.MissingSince.String, "err", err)
 		im.setMissingSince(ctx, g.ID, sql.NullString{String: now.Format(missingSinceLayout), Valid: true})
 		return
 	}
@@ -193,8 +194,7 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 		return
 	}
 
-	// A directory payload is usually one episode wrapped with sidecars, so it is
-	// resolved to that file rather than deferred outright.
+	// A directory is not a batch by itself: most hold one episode plus extra files.
 	source := st.ContentPath
 	if info.IsDir() {
 		source, err = resolvePayloadFile(st.ContentPath, int(g.ItemNumber.Int64))
