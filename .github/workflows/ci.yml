@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Reused as the release gate (release.yml), so a tag must pass the exact same
+  # bar as a PR — including the notices-drift check and govulncheck.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      # Installs the exact toolchain pinned in mise.toml (Go, Node, sqlc,
+      # golangci-lint, goreleaser, …) so CI matches local development.
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4
+
+      - name: Build (frontend + backend)
+        run: make build
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+      # THIRD-PARTY-NOTICES.md is committed generated output; fail if it has
+      # drifted from what the current dependency set would produce.
+      - name: Notices up to date
+        run: |
+          make notices
+          git diff --exit-code THIRD-PARTY-NOTICES.md
+
+      - name: Vulnerability scan
+        run: govulncheck ./... # version pinned in mise.toml

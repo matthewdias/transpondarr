@@ -1,0 +1,180 @@
+// Package importer is the final pipeline stage: it watches the download client
+// for grabs Transpondarr initiated (rows in the grabs table) and, once a torrent
+// completes, hands the file to a library.Target and marks the item had.
+//
+// It only ever imports our own grabs — every torrent it touches has an
+// authoritative info_hash -> wanted_item mapping, so it never has to identify an
+// arbitrary release. Adopting externally-added torrents is a later phase (it
+// needs the deferred identification layer).
+package importer
+
+import (
+	"context"
+	"log/slog"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/matthewdias/transpondarr/internal/core/domain"
+	"github.com/matthewdias/transpondarr/internal/core/download"
+	"github.com/matthewdias/transpondarr/internal/core/library"
+	"github.com/matthewdias/transpondarr/internal/store"
+	"github.com/matthewdias/transpondarr/internal/store/db"
+)
+
+// Grab status values the importer transitions between.
+const (
+	statusGrabbed  = "grabbed"         // downloading / awaiting completion
+	statusImported = "imported"        // placed in the library, item marked had
+	statusDeferred = "import_deferred" // completed but not auto-importable yet (batch)
+	statusFailed   = "failed"          // the download errored in the client (terminal)
+)
+
+// ClientSource supplies the current download client and library target. It is
+// read on every scan so a runtime settings change (which swaps the clients) is
+// picked up on the next poll without restarting the importer.
+type ClientSource interface {
+	Download() download.Client
+	Library() library.Target
+}
+
+// Importer polls the download client and imports completed grabs.
+type Importer struct {
+	store    *store.Store
+	clients  ClientSource
+	log      *slog.Logger
+	interval time.Duration
+}
+
+// New builds an Importer. interval is how often the download client is polled.
+// The download client and library target are read from src each scan, so either
+// being unconfigured (nil) simply skips that scan.
+func New(st *store.Store, src ClientSource, log *slog.Logger, interval time.Duration) *Importer {
+	return &Importer{store: st, clients: src, log: log, interval: interval}
+}
+
+// Run polls until ctx is cancelled. It scans once immediately, then every interval.
+func (im *Importer) Run(ctx context.Context) {
+	im.ScanOnce(ctx)
+	t := time.NewTicker(im.interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			im.ScanOnce(ctx)
+		}
+	}
+}
+
+// ScanOnce imports every outstanding grab whose torrent has completed. It reads
+// the current clients from the source; if either the download client or the
+// library is unconfigured, there is nothing to do this tick.
+func (im *Importer) ScanOnce(ctx context.Context) {
+	dl := im.clients.Download()
+	target := im.clients.Library()
+	if dl == nil || target == nil {
+		return
+	}
+
+	grabs, err := im.store.Q.ListGrabsByStatus(ctx, statusGrabbed)
+	if err != nil {
+		im.log.Error("importer: list grabs", "err", err)
+		return
+	}
+	if len(grabs) == 0 {
+		return
+	}
+
+	statuses, err := dl.Status(ctx, uniqueHashes(grabs)...)
+	if err != nil {
+		im.log.Error("importer: status", "err", err)
+		return
+	}
+	byHash := make(map[string]download.Status, len(statuses))
+	for _, s := range statuses {
+		byHash[strings.ToLower(s.Hash)] = s
+	}
+
+	for _, g := range grabs {
+		st, ok := byHash[strings.ToLower(g.InfoHash)]
+		switch {
+		case !ok:
+			// Not currently reported by the client (still queued, or removed
+			// out-of-band). Leave it and re-check next tick — an absence can be
+			// transient (e.g. a client restart), so we don't fail it here.
+			continue
+		case st.State == download.StateError:
+			// The download errored in the client (error / missing files). Mark the
+			// grab failed so the item stops showing "downloading" forever, becomes
+			// grabbable again, and the failure is visible in history.
+			im.log.Warn("importer: download failed in client", "release", g.ReleaseTitle, "hash", g.InfoHash)
+			im.setStatus(ctx, g.ID, statusFailed)
+		case st.State == download.StateComplete:
+			im.importGrab(ctx, target, g, st)
+		default:
+			continue // still downloading / stalled / paused
+		}
+	}
+}
+
+// importGrab places a single completed grab's file and marks the item had.
+func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.ListGrabsByStatusRow, st download.Status) {
+	info, err := os.Stat(st.ContentPath)
+	if err != nil {
+		// Source not reachable from here — commonly a path-mapping gap when the
+		// client runs elsewhere. Leave it grabbed and retry next tick.
+		im.log.Warn("importer: source not accessible", "hash", g.InfoHash, "path", st.ContentPath, "err", err)
+		return
+	}
+	if info.IsDir() {
+		im.log.Info("importer: batch import not yet supported; deferring", "release", g.ReleaseTitle)
+		im.setStatus(ctx, g.ID, statusDeferred)
+		return
+	}
+
+	final, err := target.Place(ctx, library.ImportRequest{
+		SourcePath: st.ContentPath,
+		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat)},
+		Item: domain.WantedItem{
+			ID:     g.WantedItemID,
+			Kind:   domain.WantedKind(g.ItemKind),
+			Number: int(g.ItemNumber.Int64),
+		},
+	})
+	if err != nil {
+		im.log.Warn("importer: place failed", "release", g.ReleaseTitle, "err", err)
+		return // transient — retry next tick
+	}
+
+	// Mark the item had before flipping the grab status. The file is already in the
+	// library, so "had" is the true state; if the status write then fails, the grab
+	// stays 'grabbed' and retries, and Place is idempotent, so the retry is a no-op
+	// rather than an inconsistency.
+	if err := im.store.Q.SetWantedItemHave(ctx, db.SetWantedItemHaveParams{Have: 1, ID: g.WantedItemID}); err != nil {
+		im.log.Error("importer: set have", "err", err)
+		return
+	}
+	im.setStatus(ctx, g.ID, statusImported)
+	im.log.Info("importer: imported", "release", g.ReleaseTitle, "item", int(g.ItemNumber.Int64), "dest", final)
+}
+
+func (im *Importer) setStatus(ctx context.Context, id int64, status string) {
+	if err := im.store.Q.SetGrabStatus(ctx, db.SetGrabStatusParams{Status: status, ID: id}); err != nil {
+		im.log.Error("importer: set grab status", "status", status, "err", err)
+	}
+}
+
+func uniqueHashes(grabs []db.ListGrabsByStatusRow) []string {
+	seen := make(map[string]bool, len(grabs))
+	var hashes []string
+	for _, g := range grabs {
+		h := strings.ToLower(g.InfoHash)
+		if !seen[h] {
+			seen[h] = true
+			hashes = append(hashes, h)
+		}
+	}
+	return hashes
+}

@@ -1,0 +1,13 @@
+[tools]
+go = "1.26.5"
+node = "24.18.0"
+golangci-lint = "2.12.2"
+goreleaser = "2.17.0"
+syft = "1.49.0" # SBOM generation during release (see .goreleaser.yaml)
+sqlc = "1.31.1"
+"go:github.com/pressly/goose/v3/cmd/goose" = "3.27.2"
+"go:github.com/air-verse/air" = "1.66.0"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.6.0"
+
+[env]
+CGO_ENABLED = "0"

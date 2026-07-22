@@ -1,0 +1,58 @@
+version: 2
+project_name: transpondarr
+
+# Hooks must not mutate the tagged tree: download+verify instead of tidy, and
+# `make web` (not raw `npm run build`) so the committed web/dist/.gitkeep that
+# vite's emptyOutDir deletes is restored.
+before:
+  hooks:
+    - go mod download
+    - go mod verify
+    - make web
+
+builds:
+  - id: transpondarrd
+    main: ./cmd/transpondarrd
+    binary: transpondarrd
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X github.com/matthewdias/transpondarr/internal/version.Version={{ .Version }}
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    # Default file globs don't match THIRD-PARTY-NOTICES.md, and its licenses
+    # require the notices to travel with redistributed copies.
+    files: [LICENSE, README.md, CHANGELOG.md, THIRD-PARTY-NOTICES.md]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+# SPDX SBOM per archive (syft, pinned in mise.toml); attested along with the
+# archives via checksums.txt in release.yml.
+sboms:
+  - artifacts: archive
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+# Release notes come from the curated CHANGELOG.md (scripts/release-notes.sh →
+# `--release-notes` in release.yml), not from commit messages.
+changelog:
+  disable: true
+
+release:
+  # Tags with a prerelease suffix (v0.2.0-rc.1) are marked pre-release on
+  # GitHub, matching the image job's `latest`-tag guard.
+  prerelease: auto

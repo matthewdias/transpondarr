@@ -1,0 +1,24 @@
+.git
+.gitignore
+*.md
+LICENSE
+
+# Local dev artifacts — .env especially: it can hold real credentials and must
+# never enter the build context
+/transpondarrd
+/data
+/dist
+/tmp
+.air.toml
+.env
+.env.*
+!.env.example
+
+# Frontend deps + build output (rebuilt in the frontend stage)
+frontend/node_modules
+web/dist
+
+# Editor / OS cruft
+.DS_Store
+.vscode
+.idea

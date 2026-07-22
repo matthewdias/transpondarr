@@ -1,0 +1,59 @@
+.DEFAULT_GOAL := build
+
+BIN     := transpondarrd
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS := -s -w -X github.com/matthewdias/transpondarr/internal/version.Version=$(VERSION)
+
+.PHONY: build web web-deps gen lint web-lint test dev run migrate tidy notices clean
+
+build: web ## Build frontend + server into ./$(BIN)
+	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/transpondarrd
+
+web: web-deps ## Build the frontend into web/dist (embedded by the binary)
+	cd frontend && npm run build
+	@touch web/dist/.gitkeep # vite empties web/dist; restore the committed keeper
+
+# Install frontend deps only when the lockfile changes, so `make build` and
+# `make lint` in the same CI run don't each pay for a full `npm ci`.
+web-deps: frontend/node_modules
+frontend/node_modules: frontend/package-lock.json
+	cd frontend && npm ci
+	@touch frontend/node_modules
+
+gen: ## Regenerate the sqlc query layer
+	sqlc generate
+
+gen-api: ## Regenerate the frontend API types from the OpenAPI spec
+	go run ./cmd/transpondarrd openapi > frontend/openapi.gen.yaml
+	# npx (isolated) rather than a devDep: openapi-typescript@7 pins peer
+	# typescript@^5, but the frontend runs typescript@6.
+	cd frontend && npx --yes openapi-typescript@7.13.0 openapi.gen.yaml -o src/lib/api-types.ts
+	rm -f frontend/openapi.gen.yaml
+
+lint: web-lint ## Run linters (Go + frontend)
+	golangci-lint run
+
+web-lint: web-deps ## Lint the frontend (oxlint)
+	cd frontend && npm run lint
+
+test: ## Run Go tests
+	go test ./...
+
+dev: ## Run the API with live reload (air)
+	air
+
+run: build ## Build then run the server
+	./$(BIN)
+
+migrate: ## Apply DB migrations directly (set TRANSPONDARR_DB)
+	goose -dir internal/store/migrations sqlite3 "$(TRANSPONDARR_DB)" up
+
+tidy: ## go mod tidy
+	go mod tidy
+
+notices: web-deps ## Regenerate THIRD-PARTY-NOTICES.md from shipped deps
+	./scripts/gen-notices.sh
+
+clean: ## Remove build artifacts
+	rm -f $(BIN)
+	rm -rf dist tmp

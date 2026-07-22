@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]*"
+
+permissions:
+  contents: read
+
+jobs:
+  # Gate 1: never publish a tag whose code doesn't pass the full CI bar
+  # (build/vet/lint/test + notices drift + govulncheck).
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  # Gate 2: fast sanity checks on the tag itself — it must have a matching
+  # non-empty CHANGELOG.md section (it becomes the release notes), and it must
+  # point at a commit that is on main.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0 # full history so origin/main is available for the ancestor check
+      - name: Changelog section exists for this tag
+        run: ./scripts/release-notes.sh "$GITHUB_REF_NAME"
+      - name: Tag commit is on main
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || {
+            echo "error: tag $GITHUB_REF_NAME points at a commit that is not on main" >&2
+            exit 1
+          }
+
+  # Binaries + archives + checksums + SBOMs + GitHub Release (via GoReleaser).
+  goreleaser:
+    needs: [test, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub Release
+      id-token: write # sign the provenance attestation (OIDC)
+      attestations: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0 # GoReleaser needs full history + tags
+
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2.4.4 — pinned toolchain, incl. the goreleaser version
+
+      # The curated CHANGELOG.md section is the single source of release notes.
+      # Written outside the repo so GoReleaser's dirty-state check stays clean.
+      - name: Extract release notes from CHANGELOG.md
+        run: ./scripts/release-notes.sh "$GITHUB_REF_NAME" > "$RUNNER_TEMP/release-notes.md"
+
+      - name: GoReleaser
+        run: goreleaser release --clean --release-notes "$RUNNER_TEMP/release-notes.md"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build-provenance attestation for every released file (verify with
+      # `gh attestation verify <file> -R matthewdias/transpondarr`).
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-checksums: dist/checksums.txt
+
+  # Multi-arch container image → GitHub Container Registry (ghcr.io).
+  # Runs after goreleaser so a failed release never leaves images published
+  # for a version that has no GitHub Release.
+  image:
+    needs: [goreleaser]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write # push to GHCR
+      id-token: write # sign the provenance attestation (OIDC)
+      attestations: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata (tags + labels)
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # metadata-action's `version` output is the v-stripped semver (0.1.0),
+          # matching GoReleaser's {{ .Version }} so the image and the release
+          # binaries self-report the same version.
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+
+      # Build-provenance attestation for the image, pushed to GHCR alongside it
+      # (verify with `gh attestation verify oci://ghcr.io/... -R matthewdias/transpondarr`).
+      - name: Attest image
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

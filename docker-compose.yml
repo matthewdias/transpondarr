@@ -1,0 +1,62 @@
+# Example Docker Compose for Transpondarr.
+#
+# THE ONE RULE THAT MAKES IMPORT WORK: mount your shared media/downloads volume
+# into this container at the SAME path qBittorrent uses, and put the library and
+# the torrent downloads under it. Import hardlinks the finished file from the
+# path qBittorrent reports, so that path must exist here and be on the same
+# filesystem as the library (a hardlink can't cross filesystems). This is the
+# standard *arr / TRaSH single-mount layout:
+#
+#   /data
+#   ├── torrents   <- qBittorrent's download dir
+#   └── media      <- your library (Jellyfin/Plex reads here) -> TRANSPONDARR_LIBRARY_DIR
+#
+# Add this service to your existing stack (qBittorrent, Jackett/Prowlarr, media
+# server) so it shares their network and volume, or run it standalone as below.
+
+services:
+  transpondarr:
+    build:                        # or: image: ghcr.io/matthewdias/transpondarr:latest (once published)
+      context: .
+      args:
+        VERSION: "${VERSION:-dev}"
+    container_name: transpondarr
+    ports:
+      - "9797:9797"
+    environment:
+      # Match your media stack's user so hardlinks land with the right ownership
+      # and the container can write into /data/media. The container starts as
+      # root, fixes /config ownership, then drops to this uid:gid before serving.
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+      # --- server ---
+      TRANSPONDARR_API_KEY: "${TRANSPONDARR_API_KEY:?set a long random string}"
+      # --- qBittorrent (reachable from THIS container: compose service name, or host:port) ---
+      TRANSPONDARR_QBIT_URL: "http://qbittorrent:8080"
+      TRANSPONDARR_QBIT_USER: "${QBIT_USER}"
+      TRANSPONDARR_QBIT_PASSWORD: "${QBIT_PASSWORD}"
+      # --- indexer (Prowlarr aggregate or a Jackett feed) ---
+      TRANSPONDARR_TORZNAB_URL: "${TORZNAB_URL}"
+      TRANSPONDARR_TORZNAB_APIKEY: "${TORZNAB_APIKEY}"
+      # --- library import (must live under the shared /data mount) ---
+      TRANSPONDARR_LIBRARY_DIR: "/data/media"
+      TRANSPONDARR_IMPORT_MODE: "auto"   # auto | hardlink | copy
+    volumes:
+      - ./config:/config              # SQLite DB + state (ownership is fixed automatically on start)
+      - "${DATA_DIR:-/data}:/data"     # SAME host path qBittorrent mounts, at the SAME container path
+    # Hardening: the app only ever writes under /config and /data (both mounted
+    # writable above), needs no capabilities, and never escalates privileges.
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+    # If your stack uses an external network, join it so the qBit/indexer service
+    # names resolve — otherwise use host IPs in the URLs above.
+    # networks:
+    #   - media
+# networks:
+#   media:
+#     external: true

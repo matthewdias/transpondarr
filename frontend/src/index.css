@@ -1,0 +1,157 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Self-hosted fonts (no external requests — the app is served offline from the
+   Go binary). Inter for UI; JetBrains Mono for ids, numbers and release names. */
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+
+@custom-variant dark (&:is(.dark *));
+
+/* ── Locked palette (signal-teal accent, cool near-grey neutrals with a faint
+   teal bias; semantic colors kept separate from the brand hue). ─────────────── */
+:root {
+  --radius: 0.5rem;
+
+  --background: #f7f8f8;
+  --foreground: #0e1416;
+  --card: #ffffff;
+  --card-foreground: #0e1416;
+  --popover: #ffffff;
+  --popover-foreground: #0e1416;
+  --primary: #0d8b80;
+  --primary-foreground: #ffffff;
+  --secondary: #fbfcfc;
+  --secondary-foreground: #0e1416;
+  --muted: #fbfcfc;
+  --muted-foreground: #5b6b6e;
+  --accent: #d7efec;
+  --accent-foreground: #076259;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #e3e7e8;
+  --input: #e3e7e8;
+  --ring: #0d8b80;
+
+  /* extra design tokens (not part of shadcn's default set) */
+  --panel-2: #fbfcfc;
+  --border-strong: #cfd5d6;
+  --faint: #8a999c;
+  --have: #16a34a;
+  --have-weak: #dcf5e3;
+  --dl: #c47a04;
+  --dl-weak: #faedcf;
+  --miss: #dc2626;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #5b6b6e;
+  --sidebar-primary: #0d8b80;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #d7efec;
+  --sidebar-accent-foreground: #076259;
+  --sidebar-border: #e3e7e8;
+  --sidebar-ring: #0d8b80;
+}
+
+.dark {
+  --background: #0b0e0f;
+  --foreground: #e7ecec;
+  --card: #14181a;
+  --card-foreground: #e7ecec;
+  --popover: #14181a;
+  --popover-foreground: #e7ecec;
+  --primary: #2fd4c1;
+  --primary-foreground: #04211e;
+  --secondary: #171c1e;
+  --secondary-foreground: #e7ecec;
+  --muted: #171c1e;
+  --muted-foreground: #94a2a4;
+  --accent: #0f2a29;
+  --accent-foreground: #63e6d6;
+  --destructive: #f26060;
+  --destructive-foreground: #0b0e0f;
+  --border: #262d30;
+  --input: #262d30;
+  --ring: #2fd4c1;
+
+  --panel-2: #171c1e;
+  --border-strong: #333c40;
+  --faint: #6b797c;
+  --have: #37c26b;
+  --have-weak: #10241a;
+  --dl: #e0a52b;
+  --dl-weak: #241d0e;
+  --miss: #f26060;
+
+  --sidebar: #14181a;
+  --sidebar-foreground: #94a2a4;
+  --sidebar-primary: #2fd4c1;
+  --sidebar-primary-foreground: #04211e;
+  --sidebar-accent: #0f2a29;
+  --sidebar-accent-foreground: #63e6d6;
+  --sidebar-border: #262d30;
+  --sidebar-ring: #2fd4c1;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-panel-2: var(--panel-2);
+  --color-border-strong: var(--border-strong);
+  --color-faint: var(--faint);
+  --color-have: var(--have);
+  --color-have-weak: var(--have-weak);
+  --color-dl: var(--dl);
+  --color-dl-weak: var(--dl-weak);
+  --color-miss: var(--miss);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo,
+    Consolas, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  /* Tabular figures everywhere numbers line up in tables. */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
