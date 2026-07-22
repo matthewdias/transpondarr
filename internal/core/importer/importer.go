@@ -6,6 +6,12 @@
 // authoritative info_hash -> wanted_item mapping, so it never has to identify an
 // arbitrary release. Adopting externally-added torrents is a later phase (it
 // needs the deferred identification layer).
+//
+// Every grab status but "grabbed" is settled. A directory payload is resolved to
+// its one episode file at completion time, so "import_deferred" means the
+// payload was examined and really is a batch, and nothing re-walks the same
+// bytes on a later tick. Deferred grabs still ride the scan for
+// missing-from-client reconciliation, so a vanished payload frees its item.
 package importer
 
 import (
@@ -27,27 +33,15 @@ import (
 const (
 	statusGrabbed  = "grabbed"         // downloading / awaiting completion
 	statusImported = "imported"        // placed in the library, item marked had
-	statusDeferred = "import_deferred" // completed, but its payload holds no single identifiable episode (batch)
+	statusDeferred = "import_deferred" // completed, but the payload is a real batch
 	statusFailed   = "failed"          // the download errored or vanished in the client (terminal)
 )
 
-// missingGracePeriod is how long a grabbed torrent may be absent from the
-// download client's report before the grab is failed and the item becomes
-// wanted (and so re-grabbable) again.
-//
-// A torrent the client no longer knows about is simply omitted from its
-// response, which is indistinguishable from a torrent it has not finished
-// loading yet — so absence is only acted on once it has persisted. An
-// unreachable client is a different case entirely: Status returns an error and
-// the whole scan is skipped, so nothing is stamped. That leaves the window to
-// cover a client that answers before its torrent list is fully back (a restart,
-// a session reset). Five minutes is ~20 polls at the 15s interval: far longer
-// than any restart, far shorter than a user's patience with a dead
-// "downloading".
+// missingGracePeriod need only cover a client answering before its torrent list
+// is fully back; an unreachable client errors out of the scan instead.
 const missingGracePeriod = 5 * time.Minute
 
-// missingSinceLayout matches SQLite's datetime('now') output (UTC, no zone),
-// which is the format grabs.missing_since is stored in.
+// missingSinceLayout is SQLite's datetime('now') format, which missing_since is stored in.
 const missingSinceLayout = "2006-01-02 15:04:05"
 
 // ClientSource supplies the current download client and library target. It is
@@ -121,32 +115,21 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 	for _, g := range grabs {
 		st, ok := byHash[strings.ToLower(g.InfoHash)]
 		if !ok {
-			// Not currently reported by the client (removed out-of-band, or the
-			// client has not finished loading its torrent list). Reconcile against
-			// the grace window rather than failing on a single absence.
 			im.reconcileMissing(ctx, g, now)
 			continue
 		}
 		if g.MissingSince.Valid {
-			// Reported again: forget the absence entirely, so a client that came
-			// back does not carry a half-spent grace window into its next blip.
+			// Forget the absence entirely, so the next blip gets a full window.
 			im.setMissingSince(ctx, g.ID, sql.NullString{})
 		}
 		switch st.State {
 		case download.StateError:
-			// The download errored in the client (error / missing files). Mark the
-			// grab failed so the item stops showing "downloading" forever, becomes
-			// grabbable again, and the failure is visible in history. This applies to
-			// a deferred grab too: its payload is gone, so there is nothing left to
-			// import by hand and the item is better off wanted again.
+			// Failing frees the item back to wanted, with the failure kept in history.
 			im.log.Warn("importer: download failed in client", "release", g.ReleaseTitle, "hash", g.InfoHash)
 			im.setStatus(ctx, g.ID, statusFailed)
 		case download.StateComplete:
 			if g.Status == statusDeferred {
-				// Deferred grabs ride along only for reconciliation (above): their
-				// payload was already examined and found unresolvable, and the same
-				// bytes will not resolve differently on a later tick.
-				continue
+				continue // already examined; the same bytes won't resolve differently
 			}
 			im.importGrab(ctx, target, g, st)
 		default:
@@ -155,14 +138,8 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 	}
 }
 
-// openGrabs returns every grab whose fate is not yet settled: those still
-// downloading, plus those deferred at import.
-//
-// A deferred grab is not re-imported — the payload was examined once and found
-// to hold no single identifiable episode — but it is still an outstanding
-// torrent in the client, so it must keep participating in missing-from-client
-// reconciliation. Otherwise a deferred grab whose torrent is later removed stays
-// deferred forever and its item shows "downloading" with no path back to wanted.
+// openGrabs returns the grabs still worth scanning: downloading, plus deferred
+// ones, which are never re-imported but still need reconciliation.
 func (im *Importer) openGrabs(ctx context.Context) ([]db.ListGrabsByStatusRow, error) {
 	grabbed, err := im.store.Q.ListGrabsByStatus(ctx, statusGrabbed)
 	if err != nil {
@@ -175,11 +152,8 @@ func (im *Importer) openGrabs(ctx context.Context) ([]db.ListGrabsByStatusRow, e
 	return append(grabbed, deferred...), nil
 }
 
-// reconcileMissing handles a grabbed torrent the download client no longer
-// reports. The first absence is only recorded (missing_since); the grab is
-// failed once the absence has outlived the grace period, at which point the item
-// reverts to wanted — re-searchable and re-grabbable — with the failure visible
-// in the grabs history.
+// reconcileMissing fails a grab whose torrent the client has stopped reporting
+// for longer than missingGracePeriod; a single absence is only recorded.
 func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatusRow, now time.Time) {
 	if !g.MissingSince.Valid {
 		im.log.Info("importer: download not reported by client; watching", "release", g.ReleaseTitle, "hash", g.InfoHash)
@@ -189,14 +163,13 @@ func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatus
 
 	since, err := time.Parse(missingSinceLayout, g.MissingSince.String)
 	if err != nil {
-		// An unreadable stamp would otherwise decide the grab's fate; restamp so
-		// the grace window is measured from something we can reason about.
+		// An unreadable stamp must not decide the grab's fate; restamp instead.
 		im.log.Warn("importer: unreadable missing_since; restamping", "hash", g.InfoHash, "value", g.MissingSince.String, "err", err)
 		im.setMissingSince(ctx, g.ID, sql.NullString{String: now.Format(missingSinceLayout), Valid: true})
 		return
 	}
 	if now.Sub(since) < missingGracePeriod {
-		return // still inside the grace window
+		return
 	}
 
 	im.log.Warn("importer: download gone from client; failing grab",
@@ -220,10 +193,8 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 		return
 	}
 
-	// A directory payload is usually still one episode, wrapped with subtitles, an
-	// nfo, a sample or a screenshots folder. Resolve it down to that one file so
-	// the library target keeps receiving a file; only a payload that genuinely
-	// holds more than one episode is deferred.
+	// A directory payload is usually one episode wrapped with sidecars, so it is
+	// resolved to that file rather than deferred outright.
 	source := st.ContentPath
 	if info.IsDir() {
 		source, err = resolvePayloadFile(st.ContentPath, int(g.ItemNumber.Int64))

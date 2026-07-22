@@ -108,12 +108,10 @@ func TestPlaceSanitizesName(t *testing.T) {
 	}
 }
 
-// TestPlaceRejectsDirectory pins Place's file-only contract. Resolving a
-// folder-wrapped payload down to its one episode file is the importer's job
-// (importer.resolvePayloadFile), deliberately kept out of here: the target
-// decides library *layout*, not which of a payload's files is the episode.
+// TestPlaceRejectsDirectory pins Place's file-only contract: the target decides
+// layout, not which of a payload's files is the episode.
 func TestPlaceRejectsDirectory(t *testing.T) {
-	dir := t.TempDir() // a directory source: never reaches Place in the live pipeline
+	dir := t.TempDir() // resolved by the importer before Place in the live pipeline
 	_, err := New(t.TempDir(), "copy").Place(context.Background(), req(dir, "Placeholder Saga", 1))
 	if err == nil {
 		t.Fatal("expected an error for a directory source")

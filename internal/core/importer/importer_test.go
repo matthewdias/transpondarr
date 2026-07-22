@@ -31,8 +31,7 @@ func (f fakeSource) Library() library.Target   { return f.lib }
 
 // --- helpers ----------------------------------------------------------------
 
-// seedGrab creates a series + one wanted item + a grab, returning the item and
-// series ids.
+// seedGrab creates a series + one wanted item + a grab.
 func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, seriesID int64) {
 	t.Helper()
 	ctx := context.Background()
@@ -69,8 +68,7 @@ func grabByHash(t *testing.T, st *store.Store, hash string) db.Grab {
 	return rows[0]
 }
 
-// setGrabStatus forces a grab's status, standing in for an earlier scan that
-// left it there (a deferred import, most of the time).
+// setGrabStatus forces a grab's status, standing in for an earlier scan.
 func setGrabStatus(t *testing.T, st *store.Store, hash, status string) {
 	t.Helper()
 	if err := st.Q.SetGrabStatus(context.Background(), db.SetGrabStatusParams{
@@ -80,9 +78,8 @@ func setGrabStatus(t *testing.T, st *store.Store, hash, status string) {
 	}
 }
 
-// stampMissingSince backdates a grab's missing_since by ago, standing in for
-// earlier scans that saw the hash absent. It returns the stamp it wrote so a
-// test can assert the window was not silently restarted.
+// stampMissingSince backdates a grab's missing_since by ago and returns the
+// stamp, so a test can assert the window was not restarted.
 func stampMissingSince(t *testing.T, st *store.Store, hash string, ago time.Duration) string {
 	t.Helper()
 	stamp := time.Now().UTC().Add(-ago).Format("2006-01-02 15:04:05")
@@ -152,10 +149,7 @@ func TestSkipsIncompleteGrab(t *testing.T) {
 	}
 }
 
-// TestImportsFolderWrappedEpisode is the contract issue #2 introduced: a
-// directory payload is not automatically a batch. A single episode shipped
-// inside a folder — with subtitles, an nfo and a sample for company — is
-// resolved down to its one video file and imported like a bare file would be.
+// TestImportsFolderWrappedEpisode: a directory payload is not automatically a batch.
 func TestImportsFolderWrappedEpisode(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, seriesID := seedGrab(t, st, "abc")
@@ -175,8 +169,6 @@ func TestImportsFolderWrappedEpisode(t *testing.T) {
 	if len(target.Placed) != 1 {
 		t.Fatalf("Place called %d times, want 1", len(target.Placed))
 	}
-	// The library target must still receive a file, never the directory: its
-	// Place contract is file-only and resolution is the importer's job.
 	if got := filepath.Base(target.Placed[0].SourcePath); got != "[ExampleSubs] Placeholder Saga - 05 [1080p].mkv" {
 		t.Errorf("placed %q, want the episode file inside the folder", got)
 	}
@@ -189,11 +181,8 @@ func TestImportsFolderWrappedEpisode(t *testing.T) {
 	}
 }
 
-// TestDefersMultiEpisodeDirectory keeps the other half of the contract: a
-// payload holding several episodes is a real batch, and importing the one file
-// that matches this item would mark the grab imported while quietly dropping the
-// rest of the pack. Per-file batch import is a separate feature; until it exists
-// such a payload is deferred.
+// TestDefersMultiEpisodeDirectory: importing the one matching file out of a real
+// batch would mark the grab imported and drop the rest of the pack.
 func TestDefersMultiEpisodeDirectory(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -218,15 +207,11 @@ func TestDefersMultiEpisodeDirectory(t *testing.T) {
 }
 
 // TestDoesNotReexamineDeferredGrab pins import_deferred as terminal for import.
-// Resolution now happens at completion time, so a deferred grab is one we
-// already looked inside and could not resolve — the same bytes will not resolve
-// differently on a later tick, and re-walking them every 15s forever is exactly
-// the retry loop the status exists to prevent.
 func TestDoesNotReexamineDeferredGrab(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
 	setGrabStatus(t, st, "abc", "import_deferred")
-	// A payload that *would* resolve, to prove the skip is about the status.
+	// A payload that would resolve, to prove the skip is about the status.
 	dir := writeTree(t, "[ExampleSubs] Placeholder Saga - 05 [1080p].mkv")
 
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
@@ -243,11 +228,8 @@ func TestDoesNotReexamineDeferredGrab(t *testing.T) {
 	}
 }
 
-// TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod closes the gap left by the
-// grab-state reconciliation work: a deferred grab is still an outstanding
-// torrent, so when the client stops reporting it the same grace-window
-// reconciliation applies. Without this the item would show "downloading"
-// forever, with its payload gone and no path back to wanted.
+// TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod: a deferred grab is still
+// an outstanding torrent, so the same reconciliation must reach it.
 func TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -263,9 +245,7 @@ func TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	}
 }
 
-// TestWatchesDeferredGrabOnFirstAbsence is the deferred counterpart of the
-// grabbed watch path: a single absent scan only stamps missing_since, so a
-// client reloading its torrent list cannot fail a deferred grab outright.
+// TestWatchesDeferredGrabOnFirstAbsence is the deferred counterpart of the watch path.
 func TestWatchesDeferredGrabOnFirstAbsence(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -302,11 +282,8 @@ func TestFailsErroredGrab(t *testing.T) {
 	}
 }
 
-// TestWatchesGrabOnFirstAbsenceFromClient covers the first half of grab-state
-// reconciliation: a hash the download client stops reporting is not failed on
-// the spot (the client may just be reloading its torrent list), it is only
-// stamped with missing_since so a later scan can tell a transient blip from a
-// torrent that is genuinely gone.
+// TestWatchesGrabOnFirstAbsenceFromClient: one absent scan only stamps
+// missing_since, since the client may just be reloading its torrent list.
 func TestWatchesGrabOnFirstAbsenceFromClient(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -329,10 +306,8 @@ func TestWatchesGrabOnFirstAbsenceFromClient(t *testing.T) {
 	}
 }
 
-// TestKeepsGrabWhileAbsenceIsWithinGracePeriod is the same case one scan later:
-// the absence is already recorded but has not outlived the grace period, so the
-// grab is still left alone and the original stamp is preserved (the window is
-// measured from the first absence, not the latest scan).
+// TestKeepsGrabWhileAbsenceIsWithinGracePeriod: the window runs from the first
+// absence, so a later scan must not restart it.
 func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -351,12 +326,8 @@ func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 	}
 }
 
-// TestFailsGrabWhenAbsenceOutlivesGracePeriod is the reconciliation this whole
-// mechanism exists for: a torrent removed from the client out-of-band (manually,
-// by a seeding rule, by a client reset) stops being reported, and once that has
-// held for the grace period the grab goes terminal. "failed" is what makes the
-// item read as wanted again in the API, so it can be re-searched and re-grabbed,
-// with the failure still visible in the grabs history.
+// TestFailsGrabWhenAbsenceOutlivesGracePeriod: a torrent removed out-of-band
+// stops being reported, and "failed" is what reads as wanted again in the API.
 func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	st := coretest.NewStore(t)
 	itemID, seriesID := seedGrab(t, st, "abc")
@@ -375,7 +346,6 @@ func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	if g.Status != "failed" {
 		t.Errorf("status = %q, want failed once the absence outlived the grace period", g.Status)
 	}
-	// The item must not be marked had: nothing was imported.
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
 	for _, it := range items {
 		if it.ID == itemID && it.Have != 0 {
@@ -384,10 +354,8 @@ func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	}
 }
 
-// TestReappearingHashClearsMissingSince guards the recovery path: a client that
-// comes back must recover fully, not limp toward a false failure. Even with an
-// already-expired stamp on the row, seeing the hash again in the same scan
-// clears it and leaves the grab downloading.
+// TestReappearingHashClearsMissingSince: a client that comes back must recover
+// fully, not limp toward a false failure on an already-expired stamp.
 func TestReappearingHashClearsMissingSince(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -408,10 +376,8 @@ func TestReappearingHashClearsMissingSince(t *testing.T) {
 	}
 }
 
-// TestLeavesGrabWhenSourceNotAccessible covers the other retry branch: the
-// download completed but its ContentPath cannot be stat'd from here (commonly a
-// path-mapping gap when the client runs on another host). The grab stays
-// "grabbed" so a later scan — once the path resolves — can import it.
+// TestLeavesGrabWhenSourceNotAccessible: an unreachable ContentPath (a path-mapping
+// gap when the client runs elsewhere) must stay grabbed for a later scan.
 func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")

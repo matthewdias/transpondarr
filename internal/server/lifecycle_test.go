@@ -80,8 +80,7 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	}
 }
 
-// seriesDetailDTO mirrors the fields of the series detail response this test
-// asserts on (the handler derives item status rather than storing it).
+// seriesDetailDTO mirrors the fields of the series detail response asserted on here.
 type seriesDetailDTO struct {
 	Items []struct {
 		Number       int    `json:"number"`
@@ -90,12 +89,8 @@ type seriesDetailDTO struct {
 	} `json:"items"`
 }
 
-// TestVanishedTorrentRevertsItemToWanted closes the loop on grab-state
-// reconciliation from the API's point of view. Item status is derived, not
-// stored: a live grab reads as "downloading", so a torrent removed from the
-// download client out-of-band used to leave the item stuck there forever. Once
-// the importer fails the grab, the same derivation must report the item as
-// "wanted" again, which is what makes it re-searchable and re-grabbable.
+// TestVanishedTorrentRevertsItemToWanted checks reconciliation from the API's
+// point of view: item status is derived from the grab, not stored.
 func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 	const matchURL = "magnet:?xt=urn:btih:0000000000000000000000000000000000000007"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
@@ -111,13 +106,11 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
 
-	// While the grab is live the item reads as downloading.
 	if got := itemStatus(t, h, seriesID, 7); got != "downloading" {
 		t.Fatalf("episode 7 status = %q, want downloading right after the grab", got)
 	}
 
-	// The torrent is removed in the client: it stops being reported, and the
-	// absence has already outlived the importer's grace period.
+	// Removed in the client, with the absence already past the grace period.
 	dl.Statuses = nil
 	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
 	if len(grabs) != 1 {
@@ -135,7 +128,6 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 	if got := itemStatus(t, h, seriesID, 7); got != "wanted" {
 		t.Errorf("episode 7 status = %q, want wanted after the torrent vanished", got)
 	}
-	// The failure is still on record in the grabs history.
 	grabs, _ = h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
 	if grabs[0].Status != "failed" {
 		t.Errorf("grab status = %q, want failed", grabs[0].Status)

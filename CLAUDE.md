@@ -53,14 +53,13 @@ web/                   embeds web/dist; frontend/ is the Vite source
 ## Conventions
 
 - **Grab lifecycle (`internal/core/importer`): every status but `grabbed` is
-  settled.** `grabbed` → `imported` (placed, item had), `failed` (errored, or
-  absent from the download client past the grace period — the item reverts to
-  wanted), or `import_deferred` (completed, but the payload holds no single
-  identifiable episode). A directory payload is *not* automatically deferred:
+  settled.** `grabbed` → `imported`, `failed` (errored, or absent from the
+  download client past the grace period — the item reverts to wanted), or
+  `import_deferred`. A directory payload is *not* automatically deferred:
   `resolvePayloadFile` resolves it to one episode file at completion time, so
   `library.Target.Place` stays file-only and `import_deferred` means "we looked
-  and it really is a batch". Deferred grabs are never re-imported (that is the
-  no-infinite-retry property) but do stay in the scan for missing-from-client
+  and it really is a batch". Deferred grabs are never re-imported (the
+  no-infinite-retry property) but stay in the scan for missing-from-client
   reconciliation, so a vanished payload still frees its item.
 - **Auth is forms-based** (`internal/core/auth`): the web UI logs in (username +
   argon2id password) and gets an httpOnly session cookie; the **API key** is for
