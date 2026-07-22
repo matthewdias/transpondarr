@@ -48,9 +48,9 @@ snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
 # Release notes come from the curated CHANGELOG.md (scripts/release-notes.sh →
-# `--release-notes` in release.yml), not from commit messages.
-changelog:
-  disable: true
+# `--release-notes` in release.yml), not from commit messages. Do NOT set
+# `changelog.disable` — that skips the whole changelog pipe, which is also what
+# loads the `--release-notes` file, leaving the release body empty.
 
 release:
   # Tags with a prerelease suffix (v0.2.0-rc.1) are marked pre-release on
