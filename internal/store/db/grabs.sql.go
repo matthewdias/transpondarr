@@ -11,7 +11,7 @@ import (
 )
 
 const listGrabsByInfoHash = `-- name: ListGrabsByInfoHash :many
-SELECT id, wanted_item_id, info_hash, release_title, status, created_at
+SELECT id, wanted_item_id, info_hash, release_title, status, created_at, missing_since
 FROM grabs
 WHERE info_hash = ?
 `
@@ -32,6 +32,7 @@ func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]G
 			&i.ReleaseTitle,
 			&i.Status,
 			&i.CreatedAt,
+			&i.MissingSince,
 		); err != nil {
 			return nil, err
 		}
@@ -47,7 +48,7 @@ func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]G
 }
 
 const listGrabsBySeries = `-- name: ListGrabsBySeries :many
-SELECT g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status, g.created_at
+SELECT g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status, g.created_at, g.missing_since
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 WHERE w.series_id = ?
@@ -70,6 +71,7 @@ func (q *Queries) ListGrabsBySeries(ctx context.Context, seriesID int64) ([]Grab
 			&i.ReleaseTitle,
 			&i.Status,
 			&i.CreatedAt,
+			&i.MissingSince,
 		); err != nil {
 			return nil, err
 		}
@@ -87,6 +89,7 @@ func (q *Queries) ListGrabsBySeries(ctx context.Context, seriesID int64) ([]Grab
 const listGrabsByStatus = `-- name: ListGrabsByStatus :many
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
+    g.missing_since,
     w.number AS item_number,
     w.kind   AS item_kind,
     s.id     AS series_id,
@@ -100,16 +103,17 @@ ORDER BY g.info_hash
 `
 
 type ListGrabsByStatusRow struct {
-	ID           int64         `json:"id"`
-	WantedItemID int64         `json:"wanted_item_id"`
-	InfoHash     string        `json:"info_hash"`
-	ReleaseTitle string        `json:"release_title"`
-	Status       string        `json:"status"`
-	ItemNumber   sql.NullInt64 `json:"item_number"`
-	ItemKind     string        `json:"item_kind"`
-	SeriesID     int64         `json:"series_id"`
-	SeriesTitle  string        `json:"series_title"`
-	SeriesFormat string        `json:"series_format"`
+	ID           int64          `json:"id"`
+	WantedItemID int64          `json:"wanted_item_id"`
+	InfoHash     string         `json:"info_hash"`
+	ReleaseTitle string         `json:"release_title"`
+	Status       string         `json:"status"`
+	MissingSince sql.NullString `json:"missing_since"`
+	ItemNumber   sql.NullInt64  `json:"item_number"`
+	ItemKind     string         `json:"item_kind"`
+	SeriesID     int64          `json:"series_id"`
+	SeriesTitle  string         `json:"series_title"`
+	SeriesFormat string         `json:"series_format"`
 }
 
 func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListGrabsByStatusRow, error) {
@@ -127,6 +131,7 @@ func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListG
 			&i.InfoHash,
 			&i.ReleaseTitle,
 			&i.Status,
+			&i.MissingSince,
 			&i.ItemNumber,
 			&i.ItemKind,
 			&i.SeriesID,
@@ -144,6 +149,28 @@ func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListG
 		return nil, err
 	}
 	return items, nil
+}
+
+const setGrabMissingSince = `-- name: SetGrabMissingSince :exec
+UPDATE grabs SET missing_since = ? WHERE id = ?
+`
+
+type SetGrabMissingSinceParams struct {
+	MissingSince sql.NullString `json:"missing_since"`
+	ID           int64          `json:"id"`
+}
+
+// Stamps (or, with NULL, clears) the moment the download client stopped
+// reporting this torrent. The importer stamps only when the value is unset, so
+// the grace window is measured from the *first* absence, and clears the stamp as
+// soon as the hash is reported again. The timestamp is supplied by the caller,
+// in SQLite's datetime('now') format, so writing and comparing it use one clock.
+// NOTE: keep this comment ASCII-only. sqlc's sqlite codegen miscounts byte vs.
+// rune offsets and silently truncates the emitted SQL when a doc comment
+// contains multi-byte characters (e.g. an em dash).
+func (q *Queries) SetGrabMissingSince(ctx context.Context, arg SetGrabMissingSinceParams) error {
+	_, err := q.db.ExecContext(ctx, setGrabMissingSince, arg.MissingSince, arg.ID)
+	return err
 }
 
 const setGrabStatus = `-- name: SetGrabStatus :exec
@@ -167,8 +194,11 @@ ON CONFLICT (wanted_item_id) DO UPDATE SET
     info_hash     = excluded.info_hash,
     release_title = excluded.release_title,
     status        = excluded.status,
-    created_at    = datetime('now')
-RETURNING id, wanted_item_id, info_hash, release_title, status, created_at
+    created_at    = datetime('now'),
+    -- A re-grab is a fresh download: any missing-from-client stamp left by the
+    -- previous attempt must not count against it.
+    missing_since = NULL
+RETURNING id, wanted_item_id, info_hash, release_title, status, created_at, missing_since
 `
 
 type UpsertGrabParams struct {
@@ -193,6 +223,7 @@ func (q *Queries) UpsertGrab(ctx context.Context, arg UpsertGrabParams) (Grab, e
 		&i.ReleaseTitle,
 		&i.Status,
 		&i.CreatedAt,
+		&i.MissingSince,
 	)
 	return i, err
 }

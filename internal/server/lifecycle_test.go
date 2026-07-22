@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/coretest"
+	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
 // TestGrabThenImportLifecycle exercises the whole item lifecycle across the two
@@ -76,4 +78,82 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 			t.Errorf("episode 3 have = %d, want 1 after import", it.Have)
 		}
 	}
+}
+
+// seriesDetailDTO mirrors the fields of the series detail response this test
+// asserts on (the handler derives item status rather than storing it).
+type seriesDetailDTO struct {
+	Items []struct {
+		Number       int    `json:"number"`
+		Status       string `json:"status"`
+		ReleaseTitle string `json:"release_title"`
+	} `json:"items"`
+}
+
+// TestVanishedTorrentRevertsItemToWanted closes the loop on grab-state
+// reconciliation from the API's point of view. Item status is derived, not
+// stored: a live grab reads as "downloading", so a torrent removed from the
+// download client out-of-band used to leave the item stuck there forever. Once
+// the importer fails the grab, the same derivation must report the item as
+// "wanted" again, which is what makes it re-searchable and re-grabbable.
+func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
+	const matchURL = "magnet:?xt=urn:btih:0000000000000000000000000000000000000007"
+	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
+		{Title: "[ExampleSubs] Placeholder Saga S1E07 [1080p]", DownloadURL: matchURL, Seeders: 100},
+	}}
+	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hash7", Outcome: download.AddSuccess}}
+
+	h := newHarness(t, idx, dl)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
+		t.Fatalf("grab status = %d, want 201", code)
+	}
+
+	// While the grab is live the item reads as downloading.
+	if got := itemStatus(t, h, seriesID, 7); got != "downloading" {
+		t.Fatalf("episode 7 status = %q, want downloading right after the grab", got)
+	}
+
+	// The torrent is removed in the client: it stops being reported, and the
+	// absence has already outlived the importer's grace period.
+	dl.Statuses = nil
+	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	if len(grabs) != 1 {
+		t.Fatalf("got %d grabs, want 1", len(grabs))
+	}
+	if err := h.store.Q.SetGrabMissingSince(context.Background(), db.SetGrabMissingSinceParams{
+		MissingSince: sql.NullString{String: time.Now().UTC().Add(-time.Hour).Format("2006-01-02 15:04:05"), Valid: true},
+		ID:           grabs[0].ID,
+	}); err != nil {
+		t.Fatalf("stamp missing_since: %v", err)
+	}
+
+	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	if got := itemStatus(t, h, seriesID, 7); got != "wanted" {
+		t.Errorf("episode 7 status = %q, want wanted after the torrent vanished", got)
+	}
+	// The failure is still on record in the grabs history.
+	grabs, _ = h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	if grabs[0].Status != "failed" {
+		t.Errorf("grab status = %q, want failed", grabs[0].Status)
+	}
+}
+
+// itemStatus reads one episode's derived status off the series detail endpoint.
+func itemStatus(t *testing.T, h *harness, seriesID int64, number int) string {
+	t.Helper()
+	var out seriesDetailDTO
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d", seriesID), &out); code != http.StatusOK {
+		t.Fatalf("GET series detail = %d, want 200", code)
+	}
+	for _, it := range out.Items {
+		if it.Number == number {
+			return it.Status
+		}
+	}
+	t.Fatalf("episode %d not in series detail", number)
+	return ""
 }

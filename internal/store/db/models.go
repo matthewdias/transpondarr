@@ -9,12 +9,13 @@ import (
 )
 
 type Grab struct {
-	ID           int64  `json:"id"`
-	WantedItemID int64  `json:"wanted_item_id"`
-	InfoHash     string `json:"info_hash"`
-	ReleaseTitle string `json:"release_title"`
-	Status       string `json:"status"`
-	CreatedAt    string `json:"created_at"`
+	ID           int64          `json:"id"`
+	WantedItemID int64          `json:"wanted_item_id"`
+	InfoHash     string         `json:"info_hash"`
+	ReleaseTitle string         `json:"release_title"`
+	Status       string         `json:"status"`
+	CreatedAt    string         `json:"created_at"`
+	MissingSince sql.NullString `json:"missing_since"`
 }
 
 type MetadataCache struct {

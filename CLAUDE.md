@@ -52,6 +52,16 @@ web/                   embeds web/dist; frontend/ is the Vite source
 
 ## Conventions
 
+- **Grab lifecycle (`internal/core/importer`): every status but `grabbed` is
+  settled.** `grabbed` → `imported` (placed, item had), `failed` (errored, or
+  absent from the download client past the grace period — the item reverts to
+  wanted), or `import_deferred` (completed, but the payload holds no single
+  identifiable episode). A directory payload is *not* automatically deferred:
+  `resolvePayloadFile` resolves it to one episode file at completion time, so
+  `library.Target.Place` stays file-only and `import_deferred` means "we looked
+  and it really is a batch". Deferred grabs are never re-imported (that is the
+  no-infinite-retry property) but do stay in the scan for missing-from-client
+  reconciliation, so a vanished payload still frees its item.
 - **Auth is forms-based** (`internal/core/auth`): the web UI logs in (username +
   argon2id password) and gets an httpOnly session cookie; the **API key** is for
   machine clients only (`X-Api-Key`). A request to `/api/*` is authorized by a
@@ -66,6 +76,13 @@ web/                   embeds web/dist; frontend/ is the Vite source
   read through — so edits apply without a restart.
 - A DB change = a goose migration under `internal/store/migrations` + queries in
   `internal/store/queries` + `make gen`.
+  - **Keep comments in `internal/store/queries/*.sql` ASCII-only.** sqlc's sqlite
+    codegen miscounts byte vs. rune offsets: a doc comment between `-- name:` and
+    the SQL body containing a multi-byte character — an em dash, which this repo's
+    prose style uses everywhere — silently truncates the *emitted* SQL by that many
+    bytes. The result compiles, `make gen` reports no error, and the query fails
+    only at runtime. Also note `sqlc.arg(name)` is rejected by this dialect
+    (`extraneous input '?1'`) — use positional `?` params.
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
 - **Route handlers: group by resource; use a receiver when it earns its keep.**
   Each resource gets a `*_routes.go` file with a `register<Resource>Routes(api,
