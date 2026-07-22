@@ -25,8 +25,7 @@ export function HistoryTab({ seriesId, active }: { seriesId: number; active: boo
     enabled: active,
   })
 
-  // `isPaused` covers a retry waiting on the browser coming back online — still
-  // loading as far as the user is concerned, and definitely not "no history".
+  // A paused retry (browser offline) reports neither fetching nor error.
   if (isLoading || isPaused) {
     return (
       <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
@@ -43,8 +42,6 @@ export function HistoryTab({ seriesId, active }: { seriesId: number; active: boo
     )
   }
 
-  // A failed request must not read as "nothing was ever grabbed" — that tells the
-  // user their history is empty when the server merely couldn't be reached.
   if (isError) {
     return (
       <div className="flex flex-col items-center rounded-lg border border-dashed bg-card px-6 py-14 text-center">

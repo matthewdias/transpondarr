@@ -35,9 +35,6 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  // Trim once and use the trimmed term everywhere: keying the cache on the raw
-  // value would make "frieren " a separate entry from "frieren" and fire a second
-  // identical request at AniList, which is the one rate-limited dependency here.
   const query = debounced.trim()
 
   const search = useQuery({
@@ -84,16 +81,13 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
       </div>
 
       <div className="mt-2 max-h-[56vh] min-h-[8rem] overflow-y-auto">
-        {/* `isPaused` covers a retry waiting on the browser coming back online —
-            still in flight as far as the user is concerned. */}
+        {/* A paused retry (browser offline) reports neither fetching nor error. */}
         {(search.isFetching || search.isPaused) && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> Searching…
           </div>
         )}
 
-        {/* A failed search must not read as "nothing matched" — AniList sits at
-            ~30 req/min, so a rate-limited query is a routine outcome here. */}
         {!search.isFetching && !search.isPaused && search.isError && (
           <div className="flex flex-col items-center px-4 py-8 text-center">
             <TriangleAlert className="mb-3 size-6 text-dl" />
@@ -114,7 +108,6 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
           </div>
         )}
 
-        {/* Only claim "nothing matched" once a search actually came back. */}
         {!search.isFetching && search.isSuccess && results.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">
             No titles found for “{query}”.

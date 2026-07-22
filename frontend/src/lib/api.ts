@@ -129,15 +129,8 @@ export interface AuthStatus {
 
 // ── Endpoints ─────────────────────────────────────────────────────────────────
 
-// Every read (GET) takes an optional AbortSignal as its last argument; both
-// openapi-fetch and rawFetch hand it straight to fetch. React Query passes the
-// signal it already owns (`queryFn: ({ signal }) => …`) and aborts it when a query
-// loses its last observer or its key changes — which is what stops an abandoned
-// `/series/{id}/search` from continuing to sweep indexers. React Query treats the
-// resulting rejection as a cancellation and reverts the query to its previous
-// state, so an abort never surfaces as an error to the user. Mutations are left
-// alone: a grab or a settings write must not be cancelled by a stray unmount.
-
+// Mutations deliberately take no AbortSignal: a grab or a settings write must
+// not die on a stray unmount.
 export const api = {
   health: (signal?: AbortSignal) => client.GET('/api/v1/health', { signal }).then(unwrap),
 
