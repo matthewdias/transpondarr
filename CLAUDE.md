@@ -78,6 +78,37 @@ deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest
   helpers/state. Handlers stay thin — push business logic into `internal/core`.
   Auth endpoints are plain-chi, not Huma.
 
+## Comments
+
+Code carries the *what*; comments carry only what the code cannot. Default to
+none, and prefer a better name or a small helper over an explanation.
+
+- **Budget:** one line. Exported declarations get the Go-standard one-line doc
+  comment. Two lines is the ceiling for a genuinely subtle point; three or more
+  needs a reason you could defend in review. Never a paragraph above a function.
+- **Delete any comment that restates the next line.** `// Enrich the release with
+  parsed attributes` above three assignments to `rel.ReleaseGroup/Resolution/
+  DualAudio` is noise.
+- **Keep only these:** a non-obvious *why* (a constraint, a rejected alternative,
+  an external quirk), a deliberate limitation, or a load-bearing invariant a
+  reader would otherwise break.
+- **Package doc comments** are the one place for design stance — a short
+  paragraph, stated once, not repeated on the functions inside.
+- Durable rationale (why AniList numbering degrades, why batch import is deferred)
+  belongs in this file, a commit message, or an issue — not stacked above a func.
+
+Concretely, in `internal/core/decide`:
+
+```go
+// No — a paragraph explaining what the parameters already say.
+// itemSet holds the numbers still worth grabbing. Already-had items are excluded
+// so a fully-downloaded episode is not re-matched and re-grabbed; maxItem still
+// spans every item (had or not) so absolute-numbering detection below is unaffected.
+
+// Yes — the part the code can't say: maxItem intentionally counts had items.
+// maxItem spans had items too, so absolute-numbering detection stays correct.
+```
+
 ## External realities that shape the design
 
 - **AniList**: ~30 req/min (degraded state, not the documented 90) and **no
