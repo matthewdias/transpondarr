@@ -15,8 +15,8 @@ Closes #
 ## Checklist
 
 - [ ] `make lint` and `make test` pass locally
-- [ ] Tests were written first (red → green): new/changed behaviour has coverage,
-      and bug fixes include a test that failed before the fix
+- [ ] New/changed behaviour has test coverage, and bug fixes include a test that
+      reproduces the bug
 - [ ] UI changes include before/after screenshots above
 - [ ] DB changes include a goose migration + queries + `make gen` (if applicable)
 - [ ] New indexers / download clients / library targets go behind the existing interfaces
