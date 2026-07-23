@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { ChevronRight, Tv } from 'lucide-react'
-import { api } from '@/lib/api'
+import { seriesQuery } from '@/lib/queries'
 import { Topbar } from '@/components/topbar'
 import { AddSeriesButton } from '@/components/add-series'
 import { Poster } from '@/components/poster'
@@ -18,10 +18,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton'
 
 export function SeriesListPage() {
-  const { data: series, isLoading, isError, error } = useQuery({
-    queryKey: ['series'],
-    queryFn: ({ signal }) => api.listSeries(signal),
-  })
+  const { data: series, isLoading, isError, error } = useQuery(seriesQuery())
 
   return (
     <>

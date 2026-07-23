@@ -2,6 +2,7 @@ import { toast } from 'sonner'
 import type { useQueryClient } from '@tanstack/react-query'
 import { Loader2, CheckCircle2, XCircle, Plug } from 'lucide-react'
 import { type Settings } from '@/lib/api'
+import { settingsQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -122,7 +123,7 @@ export const selectClass =
 export function useSaveToast(queryClient: ReturnType<typeof useQueryClient>, label: string) {
   return {
     onSuccess: (fresh: Settings) => {
-      queryClient.setQueryData(['settings'], fresh)
+      queryClient.setQueryData(settingsQuery().queryKey, fresh)
       toast.success(`${label} saved`, { description: 'Applied live — no restart needed.' })
     },
     onError: (err: unknown) =>

@@ -12,6 +12,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { api, AUTH_EXPIRED_EVENT } from '@/lib/api'
+import { authStatusQuery, seriesQuery } from '@/lib/queries'
 import { useTheme } from '@/components/theme-provider'
 import {
   Sidebar,
@@ -40,14 +41,8 @@ export function AppSidebar() {
   const { setOpenMobile } = useSidebar()
   const { resolved, setTheme } = useTheme()
   const queryClient = useQueryClient()
-  const { data: series } = useQuery({
-    queryKey: ['series'],
-    queryFn: ({ signal }) => api.listSeries(signal),
-  })
-  const { data: auth } = useQuery({
-    queryKey: ['auth-status'],
-    queryFn: ({ signal }) => api.authStatus(signal),
-  })
+  const { data: series } = useQuery(seriesQuery())
+  const { data: auth } = useQuery(authStatusQuery())
 
   const logout = async () => {
     try {

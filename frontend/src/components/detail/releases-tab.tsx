@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2, RefreshCw, Search, TriangleAlert } from 'lucide-react'
 import { api, ApiError, type CandidateRelease } from '@/lib/api'
+import { grabsQuery, releasesQuery, seriesDetailQuery, seriesQuery } from '@/lib/queries'
 import { formatBytes } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -61,14 +62,9 @@ export function ReleasesTab({
   // doesn't refresh after a grab).
   const [grabbed, setGrabbed] = useState<Set<string>>(new Set())
 
-  // Cache results for a few minutes so re-opening the Releases tab (Radix
-  // unmounts inactive tabs) doesn't re-run a live, rate-limited indexer sweep on
-  // every flip. The explicit Search button below still forces a fresh search.
   const search = useQuery({
-    queryKey: ['releases', seriesId],
-    queryFn: ({ signal }) => api.searchReleases(seriesId, signal),
+    ...releasesQuery(seriesId),
     enabled: active,
-    staleTime: 5 * 60 * 1000,
   })
 
   const grab = useMutation({
@@ -78,9 +74,9 @@ export function ReleasesTab({
       toast.success('Grab sent to download client', {
         description: `${res.release} · ${res.outcome}`,
       })
-      queryClient.invalidateQueries({ queryKey: ['series', seriesId] })
-      queryClient.invalidateQueries({ queryKey: ['grabs', seriesId] })
-      queryClient.invalidateQueries({ queryKey: ['series'] })
+      queryClient.invalidateQueries({ queryKey: seriesDetailQuery(seriesId).queryKey })
+      queryClient.invalidateQueries({ queryKey: grabsQuery(seriesId).queryKey })
+      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey })
       setSelected(null)
     },
     onError: (err) => {

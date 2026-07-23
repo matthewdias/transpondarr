@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '@/lib/api'
+import { settingsQuery } from '@/lib/queries'
 import { Topbar } from '@/components/topbar'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DownloadSection } from './sections/download'
@@ -10,10 +10,7 @@ import { ApiKeySection } from './sections/api-key'
 import { GeneralSection } from './sections/general'
 
 export function SettingsPage() {
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ['settings'],
-    queryFn: ({ signal }) => api.getSettings(signal),
-  })
+  const { data, isLoading, isError, error } = useQuery(settingsQuery())
 
   return (
     <>
