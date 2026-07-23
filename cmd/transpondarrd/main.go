@@ -104,6 +104,18 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	authSvc.CleanupExpired(ctx)
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				authSvc.CleanupExpired(ctx)
+			}
+		}
+	}()
 
 	// The importer always runs; each scan it reads the current download client and
 	// library from the registry and no-ops when either is unconfigured — so
