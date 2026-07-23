@@ -235,6 +235,20 @@ func (s *Service) CleanupExpired(ctx context.Context) {
 	_ = s.store.Q.DeleteExpiredSessions(ctx)
 }
 
+// RunCleanup removes expired session rows every interval until ctx is done.
+func (s *Service) RunCleanup(ctx context.Context, interval time.Duration) {
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.CleanupExpired(ctx)
+		}
+	}
+}
+
 // ── password hashing (argon2id) ───────────────────────────────────────────────
 
 func hashPassword(pw string) (string, error) {

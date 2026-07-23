@@ -4,10 +4,12 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
+	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
 func newTestAuth(t *testing.T) (*Service, *store.Store) {
@@ -87,6 +89,49 @@ func TestSessionLifecycle(t *testing.T) {
 	svc.DeleteSession(ctx, tok)
 	if _, ok := svc.ValidateSession(ctx, tok); ok {
 		t.Fatal("session still valid after logout")
+	}
+}
+
+// Expired sessions must be swept on the ticker, not only at startup.
+func TestRunCleanupSweepsExpiredSessions(t *testing.T) {
+	svc, st := newTestAuth(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := st.Q.CreateSession(ctx, db.CreateSessionParams{
+		Token:     "expired-token",
+		Username:  "admin",
+		ExpiresAt: time.Now().UTC().Add(-time.Hour).Format(sqliteTimeLayout),
+	}); err != nil {
+		t.Fatalf("insert expired session: %v", err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		svc.RunCleanup(ctx, 10*time.Millisecond)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		var n int
+		if err := st.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions").Scan(&n); err != nil {
+			t.Fatalf("count sessions: %v", err)
+		}
+		if n == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("expired session not swept by RunCleanup")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("RunCleanup did not stop on context cancellation")
 	}
 }
 
