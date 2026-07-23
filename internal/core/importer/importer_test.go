@@ -78,18 +78,18 @@ func setGrabStatus(t *testing.T, st *store.Store, hash, status string) {
 	}
 }
 
-// stampMissingSince backdates a grab's missing_since by ago and returns the
-// stamp, so a test can assert the window was not restarted.
-func stampMissingSince(t *testing.T, st *store.Store, hash string, ago time.Duration) string {
+// backdateMissingSince sets a grab's missing_since to ago in the past and
+// returns it, so a test can assert the grace period was not restarted.
+func backdateMissingSince(t *testing.T, st *store.Store, hash string, ago time.Duration) string {
 	t.Helper()
-	stamp := time.Now().UTC().Add(-ago).Format("2006-01-02 15:04:05")
+	value := time.Now().UTC().Add(-ago).Format("2006-01-02 15:04:05")
 	if err := st.Q.SetGrabMissingSince(context.Background(), db.SetGrabMissingSinceParams{
-		MissingSince: sql.NullString{String: stamp, Valid: true},
+		MissingSince: sql.NullString{String: value, Valid: true},
 		ID:           grabByHash(t, st, hash).ID,
 	}); err != nil {
-		t.Fatalf("stamp missing_since: %v", err)
+		t.Fatalf("set missing_since: %v", err)
 	}
-	return stamp
+	return value
 }
 
 // --- tests ------------------------------------------------------------------
@@ -234,7 +234,7 @@ func TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
 	setGrabStatus(t, st, "abc", "import_deferred")
-	stampMissingSince(t, st, "abc", time.Hour)
+	backdateMissingSince(t, st, "abc", time.Hour)
 
 	dl := &coretest.FakeDownload{} // client reports nothing at all
 	target := &coretest.FakeLibrary{}
@@ -260,7 +260,7 @@ func TestWatchesDeferredGrabOnFirstAbsence(t *testing.T) {
 		t.Errorf("status = %q, want still import_deferred inside the grace period", g.Status)
 	}
 	if !g.MissingSince.Valid {
-		t.Error("missing_since not stamped on a deferred grab's first absence")
+		t.Error("missing_since not set on a deferred grab's first absence")
 	}
 }
 
@@ -282,8 +282,8 @@ func TestFailsErroredGrab(t *testing.T) {
 	}
 }
 
-// TestWatchesGrabOnFirstAbsenceFromClient: one absent scan only stamps
-// missing_since, since the client may just be reloading its torrent list.
+// TestWatchesGrabOnFirstAbsenceFromClient: one absent scan only records the
+// absence, since the client may just be reloading its torrent list.
 func TestWatchesGrabOnFirstAbsenceFromClient(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -302,16 +302,16 @@ func TestWatchesGrabOnFirstAbsenceFromClient(t *testing.T) {
 		t.Errorf("status = %q, want still grabbed (inside the grace period)", g.Status)
 	}
 	if !g.MissingSince.Valid {
-		t.Error("missing_since not stamped on the first absence")
+		t.Error("missing_since not set on the first absence")
 	}
 }
 
-// TestKeepsGrabWhileAbsenceIsWithinGracePeriod: the window runs from the first
-// absence, so a later scan must not restart it.
+// TestKeepsGrabWhileAbsenceIsWithinGracePeriod: the grace period runs from the
+// first absence, so a later scan must not restart it.
 func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
-	stamped := stampMissingSince(t, st, "abc", time.Minute)
+	firstAbsence := backdateMissingSince(t, st, "abc", time.Minute)
 
 	dl := &coretest.FakeDownload{} // client reports nothing at all
 	target := &coretest.FakeLibrary{}
@@ -321,8 +321,8 @@ func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 	if g.Status != "grabbed" {
 		t.Errorf("status = %q, want still grabbed one minute into the grace period", g.Status)
 	}
-	if g.MissingSince.String != stamped {
-		t.Errorf("missing_since = %q, want the original stamp %q (window must not restart)", g.MissingSince.String, stamped)
+	if g.MissingSince.String != firstAbsence {
+		t.Errorf("missing_since = %q, want the original %q (grace period must not restart)", g.MissingSince.String, firstAbsence)
 	}
 }
 
@@ -331,7 +331,7 @@ func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	st := coretest.NewStore(t)
 	itemID, seriesID := seedGrab(t, st, "abc")
-	stampMissingSince(t, st, "abc", time.Hour)
+	backdateMissingSince(t, st, "abc", time.Hour)
 
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "zzz", State: download.StateDownloading, ContentPath: "/whatever"},
@@ -355,11 +355,11 @@ func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 }
 
 // TestReappearingHashClearsMissingSince: a client that comes back must recover
-// fully, not limp toward a false failure on an already-expired stamp.
+// fully, not fail the grab on an absence that has already ended.
 func TestReappearingHashClearsMissingSince(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
-	stampMissingSince(t, st, "abc", time.Hour)
+	backdateMissingSince(t, st, "abc", time.Hour)
 
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateDownloading, ContentPath: "/whatever"},
