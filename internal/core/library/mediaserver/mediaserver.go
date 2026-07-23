@@ -112,6 +112,7 @@ func (t *Target) transfer(src, dest string) error {
 		if err := os.Link(src, dest); err != nil {
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
+		syncDir(filepath.Dir(dest))
 		return nil
 	default: // ModeAuto
 		if err := os.Link(src, dest); err != nil {
@@ -120,6 +121,7 @@ func (t *Target) transfer(src, dest string) error {
 			}
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
+		syncDir(filepath.Dir(dest))
 		return nil
 	}
 }
@@ -174,10 +176,10 @@ func copyFile(src, dest string) error {
 	return nil
 }
 
-// syncDir flushes a directory entry so a completed rename survives a crash. It is
-// best-effort: Windows can't sync a directory and some filesystems reject it, and
-// the file's bytes are already durable by this point, so a failure never fails an
-// import that otherwise succeeded.
+// syncDir flushes a directory so a completed rename or new hardlink entry
+// survives a crash. It is best-effort: Windows can't sync a directory and some
+// filesystems reject it, and the file is already correctly in place by this
+// point, so a failure never fails an import that otherwise succeeded.
 func syncDir(dir string) {
 	d, err := os.Open(dir)
 	if err != nil {
