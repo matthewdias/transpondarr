@@ -338,6 +338,11 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 			// A grab exists but the item isn't had yet → still downloading/importing.
 			status = "downloading"
 		}
+		if status != "stuck" {
+			// The reason is part of the stuck contract; a settled item must not
+			// carry a stale one.
+			importError = ""
+		}
 		out.Body.Items = append(out.Body.Items, detailItemDTO{
 			ID:           r.ID,
 			Number:       int(r.Number.Int64),
