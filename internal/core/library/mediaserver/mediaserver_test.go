@@ -76,6 +76,32 @@ func TestPlaceCopyMakesSeparateFile(t *testing.T) {
 	}
 }
 
+// A copy interrupted by a crash leaves a stray .partial; the temp name is
+// deterministic and os.Create truncates, so the retry reclaims it — no reaper needed.
+func TestPlaceCopyReclaimsStrayPartial(t *testing.T) {
+	src := writeSource(t, "raw.mkv")
+	root := t.TempDir()
+	destDir := filepath.Join(root, "Placeholder Saga", "Season 01")
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	stray := filepath.Join(destDir, "Placeholder Saga - S01E02.mkv.partial")
+	if err := os.WriteFile(stray, []byte("stale-longer-than-the-source-bytes"), 0o644); err != nil {
+		t.Fatalf("write stray: %v", err)
+	}
+
+	dest, err := New(root, "copy").Place(context.Background(), req(src, "Placeholder Saga", 2))
+	if err != nil {
+		t.Fatalf("Place: %v", err)
+	}
+	if b, _ := os.ReadFile(dest); string(b) != "video-bytes" {
+		t.Errorf("copied content = %q, want the source bytes (stale temp not truncated?)", b)
+	}
+	if _, err := os.Stat(stray); !os.IsNotExist(err) {
+		t.Error("stray .partial should have been reclaimed by the retry")
+	}
+}
+
 // Each AniList entry is its own single-season show: a "2nd Season" entry keeps
 // the season in its folder title but is filed under Season 01 (not Season 02, which
 // would leave a phantom show with no Season 01 inside a "2nd Season" folder).

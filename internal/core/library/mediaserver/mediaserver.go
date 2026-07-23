@@ -136,8 +136,8 @@ func isUnsupportedLink(err error) bool {
 		errors.Is(err, syscall.EOPNOTSUPP)
 }
 
-// copyFile copies src to dest via a temp file + rename, so a failed copy never
-// leaves a partial file at the destination path.
+// copyFile copies src to dest via a deterministic temp file + rename: a failed copy
+// never leaves a partial at the destination, and the next attempt reclaims the temp.
 func copyFile(src, dest string) error {
 	in, err := os.Open(src)
 	if err != nil {
@@ -155,6 +155,13 @@ func copyFile(src, dest string) error {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("mediaserver: copy: %w", err)
 	}
+	// Durability ordering: flush the bytes before the rename, the directory after —
+	// otherwise a crash can leave the final name pointing at unwritten blocks.
+	if err := out.Sync(); err != nil {
+		_ = out.Close()
+		_ = os.Remove(tmp)
+		return fmt.Errorf("mediaserver: sync temp: %w", err)
+	}
 	if err := out.Close(); err != nil {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("mediaserver: close temp: %w", err)
@@ -163,7 +170,21 @@ func copyFile(src, dest string) error {
 		_ = os.Remove(tmp)
 		return fmt.Errorf("mediaserver: rename: %w", err)
 	}
+	syncDir(filepath.Dir(dest))
 	return nil
+}
+
+// syncDir flushes a directory entry so a completed rename survives a crash. It is
+// best-effort: Windows can't sync a directory and some filesystems reject it, and
+// the file's bytes are already durable by this point, so a failure never fails an
+// import that otherwise succeeded.
+func syncDir(dir string) {
+	d, err := os.Open(dir)
+	if err != nil {
+		return
+	}
+	_ = d.Sync()
+	_ = d.Close()
 }
 
 // reservedNames are Windows device names that can't be a path component, even
