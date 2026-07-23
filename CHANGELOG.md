@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Security
+
+- **Rate-limited the change-password endpoint** (`POST /api/v1/auth/password`).
+  It verifies the current password but was not throttled, so repeated wrong
+  guesses were unmetered. This matters most under `TRANSPONDARR_AUTH_REQUIRED=local`,
+  where any loopback/private-network client is admitted without a credential: the
+  endpoint was an unauthenticated password-guessing oracle for anyone on the LAN.
+  In the default `enabled` mode a valid session was already required, so there it
+  is re-authentication hygiene. Unmetered argon2id verification was also a cheap
+  CPU/memory exhaustion lever. Login and change-password now share a single
+  per-client bucket (5 attempts per 15 minutes) rather than getting one each,
+  since both verify the same admin password.
+
 ## [0.1.0] — 2026-07-22
 
 The initial release: the full anime acquisition loop, end to end.

@@ -18,16 +18,20 @@ import (
 // a large payload can't exhaust memory before JSON decoding rejects it.
 const maxAuthBodyBytes = 64 << 10 // 64 KiB
 
-// Login attempts are rate-limited per client to slow online password guessing and
-// blunt the (now memory-hard, argon2id) CPU/RAM cost of repeated verification.
+// Password attempts are rate-limited per client to slow online guessing and blunt
+// the (memory-hard, argon2id) CPU/RAM cost of repeated verification.
 const (
-	loginRateLimit  = 5
-	loginRateWindow = 15 * time.Minute
+	passwordRateLimit  = 5
+	passwordRateWindow = 15 * time.Minute
 )
 
 // registerAuthRoutes wires the plain-chi authentication endpoints. They are chi
 // (not Huma) handlers because they set and read the session cookie directly.
 func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
+	// Login and change-password verify the same admin password, so they share one
+	// bucket: separate ones would double the guesses available per window.
+	passwordLimiter := passwordAttemptLimiter()
+
 	r.Get("/api/v1/auth/status", func(w http.ResponseWriter, req *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"configured":    a.Configured(),
@@ -57,7 +61,7 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 		issueSession(w, req, a, in.Username, http.StatusCreated)
 	})
 
-	r.With(loginRateLimiter()).Post("/api/v1/auth/login", func(w http.ResponseWriter, req *http.Request) {
+	r.With(passwordLimiter).Post("/api/v1/auth/login", func(w http.ResponseWriter, req *http.Request) {
 		var in credentials
 		if err := decodeJSON(w, req, &in); err != nil {
 			http.Error(w, "invalid body", http.StatusBadRequest)
@@ -78,8 +82,9 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	// Change password (requires the current one). Authed via the middleware.
-	r.Post("/api/v1/auth/password", func(w http.ResponseWriter, req *http.Request) {
+	// Change password (requires the current one). In "local" mode the middleware
+	// admits any LAN peer uncredentialed, so the limiter is the only throttle here.
+	r.With(passwordLimiter).Post("/api/v1/auth/password", func(w http.ResponseWriter, req *http.Request) {
 		var in struct {
 			CurrentPassword string `json:"current_password"`
 			NewPassword     string `json:"new_password"`
@@ -173,15 +178,13 @@ func decodeJSON(w http.ResponseWriter, req *http.Request, v any) error {
 	return json.NewDecoder(http.MaxBytesReader(w, req.Body, maxAuthBodyBytes)).Decode(v)
 }
 
-// loginRateLimiter throttles POSTs to the login endpoint per client. Unlike a
-// failure-only counter, httprate counts every attempt in the window — stricter,
-// and fine for a single-admin login. It keys on RemoteAddr (see keyByRemoteAddr)
-// and returns the same 429 message the endpoint used previously.
-func loginRateLimiter() func(http.Handler) http.Handler {
+// passwordAttemptLimiter throttles password verification per client; httprate
+// counts every attempt in the window, not just failures. One call is one bucket.
+func passwordAttemptLimiter() func(http.Handler) http.Handler {
 	return httprate.LimitBy(
-		loginRateLimit, loginRateWindow, keyByRemoteAddr,
+		passwordRateLimit, passwordRateWindow, keyByRemoteAddr,
 		httprate.WithLimitHandler(func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "too many login attempts; try again later", http.StatusTooManyRequests)
+			http.Error(w, "too many password attempts; try again later", http.StatusTooManyRequests)
 		}),
 	)
 }
