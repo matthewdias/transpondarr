@@ -92,12 +92,20 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 }
 
-// Expired sessions must be swept on the ticker, not only at startup.
+// Expired sessions must be swept on the ticker, not only at startup — and the
+// sweep must leave live sessions alone.
 func TestRunCleanupSweepsExpiredSessions(t *testing.T) {
 	svc, st := newTestAuth(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	liveTok, _, err := svc.CreateSession(ctx, "admin")
+	if err != nil {
+		t.Fatalf("create live session: %v", err)
+	}
 	if err := st.Q.CreateSession(ctx, db.CreateSessionParams{
 		Token:     "expired-token",
 		Username:  "admin",
@@ -118,13 +126,16 @@ func TestRunCleanupSweepsExpiredSessions(t *testing.T) {
 		if err := st.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions").Scan(&n); err != nil {
 			t.Fatalf("count sessions: %v", err)
 		}
-		if n == 0 {
+		if n == 1 {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("expired session not swept by RunCleanup")
+			t.Fatalf("expected the expired session swept and the live one kept, have %d rows", n)
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+	if _, ok := svc.ValidateSession(ctx, liveTok); !ok {
+		t.Fatal("live session did not survive the sweep")
 	}
 
 	cancel()
