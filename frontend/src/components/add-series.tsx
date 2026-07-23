@@ -32,13 +32,14 @@ function candidateTitle(c: Candidate) {
 function AddSeriesBody({ onDone }: { onDone: () => void }) {
   const [term, setTerm] = useState('')
   const debounced = useDebounce(term, 350)
+  const trimmed = debounced.trim()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const search = useQuery({
-    queryKey: ['metadata-search', debounced],
-    queryFn: () => api.searchMetadata(debounced),
-    enabled: debounced.trim().length > 0,
+    queryKey: ['metadata-search', trimmed],
+    queryFn: () => api.searchMetadata(trimmed),
+    enabled: trimmed.length > 0,
   })
 
   const add = useMutation({
@@ -85,13 +86,13 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
           </div>
         )}
 
-        {!search.isFetching && debounced.trim() && results.length === 0 && (
+        {!search.isFetching && trimmed && results.length === 0 && (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            No titles found for “{debounced}”.
+            No titles found for “{trimmed}”.
           </p>
         )}
 
-        {!debounced.trim() && (
+        {!trimmed && (
           <p className="py-10 text-center text-sm text-faint">
             Type a title to search AniList.
           </p>
