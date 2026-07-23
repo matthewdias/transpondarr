@@ -68,17 +68,21 @@ func New(st *store.Store, src ClientSource, log *slog.Logger, interval time.Dura
 	return &Importer{store: st, clients: src, log: log, interval: interval}
 }
 
-// Run polls until ctx is cancelled. It scans once immediately, then every interval.
+// Run scans once immediately, then every interval, and returns once ctx is
+// cancelled and any in-flight scan has finished. Callers wait on that return
+// before closing the store, under their own deadline.
 func (im *Importer) Run(ctx context.Context) {
-	im.ScanOnce(ctx)
 	t := time.NewTicker(im.interval)
 	defer t.Stop()
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+		im.ScanOnce(ctx)
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			im.ScanOnce(ctx)
 		}
 	}
 }
@@ -95,7 +99,9 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 
 	grabs, err := im.openGrabs(ctx)
 	if err != nil {
-		im.log.Error("importer: list grabs", "err", err)
+		if ctx.Err() == nil {
+			im.log.Error("importer: list grabs", "err", err)
+		}
 		return
 	}
 	if len(grabs) == 0 {
@@ -104,7 +110,9 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 
 	statuses, err := dl.Status(ctx, uniqueHashes(grabs)...)
 	if err != nil {
-		im.log.Error("importer: status", "err", err)
+		if ctx.Err() == nil {
+			im.log.Error("importer: status", "err", err)
+		}
 		return
 	}
 	byHash := make(map[string]download.Status, len(statuses))
@@ -114,6 +122,9 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 
 	now := time.Now().UTC()
 	for _, g := range grabs {
+		if ctx.Err() != nil {
+			return // shutting down; the rest is retryable next run
+		}
 		st, ok := byHash[strings.ToLower(g.InfoHash)]
 		if !ok {
 			im.reconcileMissing(ctx, g, now)
@@ -220,6 +231,10 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 		im.log.Warn("importer: place failed", "release", g.ReleaseTitle, "err", err)
 		return // transient — retry next tick
 	}
+
+	// Past Place is the point of no return: the writes run detached so a shutdown
+	// signal cannot leave the placed file still marked grabbed.
+	ctx = context.WithoutCancel(ctx)
 
 	// Mark the item had before flipping the grab status. The file is already in the
 	// library, so "had" is the true state; if the status write then fails, the grab

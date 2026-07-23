@@ -29,6 +29,18 @@ type fakeSource struct {
 func (f fakeSource) Download() download.Client { return f.dl }
 func (f fakeSource) Library() library.Target   { return f.lib }
 
+// cancelOnPlace cancels the run context the instant a file lands in the library,
+// reproducing a SIGTERM landing between Place and the status writes.
+type cancelOnPlace struct {
+	coretest.FakeLibrary
+	cancel context.CancelFunc
+}
+
+func (c *cancelOnPlace) Place(ctx context.Context, r library.ImportRequest) (string, error) {
+	c.cancel()
+	return c.FakeLibrary.Place(ctx, r)
+}
+
 // --- helpers ----------------------------------------------------------------
 
 // seedGrab creates a series + one wanted item + a grab.
@@ -128,6 +140,111 @@ func TestImportsCompletedGrab(t *testing.T) {
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
 	if items[0].Have != 1 {
 		t.Errorf("have = %d, want 1", items[0].Have)
+	}
+}
+
+// TestFinishesInFlightImportAfterCancel: a signal arriving between Place and
+// the status writes must not leave a placed file still marked grabbed.
+func TestFinishesInFlightImportAfterCancel(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, seriesID := seedGrab(t, st, "abc")
+	src := filepath.Join(t.TempDir(), "raw.mkv")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	target := &cancelOnPlace{cancel: cancel}
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: src},
+	}}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Millisecond).Run(ctx)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not return after its context was cancelled")
+	}
+
+	if g := grabByHash(t, st, "abc"); g.Status != "imported" {
+		t.Errorf("status = %q, want imported: the file was already placed when the cancel arrived", g.Status)
+	}
+	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	if items[0].Have != 1 {
+		t.Errorf("have = %d, want 1", items[0].Have)
+	}
+	if n := len(target.Placed); n != 1 {
+		t.Errorf("Place called %d times, want 1", n)
+	}
+}
+
+// TestStopsScanMidwayOnCancel: a cancel mid-scan finishes the grab past its
+// Place but must not start placing the next one.
+func TestStopsScanMidwayOnCancel(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "aaa")
+	seedGrab(t, st, "bbb")
+	dir := t.TempDir()
+	var statuses []download.Status
+	for _, hash := range []string{"aaa", "bbb"} {
+		src := filepath.Join(dir, hash+".mkv")
+		if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		statuses = append(statuses, download.Status{Hash: hash, State: download.StateComplete, ContentPath: src})
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	target := &cancelOnPlace{cancel: cancel}
+	dl := &coretest.FakeDownload{Statuses: statuses}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Millisecond).Run(ctx)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not return after its context was cancelled")
+	}
+
+	if n := len(target.Placed); n != 1 {
+		t.Fatalf("Place called %d times, want 1: the second grab must wait for the next run", n)
+	}
+	byStatus := map[string]int{}
+	for _, hash := range []string{"aaa", "bbb"} {
+		byStatus[grabByHash(t, st, hash).Status]++
+	}
+	if byStatus["imported"] != 1 || byStatus["grabbed"] != 1 {
+		t.Errorf("statuses = %v, want one imported (past Place) and one still grabbed", byStatus)
+	}
+}
+
+// TestDoesNotScanAfterCancel: shutdown must not start work it cannot finish.
+func TestDoesNotScanAfterCancel(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: "/whatever"},
+	}}
+	target := &coretest.FakeLibrary{}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Millisecond).Run(ctx)
+
+	if len(target.Placed) != 0 {
+		t.Error("Run scanned on an already-cancelled context")
+	}
+	if g := grabByHash(t, st, "abc"); g.Status != "grabbed" {
+		t.Errorf("status = %q, want still grabbed (untouched)", g.Status)
 	}
 }
 
