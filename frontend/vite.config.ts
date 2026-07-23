@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import path from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -23,5 +24,11 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:9797',
     },
+  },
+  test: {
+    // happy-dom (not jsdom): it resolves the relative-URL fetch/Request calls the
+    // api client makes against location, so MSW can intercept the real client path.
+    environment: 'happy-dom',
+    setupFiles: ['./src/test/setup.ts'],
   },
 })
