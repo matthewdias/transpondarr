@@ -119,8 +119,7 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	authSvc.CleanupExpired(ctx)
-	go authSvc.RunCleanup(ctx, sessionCleanupInterval)
+	go authSvc.RunCleanup(ctx, sessionCleanupInterval, logger)
 
 	// The importer always runs; each scan it reads the current download client and
 	// library from the registry and no-ops when either is unconfigured — so

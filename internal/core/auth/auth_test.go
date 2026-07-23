@@ -2,7 +2,10 @@ package auth
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,6 +14,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
+
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
 
 func newTestAuth(t *testing.T) (*Service, *store.Store) {
 	t.Helper()
@@ -92,8 +99,8 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 }
 
-// Expired sessions must be swept on the ticker, not only at startup — and the
-// sweep must leave live sessions alone.
+// RunCleanup must sweep immediately on entry (the interval here is far longer
+// than the test) and leave live sessions alone.
 func TestRunCleanupSweepsExpiredSessions(t *testing.T) {
 	svc, st := newTestAuth(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -117,7 +124,7 @@ func TestRunCleanupSweepsExpiredSessions(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		svc.RunCleanup(ctx, 10*time.Millisecond)
+		svc.RunCleanup(ctx, time.Hour, discardLogger())
 	}()
 
 	deadline := time.Now().Add(2 * time.Second)
@@ -144,6 +151,56 @@ func TestRunCleanupSweepsExpiredSessions(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("RunCleanup did not stop on context cancellation")
 	}
+}
+
+// A failing sweep must be logged: the ticker is the only thing bounding the
+// sessions table on a long-lived instance, so silence would reproduce issue #4.
+func TestRunCleanupLogsFailedSweep(t *testing.T) {
+	svc, st := newTestAuth(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_ = st.DB.Close()
+
+	w := &syncWriter{}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		svc.RunCleanup(ctx, time.Hour, slog.New(slog.NewTextHandler(w, nil)))
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for !strings.Contains(w.String(), "session cleanup failed") {
+		if time.Now().After(deadline) {
+			t.Fatalf("no warning logged for a failed sweep; log output: %q", w.String())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("RunCleanup did not stop on context cancellation")
+	}
+}
+
+// syncWriter is a goroutine-safe log sink: the test polls it while RunCleanup writes.
+type syncWriter struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (w *syncWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.b.Write(p)
+}
+
+func (w *syncWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.b.String()
 }
 
 // A password change must revoke existing sessions so other logged-in clients are
