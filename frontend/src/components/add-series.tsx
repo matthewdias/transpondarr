@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from 'lucide-react'
 import { api, ApiError, type Candidate } from '@/lib/api'
+import { metadataSearchQuery, seriesQuery } from '@/lib/queries'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
@@ -38,15 +39,14 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
   const query = debounced.trim()
 
   const search = useQuery({
-    queryKey: ['metadata-search', query],
-    queryFn: ({ signal }) => api.searchMetadata(query, signal),
+    ...metadataSearchQuery(query),
     enabled: query.length > 0,
   })
 
   const add = useMutation({
     mutationFn: (c: Candidate) => api.addSeries(c.anilist_id),
     onSuccess: (series) => {
-      queryClient.invalidateQueries({ queryKey: ['series'] })
+      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey })
       toast.success('Series added', {
         description: `${series.title} — ${series.items.length} wanted items expanded`,
       })

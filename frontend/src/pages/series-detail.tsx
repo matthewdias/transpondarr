@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { api, ApiError, type SeriesDetail } from '@/lib/api'
+import { seriesDetailQuery, seriesQuery } from '@/lib/queries'
 import { cn } from '@/lib/utils'
 import { Topbar } from '@/components/topbar'
 import { Poster } from '@/components/poster'
@@ -21,29 +22,30 @@ export function SeriesDetailPage() {
   const [tab, setTab] = useState<TabKey>('episodes')
   const queryClient = useQueryClient()
 
+  const detailKey = seriesDetailQuery(id).queryKey
+
   const { data: detail, isLoading, isError, error } = useQuery({
-    queryKey: ['series', id],
-    queryFn: ({ signal }) => api.getSeries(id, signal),
+    ...seriesDetailQuery(id),
     enabled: Number.isFinite(id),
   })
 
   const monitor = useMutation({
     mutationFn: (v: boolean) => api.setMonitored(id, v),
     onMutate: async (v) => {
-      await queryClient.cancelQueries({ queryKey: ['series', id] })
-      const prev = queryClient.getQueryData<SeriesDetail>(['series', id])
-      queryClient.setQueryData<SeriesDetail>(['series', id], (old) =>
+      await queryClient.cancelQueries({ queryKey: detailKey })
+      const prev = queryClient.getQueryData(detailKey)
+      queryClient.setQueryData(detailKey, (old) =>
         old ? { ...old, monitored: v } : old,
       )
       return { prev }
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(['series', id], ctx.prev)
+      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev)
       toast.error('Could not update monitoring')
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['series', id] })
-      queryClient.invalidateQueries({ queryKey: ['series'] })
+      queryClient.invalidateQueries({ queryKey: detailKey })
+      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey })
     },
   })
 

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Check, Download, FolderClock, History, RefreshCw, TriangleAlert } from 'lucide-react'
-import { api, ApiError, type GrabEvent } from '@/lib/api'
+import { ApiError, type GrabEvent } from '@/lib/api'
+import { grabsQuery } from '@/lib/queries'
 import { timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -20,8 +21,7 @@ function present(status: string) {
 
 export function HistoryTab({ seriesId, active }: { seriesId: number; active: boolean }) {
   const { data: events, isLoading, isPaused, isError, error, refetch } = useQuery({
-    queryKey: ['grabs', seriesId],
-    queryFn: ({ signal }) => api.listGrabs(seriesId, signal),
+    ...grabsQuery(seriesId),
     enabled: active,
   })
 
