@@ -32,8 +32,9 @@ gen-api: ## Regenerate the frontend API types from the OpenAPI spec
 lint: web-lint ## Run linters (Go + frontend)
 	golangci-lint run
 
-web-lint: web-deps ## Lint the frontend (oxlint)
+web-lint: web-deps ## Lint the frontend (oxlint + prettier check)
 	cd frontend && npm run lint
+	cd frontend && npm run format:check
 
 test: web-test ## Run tests (Go + frontend)
 	go test ./...
