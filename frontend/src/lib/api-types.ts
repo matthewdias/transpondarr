@@ -370,7 +370,7 @@ export interface components {
              * @description Derived acquisition state
              * @enum {string}
              */
-            status: "have" | "downloading" | "wanted";
+            status: "have" | "downloading" | "deferred" | "wanted";
         };
         DownloadInputBody: {
             /**

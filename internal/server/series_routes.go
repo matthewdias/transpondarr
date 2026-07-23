@@ -60,13 +60,14 @@ type addSeriesOutput struct {
 }
 
 // detailItemDTO is one wanted item with its derived acquisition state, so the UI
-// can render each episode row (have / downloading / wanted) without a second call.
+// can render each episode row (have / downloading / deferred / wanted) without a
+// second call.
 type detailItemDTO struct {
 	ID           int64  `json:"id"`
 	Number       int    `json:"number"`
 	Name         string `json:"name,omitempty"`
 	Have         bool   `json:"have"`
-	Status       string `json:"status" enum:"have,downloading,wanted" doc:"Derived acquisition state"`
+	Status       string `json:"status" enum:"have,downloading,deferred,wanted" doc:"Derived acquisition state"`
 	ReleaseTitle string `json:"release_title,omitempty"`
 }
 
@@ -311,16 +312,21 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 	for _, r := range rows {
 		have := r.Have == 1
 		status := "wanted"
-		var releaseTitle string
+		var releaseTitle, grabStatus string
 		// A failed grab does not count as downloading: the item reverts to
 		// "wanted" so it can be searched/grabbed again (the failure stays in the
 		// grabs history). Only a non-failed grab marks the item downloading.
 		if g, ok := grabByItem[r.ID]; ok && g.Status != "failed" {
 			releaseTitle = g.ReleaseTitle
+			grabStatus = g.Status
 		}
 		switch {
 		case have:
 			status = "have"
+		case grabStatus == "import_deferred":
+			// Settled without an import (a batch payload): distinct from
+			// downloading, which would otherwise show as in-progress forever.
+			status = "deferred"
 		case releaseTitle != "":
 			// A grab exists but the item isn't had yet → still downloading/importing.
 			status = "downloading"

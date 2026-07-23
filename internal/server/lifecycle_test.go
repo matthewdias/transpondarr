@@ -134,6 +134,44 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 	}
 }
 
+// TestDeferredBatchShowsDeferred: a grab settled as import_deferred must not
+// present as "downloading" forever — the detail endpoint reports it distinctly.
+func TestDeferredBatchShowsDeferred(t *testing.T) {
+	const matchURL = "magnet:?xt=urn:btih:0000000000000000000000000000000000000009"
+	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
+		{Title: "[ExampleSubs] Placeholder Saga S1E09 [1080p]", DownloadURL: matchURL, Seeders: 100},
+	}}
+	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hash9", Outcome: download.AddSuccess}}
+
+	h := newHarness(t, idx, dl)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
+		t.Fatalf("grab status = %d, want 201", code)
+	}
+
+	// The download completes as a batch directory holding none of episode 9's
+	// files, so the importer defers rather than guessing.
+	dir := t.TempDir()
+	for _, name := range []string{
+		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - 06 [1080p].mkv",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dl.Statuses = []download.Status{{Hash: "hash9", State: download.StateComplete, ContentPath: dir}}
+
+	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	if got := itemStatus(t, h, seriesID, 9); got != "deferred" {
+		t.Errorf("episode 9 status = %q, want deferred after a batch payload", got)
+	}
+}
+
 // itemStatus reads one episode's derived status off the series detail endpoint.
 func itemStatus(t *testing.T, h *harness, seriesID int64, number int) string {
 	t.Helper()

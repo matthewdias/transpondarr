@@ -24,7 +24,8 @@ export function EpisodesTab({
   const total = items.length
   const have = items.filter((i) => i.status === 'have').length
   const downloading = items.filter((i) => i.status === 'downloading').length
-  const wanted = total - have - downloading
+  const deferred = items.filter((i) => i.status === 'deferred').length
+  const wanted = total - have - downloading - deferred
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0)
 
   return (
@@ -33,7 +34,7 @@ export function EpisodesTab({
         <div className="flex min-w-0 flex-1 items-center gap-3.5">
           <div
             className="flex h-2.5 w-[120px] flex-none overflow-hidden rounded-md bg-foreground/10 ring-1 ring-inset ring-foreground/[0.07] sm:w-[200px]"
-            title={`${have} in library · ${downloading} downloading · ${wanted} wanted`}
+            title={`${have} in library · ${downloading} downloading · ${deferred} batch downloaded · ${wanted} wanted`}
           >
             {have > 0 && (
               <span className="h-full min-w-1.5 flex-none bg-have" style={{ width: `${pct(have)}%` }} />
@@ -53,6 +54,12 @@ export function EpisodesTab({
                 <span className="font-semibold text-dl">{downloading} downloading</span>
               </>
             )}
+            {deferred > 0 && (
+              <>
+                <span className="mx-1 text-faint">·</span>
+                <span className="font-semibold text-dl">{deferred} batch downloaded</span>
+              </>
+            )}
             <span className="mx-1 text-faint">·</span>
             {wanted} wanted
           </div>
@@ -62,7 +69,7 @@ export function EpisodesTab({
           size="sm"
           className="w-full sm:ml-auto sm:w-auto"
           onClick={onSearchAll}
-          disabled={wanted === 0}
+          disabled={wanted + deferred === 0}
         >
           <Search className="size-4" /> Search all wanted
         </Button>
@@ -110,7 +117,7 @@ function EpisodeRow({ item, onSearch }: { item: WantedItem; onSearch: () => void
         )}
       </TableCell>
       <TableCell className="text-right">
-        {item.status === 'wanted' && (
+        {(item.status === 'wanted' || item.status === 'deferred') && (
           <button
             className="text-sm font-medium text-accent-foreground hover:underline"
             onClick={onSearch}
