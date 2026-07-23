@@ -50,6 +50,25 @@ web/                   embeds web/dist; frontend/ is the Vite source
   (media-server layout now; a drop-folder later). Add new sources/clients/
   targets behind these interfaces.
 
+## Development process — TDD, red/green
+
+Behaviour changes are test-driven. Work red → green → refactor:
+
+1. **Red** — write the failing test first, run it, and confirm it fails *for the
+   right reason* (the missing behaviour, not a compile error or typo).
+2. **Green** — write the minimum implementation that makes it pass.
+3. **Refactor** — clean up with the suite green; run `make test` (and `make lint`)
+   before moving on.
+
+- A bug fix starts with a test that reproduces the bug — it must fail on the old
+  code before the fix lands.
+- Never weaken or delete a failing test to get to green unless the test itself is
+  wrong — and say so in the commit if it is.
+- Use the shared `internal/coretest` harness (temp store + fake indexer/download/
+  library) for pipeline-level tests instead of hand-rolling fixtures.
+- Pure mechanical changes (renames, generated code via `make gen`, docs) don't
+  need a new test — everything that changes behaviour does.
+
 ## Conventions
 
 - **Grab lifecycle (`internal/core/importer`): every status but `grabbed` is
