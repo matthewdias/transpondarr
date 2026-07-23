@@ -8,6 +8,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/config"
@@ -17,6 +18,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/server"
 )
+
+// passwordAttemptBudget mirrors the unexported passwordRateLimit; a change to one
+// without the other fails the rate-limit tests rather than weakening them.
+const passwordAttemptBudget = 5
 
 // newAuthServer builds a server with the given auth config and returns the
 // running test server plus the auth service (so a test can create the admin
@@ -158,6 +163,96 @@ func TestAuthEnabledModeIgnoresLocalAddress(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("public health: status = %d, want 200", resp.StatusCode)
 	}
+}
+
+// TestAuthPasswordChangeIsRateLimited covers the change-password endpoint in
+// "local" mode, where the middleware admits any LAN peer with no credential at
+// all: without the limiter it is an unmetered password-guessing oracle.
+func TestAuthPasswordChangeIsRateLimited(t *testing.T) {
+	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredLocal})
+	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	for i := range passwordAttemptBudget {
+		if code := changePassword(t, ts, "wrongpass", "brandnewpassword"); code != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: status = %d, want 401", i+1, code)
+		}
+	}
+	if code := changePassword(t, ts, "wrongpass", "brandnewpassword"); code != http.StatusTooManyRequests {
+		t.Errorf("attempt past the budget: status = %d, want 429", code)
+	}
+	// The lockout must not be bypassable by supplying the correct password.
+	if code := changePassword(t, ts, "correcthorse", "brandnewpassword"); code != http.StatusTooManyRequests {
+		t.Errorf("correct password while limited: status = %d, want 429", code)
+	}
+}
+
+// TestAuthPasswordLimiterSharesBucket pins the deliberate choice of one bucket for
+// both password-verifying endpoints: spending the budget on login must leave none
+// for change-password, since both guess at the same admin credential.
+func TestAuthPasswordLimiterSharesBucket(t *testing.T) {
+	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredLocal})
+	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	for i := range passwordAttemptBudget {
+		if code := login(t, ts, ts.Client(), "admin", "wrongpass"); code != http.StatusUnauthorized {
+			t.Fatalf("login attempt %d: status = %d, want 401", i+1, code)
+		}
+	}
+	if code := changePassword(t, ts, "wrongpass", "brandnewpassword"); code != http.StatusTooManyRequests {
+		t.Errorf("change-password after login budget spent: status = %d, want 429", code)
+	}
+}
+
+// TestAuthPasswordLimiterIsAtomic guards the limiter's check-then-act step against
+// concurrent attempts: httprate holds its mutex across the read and the increment,
+// so a burst must not slip more than the budget through to verification.
+func TestAuthPasswordLimiterIsAtomic(t *testing.T) {
+	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredEnabled})
+	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	const attempts = 50
+	codes := make([]int, attempts)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := range attempts {
+		wg.Go(func() {
+			<-start
+			codes[i] = login(t, ts, ts.Client(), "admin", "wrongpass")
+		})
+	}
+	close(start)
+	wg.Wait()
+
+	verified := 0
+	for _, c := range codes {
+		switch c {
+		case http.StatusUnauthorized:
+			verified++
+		case http.StatusTooManyRequests:
+		default:
+			t.Errorf("unexpected status %d", c)
+		}
+	}
+	if verified > passwordAttemptBudget {
+		t.Errorf("%d of %d concurrent attempts reached verification, want <= %d", verified, attempts, passwordAttemptBudget)
+	}
+}
+
+func changePassword(t *testing.T, ts *httptest.Server, current, next string) int {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{"current_password": current, "new_password": next})
+	resp, err := ts.Client().Post(ts.URL+"/api/v1/auth/password", "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("password POST: %v", err)
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode
 }
 
 func login(t *testing.T, ts *httptest.Server, client *http.Client, user, pass string) int {
