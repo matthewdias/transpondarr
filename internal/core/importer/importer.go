@@ -201,6 +201,7 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 		// Source not reachable from here — commonly a path-mapping gap when the
 		// client runs elsewhere. Leave it grabbed and retry next tick.
 		im.log.Warn("importer: source not accessible", "hash", g.InfoHash, "path", st.ContentPath, "err", err)
+		im.setLastError(ctx, g, "source not accessible: "+err.Error())
 		return
 	}
 
@@ -229,6 +230,7 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 	if err != nil {
 		if ctx.Err() == nil {
 			im.log.Warn("importer: place failed", "release", g.ReleaseTitle, "err", err)
+			im.setLastError(ctx, g, "import failed: "+err.Error())
 		}
 		return // transient — retry next tick
 	}
@@ -247,6 +249,19 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 	}
 	im.setStatus(ctx, g.ID, statusImported)
 	im.log.Info("importer: imported", "release", g.ReleaseTitle, "item", int(g.ItemNumber.Int64), "dest", final)
+}
+
+// setLastError records why this attempt could not import (a status transition
+// clears it). Skips the write when the reason is unchanged since last tick.
+func (im *Importer) setLastError(ctx context.Context, g db.ListGrabsByStatusRow, msg string) {
+	if g.LastError.Valid && g.LastError.String == msg {
+		return
+	}
+	if err := im.store.Q.SetGrabLastError(ctx, db.SetGrabLastErrorParams{
+		LastError: sql.NullString{String: msg, Valid: true}, ID: g.ID,
+	}); err != nil {
+		im.log.Error("importer: set grab last_error", "err", err)
+	}
 }
 
 func (im *Importer) setStatus(ctx context.Context, id int64, status string) {

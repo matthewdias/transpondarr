@@ -11,7 +11,7 @@ import (
 )
 
 const listGrabsByInfoHash = `-- name: ListGrabsByInfoHash :many
-SELECT id, wanted_item_id, info_hash, release_title, status, created_at, missing_since
+SELECT id, wanted_item_id, info_hash, release_title, status, created_at, missing_since, last_error
 FROM grabs
 WHERE info_hash = ?
 `
@@ -33,6 +33,7 @@ func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]G
 			&i.Status,
 			&i.CreatedAt,
 			&i.MissingSince,
+			&i.LastError,
 		); err != nil {
 			return nil, err
 		}
@@ -48,7 +49,7 @@ func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]G
 }
 
 const listGrabsBySeries = `-- name: ListGrabsBySeries :many
-SELECT g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status, g.created_at, g.missing_since
+SELECT g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status, g.created_at, g.missing_since, g.last_error
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 WHERE w.series_id = ?
@@ -72,6 +73,7 @@ func (q *Queries) ListGrabsBySeries(ctx context.Context, seriesID int64) ([]Grab
 			&i.Status,
 			&i.CreatedAt,
 			&i.MissingSince,
+			&i.LastError,
 		); err != nil {
 			return nil, err
 		}
@@ -89,7 +91,7 @@ func (q *Queries) ListGrabsBySeries(ctx context.Context, seriesID int64) ([]Grab
 const listGrabsByStatus = `-- name: ListGrabsByStatus :many
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
-    g.missing_since,
+    g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
     s.id     AS series_id,
@@ -109,6 +111,7 @@ type ListGrabsByStatusRow struct {
 	ReleaseTitle string         `json:"release_title"`
 	Status       string         `json:"status"`
 	MissingSince sql.NullString `json:"missing_since"`
+	LastError    sql.NullString `json:"last_error"`
 	ItemNumber   sql.NullInt64  `json:"item_number"`
 	ItemKind     string         `json:"item_kind"`
 	SeriesID     int64          `json:"series_id"`
@@ -132,6 +135,7 @@ func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListG
 			&i.ReleaseTitle,
 			&i.Status,
 			&i.MissingSince,
+			&i.LastError,
 			&i.ItemNumber,
 			&i.ItemKind,
 			&i.SeriesID,
@@ -149,6 +153,20 @@ func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListG
 		return nil, err
 	}
 	return items, nil
+}
+
+const setGrabLastError = `-- name: SetGrabLastError :exec
+UPDATE grabs SET last_error = ? WHERE id = ?
+`
+
+type SetGrabLastErrorParams struct {
+	LastError sql.NullString `json:"last_error"`
+	ID        int64          `json:"id"`
+}
+
+func (q *Queries) SetGrabLastError(ctx context.Context, arg SetGrabLastErrorParams) error {
+	_, err := q.db.ExecContext(ctx, setGrabLastError, arg.LastError, arg.ID)
+	return err
 }
 
 const setGrabMissingSince = `-- name: SetGrabMissingSince :exec
@@ -170,7 +188,7 @@ func (q *Queries) SetGrabMissingSince(ctx context.Context, arg SetGrabMissingSin
 }
 
 const setGrabStatus = `-- name: SetGrabStatus :exec
-UPDATE grabs SET status = ? WHERE id = ?
+UPDATE grabs SET status = ?, last_error = NULL WHERE id = ?
 `
 
 type SetGrabStatusParams struct {
@@ -178,6 +196,8 @@ type SetGrabStatusParams struct {
 	ID     int64  `json:"id"`
 }
 
+// Every status but grabbed is settled, so a stale import error never survives
+// a transition.
 func (q *Queries) SetGrabStatus(ctx context.Context, arg SetGrabStatusParams) error {
 	_, err := q.db.ExecContext(ctx, setGrabStatus, arg.Status, arg.ID)
 	return err
@@ -191,9 +211,11 @@ ON CONFLICT (wanted_item_id) DO UPDATE SET
     release_title = excluded.release_title,
     status        = excluded.status,
     created_at    = datetime('now'),
-    -- A re-grab is a fresh download; the previous attempt's stamp must not count.
-    missing_since = NULL
-RETURNING id, wanted_item_id, info_hash, release_title, status, created_at, missing_since
+    -- A re-grab is a fresh download; the previous attempt's stamp and import
+    -- error must not count.
+    missing_since = NULL,
+    last_error    = NULL
+RETURNING id, wanted_item_id, info_hash, release_title, status, created_at, missing_since, last_error
 `
 
 type UpsertGrabParams struct {
@@ -219,6 +241,7 @@ func (q *Queries) UpsertGrab(ctx context.Context, arg UpsertGrabParams) (Grab, e
 		&i.Status,
 		&i.CreatedAt,
 		&i.MissingSince,
+		&i.LastError,
 	)
 	return i, err
 }

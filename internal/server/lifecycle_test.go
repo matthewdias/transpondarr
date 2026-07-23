@@ -86,6 +86,7 @@ type seriesDetailDTO struct {
 		Number       int    `json:"number"`
 		Status       string `json:"status"`
 		ReleaseTitle string `json:"release_title"`
+		ImportError  string `json:"import_error"`
 	} `json:"items"`
 }
 
@@ -235,6 +236,132 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 	}
 	if len(h.lib.Placed) != 1 || h.lib.Placed[0].SourcePath != src {
 		t.Errorf("library placed %+v, want exactly the replacement file", h.lib.Placed)
+	}
+}
+
+// TestStuckImportShowsReason (#37): an import failing on source access must
+// surface as a distinct "stuck" status with the reason — not blend into
+// "downloading" — and recover to "have" once the path works.
+func TestStuckImportShowsReason(t *testing.T) {
+	const matchURL = "magnet:?xt=urn:btih:000000000000000000000000000000000000000c"
+	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
+		{Title: "[ExampleSubs] Placeholder Saga S1E04 [1080p]", DownloadURL: matchURL, Seeders: 100},
+	}}
+	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashC", Outcome: download.AddSuccess}}
+
+	h := newHarness(t, idx, dl)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
+		t.Fatalf("grab status = %d, want 201", code)
+	}
+
+	// Complete, but at a path Transpondarr cannot see (a path-mapping gap).
+	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete,
+		ContentPath: filepath.Join(t.TempDir(), "unmapped", "raw.mkv")}}
+	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	var out seriesDetailDTO
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d", seriesID), &out); code != http.StatusOK {
+		t.Fatalf("GET series detail = %d, want 200", code)
+	}
+	found := false
+	for _, it := range out.Items {
+		if it.Number != 4 {
+			continue
+		}
+		found = true
+		if it.Status != "stuck" {
+			t.Errorf("episode 4 status = %q, want stuck while the import cannot proceed", it.Status)
+		}
+		if it.ImportError == "" {
+			t.Error("episode 4 import_error is empty, want the recorded reason")
+		}
+	}
+	if !found {
+		t.Fatal("episode 4 not in series detail")
+	}
+
+	// The grab history carries the same reason.
+	var hist struct {
+		Events []struct {
+			Status    string `json:"status"`
+			LastError string `json:"last_error"`
+		} `json:"events"`
+	}
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/grabs", seriesID), &hist); code != http.StatusOK {
+		t.Fatalf("GET grabs = %d, want 200", code)
+	}
+	if len(hist.Events) != 1 || hist.Events[0].LastError == "" {
+		t.Errorf("grab events = %+v, want one event carrying last_error", hist.Events)
+	}
+
+	// The path-mapping gap is fixed: the same scan now imports and the reason clears.
+	src := filepath.Join(t.TempDir(), "raw.mkv")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete, ContentPath: src}}
+	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	if got := itemStatus(t, h, seriesID, 4); got != "have" {
+		t.Errorf("episode 4 status = %q, want have after the path is reachable", got)
+	}
+	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	if len(grabs) != 1 || grabs[0].LastError.Valid {
+		t.Errorf("grabs = %+v, want one row with last_error cleared", grabs)
+	}
+}
+
+// TestImportErrorOnlyReportedWhileStuck: import_error is part of the stuck
+// contract. If the item settles as have while a stale last_error lingers (a
+// failed status write after a successful Place), the response must not pair
+// "have" with an import error.
+func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
+	h := newHarness(t, &coretest.FakeIndexer{}, &coretest.FakeDownload{})
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+
+	ctx := context.Background()
+	items, err := h.store.Q.ListWantedItems(ctx, seriesID)
+	if err != nil {
+		t.Fatalf("list wanted items: %v", err)
+	}
+	var itemID int64
+	for _, it := range items {
+		if it.Number.Int64 == 4 {
+			itemID = it.ID
+		}
+	}
+	grab, err := h.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
+		WantedItemID: itemID, InfoHash: "hashD", ReleaseTitle: "rel", Status: "grabbed",
+	})
+	if err != nil {
+		t.Fatalf("upsert grab: %v", err)
+	}
+	if err := h.store.Q.SetGrabLastError(ctx, db.SetGrabLastErrorParams{
+		LastError: sql.NullString{String: "import failed: disk full", Valid: true}, ID: grab.ID,
+	}); err != nil {
+		t.Fatalf("set last_error: %v", err)
+	}
+	if err := h.store.Q.SetWantedItemHave(ctx, db.SetWantedItemHaveParams{Have: 1, ID: itemID}); err != nil {
+		t.Fatalf("set have: %v", err)
+	}
+
+	var out seriesDetailDTO
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d", seriesID), &out); code != http.StatusOK {
+		t.Fatalf("GET series detail = %d, want 200", code)
+	}
+	for _, it := range out.Items {
+		if it.Number != 4 {
+			continue
+		}
+		if it.Status != "have" {
+			t.Errorf("episode 4 status = %q, want have", it.Status)
+		}
+		if it.ImportError != "" {
+			t.Errorf("episode 4 import_error = %q, want empty on a settled item", it.ImportError)
+		}
 	}
 }
 

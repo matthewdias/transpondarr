@@ -3,10 +3,12 @@ package importer
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -87,6 +89,16 @@ func setGrabStatus(t *testing.T, st *store.Store, hash, status string) {
 		Status: status, ID: grabByHash(t, st, hash).ID,
 	}); err != nil {
 		t.Fatalf("set grab status: %v", err)
+	}
+}
+
+// setLastError forces a grab's last_error, standing in for an earlier failed attempt.
+func setLastError(t *testing.T, st *store.Store, hash, msg string) {
+	t.Helper()
+	if err := st.Q.SetGrabLastError(context.Background(), db.SetGrabLastErrorParams{
+		LastError: sql.NullString{String: msg, Valid: true}, ID: grabByHash(t, st, hash).ID,
+	}); err != nil {
+		t.Fatalf("set last_error: %v", err)
 	}
 }
 
@@ -494,7 +506,8 @@ func TestReappearingHashClearsMissingSince(t *testing.T) {
 }
 
 // TestLeavesGrabWhenSourceNotAccessible: an unreachable ContentPath (a path-mapping
-// gap when the client runs elsewhere) must stay grabbed for a later scan.
+// gap when the client runs elsewhere) must stay grabbed for a later scan — and
+// the reason must be recorded on the grab, not just logged (#37).
 func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -507,8 +520,76 @@ func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 	if len(target.Placed) != 0 {
 		t.Error("nothing should be placed when the source path is not accessible")
 	}
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
-	if rows[0].Status != "grabbed" {
-		t.Errorf("status = %q, want still grabbed (left for retry)", rows[0].Status)
+	g := grabByHash(t, st, "abc")
+	if g.Status != "grabbed" {
+		t.Errorf("status = %q, want still grabbed (left for retry)", g.Status)
+	}
+	if !g.LastError.Valid || !strings.Contains(g.LastError.String, "source not accessible") {
+		t.Errorf("last_error = %+v, want a recorded source-not-accessible reason", g.LastError)
+	}
+}
+
+// TestRecordsLastErrorWhenPlaceFails: a failing library target (permissions,
+// disk full) retries forever; the reason must be visible on the grab (#37).
+func TestRecordsLastErrorWhenPlaceFails(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	src := filepath.Join(t.TempDir(), "raw.mkv")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: src},
+	}}
+	target := &coretest.FakeLibrary{DestErr: errors.New("mkdir /library: permission denied")}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	g := grabByHash(t, st, "abc")
+	if g.Status != "grabbed" {
+		t.Errorf("status = %q, want still grabbed (left for retry)", g.Status)
+	}
+	if !g.LastError.Valid || !strings.Contains(g.LastError.String, "permission denied") {
+		t.Errorf("last_error = %+v, want the Place failure recorded", g.LastError)
+	}
+}
+
+// TestClearsLastErrorOnSuccessfulImport: once the condition is fixed and the
+// import lands, the stale reason must not survive.
+func TestClearsLastErrorOnSuccessfulImport(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	setLastError(t, st, "abc", "source not accessible: stat /gone: no such file or directory")
+	src := filepath.Join(t.TempDir(), "raw.mkv")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: src},
+	}}
+	New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	g := grabByHash(t, st, "abc")
+	if g.Status != "imported" {
+		t.Fatalf("status = %q, want imported", g.Status)
+	}
+	if g.LastError.Valid {
+		t.Errorf("last_error = %q, want cleared on a successful import", g.LastError.String)
+	}
+}
+
+// TestClearsLastErrorOnRegrab: a fresh download starts with a clean slate, like
+// missing_since.
+func TestClearsLastErrorOnRegrab(t *testing.T) {
+	st := coretest.NewStore(t)
+	itemID, _ := seedGrab(t, st, "abc")
+	setLastError(t, st, "abc", "import failed: disk full")
+
+	if _, err := st.Q.UpsertGrab(context.Background(), db.UpsertGrabParams{
+		WantedItemID: itemID, InfoHash: "def", ReleaseTitle: "rel2", Status: "grabbed",
+	}); err != nil {
+		t.Fatalf("re-grab: %v", err)
+	}
+	if g := grabByHash(t, st, "def"); g.LastError.Valid {
+		t.Errorf("last_error = %q, want cleared by the re-grab", g.LastError.String)
 	}
 }

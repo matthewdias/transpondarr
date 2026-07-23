@@ -8,14 +8,16 @@ import { Button } from '@/components/ui/button'
 import { Item, ItemContent, ItemMedia, ItemActions, ItemGroup } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 
-function present(status: string) {
-  switch (status) {
+function present(event: GrabEvent) {
+  switch (event.status) {
     case 'imported':
       return { verb: 'Imported', icon: Check, tone: 'bg-have-weak text-have' }
     case 'import_deferred':
       return { verb: 'Downloaded (batch)', icon: FolderClock, tone: 'bg-panel-2 text-muted-foreground' }
     default:
-      return { verb: 'Downloading', icon: Download, tone: 'bg-dl-weak text-dl' }
+      return event.last_error
+        ? { verb: 'Import blocked', icon: TriangleAlert, tone: 'bg-destructive/15 text-destructive' }
+        : { verb: 'Downloading', icon: Download, tone: 'bg-dl-weak text-dl' }
   }
 }
 
@@ -78,7 +80,7 @@ export function HistoryTab({ seriesId, active }: { seriesId: number; active: boo
 }
 
 function HistoryRow({ event }: { event: GrabEvent }) {
-  const { verb, icon: Icon, tone } = present(event.status)
+  const { verb, icon: Icon, tone } = present(event)
   return (
     <Item className="gap-3">
       <ItemMedia>
@@ -93,6 +95,9 @@ function HistoryRow({ event }: { event: GrabEvent }) {
         <div className="line-clamp-1 font-mono text-[12px] text-faint">
           {event.release_title}
         </div>
+        {event.last_error && (
+          <div className="line-clamp-2 text-[12px] text-destructive">{event.last_error}</div>
+        )}
       </ItemContent>
       <ItemActions>
         <span className="text-xs text-faint">{timeAgo(event.created_at)}</span>

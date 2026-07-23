@@ -67,8 +67,9 @@ type detailItemDTO struct {
 	Number       int    `json:"number"`
 	Name         string `json:"name,omitempty"`
 	Have         bool   `json:"have"`
-	Status       string `json:"status" enum:"have,downloading,deferred,wanted" doc:"Derived acquisition state"`
+	Status       string `json:"status" enum:"have,downloading,stuck,deferred,wanted" doc:"Derived acquisition state"`
 	ReleaseTitle string `json:"release_title,omitempty"`
+	ImportError  string `json:"import_error,omitempty" doc:"Why the last import attempt failed (status stuck)"`
 }
 
 type seriesDetailReadDTO struct {
@@ -111,6 +112,7 @@ type grabEventDTO struct {
 	ReleaseTitle string `json:"release_title"`
 	InfoHash     string `json:"infohash"`
 	Status       string `json:"status" doc:"grabbed, imported, import_deferred, or failed"`
+	LastError    string `json:"last_error,omitempty" doc:"Why the last import attempt failed, while still grabbed"`
 	CreatedAt    string `json:"created_at"`
 }
 
@@ -312,13 +314,14 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 	for _, r := range rows {
 		have := r.Have == 1
 		status := "wanted"
-		var releaseTitle, grabStatus string
+		var releaseTitle, grabStatus, importError string
 		// A failed grab does not count as downloading: the item reverts to
 		// "wanted" so it can be searched/grabbed again (the failure stays in the
 		// grabs history). Only a non-failed grab marks the item downloading.
 		if g, ok := grabByItem[r.ID]; ok && g.Status != "failed" {
 			releaseTitle = g.ReleaseTitle
 			grabStatus = g.Status
+			importError = g.LastError.String
 		}
 		switch {
 		case have:
@@ -327,9 +330,18 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 			// Settled without an import (a batch payload): distinct from
 			// downloading, which would otherwise show as in-progress forever.
 			status = "deferred"
+		case importError != "":
+			// Download done but the import keeps failing (path mapping, library
+			// permissions): distinct from downloading, with the reason attached.
+			status = "stuck"
 		case releaseTitle != "":
 			// A grab exists but the item isn't had yet → still downloading/importing.
 			status = "downloading"
+		}
+		if status != "stuck" {
+			// The reason is part of the stuck contract; a settled item must not
+			// carry a stale one.
+			importError = ""
 		}
 		out.Body.Items = append(out.Body.Items, detailItemDTO{
 			ID:           r.ID,
@@ -338,6 +350,7 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 			Have:         have,
 			Status:       status,
 			ReleaseTitle: releaseTitle,
+			ImportError:  importError,
 		})
 	}
 	return out, nil
@@ -390,6 +403,7 @@ func (h *seriesHandler) listGrabs(ctx context.Context, in *seriesGrabsInput) (*s
 			ReleaseTitle: g.ReleaseTitle,
 			InfoHash:     g.InfoHash,
 			Status:       g.Status,
+			LastError:    g.LastError.String,
 			CreatedAt:    g.CreatedAt,
 		})
 	}

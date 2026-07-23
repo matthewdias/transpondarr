@@ -1,4 +1,4 @@
-import { Check, Download, FolderClock } from 'lucide-react'
+import { Check, Download, FolderClock, TriangleAlert } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ItemStatus } from '@/lib/api'
 
@@ -25,8 +25,17 @@ export function MonitoredBadge({ monitored }: { monitored: boolean }) {
   )
 }
 
-export function ItemStatusBadge({ status }: { status: ItemStatus }) {
+export function ItemStatusBadge({ status, error }: { status: ItemStatus; error?: string }) {
   switch (status) {
+    case 'stuck':
+      return (
+        <span
+          className={cn(badgeBase, 'border-destructive/40 bg-transparent text-destructive')}
+          title={error || 'The download finished but the file could not be imported. Check server logs.'}
+        >
+          <TriangleAlert className="size-3" /> Import blocked
+        </span>
+      )
     case 'have':
       return (
         <span className={cn(badgeBase, 'border-transparent bg-have-weak text-have')}>

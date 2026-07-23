@@ -24,8 +24,9 @@ export function EpisodesTab({
   const total = items.length
   const have = items.filter((i) => i.status === 'have').length
   const downloading = items.filter((i) => i.status === 'downloading').length
+  const stuck = items.filter((i) => i.status === 'stuck').length
   const deferred = items.filter((i) => i.status === 'deferred').length
-  const wanted = total - have - downloading - deferred
+  const wanted = total - have - downloading - stuck - deferred
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0)
 
   return (
@@ -34,7 +35,7 @@ export function EpisodesTab({
         <div className="flex min-w-0 flex-1 items-center gap-3.5">
           <div
             className="flex h-2.5 w-[120px] flex-none overflow-hidden rounded-md bg-foreground/10 ring-1 ring-inset ring-foreground/[0.07] sm:w-[200px]"
-            title={`${have} in library · ${downloading} downloading · ${deferred} batch downloaded · ${wanted} wanted`}
+            title={`${have} in library · ${downloading} downloading · ${stuck} import blocked · ${deferred} batch downloaded · ${wanted} wanted`}
           >
             {have > 0 && (
               <span className="h-full min-w-1.5 flex-none bg-have" style={{ width: `${pct(have)}%` }} />
@@ -52,6 +53,12 @@ export function EpisodesTab({
               <>
                 <span className="mx-1 text-faint">·</span>
                 <span className="font-semibold text-dl">{downloading} downloading</span>
+              </>
+            )}
+            {stuck > 0 && (
+              <>
+                <span className="mx-1 text-faint">·</span>
+                <span className="font-semibold text-destructive">{stuck} import blocked</span>
               </>
             )}
             {deferred > 0 && (
@@ -105,7 +112,7 @@ function EpisodeRow({ item, onSearch }: { item: WantedItem; onSearch: () => void
         {pad2(item.number)}
       </TableCell>
       <TableCell>
-        <ItemStatusBadge status={item.status} />
+        <ItemStatusBadge status={item.status} error={item.import_error} />
       </TableCell>
       <TableCell className="hidden text-muted-foreground sm:table-cell">
         {item.release_title ? (

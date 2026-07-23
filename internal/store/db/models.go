@@ -16,6 +16,7 @@ type Grab struct {
 	Status       string         `json:"status"`
 	CreatedAt    string         `json:"created_at"`
 	MissingSince sql.NullString `json:"missing_since"`
+	LastError    sql.NullString `json:"last_error"`
 }
 
 type MetadataCache struct {
