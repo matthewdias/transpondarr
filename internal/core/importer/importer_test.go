@@ -33,13 +33,11 @@ func (f fakeSource) Library() library.Target   { return f.lib }
 // reproducing a SIGTERM landing between Place and the status writes.
 type cancelOnPlace struct {
 	coretest.FakeLibrary
-	cancel      context.CancelFunc
-	placeCtxErr error
+	cancel context.CancelFunc
 }
 
 func (c *cancelOnPlace) Place(ctx context.Context, r library.ImportRequest) (string, error) {
 	c.cancel()
-	c.placeCtxErr = ctx.Err()
 	return c.FakeLibrary.Place(ctx, r)
 }
 
@@ -145,9 +143,9 @@ func TestImportsCompletedGrab(t *testing.T) {
 	}
 }
 
-// TestFinishesInFlightScanAfterCancel: a signal arriving between Place and the
-// status writes must not leave a placed file still marked grabbed.
-func TestFinishesInFlightScanAfterCancel(t *testing.T) {
+// TestFinishesInFlightImportAfterCancel: a signal arriving between Place and
+// the status writes must not leave a placed file still marked grabbed.
+func TestFinishesInFlightImportAfterCancel(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, seriesID := seedGrab(t, st, "abc")
 	src := filepath.Join(t.TempDir(), "raw.mkv")
@@ -173,9 +171,6 @@ func TestFinishesInFlightScanAfterCancel(t *testing.T) {
 		t.Fatal("Run did not return after its context was cancelled")
 	}
 
-	if target.placeCtxErr != nil {
-		t.Errorf("Place ran on a cancelled context (%v); an in-flight scan must be detached from the signal", target.placeCtxErr)
-	}
 	if g := grabByHash(t, st, "abc"); g.Status != "imported" {
 		t.Errorf("status = %q, want imported: the file was already placed when the cancel arrived", g.Status)
 	}
@@ -185,6 +180,50 @@ func TestFinishesInFlightScanAfterCancel(t *testing.T) {
 	}
 	if n := len(target.Placed); n != 1 {
 		t.Errorf("Place called %d times, want 1", n)
+	}
+}
+
+// TestStopsScanMidwayOnCancel: a cancel mid-scan finishes the grab past its
+// Place but must not start placing the next one.
+func TestStopsScanMidwayOnCancel(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "aaa")
+	seedGrab(t, st, "bbb")
+	dir := t.TempDir()
+	var statuses []download.Status
+	for _, hash := range []string{"aaa", "bbb"} {
+		src := filepath.Join(dir, hash+".mkv")
+		if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		statuses = append(statuses, download.Status{Hash: hash, State: download.StateComplete, ContentPath: src})
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	target := &cancelOnPlace{cancel: cancel}
+	dl := &coretest.FakeDownload{Statuses: statuses}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Millisecond).Run(ctx)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not return after its context was cancelled")
+	}
+
+	if n := len(target.Placed); n != 1 {
+		t.Fatalf("Place called %d times, want 1: the second grab must wait for the next run", n)
+	}
+	byStatus := map[string]int{}
+	for _, hash := range []string{"aaa", "bbb"} {
+		byStatus[grabByHash(t, st, hash).Status]++
+	}
+	if byStatus["imported"] != 1 || byStatus["grabbed"] != 1 {
+		t.Errorf("statuses = %v, want one imported (past Place) and one still grabbed", byStatus)
 	}
 }
 

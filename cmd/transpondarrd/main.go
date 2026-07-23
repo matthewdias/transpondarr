@@ -83,7 +83,15 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = st.DB.Close() }()
+	// leaveStoreOpen skips the close when the importer overruns the shutdown
+	// deadline: SQLite recovers an unclosed store on next open, whereas closing it
+	// under the straggling scan would fail its writes.
+	var leaveStoreOpen bool
+	defer func() {
+		if !leaveStoreOpen {
+			_ = st.DB.Close()
+		}
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -137,19 +145,21 @@ func run(logger *slog.Logger) error {
 	}()
 
 	<-ctx.Done()
+	stop() // a second signal now kills the process instead of being swallowed during the drain
 
 	logger.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
-	// Drained concurrently so they share the one budget; the store (closed by the
-	// deferred Close above) must outlive the importer's in-flight scan.
+	// Drained concurrently so they share the one budget; the store must outlive
+	// the importer's in-flight scan.
 	srvErr := make(chan error, 1)
 	go func() { srvErr <- srv.Shutdown(shutdownCtx) }()
 	select {
 	case <-importerDone:
 	case <-shutdownCtx.Done():
-		logger.Warn("importer still scanning at the shutdown deadline", "timeout", shutdownTimeout)
+		leaveStoreOpen = true
+		logger.Warn("importer still scanning at the shutdown deadline; leaving the store open for it", "timeout", shutdownTimeout)
 	}
 	return <-srvErr
 }
