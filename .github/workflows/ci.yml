@@ -28,6 +28,10 @@ jobs:
       - name: Build (frontend + backend)
         run: make build
 
+      # Catch build steps that clobber committed files (e.g. web/dist/.gitkeep).
+      - name: Build leaves tree clean
+        run: git diff --exit-code
+
       - name: Vet
         run: go vet ./...
 

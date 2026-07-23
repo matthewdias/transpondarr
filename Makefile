@@ -11,7 +11,6 @@ build: web ## Build frontend + server into ./$(BIN)
 
 web: web-deps ## Build the frontend into web/dist (embedded by the binary)
 	cd frontend && npm run build
-	@touch web/dist/.gitkeep # vite empties web/dist; restore the committed keeper
 
 # Install frontend deps only when the lockfile changes, so `make build` and
 # `make lint` in the same CI run don't each pay for a full `npm ci`.
