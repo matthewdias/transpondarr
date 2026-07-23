@@ -33,6 +33,10 @@ const importPollInterval = 15 * time.Second
 // importer's in-flight scan.
 const shutdownTimeout = 10 * time.Second
 
+// sessionCleanupInterval is how often expired session rows are swept; daily is
+// plenty for a 30-day session TTL.
+const sessionCleanupInterval = 24 * time.Hour
+
 func main() {
 	// `transpondarrd openapi` prints the OpenAPI spec to stdout and exits — used by
 	// the frontend's type generation (`make gen-api`), no server or DB required.
@@ -115,7 +119,7 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	authSvc.CleanupExpired(ctx)
+	go authSvc.RunCleanup(ctx, sessionCleanupInterval, logger)
 
 	// The importer always runs; each scan it reads the current download client and
 	// library from the registry and no-ops when either is unconfigured — so
