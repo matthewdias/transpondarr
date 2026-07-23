@@ -120,8 +120,7 @@ func (t *Target) transfer(ctx context.Context, src, dest string) error {
 		if err := os.Link(src, dest); err != nil {
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
-		syncDir(filepath.Dir(dest))
-		return nil
+		return syncLinked(dest)
 	default: // ModeAuto
 		if err := os.Link(src, dest); err != nil {
 			if isUnsupportedLink(err) {
@@ -129,9 +128,28 @@ func (t *Target) transfer(ctx context.Context, src, dest string) error {
 			}
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
-		syncDir(filepath.Dir(dest))
-		return nil
+		return syncLinked(dest)
 	}
+}
+
+// syncLinked flushes a fresh link's data — the download client's writes, possibly
+// still unflushed — so a crash can't truncate the file behind a settled import.
+// On failure the link is removed so a retry re-links instead of passing the size check.
+func syncLinked(dest string) error {
+	err := func() error {
+		f, err := os.Open(dest)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = f.Close() }()
+		return f.Sync()
+	}()
+	if err != nil {
+		_ = os.Remove(dest)
+		return fmt.Errorf("mediaserver: sync hardlink: %w", err)
+	}
+	syncDir(filepath.Dir(dest))
+	return nil
 }
 
 // isUnsupportedLink reports whether a hardlink failure means the filesystem simply

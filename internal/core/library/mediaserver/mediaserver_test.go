@@ -175,6 +175,29 @@ func TestPlaceHardlinkReclaimsTruncatedDest(t *testing.T) {
 	}
 }
 
+// A link whose sync fails must be removed with the error surfaced — otherwise the
+// retry finds a same-inode dest, passes the size check, and settles without syncing.
+// An unreadable source forces the failure: os.Link needs no read permission, os.Open does.
+func TestPlaceHardlinkRemovesLinkOnSyncFailure(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can open unreadable files")
+	}
+	src := writeSource(t, "raw.mkv")
+	if err := os.Chmod(src, 0o000); err != nil {
+		t.Fatalf("chmod source: %v", err)
+	}
+	root := t.TempDir()
+
+	_, err := New(root, "hardlink").Place(context.Background(), req(src, "Placeholder Saga", 10))
+	if err == nil {
+		t.Fatal("expected an error when the linked file cannot be synced")
+	}
+	dest := filepath.Join(root, "Placeholder Saga", "Season 01", "Placeholder Saga - S01E10.mkv")
+	if _, err := os.Stat(dest); !os.IsNotExist(err) {
+		t.Error("a link that could not be synced must be removed so a retry re-links")
+	}
+}
+
 // An equal-sized dest is a completed past import and must stay untouched.
 func TestPlaceKeepsEqualSizedDest(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
