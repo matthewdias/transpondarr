@@ -48,5 +48,12 @@ jobs:
           make notices
           git diff --exit-code THIRD-PARTY-NOTICES.md
 
+      # api-types.ts is committed generated output; fail if it has drifted
+      # from what the current OpenAPI spec would produce.
+      - name: API types up to date
+        run: |
+          make gen-api
+          git diff --exit-code frontend/src/lib/api-types.ts
+
       - name: Vulnerability scan
         run: govulncheck ./... # version pinned in mise.toml
