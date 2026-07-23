@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // The frontend builds into ../web/dist, which the Go binary embeds (see web/web.go).
+// public/.gitkeep rides along into web/dist so emptyOutDir can't drop the committed keeper.
 // In dev, `npm run dev` proxies /api to the running transpondarrd server.
 // https://vite.dev/config/
 export default defineConfig({

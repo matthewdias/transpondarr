@@ -1,9 +1,8 @@
 version: 2
 project_name: transpondarr
 
-# Hooks must not mutate the tagged tree: download+verify instead of tidy, and
-# `make web` (not raw `npm run build`) so the committed web/dist/.gitkeep that
-# vite's emptyOutDir deletes is restored.
+# Hooks must not mutate the tagged tree: download+verify instead of tidy; the
+# vite build re-emits the committed web/dist/.gitkeep it deletes (see web/web.go).
 before:
   hooks:
     - go mod download
