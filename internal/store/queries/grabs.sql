@@ -6,8 +6,10 @@ ON CONFLICT (wanted_item_id) DO UPDATE SET
     release_title = excluded.release_title,
     status        = excluded.status,
     created_at    = datetime('now'),
-    -- A re-grab is a fresh download; the previous attempt's stamp must not count.
-    missing_since = NULL
+    -- A re-grab is a fresh download; the previous attempt's stamp and import
+    -- error must not count.
+    missing_since = NULL,
+    last_error    = NULL
 RETURNING *;
 
 -- name: ListGrabsBySeries :many
@@ -25,7 +27,7 @@ WHERE info_hash = ?;
 -- name: ListGrabsByStatus :many
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
-    g.missing_since,
+    g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
     s.id     AS series_id,
@@ -38,7 +40,9 @@ WHERE g.status = ?
 ORDER BY g.info_hash;
 
 -- name: SetGrabStatus :exec
-UPDATE grabs SET status = ? WHERE id = ?;
+-- Every status but grabbed is settled, so a stale import error never survives
+-- a transition.
+UPDATE grabs SET status = ?, last_error = NULL WHERE id = ?;
 
 -- name: SetGrabMissingSince :exec
 -- The caller supplies the timestamp in SQLite's datetime('now') format, so
@@ -46,3 +50,6 @@ UPDATE grabs SET status = ? WHERE id = ?;
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 UPDATE grabs SET missing_since = ? WHERE id = ?;
+
+-- name: SetGrabLastError :exec
+UPDATE grabs SET last_error = ? WHERE id = ?;

@@ -362,6 +362,8 @@ export interface components {
             have: boolean;
             /** Format: int64 */
             id: number;
+            /** @description Why the last import attempt failed (status stuck) */
+            import_error?: string;
             name?: string;
             /** Format: int64 */
             number: number;
@@ -370,7 +372,7 @@ export interface components {
              * @description Derived acquisition state
              * @enum {string}
              */
-            status: "have" | "downloading" | "deferred" | "wanted";
+            status: "have" | "downloading" | "stuck" | "deferred" | "wanted";
         };
         DownloadInputBody: {
             /**
@@ -454,6 +456,8 @@ export interface components {
             infohash: string;
             /** Format: int64 */
             item_number: number;
+            /** @description Why the last import attempt failed, while still grabbed */
+            last_error?: string;
             release_title: string;
             /** @description grabbed, imported, import_deferred, or failed */
             status: string;
