@@ -31,8 +31,8 @@ func (f fakeSource) Library() library.Target   { return f.lib }
 
 // --- helpers ----------------------------------------------------------------
 
-// seedGrab creates a series + one wanted item + a grab, returning the item id.
-func seedGrab(t *testing.T, st *store.Store, hash string) int64 {
+// seedGrab creates a series + one wanted item + a grab.
+func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, seriesID int64) {
 	t.Helper()
 	ctx := context.Background()
 	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
@@ -50,16 +50,53 @@ func seedGrab(t *testing.T, st *store.Store, hash string) int64 {
 	}); err != nil {
 		t.Fatalf("upsert grab: %v", err)
 	}
-	return item.ID
+	return item.ID, s.ID
 }
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+
+// grabByHash returns the single grab row for an info hash.
+func grabByHash(t *testing.T, st *store.Store, hash string) db.Grab {
+	t.Helper()
+	rows, err := st.Q.ListGrabsByInfoHash(context.Background(), hash)
+	if err != nil {
+		t.Fatalf("list grabs by hash: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d grabs for %q, want 1", len(rows), hash)
+	}
+	return rows[0]
+}
+
+// setGrabStatus forces a grab's status, standing in for an earlier scan.
+func setGrabStatus(t *testing.T, st *store.Store, hash, status string) {
+	t.Helper()
+	if err := st.Q.SetGrabStatus(context.Background(), db.SetGrabStatusParams{
+		Status: status, ID: grabByHash(t, st, hash).ID,
+	}); err != nil {
+		t.Fatalf("set grab status: %v", err)
+	}
+}
+
+// backdateMissingSince sets a grab's missing_since to ago in the past and
+// returns it, so a test can assert the grace period was not restarted.
+func backdateMissingSince(t *testing.T, st *store.Store, hash string, ago time.Duration) string {
+	t.Helper()
+	value := time.Now().UTC().Add(-ago).Format("2006-01-02 15:04:05")
+	if err := st.Q.SetGrabMissingSince(context.Background(), db.SetGrabMissingSinceParams{
+		MissingSince: sql.NullString{String: value, Valid: true},
+		ID:           grabByHash(t, st, hash).ID,
+	}); err != nil {
+		t.Fatalf("set missing_since: %v", err)
+	}
+	return value
+}
 
 // --- tests ------------------------------------------------------------------
 
 func TestImportsCompletedGrab(t *testing.T) {
 	st := coretest.NewStore(t)
-	itemID := seedGrab(t, st, "abc")
+	_, seriesID := seedGrab(t, st, "abc")
 
 	// A real completed file for the importer to stat and place.
 	srcDir := t.TempDir()
@@ -88,7 +125,7 @@ func TestImportsCompletedGrab(t *testing.T) {
 	if len(rows) != 1 || rows[0].Status != "imported" {
 		t.Errorf("grab status = %v, want imported", rows)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), rowsSeriesID(t, st, itemID))
+	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
 	if items[0].Have != 1 {
 		t.Errorf("have = %d, want 1", items[0].Have)
 	}
@@ -112,10 +149,48 @@ func TestSkipsIncompleteGrab(t *testing.T) {
 	}
 }
 
-func TestDefersBatchDirectory(t *testing.T) {
+// TestImportsFolderWrappedEpisode: a directory payload is not automatically a batch.
+func TestImportsFolderWrappedEpisode(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, seriesID := seedGrab(t, st, "abc")
+	dir := writeTree(t,
+		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - 05 [1080p].nfo",
+		"Subs/[ExampleSubs] Placeholder Saga - 05 [1080p].en.srt",
+		"Sample/placeholder-saga-05-sample.mkv",
+	)
+
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	target := &coretest.FakeLibrary{}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	if len(target.Placed) != 1 {
+		t.Fatalf("Place called %d times, want 1", len(target.Placed))
+	}
+	if got := filepath.Base(target.Placed[0].SourcePath); got != "[ExampleSubs] Placeholder Saga - 05 [1080p].mkv" {
+		t.Errorf("placed %q, want the episode file inside the folder", got)
+	}
+	if grabByHash(t, st, "abc").Status != "imported" {
+		t.Errorf("status = %q, want imported", grabByHash(t, st, "abc").Status)
+	}
+	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	if items[0].Have != 1 {
+		t.Errorf("have = %d, want 1", items[0].Have)
+	}
+}
+
+// TestDefersMultiEpisodeDirectory: importing the one matching file out of a real
+// batch would mark the grab imported and drop the rest of the pack.
+func TestDefersMultiEpisodeDirectory(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
-	dir := t.TempDir() // a directory content path == batch
+	dir := writeTree(t,
+		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - 06 [1080p].mkv",
+	)
 
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
@@ -124,11 +199,68 @@ func TestDefersBatchDirectory(t *testing.T) {
 	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
 
 	if len(target.Placed) != 0 {
-		t.Error("batch directory should not be placed")
+		t.Error("a multi-episode payload should not be placed")
 	}
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
-	if rows[0].Status != "import_deferred" {
-		t.Errorf("status = %q, want import_deferred", rows[0].Status)
+	if g := grabByHash(t, st, "abc"); g.Status != "import_deferred" {
+		t.Errorf("status = %q, want import_deferred", g.Status)
+	}
+}
+
+// TestDoesNotReexamineDeferredGrab pins import_deferred as terminal for import.
+func TestDoesNotReexamineDeferredGrab(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	setGrabStatus(t, st, "abc", "import_deferred")
+	// A payload that would resolve, to prove the skip is about the status.
+	dir := writeTree(t, "[ExampleSubs] Placeholder Saga - 05 [1080p].mkv")
+
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	target := &coretest.FakeLibrary{}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	if len(target.Placed) != 0 {
+		t.Error("a deferred grab should not be re-imported")
+	}
+	if g := grabByHash(t, st, "abc"); g.Status != "import_deferred" {
+		t.Errorf("status = %q, want still import_deferred", g.Status)
+	}
+}
+
+// TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod: a deferred grab is still
+// an outstanding torrent, so the same reconciliation must reach it.
+func TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	setGrabStatus(t, st, "abc", "import_deferred")
+	backdateMissingSince(t, st, "abc", time.Hour)
+
+	dl := &coretest.FakeDownload{} // client reports nothing at all
+	target := &coretest.FakeLibrary{}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	if g := grabByHash(t, st, "abc"); g.Status != "failed" {
+		t.Errorf("status = %q, want failed once the deferred grab's torrent was gone for the grace period", g.Status)
+	}
+}
+
+// TestWatchesDeferredGrabOnFirstAbsence is the deferred counterpart of the watch path.
+func TestWatchesDeferredGrabOnFirstAbsence(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	setGrabStatus(t, st, "abc", "import_deferred")
+
+	dl := &coretest.FakeDownload{}
+	target := &coretest.FakeLibrary{}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	g := grabByHash(t, st, "abc")
+	if g.Status != "import_deferred" {
+		t.Errorf("status = %q, want still import_deferred inside the grace period", g.Status)
+	}
+	if !g.MissingSince.Valid {
+		t.Error("missing_since not set on a deferred grab's first absence")
 	}
 }
 
@@ -150,18 +282,9 @@ func TestFailsErroredGrab(t *testing.T) {
 	}
 }
 
-// TestLeavesGrabWhenHashAbsentFromClient pins the known grab-state
-// reconciliation gap: when a grabbed torrent's hash is not reported by the
-// download client (removed out-of-band, or the client was restarted), the
-// importer deliberately leaves the grab in "grabbed" and retries next tick
-// rather than failing it — an absence can be transient.
-//
-// This is a characterization test of *current* behavior. The gap is that a
-// torrent genuinely deleted in the client strands the grab in "grabbed" forever
-// (the item never becomes grabbable again). When reconciliation lands, this
-// expectation should flip — a persistently-absent hash should be reconciled, not
-// left grabbed indefinitely.
-func TestLeavesGrabWhenHashAbsentFromClient(t *testing.T) {
+// TestWatchesGrabOnFirstAbsenceFromClient: one absent scan only records the
+// absence, since the client may just be reloading its torrent list.
+func TestWatchesGrabOnFirstAbsenceFromClient(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
 	// The client reports some other torrent but not "abc".
@@ -174,16 +297,87 @@ func TestLeavesGrabWhenHashAbsentFromClient(t *testing.T) {
 	if len(target.Placed) != 0 {
 		t.Error("nothing should be placed when the hash is absent from the client")
 	}
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
-	if rows[0].Status != "grabbed" {
-		t.Errorf("status = %q, want still grabbed (left for retry)", rows[0].Status)
+	g := grabByHash(t, st, "abc")
+	if g.Status != "grabbed" {
+		t.Errorf("status = %q, want still grabbed (inside the grace period)", g.Status)
+	}
+	if !g.MissingSince.Valid {
+		t.Error("missing_since not set on the first absence")
 	}
 }
 
-// TestLeavesGrabWhenSourceNotAccessible covers the other retry branch: the
-// download completed but its ContentPath cannot be stat'd from here (commonly a
-// path-mapping gap when the client runs on another host). The grab stays
-// "grabbed" so a later scan — once the path resolves — can import it.
+// TestKeepsGrabWhileAbsenceIsWithinGracePeriod: the grace period runs from the
+// first absence, so a later scan must not restart it.
+func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	firstAbsence := backdateMissingSince(t, st, "abc", time.Minute)
+
+	dl := &coretest.FakeDownload{} // client reports nothing at all
+	target := &coretest.FakeLibrary{}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	g := grabByHash(t, st, "abc")
+	if g.Status != "grabbed" {
+		t.Errorf("status = %q, want still grabbed one minute into the grace period", g.Status)
+	}
+	if g.MissingSince.String != firstAbsence {
+		t.Errorf("missing_since = %q, want the original %q (grace period must not restart)", g.MissingSince.String, firstAbsence)
+	}
+}
+
+// TestFailsGrabWhenAbsenceOutlivesGracePeriod: a torrent removed out-of-band
+// stops being reported, and "failed" is what reads as wanted again in the API.
+func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
+	st := coretest.NewStore(t)
+	itemID, seriesID := seedGrab(t, st, "abc")
+	backdateMissingSince(t, st, "abc", time.Hour)
+
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "zzz", State: download.StateDownloading, ContentPath: "/whatever"},
+	}}
+	target := &coretest.FakeLibrary{}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	if len(target.Placed) != 0 {
+		t.Error("nothing should be placed for a torrent that vanished from the client")
+	}
+	g := grabByHash(t, st, "abc")
+	if g.Status != "failed" {
+		t.Errorf("status = %q, want failed once the absence outlived the grace period", g.Status)
+	}
+	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	for _, it := range items {
+		if it.ID == itemID && it.Have != 0 {
+			t.Errorf("have = %d, want 0 for a failed grab", it.Have)
+		}
+	}
+}
+
+// TestReappearingHashClearsMissingSince: a client that comes back must recover
+// fully, not fail the grab on an absence that has already ended.
+func TestReappearingHashClearsMissingSince(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	backdateMissingSince(t, st, "abc", time.Hour)
+
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateDownloading, ContentPath: "/whatever"},
+	}}
+	target := &coretest.FakeLibrary{}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	g := grabByHash(t, st, "abc")
+	if g.Status != "grabbed" {
+		t.Errorf("status = %q, want grabbed: the client is reporting the torrent again", g.Status)
+	}
+	if g.MissingSince.Valid {
+		t.Errorf("missing_since = %q, want cleared once the hash reappeared", g.MissingSince.String)
+	}
+}
+
+// TestLeavesGrabWhenSourceNotAccessible: an unreachable ContentPath (a path-mapping
+// gap when the client runs elsewhere) must stay grabbed for a later scan.
 func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -200,21 +394,4 @@ func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 	if rows[0].Status != "grabbed" {
 		t.Errorf("status = %q, want still grabbed (left for retry)", rows[0].Status)
 	}
-}
-
-// rowsSeriesID fetches the series id for a wanted item (helper for assertions).
-func rowsSeriesID(t *testing.T, st *store.Store, itemID int64) int64 {
-	t.Helper()
-	grabs, err := st.Q.ListGrabsByStatus(context.Background(), "imported")
-	if err != nil || len(grabs) == 0 {
-		// fall back: not imported yet
-		grabs, _ = st.Q.ListGrabsByStatus(context.Background(), "grabbed")
-	}
-	for _, g := range grabs {
-		if g.WantedItemID == itemID {
-			return g.SeriesID
-		}
-	}
-	t.Fatalf("series id not found for item %d", itemID)
-	return 0
 }

@@ -6,10 +6,18 @@
 // authoritative info_hash -> wanted_item mapping, so it never has to identify an
 // arbitrary release. Adopting externally-added torrents is a later phase (it
 // needs the deferred identification layer).
+//
+// Every grab status but "grabbed" is settled. A directory payload is resolved to
+// a single episode file at completion time, so "import_deferred" means the
+// payload was examined and no one file could be chosen — a real batch, or a
+// payload nothing could disambiguate — and nothing re-walks the same bytes on a
+// later tick. Deferred grabs stay in the scan for missing-from-client
+// reconciliation, so a vanished payload still frees its item.
 package importer
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"os"
 	"strings"
@@ -26,9 +34,16 @@ import (
 const (
 	statusGrabbed  = "grabbed"         // downloading / awaiting completion
 	statusImported = "imported"        // placed in the library, item marked had
-	statusDeferred = "import_deferred" // completed but not auto-importable yet (batch)
-	statusFailed   = "failed"          // the download errored in the client (terminal)
+	statusDeferred = "import_deferred" // completed, but no single episode file could be resolved
+	statusFailed   = "failed"          // the download errored or vanished in the client (terminal)
 )
+
+// missingGracePeriod need only cover a client answering before its torrent list
+// is fully back; an unreachable client errors out of the scan instead.
+const missingGracePeriod = 5 * time.Minute
+
+// missingSinceLayout is SQLite's datetime('now') format, which missing_since is stored in.
+const missingSinceLayout = "2006-01-02 15:04:05"
 
 // ClientSource supplies the current download client and library target. It is
 // read on every scan so a runtime settings change (which swaps the clients) is
@@ -78,7 +93,7 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 		return
 	}
 
-	grabs, err := im.store.Q.ListGrabsByStatus(ctx, statusGrabbed)
+	grabs, err := im.openGrabs(ctx)
 	if err != nil {
 		im.log.Error("importer: list grabs", "err", err)
 		return
@@ -97,25 +112,75 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 		byHash[strings.ToLower(s.Hash)] = s
 	}
 
+	now := time.Now().UTC()
 	for _, g := range grabs {
 		st, ok := byHash[strings.ToLower(g.InfoHash)]
-		switch {
-		case !ok:
-			// Not currently reported by the client (still queued, or removed
-			// out-of-band). Leave it and re-check next tick — an absence can be
-			// transient (e.g. a client restart), so we don't fail it here.
+		if !ok {
+			im.reconcileMissing(ctx, g, now)
 			continue
-		case st.State == download.StateError:
-			// The download errored in the client (error / missing files). Mark the
-			// grab failed so the item stops showing "downloading" forever, becomes
-			// grabbable again, and the failure is visible in history.
+		}
+		if g.MissingSince.Valid {
+			// Clear it, so a later absence is measured from itself, not from this one.
+			im.setMissingSince(ctx, g.ID, sql.NullString{})
+		}
+		switch st.State {
+		case download.StateError:
+			// Failing frees the item back to wanted, with the failure kept in history.
 			im.log.Warn("importer: download failed in client", "release", g.ReleaseTitle, "hash", g.InfoHash)
 			im.setStatus(ctx, g.ID, statusFailed)
-		case st.State == download.StateComplete:
+		case download.StateComplete:
+			if g.Status == statusDeferred {
+				continue // already examined; the same bytes won't resolve differently
+			}
 			im.importGrab(ctx, target, g, st)
 		default:
 			continue // still downloading / stalled / paused
 		}
+	}
+}
+
+// openGrabs returns the grabs still worth scanning: downloading, plus deferred
+// ones, which are never re-imported but still need reconciliation.
+func (im *Importer) openGrabs(ctx context.Context) ([]db.ListGrabsByStatusRow, error) {
+	grabbed, err := im.store.Q.ListGrabsByStatus(ctx, statusGrabbed)
+	if err != nil {
+		return nil, err
+	}
+	deferred, err := im.store.Q.ListGrabsByStatus(ctx, statusDeferred)
+	if err != nil {
+		return nil, err
+	}
+	return append(grabbed, deferred...), nil
+}
+
+// reconcileMissing fails a grab whose torrent the client has stopped reporting
+// for longer than missingGracePeriod; a single absence is only recorded.
+func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatusRow, now time.Time) {
+	if !g.MissingSince.Valid {
+		im.log.Info("importer: download not reported by client; watching", "release", g.ReleaseTitle, "hash", g.InfoHash)
+		im.setMissingSince(ctx, g.ID, sql.NullString{String: now.Format(missingSinceLayout), Valid: true})
+		return
+	}
+
+	since, err := time.Parse(missingSinceLayout, g.MissingSince.String)
+	if err != nil {
+		// A value we cannot parse must not fail the grab, so wait another full period.
+		im.log.Warn("importer: missing_since could not be parsed; setting it to now", "hash", g.InfoHash, "value", g.MissingSince.String, "err", err)
+		im.setMissingSince(ctx, g.ID, sql.NullString{String: now.Format(missingSinceLayout), Valid: true})
+		return
+	}
+	if now.Sub(since) < missingGracePeriod {
+		return
+	}
+
+	im.log.Warn("importer: download gone from client; failing grab",
+		"release", g.ReleaseTitle, "hash", g.InfoHash, "missing_for", now.Sub(since).Round(time.Second))
+	im.setStatus(ctx, g.ID, statusFailed)
+}
+
+func (im *Importer) setMissingSince(ctx context.Context, id int64, v sql.NullString) {
+	if err := im.store.Q.SetGrabMissingSince(ctx, db.SetGrabMissingSinceParams{MissingSince: v, ID: id}); err != nil {
+		im.log.Error("importer: set grab missing_since", "err", err)
 	}
 }
 
@@ -128,14 +193,22 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 		im.log.Warn("importer: source not accessible", "hash", g.InfoHash, "path", st.ContentPath, "err", err)
 		return
 	}
+
+	// A directory is not a batch by itself: most hold one episode plus extra files.
+	source := st.ContentPath
 	if info.IsDir() {
-		im.log.Info("importer: batch import not yet supported; deferring", "release", g.ReleaseTitle)
-		im.setStatus(ctx, g.ID, statusDeferred)
-		return
+		source, err = resolvePayloadFile(st.ContentPath, int(g.ItemNumber.Int64))
+		if err != nil {
+			im.log.Info("importer: cannot resolve a single episode from payload; deferring",
+				"release", g.ReleaseTitle, "path", st.ContentPath, "reason", err)
+			im.setStatus(ctx, g.ID, statusDeferred)
+			return
+		}
+		im.log.Info("importer: resolved folder-wrapped episode", "release", g.ReleaseTitle, "file", source)
 	}
 
 	final, err := target.Place(ctx, library.ImportRequest{
-		SourcePath: st.ContentPath,
+		SourcePath: source,
 		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat)},
 		Item: domain.WantedItem{
 			ID:     g.WantedItemID,

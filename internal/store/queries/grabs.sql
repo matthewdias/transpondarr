@@ -5,7 +5,9 @@ ON CONFLICT (wanted_item_id) DO UPDATE SET
     info_hash     = excluded.info_hash,
     release_title = excluded.release_title,
     status        = excluded.status,
-    created_at    = datetime('now')
+    created_at    = datetime('now'),
+    -- A re-grab is a fresh download; the previous attempt's stamp must not count.
+    missing_since = NULL
 RETURNING *;
 
 -- name: ListGrabsBySeries :many
@@ -23,6 +25,7 @@ WHERE info_hash = ?;
 -- name: ListGrabsByStatus :many
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
+    g.missing_since,
     w.number AS item_number,
     w.kind   AS item_kind,
     s.id     AS series_id,
@@ -36,3 +39,10 @@ ORDER BY g.info_hash;
 
 -- name: SetGrabStatus :exec
 UPDATE grabs SET status = ? WHERE id = ?;
+
+-- name: SetGrabMissingSince :exec
+-- The caller supplies the timestamp in SQLite's datetime('now') format, so
+-- writing and comparing it use one clock.
+-- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
+-- rune offsets and silently truncates the emitted SQL on a multi-byte character.
+UPDATE grabs SET missing_since = ? WHERE id = ?;
