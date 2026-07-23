@@ -1,4 +1,4 @@
-import { Check, Download } from 'lucide-react'
+import { Check, Download, FolderClock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ItemStatus } from '@/lib/api'
 
@@ -37,6 +37,15 @@ export function ItemStatusBadge({ status }: { status: ItemStatus }) {
       return (
         <span className={cn(badgeBase, 'border-transparent bg-dl-weak text-dl')}>
           <Download className="size-3" /> Downloading
+        </span>
+      )
+    case 'deferred':
+      return (
+        <span
+          className={cn(badgeBase, 'border-dl/40 bg-transparent text-dl')}
+          title="A batch was downloaded but no single episode file could be imported. Grab a single-episode release to replace it."
+        >
+          <FolderClock className="size-3" /> Batch downloaded
         </span>
       )
     default:
