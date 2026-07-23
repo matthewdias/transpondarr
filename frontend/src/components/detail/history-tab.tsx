@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { Check, Download, FolderClock, History } from 'lucide-react'
-import { api, type GrabEvent } from '@/lib/api'
+import { Check, Download, FolderClock, History, RefreshCw, TriangleAlert } from 'lucide-react'
+import { api, ApiError, type GrabEvent } from '@/lib/api'
 import { timeAgo } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { Item, ItemContent, ItemMedia, ItemActions, ItemGroup } from '@/components/ui/item'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -18,13 +19,14 @@ function present(status: string) {
 }
 
 export function HistoryTab({ seriesId, active }: { seriesId: number; active: boolean }) {
-  const { data: events, isLoading } = useQuery({
+  const { data: events, isLoading, isPaused, isError, error, refetch } = useQuery({
     queryKey: ['grabs', seriesId],
-    queryFn: () => api.listGrabs(seriesId),
+    queryFn: ({ signal }) => api.listGrabs(seriesId, signal),
     enabled: active,
   })
 
-  if (isLoading) {
+  // A paused retry (browser offline) reports neither fetching nor error.
+  if (isLoading || isPaused) {
     return (
       <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
         {Array.from({ length: 2 }).map((_, i) => (
@@ -36,6 +38,21 @@ export function HistoryTab({ seriesId, active }: { seriesId: number; active: boo
             </div>
           </div>
         ))}
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center rounded-lg border border-dashed bg-card px-6 py-14 text-center">
+        <TriangleAlert className="mb-3 size-7 text-dl" />
+        <h3 className="text-sm font-semibold">Couldn’t load history</h3>
+        <p className="mt-1.5 max-w-md text-sm text-muted-foreground">
+          {error instanceof ApiError ? error.message : String(error)}
+        </p>
+        <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>
+          <RefreshCw className="size-4" /> Try again
+        </Button>
       </div>
     )
   }

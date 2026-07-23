@@ -23,7 +23,7 @@ export function SeriesDetailPage() {
 
   const { data: detail, isLoading, isError, error } = useQuery({
     queryKey: ['series', id],
-    queryFn: () => api.getSeries(id),
+    queryFn: ({ signal }) => api.getSeries(id, signal),
     enabled: Number.isFinite(id),
   })
 

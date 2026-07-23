@@ -66,7 +66,7 @@ export function ReleasesTab({
   // every flip. The explicit Search button below still forces a fresh search.
   const search = useQuery({
     queryKey: ['releases', seriesId],
-    queryFn: () => api.searchReleases(seriesId),
+    queryFn: ({ signal }) => api.searchReleases(seriesId, signal),
     enabled: active,
     staleTime: 5 * 60 * 1000,
   })

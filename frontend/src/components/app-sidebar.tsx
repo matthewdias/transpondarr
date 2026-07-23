@@ -40,8 +40,14 @@ export function AppSidebar() {
   const { setOpenMobile } = useSidebar()
   const { resolved, setTheme } = useTheme()
   const queryClient = useQueryClient()
-  const { data: series } = useQuery({ queryKey: ['series'], queryFn: api.listSeries })
-  const { data: auth } = useQuery({ queryKey: ['auth-status'], queryFn: api.authStatus })
+  const { data: series } = useQuery({
+    queryKey: ['series'],
+    queryFn: ({ signal }) => api.listSeries(signal),
+  })
+  const { data: auth } = useQuery({
+    queryKey: ['auth-status'],
+    queryFn: ({ signal }) => api.authStatus(signal),
+  })
 
   const logout = async () => {
     try {

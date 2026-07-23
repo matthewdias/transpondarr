@@ -20,7 +20,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 export function SeriesListPage() {
   const { data: series, isLoading, isError, error } = useQuery({
     queryKey: ['series'],
-    queryFn: api.listSeries,
+    queryFn: ({ signal }) => api.listSeries(signal),
   })
 
   return (

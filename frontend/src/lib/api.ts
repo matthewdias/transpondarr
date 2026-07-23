@@ -129,11 +129,13 @@ export interface AuthStatus {
 
 // ── Endpoints ─────────────────────────────────────────────────────────────────
 
+// Mutations deliberately take no AbortSignal: a grab or a settings write must
+// not die on a stray unmount.
 export const api = {
-  health: () => client.GET('/api/v1/health').then(unwrap),
+  health: (signal?: AbortSignal) => client.GET('/api/v1/health', { signal }).then(unwrap),
 
   // ── Auth (plain chi, not in the OpenAPI spec → rawFetch) ─────────────────────
-  authStatus: () => rawFetch<AuthStatus>('/api/v1/auth/status'),
+  authStatus: (signal?: AbortSignal) => rawFetch<AuthStatus>('/api/v1/auth/status', { signal }),
 
   setup: (username: string, password: string) =>
     rawFetch<{ username: string }>(
@@ -177,23 +179,25 @@ export const api = {
       .then(unwrap)
       .then((r) => r.api_key),
 
-  listSeries: () =>
+  listSeries: (signal?: AbortSignal) =>
     client
-      .GET('/api/v1/series')
+      .GET('/api/v1/series', { signal })
       .then(unwrap)
       .then((r) => r.series),
 
-  getSeries: (id: number) =>
-    client.GET('/api/v1/series/{id}', { params: { path: { id } } }).then(unwrap),
+  getSeries: (id: number, signal?: AbortSignal) =>
+    client
+      .GET('/api/v1/series/{id}', { params: { path: { id } }, signal })
+      .then(unwrap),
 
   setMonitored: (id: number, monitored: boolean) =>
     client
       .PATCH('/api/v1/series/{id}', { params: { path: { id } }, body: { monitored } })
       .then(unwrap),
 
-  searchMetadata: (term: string) =>
+  searchMetadata: (term: string, signal?: AbortSignal) =>
     client
-      .GET('/api/v1/metadata/search', { params: { query: { term } } })
+      .GET('/api/v1/metadata/search', { params: { query: { term } }, signal })
       .then(unwrap)
       .then((r) => r.results),
 
@@ -202,9 +206,9 @@ export const api = {
       .POST('/api/v1/series', { body: { anilist_id: anilistId, monitored } })
       .then(unwrap),
 
-  searchReleases: (id: number) =>
+  searchReleases: (id: number, signal?: AbortSignal) =>
     client
-      .GET('/api/v1/series/{id}/search', { params: { path: { id } } })
+      .GET('/api/v1/series/{id}/search', { params: { path: { id } }, signal })
       .then(unwrap),
 
   grabRelease: (id: number, downloadUrl: string, paused = false) =>
@@ -215,13 +219,14 @@ export const api = {
       })
       .then(unwrap),
 
-  listGrabs: (id: number) =>
+  listGrabs: (id: number, signal?: AbortSignal) =>
     client
-      .GET('/api/v1/series/{id}/grabs', { params: { path: { id } } })
+      .GET('/api/v1/series/{id}/grabs', { params: { path: { id } }, signal })
       .then(unwrap)
       .then((r) => r.events),
 
-  getSettings: () => client.GET('/api/v1/settings').then(unwrap),
+  getSettings: (signal?: AbortSignal) =>
+    client.GET('/api/v1/settings', { signal }).then(unwrap),
 
   updateDownload: (body: DownloadInput) =>
     client.PUT('/api/v1/settings/download', { body }).then(unwrap),
