@@ -172,6 +172,72 @@ func TestDeferredBatchShowsDeferred(t *testing.T) {
 	}
 }
 
+// TestRegrabReplacesDeferredGrab pins the way out of "deferred" the UI offers:
+// the item still matches a search, grabbing a single-episode release replaces
+// the deferred grab, and the new download imports normally.
+func TestRegrabReplacesDeferredGrab(t *testing.T) {
+	const batchURL = "magnet:?xt=urn:btih:000000000000000000000000000000000000000a"
+	const singleURL = "magnet:?xt=urn:btih:000000000000000000000000000000000000000b"
+	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
+		{Title: "[ExampleSubs] Placeholder Saga S1E09 [1080p]", DownloadURL: batchURL, Seeders: 100},
+		{Title: "[OtherSubs] Placeholder Saga S1E09 [1080p]", DownloadURL: singleURL, Seeders: 50},
+	}}
+	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashA", Outcome: download.AddSuccess}}
+
+	h := newHarness(t, idx, dl)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+
+	// First grab turns out to be a batch payload; the importer defers it.
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+		map[string]any{"download_url": batchURL}, nil); code != http.StatusCreated {
+		t.Fatalf("grab status = %d, want 201", code)
+	}
+	dir := t.TempDir()
+	for _, name := range []string{
+		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dl.Statuses = []download.Status{{Hash: "hashA", State: download.StateComplete, ContentPath: dir}}
+	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+	if got := itemStatus(t, h, seriesID, 9); got != "deferred" {
+		t.Fatalf("episode 9 status = %q, want deferred before the re-grab", got)
+	}
+
+	// The deferred item still matches a search, and grabbing the alternative
+	// release replaces the deferred grab rather than stacking a second one.
+	dl.Result = download.AddResult{Hash: "hashB", Outcome: download.AddSuccess}
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+		map[string]any{"download_url": singleURL}, nil); code != http.StatusCreated {
+		t.Fatalf("re-grab status = %d, want 201", code)
+	}
+	if got := itemStatus(t, h, seriesID, 9); got != "downloading" {
+		t.Errorf("episode 9 status = %q, want downloading after the re-grab", got)
+	}
+	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	if len(grabs) != 1 || grabs[0].InfoHash != "hashB" || grabs[0].Status != "grabbed" {
+		t.Fatalf("grabs = %+v, want one grabbed row for hashB", grabs)
+	}
+
+	// The replacement download completes as a single file and imports normally.
+	src := filepath.Join(t.TempDir(), "[OtherSubs] Placeholder Saga - 09 [1080p].mkv")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dl.Statuses = []download.Status{{Hash: "hashB", State: download.StateComplete, ContentPath: src}}
+	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+
+	if got := itemStatus(t, h, seriesID, 9); got != "have" {
+		t.Errorf("episode 9 status = %q, want have after the replacement import", got)
+	}
+	if len(h.lib.Placed) != 1 || h.lib.Placed[0].SourcePath != src {
+		t.Errorf("library placed %+v, want exactly the replacement file", h.lib.Placed)
+	}
+}
+
 // itemStatus reads one episode's derived status off the series detail endpoint.
 func itemStatus(t *testing.T, h *harness, seriesID int64, number int) string {
 	t.Helper()
