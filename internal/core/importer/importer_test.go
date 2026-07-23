@@ -29,6 +29,20 @@ type fakeSource struct {
 func (f fakeSource) Download() download.Client { return f.dl }
 func (f fakeSource) Library() library.Target   { return f.lib }
 
+// cancelOnPlace cancels the run context the instant a file lands in the library,
+// reproducing a SIGTERM landing between Place and the status writes.
+type cancelOnPlace struct {
+	coretest.FakeLibrary
+	cancel      context.CancelFunc
+	placeCtxErr error
+}
+
+func (c *cancelOnPlace) Place(ctx context.Context, r library.ImportRequest) (string, error) {
+	c.cancel()
+	c.placeCtxErr = ctx.Err()
+	return c.FakeLibrary.Place(ctx, r)
+}
+
 // --- helpers ----------------------------------------------------------------
 
 // seedGrab creates a series + one wanted item + a grab.
@@ -128,6 +142,70 @@ func TestImportsCompletedGrab(t *testing.T) {
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
 	if items[0].Have != 1 {
 		t.Errorf("have = %d, want 1", items[0].Have)
+	}
+}
+
+// TestFinishesInFlightScanAfterCancel: a signal arriving between Place and the
+// status writes must not leave a placed file still marked grabbed.
+func TestFinishesInFlightScanAfterCancel(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, seriesID := seedGrab(t, st, "abc")
+	src := filepath.Join(t.TempDir(), "raw.mkv")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	target := &cancelOnPlace{cancel: cancel}
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: src},
+	}}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Millisecond).Run(ctx)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not return after its context was cancelled")
+	}
+
+	if target.placeCtxErr != nil {
+		t.Errorf("Place ran on a cancelled context (%v); an in-flight scan must be detached from the signal", target.placeCtxErr)
+	}
+	if g := grabByHash(t, st, "abc"); g.Status != "imported" {
+		t.Errorf("status = %q, want imported: the file was already placed when the cancel arrived", g.Status)
+	}
+	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	if items[0].Have != 1 {
+		t.Errorf("have = %d, want 1", items[0].Have)
+	}
+	if n := len(target.Placed); n != 1 {
+		t.Errorf("Place called %d times, want 1", n)
+	}
+}
+
+// TestDoesNotScanAfterCancel: shutdown must not start work it cannot finish.
+func TestDoesNotScanAfterCancel(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: "/whatever"},
+	}}
+	target := &coretest.FakeLibrary{}
+	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Millisecond).Run(ctx)
+
+	if len(target.Placed) != 0 {
+		t.Error("Run scanned on an already-cancelled context")
+	}
+	if g := grabByHash(t, st, "abc"); g.Status != "grabbed" {
+		t.Errorf("status = %q, want still grabbed (untouched)", g.Status)
 	}
 }
 

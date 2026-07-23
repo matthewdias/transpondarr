@@ -29,6 +29,10 @@ import (
 // completed grabs.
 const importPollInterval = 15 * time.Second
 
+// shutdownTimeout is the whole budget for draining the HTTP server and the
+// importer's in-flight scan.
+const shutdownTimeout = 10 * time.Second
+
 func main() {
 	// `transpondarrd openapi` prints the OpenAPI spec to stdout and exits — used by
 	// the frontend's type generation (`make gen-api`), no server or DB required.
@@ -108,7 +112,12 @@ func run(logger *slog.Logger) error {
 	// The importer always runs; each scan it reads the current download client and
 	// library from the registry and no-ops when either is unconfigured — so
 	// enabling both via Settings activates importing without a restart.
-	go importer.New(st, reg, logger, importPollInterval).Run(ctx)
+	im := importer.New(st, reg, logger, importPollInterval)
+	importerDone := make(chan struct{})
+	go func() {
+		defer close(importerDone)
+		im.Run(ctx)
+	}()
 	logger.Info("importer started", "interval", importPollInterval)
 
 	srv := &http.Server{
@@ -130,9 +139,19 @@ func run(logger *slog.Logger) error {
 	<-ctx.Done()
 
 	logger.Info("shutting down")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+
+	// Drained concurrently so they share the one budget; the store (closed by the
+	// deferred Close above) must outlive the importer's in-flight scan.
+	srvErr := make(chan error, 1)
+	go func() { srvErr <- srv.Shutdown(shutdownCtx) }()
+	select {
+	case <-importerDone:
+	case <-shutdownCtx.Done():
+		logger.Warn("importer still scanning at the shutdown deadline", "timeout", shutdownTimeout)
+	}
+	return <-srvErr
 }
 
 // ensureWritable fails fast with an actionable message when the data dir isn't

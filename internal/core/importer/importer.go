@@ -68,17 +68,24 @@ func New(st *store.Store, src ClientSource, log *slog.Logger, interval time.Dura
 	return &Importer{store: st, clients: src, log: log, interval: interval}
 }
 
-// Run polls until ctx is cancelled. It scans once immediately, then every interval.
+// Run scans once immediately, then every interval, and returns once ctx is
+// cancelled and any in-flight scan has finished. Callers wait on that return
+// before closing the store, under their own deadline.
 func (im *Importer) Run(ctx context.Context) {
-	im.ScanOnce(ctx)
+	// Scans run detached from ctx: cancelling one mid-import would fail the writes
+	// after a completed Place, leaving a file in the library still marked grabbed.
+	scanCtx := context.WithoutCancel(ctx)
 	t := time.NewTicker(im.interval)
 	defer t.Stop()
 	for {
+		if ctx.Err() != nil {
+			return
+		}
+		im.ScanOnce(scanCtx)
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
-			im.ScanOnce(ctx)
 		}
 	}
 }
