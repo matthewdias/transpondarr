@@ -227,7 +227,9 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 		},
 	})
 	if err != nil {
-		im.log.Warn("importer: place failed", "release", g.ReleaseTitle, "err", err)
+		if ctx.Err() == nil {
+			im.log.Warn("importer: place failed", "release", g.ReleaseTitle, "err", err)
+		}
 		return // transient — retry next tick
 	}
 

@@ -184,8 +184,8 @@ func copyFile(ctx context.Context, src, dest string) error {
 	return nil
 }
 
-// ctxReader checks ctx between chunks so shutdown can abort a multi-GB copy;
-// copyFile's error path then cleans up the .partial and the grab retries.
+// ctxReader checks ctx between chunks so shutdown can abort a multi-GB copy —
+// a deliberate trade of io.Copy's zero-copy fast path for cancellability.
 type ctxReader struct {
 	ctx context.Context
 	r   io.Reader
