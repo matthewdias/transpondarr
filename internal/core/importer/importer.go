@@ -69,8 +69,7 @@ func New(st *store.Store, src ClientSource, log *slog.Logger, interval time.Dura
 }
 
 // Run scans once immediately, then every interval, and returns once ctx is
-// cancelled and any in-flight scan has finished. Callers wait on that return
-// before closing the store, under their own deadline.
+// cancelled and any in-flight scan has returned.
 func (im *Importer) Run(ctx context.Context) {
 	t := time.NewTicker(im.interval)
 	defer t.Stop()
@@ -228,7 +227,9 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 		},
 	})
 	if err != nil {
-		im.log.Warn("importer: place failed", "release", g.ReleaseTitle, "err", err)
+		if ctx.Err() == nil {
+			im.log.Warn("importer: place failed", "release", g.ReleaseTitle, "err", err)
+		}
 		return // transient — retry next tick
 	}
 

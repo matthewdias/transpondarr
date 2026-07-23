@@ -2,6 +2,8 @@ package mediaserver
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -99,6 +101,91 @@ func TestPlaceCopyReclaimsStrayPartial(t *testing.T) {
 	}
 	if _, err := os.Stat(stray); !os.IsNotExist(err) {
 		t.Error("stray .partial should have been reclaimed by the retry")
+	}
+}
+
+// An aborted copy must surface the cancellation and leave neither a destination
+// nor a .partial, so the retried grab starts fresh.
+func TestPlaceCopyAbortsOnCancel(t *testing.T) {
+	src := writeSource(t, "raw.mkv")
+	root := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := New(root, "copy").Place(ctx, req(src, "Placeholder Saga", 4))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Place error = %v, want context.Canceled", err)
+	}
+	dest := filepath.Join(root, "Placeholder Saga", "Season 01", "Placeholder Saga - S01E04.mkv")
+	if _, err := os.Stat(dest); !os.IsNotExist(err) {
+		t.Error("an aborted copy must not produce the destination")
+	}
+	if _, err := os.Stat(dest + ".partial"); !os.IsNotExist(err) {
+		t.Error("an aborted copy must remove its .partial")
+	}
+}
+
+// plantDest writes a pre-existing destination file for episode number and returns its path.
+func plantDest(t *testing.T, root string, number int, content string) string {
+	t.Helper()
+	destDir := filepath.Join(root, "Placeholder Saga", "Season 01")
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	dest := filepath.Join(destDir, fmt.Sprintf("Placeholder Saga - S01E%02d.mkv", number))
+	if err := os.WriteFile(dest, []byte(content), 0o644); err != nil {
+		t.Fatalf("plant dest: %v", err)
+	}
+	return dest
+}
+
+// A dest smaller than its still-available source is a truncated past import,
+// not an idempotent hit — it must be re-copied.
+func TestPlaceReclaimsTruncatedDest(t *testing.T) {
+	src := writeSource(t, "raw.mkv")
+	root := t.TempDir()
+	dest := plantDest(t, root, 6, "vid")
+
+	got, err := New(root, "copy").Place(context.Background(), req(src, "Placeholder Saga", 6))
+	if err != nil {
+		t.Fatalf("Place: %v", err)
+	}
+	if got != dest {
+		t.Errorf("dest = %q, want %q", got, dest)
+	}
+	if b, _ := os.ReadFile(dest); string(b) != "video-bytes" {
+		t.Errorf("content = %q, want the source re-copied over the truncated file", b)
+	}
+}
+
+// Link mode reclaims too: the truncated name must be removed first, since
+// os.Link cannot replace an existing file.
+func TestPlaceHardlinkReclaimsTruncatedDest(t *testing.T) {
+	src := writeSource(t, "raw.mkv")
+	root := t.TempDir()
+	dest := plantDest(t, root, 8, "vid")
+
+	if _, err := New(root, "hardlink").Place(context.Background(), req(src, "Placeholder Saga", 8)); err != nil {
+		t.Fatalf("Place: %v", err)
+	}
+	si, _ := os.Stat(src)
+	di, _ := os.Stat(dest)
+	if !os.SameFile(si, di) {
+		t.Error("truncated dest should have been replaced by a hardlink of the source")
+	}
+}
+
+// An equal-sized dest is a completed past import and must stay untouched.
+func TestPlaceKeepsEqualSizedDest(t *testing.T) {
+	src := writeSource(t, "raw.mkv")
+	root := t.TempDir()
+	dest := plantDest(t, root, 9, "other-bytes") // same length as "video-bytes"
+
+	if _, err := New(root, "copy").Place(context.Background(), req(src, "Placeholder Saga", 9)); err != nil {
+		t.Fatalf("Place: %v", err)
+	}
+	if b, _ := os.ReadFile(dest); string(b) != "other-bytes" {
+		t.Errorf("content = %q, want the existing equal-sized file left alone", b)
 	}
 }
 
