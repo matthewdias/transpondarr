@@ -69,8 +69,7 @@ func New(st *store.Store, src ClientSource, log *slog.Logger, interval time.Dura
 }
 
 // Run scans once immediately, then every interval, and returns once ctx is
-// cancelled and any in-flight scan has finished. Callers wait on that return
-// before closing the store, under their own deadline.
+// cancelled and any in-flight scan has returned.
 func (im *Importer) Run(ctx context.Context) {
 	t := time.NewTicker(im.interval)
 	defer t.Stop()

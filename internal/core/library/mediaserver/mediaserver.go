@@ -68,8 +68,9 @@ var _ library.Target = (*Target)(nil)
 
 // Place transfers a single downloaded file into the library and returns its final
 // path. A directory source (a batch/season pack) is rejected — per-file batch
-// import is a later phase. Existing destinations are treated as already imported.
-func (t *Target) Place(_ context.Context, req library.ImportRequest) (string, error) {
+// import is a later phase. A destination at least the source's size is already
+// imported; a smaller one is a truncated past import and is re-copied.
+func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, error) {
 	info, err := os.Stat(req.SourcePath)
 	if err != nil {
 		return "", fmt.Errorf("mediaserver: stat source: %w", err)
@@ -88,13 +89,20 @@ func (t *Target) Place(_ context.Context, req library.ImportRequest) (string, er
 	filename := fmt.Sprintf("%s - S%02dE%02d%s", name, seasonNumber, req.Item.Number, ext)
 	dest := filepath.Join(destDir, filename)
 
-	if _, err := os.Stat(dest); err == nil {
-		return dest, nil // already present — idempotent
+	if destInfo, err := os.Stat(dest); err == nil {
+		// Size-checked idempotency only covers open grabs: a settled grab's source is
+		// gone, and nothing calls Place again — that recovery is deliberately out of scope.
+		if destInfo.Size() >= info.Size() {
+			return dest, nil
+		}
+		if err := os.Remove(dest); err != nil { // free the name — link mode can't replace it
+			return "", fmt.Errorf("mediaserver: remove truncated dest: %w", err)
+		}
 	}
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return "", fmt.Errorf("mediaserver: create dir: %w", err)
 	}
-	if err := t.transfer(req.SourcePath, dest); err != nil {
+	if err := t.transfer(ctx, req.SourcePath, dest); err != nil {
 		return "", err
 	}
 	return dest, nil
@@ -104,10 +112,10 @@ func (t *Target) Place(_ context.Context, req library.ImportRequest) (string, er
 // mode a hardlink is attempted first and falls back to a copy when the filesystem
 // can't hardlink here (a different device, or a mount that doesn't support/permit
 // hardlinks at all).
-func (t *Target) transfer(src, dest string) error {
+func (t *Target) transfer(ctx context.Context, src, dest string) error {
 	switch t.mode {
 	case ModeCopy:
-		return copyFile(src, dest)
+		return copyFile(ctx, src, dest)
 	case ModeHardlink:
 		if err := os.Link(src, dest); err != nil {
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
@@ -117,7 +125,7 @@ func (t *Target) transfer(src, dest string) error {
 	default: // ModeAuto
 		if err := os.Link(src, dest); err != nil {
 			if isUnsupportedLink(err) {
-				return copyFile(src, dest)
+				return copyFile(ctx, src, dest)
 			}
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
@@ -140,7 +148,7 @@ func isUnsupportedLink(err error) bool {
 
 // copyFile copies src to dest via a deterministic temp file + rename: a failed copy
 // never leaves a partial at the destination, and the next attempt reclaims the temp.
-func copyFile(src, dest string) error {
+func copyFile(ctx context.Context, src, dest string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("mediaserver: open source: %w", err)
@@ -152,7 +160,7 @@ func copyFile(src, dest string) error {
 	if err != nil {
 		return fmt.Errorf("mediaserver: create temp: %w", err)
 	}
-	if _, err := io.Copy(out, in); err != nil {
+	if _, err := io.Copy(out, ctxReader{ctx, in}); err != nil {
 		_ = out.Close()
 		_ = os.Remove(tmp)
 		return fmt.Errorf("mediaserver: copy: %w", err)
@@ -174,6 +182,20 @@ func copyFile(src, dest string) error {
 	}
 	syncDir(filepath.Dir(dest))
 	return nil
+}
+
+// ctxReader checks ctx between chunks so shutdown can abort a multi-GB copy;
+// copyFile's error path then cleans up the .partial and the grab retries.
+type ctxReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (c ctxReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.r.Read(p)
 }
 
 // syncDir flushes a directory so a completed rename or new hardlink entry
