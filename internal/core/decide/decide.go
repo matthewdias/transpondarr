@@ -94,14 +94,13 @@ func Match(items []domain.WantedItem, titleVariants []string, releases []indexer
 	return out
 }
 
-// Fixed axis weights: group dominates by design (anime inverts Sonarr's
-// resolution-first weighting), so no listed resolution can outweigh a listed
-// group. Ranked axes step down per rank with a floor, so being listed at all
-// always beats being unlisted.
+// Fixed axis weights: group dominates by construction — its floor exceeds the
+// 850 max every other axis can sum to, so any listed group beats every unlisted
+// one. Within listed groups, bonuses may flip adjacent ranks by design.
 const (
-	scoreGroupBase = 1000
+	scoreGroupBase = 2000
 	scoreGroupStep = 100
-	scoreGroupMin  = 100
+	scoreGroupMin  = 1000
 	scoreResBase   = 400
 	scoreResStep   = 100
 	scoreResMin    = 50
@@ -131,11 +130,10 @@ func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) 
 	if profile.PreferDualAudio && p.DualAudio {
 		add("dual audio", scoreDualAudio)
 	}
-	switch {
-	case profile.SubPref != "" && strings.EqualFold(p.Subs, profile.SubPref):
+	// Preferences only reward — a mismatch is unrewarded, never penalised, so
+	// blocking stays HardExcludes' job and scores stay non-negative.
+	if profile.SubPref != "" && strings.EqualFold(p.Subs, profile.SubPref) {
 		add("subs "+p.Subs, scoreSubs)
-	case profile.SubPref != "" && p.Subs != "":
-		add(fmt.Sprintf("subs %s (profile prefers %s)", p.Subs, profile.SubPref), -scoreSubs)
 	}
 	if profile.CodecPref != "" && strings.EqualFold(p.Codec, profile.CodecPref) {
 		add("codec "+p.Codec, scoreCodec)
@@ -152,7 +150,8 @@ func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) 
 }
 
 // ineligibleReason is the floor from #16: the way the answer can be "nothing
-// yet" instead of the least-bad release available. "" means eligible.
+// yet" instead of the least-bad release available. "" means eligible. Scores
+// are never negative, so the zero-value MinScore expresses no floor.
 func ineligibleReason(p parser.Parsed, profile domain.QualityProfile, score int) string {
 	if indexFold(profile.BlockedGroups, p.Group) >= 0 {
 		return fmt.Sprintf("group %s is blocked by the profile", p.Group)

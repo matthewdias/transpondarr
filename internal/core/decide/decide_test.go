@@ -1,6 +1,7 @@
 package decide
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -335,11 +336,38 @@ func TestPreferenceBonusesContribute(t *testing.T) {
 	if loaded.Score <= plain.Score {
 		t.Errorf("scores = %d vs %d, want source/subs/dual/codec bonuses to add up", loaded.Score, plain.Score)
 	}
-	// The opposite sub type is penalised, not just unrewarded.
+	// The opposite sub type is unrewarded, never penalised — preferences only
+	// order; blocking is HardExcludes' job.
 	hard := Match(items(12), []string{"Placeholder Saga"},
 		[]indexer.Release{{Title: "[G] Placeholder Saga - 03 [1080p][Hardsub]"}}, prof)[0]
-	if hard.Score >= plain.Score {
-		t.Errorf("scores = %d vs %d, want an explicit hardsub penalised below unstated", hard.Score, plain.Score)
+	if hard.Score != plain.Score {
+		t.Errorf("scores = %d vs %d, want a mismatching sub type merely unrewarded", hard.Score, plain.Score)
+	}
+}
+
+// Any listed group must outrank every unlisted one, even against a release
+// carrying every bonus the other axes can grant.
+func TestLastRankedGroupBeatsUnlistedWithEveryBonus(t *testing.T) {
+	groups := make([]string, 15)
+	for i := range groups {
+		groups[i] = fmt.Sprintf("FillerGroup%02d", i+1)
+	}
+	groups[len(groups)-1] = "LastChoice"
+	prof := domain.QualityProfile{
+		Groups:          groups,
+		ResolutionOrder: []string{"1080p"},
+		PreferredSource: "bd",
+		SubPref:         "softsub",
+		PreferDualAudio: true,
+		CodecPref:       "h265",
+	}
+	rels := []indexer.Release{
+		{Title: "[ShinyRip] Placeholder Saga - 03 [BD 1080p HEVC][Softsubs][Dual-Audio][REPACK]", Seeders: 900},
+		{Title: "[LastChoice] Placeholder Saga - 03 [720p]", Seeders: 1},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof)
+	if got[0].Release.ReleaseGroup != "LastChoice" {
+		t.Errorf("first = %q, want the last-ranked listed group over the fully-loaded unlisted release", got[0].Release.ReleaseGroup)
 	}
 }
 
