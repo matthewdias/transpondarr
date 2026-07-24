@@ -50,6 +50,11 @@ make test
 make dev     # live-reload API (air)
 ```
 
+Any of these installs a fast pre-commit hook (`git config core.hooksPath
+.githooks`) that runs `gofmt` / `prettier --check` on staged files — the same
+formatting CI enforces, caught before the commit instead of minutes later.
+Bypass with `git commit --no-verify`.
+
 ## Local dev configuration
 
 A `.env` file in the working directory is loaded on startup (see
