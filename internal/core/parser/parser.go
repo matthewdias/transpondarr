@@ -221,9 +221,11 @@ func firstInt(vals []string) int {
 	return atoi(vals[0])
 }
 
+// atoi treats unparseable or negative values as "absent" (0) — anitogo can emit
+// a negative token (e.g. "-1" from "(-1)0") that must not reach the decide layer.
 func atoi(s string) int {
 	n, err := strconv.Atoi(strings.TrimSpace(s))
-	if err != nil {
+	if err != nil || n < 0 {
 		return 0
 	}
 	return n
