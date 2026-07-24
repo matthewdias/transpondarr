@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
   # Reused as the release gate (release.yml), so a tag must pass the exact same
-  # bar as a PR — including the notices-drift check and govulncheck.
+  # bar as a PR — including the generated-output drift checks and govulncheck.
   workflow_call:
 
 permissions:
