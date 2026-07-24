@@ -4,7 +4,7 @@ BIN     := transpondarrd
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/matthewdias/transpondarr/internal/version.Version=$(VERSION)
 
-.PHONY: build web web-deps gen lint web-lint test dev run migrate tidy notices clean
+.PHONY: build web web-deps gen lint web-lint test web-test dev run migrate tidy notices clean
 
 build: web ## Build frontend + server into ./$(BIN)
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/transpondarrd
@@ -35,8 +35,11 @@ lint: web-lint ## Run linters (Go + frontend)
 web-lint: web-deps ## Lint the frontend (oxlint)
 	cd frontend && npm run lint
 
-test: ## Run Go tests
+test: web-test ## Run tests (Go + frontend)
 	go test ./...
+
+web-test: web-deps ## Run the frontend tests (vitest)
+	cd frontend && npm run test
 
 dev: ## Run the API with live reload (air)
 	air
