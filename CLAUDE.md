@@ -102,6 +102,12 @@ Behaviour changes are test-driven. Work red → green → refactor:
     bytes. The result compiles, `make gen` reports no error, and the query fails
     only at runtime. Also note `sqlc.arg(name)` is rejected by this dialect
     (`extraneous input '?1'`) — use positional `?` params.
+- **Quality profiles inform manual actions; they gate only automation.** A manual
+  grab always succeeds in one request — the grab endpoint evaluates eligibility
+  server-side at grab time and returns `ineligible_reason` on the 201, but never
+  refuses (no confirm flag, no 422). Enforcement belongs to the scheduler's
+  automatic choices; a manual grab is explicit user intent. Don't reintroduce a
+  gate on manual paths (decided in PR #57).
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
 - **Route handlers: group by resource; use a receiver when it earns its keep.**
   Each resource gets a `*_routes.go` file with a `register<Resource>Routes(api,
