@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   Check,
+  CircleX,
   Download,
   FolderClock,
   History,
@@ -30,6 +31,12 @@ function present(event: GrabEvent) {
         verb: "Downloaded (batch)",
         icon: FolderClock,
         tone: "bg-panel-2 text-muted-foreground",
+      };
+    case "failed":
+      return {
+        verb: "Failed",
+        icon: CircleX,
+        tone: "bg-destructive/15 text-destructive",
       };
     default:
       return event.last_error
@@ -121,7 +128,7 @@ export function HistoryTab({
   );
 }
 
-function HistoryRow({ event }: { event: GrabEvent }) {
+export function HistoryRow({ event }: { event: GrabEvent }) {
   const { verb, icon: Icon, tone } = present(event);
   return (
     <Item className="gap-3">
