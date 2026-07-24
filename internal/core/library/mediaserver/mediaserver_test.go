@@ -231,10 +231,10 @@ func TestPlaceSecondSeasonEntryFiledUnderSeason01(t *testing.T) {
 func TestPlaceSanitizesName(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"Foo: Bar/Baz?", "Foo - Bar Baz"},
-		{"Con", "_Con"},           // reserved device name
-		{"aux.txt", "_aux.txt"},   // reserved even with extension
-		{"COM1", "_COM1"},         // reserved, case-insensitive
-		{"Console", "Console"},    // only exact reserved names dodged
+		{"Con", "_Con"},              // reserved device name
+		{"aux.txt", "_aux.txt"},      // reserved even with extension
+		{"COM1", "_COM1"},            // reserved, case-insensitive
+		{"Console", "Console"},       // only exact reserved names dodged
 		{"Foo\x00\x1fBar", "FooBar"}, // control chars dropped
 	}
 	for _, c := range cases {
