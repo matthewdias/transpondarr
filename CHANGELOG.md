@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-07-23
+
+Frontend foundations: the web UI is now held to the same test/lint/format bar
+as the Go backend, plus one History-tab fix.
+
+### Fixed
+
+- **The History tab no longer presents a failed grab as "Downloading".** A grab
+  that settled as failed (the download errored in the client, or vanished past
+  the missing-from-client grace period) rendered with the in-progress icon and
+  verb; it now gets a distinct destructive-toned **Failed** row.
+
+### Internal
+
+- **The frontend now has a test runner** (Vitest), wired into `make test` — the
+  web UI is no longer exempt from the repo's TDD process.
+- **Formatting and linting are enforced end to end**: Prettier (checked in
+  `make web-lint`), oxlint's `react/exhaustive-deps` and suspicious rule
+  category, and a self-installing pre-commit hook (gofmt + prettier) so a quick
+  manual edit can't reach CI unformatted.
+- **CI now fails when the committed `api-types.ts` drifts** from the OpenAPI
+  spec, keeping the typed frontend client honest.
+
 ## [0.2.0] — 2026-07-23
 
 A reliability release: no download can appear stuck as "downloading" forever
@@ -106,6 +129,7 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/matthewdias/transpondarr/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/matthewdias/transpondarr/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/matthewdias/transpondarr/releases/tag/v0.1.0
