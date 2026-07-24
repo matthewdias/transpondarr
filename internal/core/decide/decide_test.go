@@ -299,6 +299,20 @@ func TestHardExcludeMakesIneligible(t *testing.T) {
 	}
 }
 
+func TestResolutionHardExcludeMakesIneligible(t *testing.T) {
+	prof := domain.QualityProfile{HardExcludes: []string{"480p"}}
+	rels := []indexer.Release{
+		{Title: "[SubCorp] Placeholder Saga - 03 [480p]", Seeders: 10},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof)
+	if got[0].Eligible {
+		t.Fatal("480p release should be ineligible under a 480p exclude")
+	}
+	if !strings.Contains(got[0].IneligibleReason, "480p") {
+		t.Errorf("reason = %q, want mention of 480p", got[0].IneligibleReason)
+	}
+}
+
 func TestMinScoreFloorMeansNothingYet(t *testing.T) {
 	prof := domain.QualityProfile{
 		Groups:   []string{"TrustedCorp"},
