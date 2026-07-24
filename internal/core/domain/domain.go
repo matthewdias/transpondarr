@@ -44,3 +44,20 @@ type WantedItem struct {
 	Name   string
 	Have   bool
 }
+
+// QualityProfile is what a user wants a release to be. Release group is the
+// dominant axis for anime — a trusted group's 720p beats an unknown group's
+// 1080p — so Groups is ordered and everything else is secondary.
+type QualityProfile struct {
+	ID              int64
+	Name            string
+	Groups          []string // preferred release groups, most preferred first
+	BlockedGroups   []string // never take, at any quality
+	ResolutionOrder []string // best first; an unlisted resolution scores zero
+	PreferredSource string   // "web", "bd", "tv" or "dvd"; "" for no preference
+	SubPref         string   // "softsub" or "hardsub"; "" for no preference
+	PreferDualAudio bool
+	CodecPref       string   // "h264", "h265" or "av1"; "" for no preference
+	HardExcludes    []string // axis tokens (e.g. "hardsub") a release must never carry
+	MinScore        int      // floor: a candidate scoring below this is ineligible
+}

@@ -3,7 +3,9 @@
 // satisfies which item. It parses each release (via the parser package), filters
 // to the ones that plausibly belong to this title, and maps episode numbers to
 // wanted-item numbers — surfacing a human-readable reason for every decision so
-// the matching can be eyeballed before it drives an automatic grab.
+// the matching can be eyeballed before it drives an automatic grab. Matched
+// candidates are then ranked by a pure, profile-driven score (group first — see
+// the weights); an explicit floor lets the answer be "nothing yet".
 //
 // v1 is deliberately transparent rather than clever: reconciling absolute vs
 // season-relative numbering is genuinely ambiguous without per-episode metadata,
@@ -28,12 +30,24 @@ type Candidate struct {
 	Matched bool  // belongs to this title AND maps to at least one wanted item
 	Items   []int // wanted-item numbers this release satisfies
 	Reason  string
+
+	Score            int
+	ScoreParts       []ScorePart
+	Eligible         bool
+	IneligibleReason string // non-empty exactly when !Eligible
+}
+
+// ScorePart is one axis' contribution to a candidate's score, for display.
+type ScorePart struct {
+	Label  string // e.g. "group ExampleSubs (rank 1)"
+	Points int
 }
 
 // Match evaluates releases against a title. titleVariants are the accepted names
 // for the title (e.g. romaji/english/native) used to filter out releases for
-// other series. Results are ranked matched-first, then by seeders descending.
-func Match(items []domain.WantedItem, titleVariants []string, releases []indexer.Release) []Candidate {
+// other series. Results are ranked matched-first, then eligible-first, then by
+// profile score; seeders are only the tie-break between equal scores.
+func Match(items []domain.WantedItem, titleVariants []string, releases []indexer.Release, profile domain.QualityProfile) []Candidate {
 	// itemSet holds the numbers still worth grabbing. Already-had items are excluded
 	// so a fully-downloaded episode is not re-matched and re-grabbed; maxItem still
 	// spans every item (had or not) so absolute-numbering detection below is unaffected.
@@ -57,16 +71,121 @@ func Match(items []domain.WantedItem, titleVariants []string, releases []indexer
 
 	out := make([]Candidate, 0, len(releases))
 	for _, rel := range releases {
-		out = append(out, evaluate(rel, variants, expectedSeason, itemSet, maxItem))
+		c := evaluate(rel, variants, expectedSeason, itemSet, maxItem)
+		c.Score, c.ScoreParts = Score(c.Parsed, c.Release, profile)
+		c.IneligibleReason = ineligibleReason(c.Parsed, profile, c.Score)
+		c.Eligible = c.IneligibleReason == ""
+		out = append(out, c)
 	}
 
+	// Scoring ranks within the matched set; it never relaxes matching itself.
 	sort.SliceStable(out, func(a, b int) bool {
 		if out[a].Matched != out[b].Matched {
 			return out[a].Matched // matched first
 		}
+		if out[a].Eligible != out[b].Eligible {
+			return out[a].Eligible
+		}
+		if out[a].Score != out[b].Score {
+			return out[a].Score > out[b].Score
+		}
 		return out[a].Release.Seeders > out[b].Release.Seeders
 	})
 	return out
+}
+
+// Fixed axis weights: group dominates by construction — its floor exceeds the
+// 850 max every other axis can sum to, so any listed group beats every unlisted
+// one. Within listed groups, bonuses may flip adjacent ranks by design.
+const (
+	scoreGroupBase = 2000
+	scoreGroupStep = 100
+	scoreGroupMin  = 1000
+	scoreResBase   = 400
+	scoreResStep   = 100
+	scoreResMin    = 50
+	scoreSource    = 150
+	scoreDualAudio = 100
+	scoreSubs      = 100
+	scoreCodec     = 75
+	scoreFix       = 25
+)
+
+// Score rates a release against a profile. It is deliberately pure — no store
+// or network — so the ranking that decides what lands in a library can be
+// tested exhaustively.
+func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) (int, []ScorePart) {
+	var parts []ScorePart
+	add := func(label string, pts int) { parts = append(parts, ScorePart{Label: label, Points: pts}) }
+
+	if i := indexFold(profile.Groups, p.Group); i >= 0 {
+		add(fmt.Sprintf("group %s (rank %d)", p.Group, i+1), stepped(scoreGroupBase, scoreGroupStep, scoreGroupMin, i))
+	}
+	if i := indexFold(profile.ResolutionOrder, p.Resolution); i >= 0 {
+		add(fmt.Sprintf("resolution %s (rank %d)", p.Resolution, i+1), stepped(scoreResBase, scoreResStep, scoreResMin, i))
+	}
+	if profile.PreferredSource != "" && strings.EqualFold(p.Source, profile.PreferredSource) {
+		add("source "+p.Source, scoreSource)
+	}
+	if profile.PreferDualAudio && p.DualAudio {
+		add("dual audio", scoreDualAudio)
+	}
+	// Preferences only reward — a mismatch is unrewarded, never penalised, so
+	// blocking stays HardExcludes' job and scores stay non-negative.
+	if profile.SubPref != "" && strings.EqualFold(p.Subs, profile.SubPref) {
+		add("subs "+p.Subs, scoreSubs)
+	}
+	if profile.CodecPref != "" && strings.EqualFold(p.Codec, profile.CodecPref) {
+		add("codec "+p.Codec, scoreCodec)
+	}
+	if p.Repack || p.Version > 1 {
+		add("repack/v2", scoreFix)
+	}
+
+	total := 0
+	for _, pt := range parts {
+		total += pt.Points
+	}
+	return total, parts
+}
+
+// ineligibleReason is the floor from #16: the way the answer can be "nothing
+// yet" instead of the least-bad release available. "" means eligible. Scores
+// are never negative, so the zero-value MinScore expresses no floor.
+func ineligibleReason(p parser.Parsed, profile domain.QualityProfile, score int) string {
+	if indexFold(profile.BlockedGroups, p.Group) >= 0 {
+		return fmt.Sprintf("group %s is blocked by the profile", p.Group)
+	}
+	for _, tok := range profile.HardExcludes {
+		for _, v := range []string{p.Subs, p.Codec, p.Source, p.Resolution} {
+			if v != "" && strings.EqualFold(v, strings.TrimSpace(tok)) {
+				return fmt.Sprintf("release is %s (excluded by the profile)", strings.ToLower(v))
+			}
+		}
+	}
+	if score < profile.MinScore {
+		return fmt.Sprintf("score %d is below the profile minimum %d", score, profile.MinScore)
+	}
+	return ""
+}
+
+func stepped(base, step, min, idx int) int {
+	if v := base - idx*step; v > min {
+		return v
+	}
+	return min
+}
+
+func indexFold(list []string, v string) int {
+	if v == "" {
+		return -1
+	}
+	for i, s := range list {
+		if strings.EqualFold(s, v) {
+			return i
+		}
+	}
+	return -1
 }
 
 func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSet map[int]bool, maxItem int) Candidate {
