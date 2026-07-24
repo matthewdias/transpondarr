@@ -1,5 +1,6 @@
 // Package parser turns a raw release title into structured fields — title,
-// season, episode number(s), release group, resolution, dual-audio — using
+// season, episode number(s), release group, and the quality axes (resolution,
+// source, subtitle type, codec, version/repack, dual-audio) — using
 // anitogo (a Go port of Anitomy): anime filename conventions are a large
 // heuristic problem better handled by a maintained library than by hand.
 //
@@ -9,6 +10,7 @@
 package parser
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -33,6 +35,13 @@ type Parsed struct {
 
 	Batch     bool // a multi-episode release (range, or a season pack with no number)
 	DualAudio bool
+
+	Source   string // "web", "bd", "tv" or "dvd"; "" when unstated
+	Subs     string // "hardsub" or "softsub"; "" when unstated
+	MultiSub bool   // multiple subtitle tracks advertised
+	Codec    string // "h264", "h265" or "av1"; "" when unstated or other
+	Version  int    // release version (2 for a v2); 0 when unmarked
+	Repack   bool   // REPACK / PROPER re-release
 }
 
 // Parse extracts structured fields from a release title.
@@ -49,7 +58,16 @@ func Parse(title string) Parsed {
 		EpisodeEnd:      end,
 		AbsoluteEpisode: firstInt(e.EpisodeNumberAlt),
 		DualAudio:       hasDualAudio(e, title),
+		Version:         firstInt(e.ReleaseVersion),
 	}
+
+	// Post-passes scan the title with the parsed series name removed, so a show
+	// literally called e.g. "Ghost Web" cannot satisfy a source/codec token.
+	rem := remainderOf(title, e.AnimeTitle)
+	p.Source = sourceFrom(e, rem)
+	p.Subs, p.MultiSub = subsFrom(e, rem)
+	p.Codec = codecFrom(e, rem)
+	p.Repack = repackRe.MatchString(rem)
 
 	// A release is a batch when it spans an episode range, or when it names a
 	// season/anime but carries no single episode number (a season/complete pack).
@@ -82,6 +100,90 @@ func looksLikePack(e *anitogo.Elements, title string) bool {
 	lower := strings.ToLower(title)
 	// A named season with no episode number reads as a full-season pack.
 	return len(e.AnimeSeason) > 0 || strings.Contains(lower, "batch") || strings.Contains(lower, "complete")
+}
+
+// anitogo's keyword tables miss the bare WEB / WEB-DL tag, REPACK/PROPER, and
+// AV1 entirely, and tokenize scene-style dot names unevenly — hence the raw-title
+// regex fallbacks below.
+var (
+	webRe      = regexp.MustCompile(`\bweb(?:[-_. ]?dl)?\b`)
+	repackRe   = regexp.MustCompile(`\b(?:repack|proper)\b`)
+	av1Re      = regexp.MustCompile(`\bav1\b`)
+	h264Re     = regexp.MustCompile(`\b(?:[xh][ .]?264|avc)\b`)
+	h265Re     = regexp.MustCompile(`\b(?:[xh][ .]?265|hevc)\b`)
+	hardsubRe  = regexp.MustCompile(`\bhard[-_. ]?subs?\b`)
+	softsubRe  = regexp.MustCompile(`\bsoft[-_. ]?subs?\b`)
+	multiSubRe = regexp.MustCompile(`\bmulti[-_. ]?subs?\b`)
+)
+
+// remainderOf lowercases a raw title and removes the parsed series name, so
+// token scans cannot match words that belong to the show's own title.
+func remainderOf(raw, animeTitle string) string {
+	lower := strings.ToLower(raw)
+	t := strings.ToLower(strings.TrimSpace(animeTitle))
+	if t == "" {
+		return lower
+	}
+	return strings.Replace(lower, t, " ", 1)
+}
+
+func sourceFrom(e *anitogo.Elements, rem string) string {
+	for _, s := range e.Source {
+		switch v := strings.ToLower(s); {
+		case v == "bd" || v == "bdrip" || strings.HasPrefix(v, "blu"):
+			return "bd"
+		case strings.Contains(v, "dvd") || strings.HasPrefix(v, "r2j"):
+			return "dvd"
+		case strings.Contains(v, "tv"):
+			return "tv"
+		case strings.HasPrefix(v, "web"):
+			return "web"
+		}
+	}
+	if webRe.MatchString(rem) {
+		return "web"
+	}
+	return ""
+}
+
+func subsFrom(e *anitogo.Elements, rem string) (subs string, multi bool) {
+	for _, s := range e.Subtitles {
+		switch v := strings.ToLower(s); {
+		case strings.HasPrefix(v, "hardsub"):
+			subs = "hardsub"
+		case strings.HasPrefix(v, "softsub"):
+			subs = "softsub"
+		case strings.HasPrefix(v, "multi"):
+			multi = true
+		}
+	}
+	if subs == "" && hardsubRe.MatchString(rem) {
+		subs = "hardsub"
+	}
+	if subs == "" && softsubRe.MatchString(rem) {
+		subs = "softsub"
+	}
+	return subs, multi || multiSubRe.MatchString(rem)
+}
+
+func codecFrom(e *anitogo.Elements, rem string) string {
+	for _, v := range e.VideoTerm {
+		switch {
+		case h265Re.MatchString(strings.ToLower(v)):
+			return "h265"
+		case h264Re.MatchString(strings.ToLower(v)):
+			return "h264"
+		}
+	}
+	switch {
+	case h265Re.MatchString(rem):
+		return "h265"
+	case h264Re.MatchString(rem):
+		return "h264"
+	case av1Re.MatchString(rem):
+		return "av1"
+	}
+	return ""
 }
 
 func hasDualAudio(e *anitogo.Elements, title string) bool {
