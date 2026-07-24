@@ -1,0 +1,27 @@
+#!/bin/sh
+# Fast format tripwire on staged files; CI (make lint) is the enforcement point.
+# A missing tool skips its check rather than blocking the commit.
+# Checks the working-tree file, not the staged copy — a deliberate trade-off
+# (no stash dance); partial stages can mis-report, CI is the backstop.
+fail=0
+
+go_files=$(git diff --cached --name-only --diff-filter=ACMR -- '*.go')
+if [ -n "$go_files" ] && command -v gofmt >/dev/null 2>&1; then
+	unformatted=$(gofmt -l $go_files)
+	if [ -n "$unformatted" ]; then
+		printf 'pre-commit: gofmt -w needed:\n%s\n' "$unformatted" >&2
+		fail=1
+	fi
+fi
+
+web_files=$(git diff --cached --name-only --diff-filter=ACMR -- frontend/ | sed 's|^frontend/||')
+if [ -n "$web_files" ] && [ -x frontend/node_modules/.bin/prettier ]; then
+	# tr/xargs -0 so quotes and spaces in filenames survive xargs' input parsing
+	(cd frontend && printf '%s\n' "$web_files" | tr '\n' '\0' | xargs -0 node_modules/.bin/prettier --check --ignore-unknown) >&2 || {
+		printf 'pre-commit: fix with `cd frontend && npm run format`\n' >&2
+		fail=1
+	}
+fi
+
+[ "$fail" -eq 0 ] || printf 'pre-commit: bypass with git commit --no-verify\n' >&2
+exit $fail
