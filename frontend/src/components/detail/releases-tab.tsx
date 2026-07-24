@@ -27,6 +27,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 function matchLabel(items?: number[] | null): string {
   if (!items || items.length === 0) return "";
@@ -42,6 +48,71 @@ function quality(r: CandidateRelease): string {
     [r.resolution || null, r.dual_audio ? "Dual" : null]
       .filter(Boolean)
       .join(" · ") || "—"
+  );
+}
+
+function signed(points: number): string {
+  return points > 0 ? `+${points}` : String(points);
+}
+
+// ScoreBreakdown is the "why this rank" surface (#17): per-axis contributions,
+// the total, and — when the profile refuses the release — the reason.
+export function ScoreBreakdown({ r }: { r: CandidateRelease }) {
+  const parts = r.score_parts ?? [];
+  return (
+    <div className="min-w-44">
+      {r.ineligible_reason && (
+        <p className="mb-2 max-w-56 text-xs font-medium text-dl">
+          {r.ineligible_reason}
+        </p>
+      )}
+      {parts.length === 0 ? (
+        <p className="text-xs text-faint">
+          No profile preferences matched this release.
+        </p>
+      ) : (
+        <dl>
+          {parts.map((p) => (
+            <div
+              key={p.label}
+              className="flex items-baseline justify-between gap-4 py-0.5 text-xs"
+            >
+              <dt className="text-muted-foreground">{p.label}</dt>
+              <dd className="font-medium tabular-nums">{signed(p.points)}</dd>
+            </div>
+          ))}
+          <div className="mt-1 flex items-baseline justify-between gap-4 border-t pt-1.5 text-xs font-semibold">
+            <dt>Total</dt>
+            <dd className="tabular-nums">{r.score}</dd>
+          </div>
+        </dl>
+      )}
+    </div>
+  );
+}
+
+export function ScoreCell({ r }: { r: CandidateRelease }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className={cn(
+              "inline-flex cursor-default items-center gap-1 font-semibold tabular-nums",
+              !r.eligible && "text-dl",
+            )}
+          >
+            {!r.eligible && (
+              <TriangleAlert aria-label="ineligible" className="size-3.5" />
+            )}
+            {r.score}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="left">
+          <ScoreBreakdown r={r} />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -81,9 +152,15 @@ export function ReleasesTab({
       api.grabRelease(seriesId, r.download_url),
     onSuccess: (res, r) => {
       setGrabbed((prev) => new Set(prev).add(r.download_url));
-      toast.success("Grab sent to download client", {
-        description: `${res.release} · ${res.outcome}`,
-      });
+      if (res.ineligible_reason) {
+        toast.warning("Grabbed despite the profile", {
+          description: res.ineligible_reason,
+        });
+      } else {
+        toast.success("Grab sent to download client", {
+          description: `${res.release} · ${res.outcome}`,
+        });
+      }
       queryClient.invalidateQueries({
         queryKey: seriesDetailQuery(seriesId).queryKey,
       });
@@ -180,6 +257,9 @@ export function ReleasesTab({
                   <TableHead className="hidden text-right sm:table-cell">
                     Seed
                   </TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">
+                    Score
+                  </TableHead>
                   <TableHead>Match</TableHead>
                   <TableHead className="w-16" />
                 </TableRow>
@@ -210,6 +290,9 @@ export function ReleasesTab({
                     </TableCell>
                     <TableCell className="hidden text-right tabular-nums sm:table-cell">
                       {r.seeders}
+                    </TableCell>
+                    <TableCell className="hidden text-right sm:table-cell">
+                      <ScoreCell r={r} />
                     </TableCell>
                     <TableCell>
                       <MatchCell r={r} />
@@ -266,6 +349,14 @@ export function ReleasesTab({
                   </dt>
                   <dd className="mt-1.5">
                     <MatchCell r={selected} />
+                  </dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="mb-1.5 text-[11px] uppercase tracking-wide text-faint">
+                    Score
+                  </dt>
+                  <dd className="rounded-md border bg-muted/40 p-3">
+                    <ScoreBreakdown r={selected} />
                   </dd>
                 </div>
               </dl>
