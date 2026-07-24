@@ -124,6 +124,12 @@ func TestParseScoringAxes(t *testing.T) {
 			multiSub: true},
 		// A series title containing "Web" must not read as Source=web.
 		{title: "[SpiderGroup] Ghost Web - 03 [1080p]"},
+		// The same guard must hold for scene dot-names, where anitogo's parsed
+		// title ("Ghost Web") no longer matches the raw text ("Ghost.Web").
+		{title: "Ghost.Web.S01E03.1080p.x264-FAKEGRP",
+			codec: "h264"},
+		// An episode title containing "Web" must not read as Source=web either.
+		{title: "[SubCorp] Placeholder Saga - 05 - The Web of Fate [1080p]"},
 		// Plain release with no axis markers at all: everything stays zero.
 		{title: "[FakeGroup] Placeholder Saga - 28 (1080p) [ABCD1234].mkv"},
 	}

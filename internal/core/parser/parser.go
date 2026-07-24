@@ -61,9 +61,9 @@ func Parse(title string) Parsed {
 		Version:         firstInt(e.ReleaseVersion),
 	}
 
-	// Post-passes scan the title with the parsed series name removed, so a show
-	// literally called e.g. "Ghost Web" cannot satisfy a source/codec token.
-	rem := remainderOf(title, e.AnimeTitle)
+	// Post-passes scan the title with the parsed series and episode names
+	// removed, so e.g. "Ghost Web" cannot satisfy a source/codec token.
+	rem := remainderOf(title, e)
 	p.Source = sourceFrom(e, rem)
 	p.Subs, p.MultiSub = subsFrom(e, rem)
 	p.Codec = codecFrom(e, rem)
@@ -116,15 +116,33 @@ var (
 	multiSubRe = regexp.MustCompile(`\bmulti[-_. ]?subs?\b`)
 )
 
-// remainderOf lowercases a raw title and removes the parsed series name, so
-// token scans cannot match words that belong to the show's own title.
-func remainderOf(raw, animeTitle string) string {
-	lower := strings.ToLower(raw)
-	t := strings.ToLower(strings.TrimSpace(animeTitle))
-	if t == "" {
-		return lower
+// remainderOf lowercases a raw title and removes the parsed series and episode
+// names, so token scans cannot match words that belong to the show itself.
+// Scene delimiters are folded to spaces first: anitogo joins parsed names with
+// spaces, so "Ghost Web" would never match a dot-named "Ghost.Web" verbatim.
+func remainderOf(raw string, e *anitogo.Elements) string {
+	rem := foldDelims(raw)
+	strip := []string{strings.TrimSpace(foldDelims(e.AnimeTitle))}
+	// anitogo misfiles unrecognized scene tags (REPACK, x264-GRP) as episode
+	// titles; only a multi-word episode title is trusted as a real name.
+	if t := strings.TrimSpace(foldDelims(e.EpisodeTitle)); strings.Contains(t, " ") {
+		strip = append(strip, t)
 	}
-	return strings.Replace(lower, t, " ", 1)
+	for _, t := range strip {
+		if t != "" {
+			rem = strings.Replace(rem, t, " ", 1)
+		}
+	}
+	return rem
+}
+
+func foldDelims(s string) string {
+	return strings.Map(func(r rune) rune {
+		if r == '.' || r == '_' {
+			return ' '
+		}
+		return r
+	}, strings.ToLower(s))
 }
 
 func sourceFrom(e *anitogo.Elements, rem string) string {
