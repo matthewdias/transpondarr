@@ -1,71 +1,76 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from 'lucide-react'
-import { api, ApiError, type Candidate } from '@/lib/api'
-import { metadataSearchQuery, seriesQuery } from '@/lib/queries'
-import { useDebounce } from '@/hooks/use-debounce'
-import { useIsMobile } from '@/hooks/use-mobile'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Poster } from '@/components/poster'
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from "lucide-react";
+import { api, ApiError, type Candidate } from "@/lib/api";
+import { metadataSearchQuery, seriesQuery } from "@/lib/queries";
+import { useDebounce } from "@/hooks/use-debounce";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Poster } from "@/components/poster";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from '@/components/ui/dialog'
+} from "@/components/ui/dialog";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
   DrawerDescription,
-} from '@/components/ui/drawer'
-import { Item, ItemContent, ItemMedia, ItemActions } from '@/components/ui/item'
+} from "@/components/ui/drawer";
+import {
+  Item,
+  ItemContent,
+  ItemMedia,
+  ItemActions,
+} from "@/components/ui/item";
 
 function candidateTitle(c: Candidate) {
-  return c.romaji || c.english || c.native || `AniList ${c.anilist_id}`
+  return c.romaji || c.english || c.native || `AniList ${c.anilist_id}`;
 }
 
 function AddSeriesBody({ onDone }: { onDone: () => void }) {
-  const [term, setTerm] = useState('')
-  const debounced = useDebounce(term, 350)
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
+  const [term, setTerm] = useState("");
+  const debounced = useDebounce(term, 350);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
-  const query = debounced.trim()
+  const query = debounced.trim();
 
   const search = useQuery({
     ...metadataSearchQuery(query),
     enabled: query.length > 0,
-  })
+  });
 
   const add = useMutation({
     mutationFn: (c: Candidate) => api.addSeries(c.anilist_id),
     onSuccess: (series) => {
-      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey })
-      toast.success('Series added', {
+      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
+      toast.success("Series added", {
         description: `${series.title} — ${series.items.length} wanted items expanded`,
-      })
-      onDone()
-      navigate(`/series/${series.id}`)
+      });
+      onDone();
+      navigate(`/series/${series.id}`);
     },
     onError: (err, c) => {
       if (err instanceof ApiError && err.status === 409) {
-        toast.info('Already tracking', { description: candidateTitle(c) })
-        onDone()
-        return
+        toast.info("Already tracking", { description: candidateTitle(c) });
+        onDone();
+        return;
       }
-      toast.error('Could not add series', {
+      toast.error("Could not add series", {
         description: err instanceof Error ? err.message : String(err),
-      })
+      });
     },
-  })
+  });
 
-  const results = search.data ?? []
+  const results = search.data ?? [];
 
   return (
     <div>
@@ -121,19 +126,22 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
         )}
 
         {results.map((c) => {
-          const isMovie = c.format === 'MOVIE'
+          const isMovie = c.format === "MOVIE";
           const meta = [
-            c.format && `${c.format}${c.episodes ? ` · ${c.episodes} ep` : ''}`,
-            [c.year, c.status].filter(Boolean).join(' · ') || null,
-          ].filter(Boolean) as string[]
-          const english = c.english && c.english !== candidateTitle(c) ? c.english : null
+            c.format && `${c.format}${c.episodes ? ` · ${c.episodes} ep` : ""}`,
+            [c.year, c.status].filter(Boolean).join(" · ") || null,
+          ].filter(Boolean) as string[];
+          const english =
+            c.english && c.english !== candidateTitle(c) ? c.english : null;
           return (
             <Item key={c.anilist_id} className="gap-3">
               <ItemMedia>
                 <Poster title={candidateTitle(c)} coverUrl={c.cover_url} />
               </ItemMedia>
               <ItemContent className="min-w-0 gap-0.5">
-                <div className="truncate text-sm font-medium">{candidateTitle(c)}</div>
+                <div className="truncate text-sm font-medium">
+                  {candidateTitle(c)}
+                </div>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[12.5px] text-faint">
                   {english && <span className="truncate">{english}</span>}
                   {isMovie ? (
@@ -149,30 +157,31 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
                   disabled={isMovie || add.isPending}
                   onClick={() => add.mutate(c)}
                 >
-                  {add.isPending && add.variables?.anilist_id === c.anilist_id && (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  )}
+                  {add.isPending &&
+                    add.variables?.anilist_id === c.anilist_id && (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    )}
                   Add
                 </Button>
               </ItemActions>
             </Item>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
 
 export function AddSeriesButton() {
-  const [open, setOpen] = useState(false)
-  const isMobile = useIsMobile()
-  const close = () => setOpen(false)
+  const [open, setOpen] = useState(false);
+  const isMobile = useIsMobile();
+  const close = () => setOpen(false);
 
   const trigger = (
     <Button onClick={() => setOpen(true)}>
       <Plus className="size-4" /> Add series
     </Button>
-  )
+  );
 
   if (isMobile) {
     return (
@@ -182,13 +191,15 @@ export function AddSeriesButton() {
           <DrawerContent className="px-4 pb-6">
             <DrawerHeader className="px-0">
               <DrawerTitle>Add series</DrawerTitle>
-              <DrawerDescription>Search AniList and pick a title to track.</DrawerDescription>
+              <DrawerDescription>
+                Search AniList and pick a title to track.
+              </DrawerDescription>
             </DrawerHeader>
             <AddSeriesBody onDone={close} />
           </DrawerContent>
         </Drawer>
       </>
-    )
+    );
   }
 
   return (
@@ -198,11 +209,13 @@ export function AddSeriesButton() {
         <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle>Add series</DialogTitle>
-            <DialogDescription>Search AniList and pick a title to track.</DialogDescription>
+            <DialogDescription>
+              Search AniList and pick a title to track.
+            </DialogDescription>
           </DialogHeader>
           <AddSeriesBody onDone={close} />
         </DialogContent>
       </Dialog>
     </>
-  )
+  );
 }

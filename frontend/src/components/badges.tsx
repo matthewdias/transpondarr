@@ -1,67 +1,95 @@
-import { Check, Download, FolderClock, TriangleAlert } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import type { ItemStatus } from '@/lib/api'
+import { Check, Download, FolderClock, TriangleAlert } from "lucide-react";
+import { cn } from "@/lib/utils";
+import type { ItemStatus } from "@/lib/api";
 
 const badgeBase =
-  'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap'
+  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap";
 
 export function FormatBadge({ format }: { format: string }) {
   return (
-    <span className={cn(badgeBase, 'border-border bg-panel-2 text-muted-foreground')}>
+    <span
+      className={cn(
+        badgeBase,
+        "border-border bg-panel-2 text-muted-foreground",
+      )}
+    >
       {format}
     </span>
-  )
+  );
 }
 
 export function MonitoredBadge({ monitored }: { monitored: boolean }) {
   return monitored ? (
-    <span className={cn(badgeBase, 'border-transparent bg-accent text-accent-foreground')}>
+    <span
+      className={cn(
+        badgeBase,
+        "border-transparent bg-accent text-accent-foreground",
+      )}
+    >
       Monitored
     </span>
   ) : (
-    <span className={cn(badgeBase, 'border-border bg-panel-2 text-faint')}>
+    <span className={cn(badgeBase, "border-border bg-panel-2 text-faint")}>
       Unmonitored
     </span>
-  )
+  );
 }
 
-export function ItemStatusBadge({ status, error }: { status: ItemStatus; error?: string }) {
+export function ItemStatusBadge({
+  status,
+  error,
+}: {
+  status: ItemStatus;
+  error?: string;
+}) {
   switch (status) {
-    case 'stuck':
+    case "stuck":
       return (
         <span
-          className={cn(badgeBase, 'border-destructive/40 bg-transparent text-destructive')}
-          title={error || 'The download finished but the file could not be imported. Check server logs.'}
+          className={cn(
+            badgeBase,
+            "border-destructive/40 bg-transparent text-destructive",
+          )}
+          title={
+            error ||
+            "The download finished but the file could not be imported. Check server logs."
+          }
         >
           <TriangleAlert className="size-3" /> Import blocked
         </span>
-      )
-    case 'have':
-      return (
-        <span className={cn(badgeBase, 'border-transparent bg-have-weak text-have')}>
-          <Check className="size-3" /> In library
-        </span>
-      )
-    case 'downloading':
-      return (
-        <span className={cn(badgeBase, 'border-transparent bg-dl-weak text-dl')}>
-          <Download className="size-3" /> Downloading
-        </span>
-      )
-    case 'deferred':
+      );
+    case "have":
       return (
         <span
-          className={cn(badgeBase, 'border-dl/40 bg-transparent text-dl')}
+          className={cn(badgeBase, "border-transparent bg-have-weak text-have")}
+        >
+          <Check className="size-3" /> In library
+        </span>
+      );
+    case "downloading":
+      return (
+        <span
+          className={cn(badgeBase, "border-transparent bg-dl-weak text-dl")}
+        >
+          <Download className="size-3" /> Downloading
+        </span>
+      );
+    case "deferred":
+      return (
+        <span
+          className={cn(badgeBase, "border-dl/40 bg-transparent text-dl")}
           title="A batch was downloaded but no single episode file could be imported. Grab a single-episode release to replace it."
         >
           <FolderClock className="size-3" /> Batch downloaded
         </span>
-      )
+      );
     default:
       return (
-        <span className={cn(badgeBase, 'border-border bg-transparent text-faint')}>
+        <span
+          className={cn(badgeBase, "border-border bg-transparent text-faint")}
+        >
           Wanted
         </span>
-      )
+      );
   }
 }

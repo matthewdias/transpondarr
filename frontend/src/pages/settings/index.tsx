@@ -1,16 +1,16 @@
-import { useQuery } from '@tanstack/react-query'
-import { settingsQuery } from '@/lib/queries'
-import { Topbar } from '@/components/topbar'
-import { Skeleton } from '@/components/ui/skeleton'
-import { DownloadSection } from './sections/download'
-import { IndexerSection } from './sections/indexer'
-import { LibrarySection } from './sections/library'
-import { AuthSection } from './sections/auth'
-import { ApiKeySection } from './sections/api-key'
-import { GeneralSection } from './sections/general'
+import { useQuery } from "@tanstack/react-query";
+import { settingsQuery } from "@/lib/queries";
+import { Topbar } from "@/components/topbar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DownloadSection } from "./sections/download";
+import { IndexerSection } from "./sections/indexer";
+import { LibrarySection } from "./sections/library";
+import { AuthSection } from "./sections/auth";
+import { ApiKeySection } from "./sections/api-key";
+import { GeneralSection } from "./sections/general";
 
 export function SettingsPage() {
-  const { data, isLoading, isError, error } = useQuery(settingsQuery())
+  const { data, isLoading, isError, error } = useQuery(settingsQuery());
 
   return (
     <>
@@ -18,7 +18,8 @@ export function SettingsPage() {
       <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
         {isError && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Failed to load settings: {error instanceof Error ? error.message : String(error)}
+            Failed to load settings:{" "}
+            {error instanceof Error ? error.message : String(error)}
           </div>
         )}
         {isLoading && <SettingsSkeleton />}
@@ -34,7 +35,7 @@ export function SettingsPage() {
         )}
       </div>
     </>
-  )
+  );
 }
 
 function SettingsSkeleton() {
@@ -50,5 +51,5 @@ function SettingsSkeleton() {
         </div>
       ))}
     </div>
-  )
+  );
 }

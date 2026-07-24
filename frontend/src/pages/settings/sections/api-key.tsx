@@ -1,41 +1,41 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { KeyRound, Loader2, Eye, EyeOff, Copy, RefreshCw } from 'lucide-react'
-import { api, type Settings } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { SectionShell } from '../section-shell'
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { KeyRound, Loader2, Eye, EyeOff, Copy, RefreshCw } from "lucide-react";
+import { api, type Settings } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SectionShell } from "../section-shell";
 
 export function ApiKeySection({ settings }: { settings: Settings }) {
-  const queryClient = useQueryClient()
-  const [revealed, setRevealed] = useState(false)
-  const key = settings.general.api_key
+  const queryClient = useQueryClient();
+  const [revealed, setRevealed] = useState(false);
+  const key = settings.general.api_key;
 
   const regen = useMutation({
     mutationFn: api.regenerateApiKey,
     onSuccess: (newKey) => {
-      queryClient.setQueryData<Settings>(['settings'], (old) =>
+      queryClient.setQueryData<Settings>(["settings"], (old) =>
         old ? { ...old, general: { ...old.general, api_key: newKey } } : old,
-      )
-      toast.success('API key regenerated', {
-        description: 'Machine clients using the old key must be updated.',
-      })
+      );
+      toast.success("API key regenerated", {
+        description: "Machine clients using the old key must be updated.",
+      });
     },
     onError: (e) =>
-      toast.error('Could not regenerate key', {
+      toast.error("Could not regenerate key", {
         description: e instanceof Error ? e.message : String(e),
       }),
-  })
+  });
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(key)
-      toast.success('API key copied')
+      await navigator.clipboard.writeText(key);
+      toast.success("API key copied");
     } catch {
-      toast.error('Copy failed')
+      toast.error("Copy failed");
     }
-  }
+  };
 
   return (
     <SectionShell
@@ -59,11 +59,13 @@ export function ApiKeySection({ settings }: { settings: Settings }) {
       }
     >
       <label className="block">
-        <span className="mb-1 block text-xs font-medium text-muted-foreground">API key</span>
+        <span className="mb-1 block text-xs font-medium text-muted-foreground">
+          API key
+        </span>
         <div className="flex gap-2">
           <Input
             readOnly
-            type={revealed ? 'text' : 'password'}
+            type={revealed ? "text" : "password"}
             value={key}
             className="font-mono"
           />
@@ -73,9 +75,13 @@ export function ApiKeySection({ settings }: { settings: Settings }) {
             size="icon"
             className="flex-none"
             onClick={() => setRevealed((v) => !v)}
-            aria-label={revealed ? 'Hide API key' : 'Reveal API key'}
+            aria-label={revealed ? "Hide API key" : "Reveal API key"}
           >
-            {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+            {revealed ? (
+              <EyeOff className="size-4" />
+            ) : (
+              <Eye className="size-4" />
+            )}
           </Button>
           <Button
             type="button"
@@ -90,9 +96,9 @@ export function ApiKeySection({ settings }: { settings: Settings }) {
         </div>
       </label>
       <p className="text-[11px] text-faint">
-        Send it as an <code className="font-mono">X-Api-Key</code> header. Regenerating
-        invalidates the old key immediately.
+        Send it as an <code className="font-mono">X-Api-Key</code> header.
+        Regenerating invalidates the old key immediately.
       </p>
     </SectionShell>
-  )
+  );
 }

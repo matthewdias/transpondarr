@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { Snail, User, KeyRound, Loader2 } from 'lucide-react'
-import { api, AUTH_EXPIRED_EVENT, UnauthorizedError } from '@/lib/api'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Snail, User, KeyRound, Loader2 } from "lucide-react";
+import { api, AUTH_EXPIRED_EVENT, UnauthorizedError } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-type Phase = 'loading' | 'setup' | 'login' | 'ready'
+type Phase = "loading" | "setup" | "login" | "ready";
 
 /**
  * Forms-based auth. On load we ask the server for auth status: an
@@ -15,66 +15,70 @@ type Phase = 'loading' | 'setup' | 'login' | 'ready'
  * is ever held in JS. A 401 re-runs the check.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const [phase, setPhase] = useState<Phase>('loading')
-  const queryClient = useQueryClient()
+  const [phase, setPhase] = useState<Phase>("loading");
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (phase !== 'loading') return
-    let cancelled = false
+    if (phase !== "loading") return;
+    let cancelled = false;
     void (async () => {
       try {
-        const s = await api.authStatus()
-        if (cancelled) return
-        setPhase(s.authenticated ? 'ready' : s.configured ? 'login' : 'setup')
+        const s = await api.authStatus();
+        if (cancelled) return;
+        setPhase(s.authenticated ? "ready" : s.configured ? "login" : "setup");
       } catch {
-        if (!cancelled) setPhase('login')
+        if (!cancelled) setPhase("login");
       }
-    })()
+    })();
     return () => {
-      cancelled = true
-    }
-  }, [phase])
+      cancelled = true;
+    };
+  }, [phase]);
 
   useEffect(() => {
-    const onExpired = () => setPhase('loading')
-    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired)
-    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired)
-  }, [])
+    const onExpired = () => setPhase("loading");
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+  }, []);
 
   const onAuthed = async () => {
-    await queryClient.invalidateQueries()
-    setPhase('ready')
-  }
+    await queryClient.invalidateQueries();
+    setPhase("ready");
+  };
 
-  if (phase === 'ready') return <>{children}</>
+  if (phase === "ready") return <>{children}</>;
 
-  if (phase === 'loading') {
+  if (phase === "loading") {
     return (
       <div className="flex min-h-svh items-center justify-center bg-background text-muted-foreground">
         <Loader2 className="size-5 animate-spin" />
       </div>
-    )
+    );
   }
 
   return (
     <AuthShell
-      subtitle={phase === 'setup' ? 'Create your admin account.' : 'Sign in to continue.'}
+      subtitle={
+        phase === "setup"
+          ? "Create your admin account."
+          : "Sign in to continue."
+      }
     >
-      {phase === 'setup' ? (
+      {phase === "setup" ? (
         <CredentialsForm mode="setup" onDone={onAuthed} />
       ) : (
         <CredentialsForm mode="login" onDone={onAuthed} />
       )}
     </AuthShell>
-  )
+  );
 }
 
 function AuthShell({
   subtitle,
   children,
 }: {
-  subtitle: string
-  children: React.ReactNode
+  subtitle: string;
+  children: React.ReactNode;
 }) {
   return (
     <div className="flex min-h-svh items-center justify-center bg-background p-6">
@@ -89,48 +93,51 @@ function AuthShell({
         {children}
       </div>
     </div>
-  )
+  );
 }
 
 function CredentialsForm({
   mode,
   onDone,
 }: {
-  mode: 'setup' | 'login'
-  onDone: () => void | Promise<void>
+  mode: "setup" | "login";
+  onDone: () => void | Promise<void>;
 }) {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const isSetup = mode === 'setup'
+  const isSetup = mode === "setup";
 
   async function submit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
+    e.preventDefault();
+    setError(null);
     if (isSetup && password !== confirm) {
-      setError('Passwords do not match.')
-      return
+      setError("Passwords do not match.");
+      return;
     }
-    setBusy(true)
+    setBusy(true);
     try {
-      if (isSetup) await api.setup(username.trim(), password)
-      else await api.login(username.trim(), password)
-      await onDone()
+      if (isSetup) await api.setup(username.trim(), password);
+      else await api.login(username.trim(), password);
+      await onDone();
     } catch (err) {
       if (err instanceof UnauthorizedError) {
-        setError('Invalid username or password.')
+        setError("Invalid username or password.");
       } else {
-        setError(err instanceof Error ? err.message : 'Something went wrong.')
+        setError(err instanceof Error ? err.message : "Something went wrong.");
       }
-      setBusy(false)
+      setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 rounded-lg border bg-card p-4 shadow-sm">
+    <form
+      onSubmit={submit}
+      className="space-y-3 rounded-lg border bg-card p-4 shadow-sm"
+    >
       <label className="block">
         <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <User className="size-3.5" /> Username
@@ -148,7 +155,7 @@ function CredentialsForm({
         </span>
         <Input
           type="password"
-          autoComplete={isSetup ? 'new-password' : 'current-password'}
+          autoComplete={isSetup ? "new-password" : "current-password"}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -173,8 +180,8 @@ function CredentialsForm({
         disabled={busy || !username.trim() || !password}
       >
         {busy && <Loader2 className="size-4 animate-spin" />}
-        {isSetup ? 'Create account' : 'Sign in'}
+        {isSetup ? "Create account" : "Sign in"}
       </Button>
     </form>
-  )
+  );
 }

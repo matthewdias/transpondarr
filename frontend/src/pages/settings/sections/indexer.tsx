@@ -1,25 +1,38 @@
-import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { Rss } from 'lucide-react'
-import { api, type Settings, type IndexerInput } from '@/lib/api'
-import { Field, SectionShell, SectionFooter, useSaveToast, type TestState } from '../section-shell'
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Rss } from "lucide-react";
+import { api, type Settings, type IndexerInput } from "@/lib/api";
+import {
+  Field,
+  SectionShell,
+  SectionFooter,
+  useSaveToast,
+  type TestState,
+} from "../section-shell";
 
 export function IndexerSection({ settings }: { settings: Settings }) {
-  const i = settings.indexer
-  const queryClient = useQueryClient()
-  const [name, setName] = useState(i.name)
-  const [url, setUrl] = useState(i.url)
-  const [apikey, setApikey] = useState('')
-  const [testState, setTestState] = useState<TestState>(null)
+  const i = settings.indexer;
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(i.name);
+  const [url, setUrl] = useState(i.url);
+  const [apikey, setApikey] = useState("");
+  const [testState, setTestState] = useState<TestState>(null);
 
-  const body = (): IndexerInput => ({ name, url, apikey: apikey || undefined })
+  const body = (): IndexerInput => ({ name, url, apikey: apikey || undefined });
 
   const test = useMutation({
     mutationFn: () => api.testIndexer(body()),
-    onSuccess: () => setTestState({ ok: true, message: 'Indexer responded.' }),
-    onError: (e) => setTestState({ ok: false, message: e instanceof Error ? e.message : String(e) }),
-  })
-  const save = useMutation({ mutationFn: () => api.updateIndexer(body()), ...useSaveToast(queryClient, 'Indexer') })
+    onSuccess: () => setTestState({ ok: true, message: "Indexer responded." }),
+    onError: (e) =>
+      setTestState({
+        ok: false,
+        message: e instanceof Error ? e.message : String(e),
+      }),
+  });
+  const save = useMutation({
+    mutationFn: () => api.updateIndexer(body()),
+    ...useSaveToast(queryClient, "Indexer"),
+  });
 
   return (
     <SectionShell
@@ -37,7 +50,11 @@ export function IndexerSection({ settings }: { settings: Settings }) {
         />
       }
     >
-      <Field label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+      <Field
+        label="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
       <Field
         label="Torznab URL"
         placeholder="http://prowlarr:9696/…/api"
@@ -50,10 +67,10 @@ export function IndexerSection({ settings }: { settings: Settings }) {
         type="password"
         value={apikey}
         onChange={(e) => setApikey(e.target.value)}
-        placeholder={i.apikey_set ? '•••••••• (unchanged)' : ''}
-        hint={i.apikey_set ? 'Leave blank to keep the stored key.' : undefined}
+        placeholder={i.apikey_set ? "•••••••• (unchanged)" : ""}
+        hint={i.apikey_set ? "Leave blank to keep the stored key." : undefined}
         autoComplete="off"
       />
     </SectionShell>
-  )
+  );
 }

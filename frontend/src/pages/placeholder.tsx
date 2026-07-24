@@ -1,7 +1,13 @@
-import { Construction } from 'lucide-react'
-import { Topbar } from '@/components/topbar'
+import { Construction } from "lucide-react";
+import { Topbar } from "@/components/topbar";
 
-export function PlaceholderPage({ title, blurb }: { title: string; blurb: string }) {
+export function PlaceholderPage({
+  title,
+  blurb,
+}: {
+  title: string;
+  blurb: string;
+}) {
   return (
     <>
       <Topbar title={title} />
@@ -13,5 +19,5 @@ export function PlaceholderPage({ title, blurb }: { title: string; blurb: string
         </div>
       </div>
     </>
-  )
+  );
 }
