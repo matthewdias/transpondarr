@@ -49,10 +49,11 @@ type grabSeriesInput struct {
 
 type grabSeriesOutput struct {
 	Body struct {
-		InfoHash string `json:"infohash"`
-		Outcome  string `json:"outcome" example:"success"`
-		Release  string `json:"release"`
-		Items    []int  `json:"items"`
+		InfoHash         string `json:"infohash"`
+		Outcome          string `json:"outcome" example:"success"`
+		Release          string `json:"release"`
+		Items            []int  `json:"items"`
+		IneligibleReason string `json:"ineligible_reason,omitempty" doc:"Set when the grabbed release falls outside the series' quality profile — informational, the grab still succeeds"`
 	}
 }
 
@@ -176,6 +177,7 @@ func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*
 	out.Body.Outcome = string(res.Outcome)
 	out.Body.Release = chosen.Release.Title
 	out.Body.Items = grabbed
+	out.Body.IneligibleReason = chosen.IneligibleReason
 	return out, nil
 }
 
