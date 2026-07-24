@@ -108,14 +108,18 @@ func (q *Queries) DeleteProfileGroups(ctx context.Context, profileID int64) erro
 	return err
 }
 
-const deleteQualityProfile = `-- name: DeleteQualityProfile :exec
+const deleteQualityProfile = `-- name: DeleteQualityProfile :execrows
 DELETE FROM quality_profiles
-WHERE id = ? AND is_default = 0
+WHERE quality_profiles.id = ? AND is_default = 0
+  AND NOT EXISTS (SELECT 1 FROM series WHERE series.quality_profile_id = quality_profiles.id)
 `
 
-func (q *Queries) DeleteQualityProfile(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteQualityProfile, id)
-	return err
+func (q *Queries) DeleteQualityProfile(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteQualityProfile, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getDefaultQualityProfile = `-- name: GetDefaultQualityProfile :one
@@ -174,7 +178,7 @@ const listProfileGroups = `-- name: ListProfileGroups :many
 SELECT id, profile_id, rank, group_name, blocked
 FROM quality_profile_groups
 WHERE profile_id = ?
-ORDER BY blocked, rank
+ORDER BY blocked, rank, group_name
 `
 
 func (q *Queries) ListProfileGroups(ctx context.Context, profileID int64) ([]QualityProfileGroup, error) {
@@ -302,20 +306,25 @@ func (q *Queries) ReassignSeriesProfile(ctx context.Context, arg ReassignSeriesP
 	return err
 }
 
-const setSeriesProfile = `-- name: SetSeriesProfile :exec
+const setSeriesProfile = `-- name: SetSeriesProfile :execrows
 UPDATE series
 SET quality_profile_id = ?
-WHERE id = ?
+WHERE series.id = ?
+  AND EXISTS (SELECT 1 FROM quality_profiles WHERE quality_profiles.id = ?)
 `
 
 type SetSeriesProfileParams struct {
 	QualityProfileID int64 `json:"quality_profile_id"`
 	ID               int64 `json:"id"`
+	ID_2             int64 `json:"id_2"`
 }
 
-func (q *Queries) SetSeriesProfile(ctx context.Context, arg SetSeriesProfileParams) error {
-	_, err := q.db.ExecContext(ctx, setSeriesProfile, arg.QualityProfileID, arg.ID)
-	return err
+func (q *Queries) SetSeriesProfile(ctx context.Context, arg SetSeriesProfileParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setSeriesProfile, arg.QualityProfileID, arg.ID, arg.ID_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateQualityProfile = `-- name: UpdateQualityProfile :one

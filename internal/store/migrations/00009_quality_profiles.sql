@@ -8,12 +8,12 @@ CREATE TABLE quality_profiles (
     id                INTEGER PRIMARY KEY,
     name              TEXT    NOT NULL UNIQUE,
     is_default        INTEGER NOT NULL DEFAULT 0,
-    resolution_order  TEXT    NOT NULL DEFAULT '["1080p","720p","480p"]',
+    resolution_order  TEXT    NOT NULL DEFAULT '["1080p","720p","480p"]' CHECK (json_valid(resolution_order)),
     preferred_source  TEXT    NOT NULL DEFAULT '',
     sub_pref          TEXT    NOT NULL DEFAULT '',
     prefer_dual_audio INTEGER NOT NULL DEFAULT 0,
     codec_pref        TEXT    NOT NULL DEFAULT '',
-    hard_excludes     TEXT    NOT NULL DEFAULT '[]',
+    hard_excludes     TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(hard_excludes)),
     -- Floor: a candidate scoring below this is ineligible, so the answer can be
     -- "nothing yet" instead of the least-bad thing available.
     min_score         INTEGER NOT NULL DEFAULT 0,
@@ -39,8 +39,9 @@ INSERT INTO quality_profiles (id, name, is_default) VALUES (1, 'Default', 1);
 
 -- Existing series keep working with no backfill: everything starts on Default.
 -- No REFERENCES clause: SQLite forbids ADD COLUMN with both a foreign key and a
--- non-NULL default while foreign_keys is on (our DSN enforces it). Integrity is
--- kept by the delete flow, which reassigns or refuses instead of orphaning.
+-- non-NULL default while foreign_keys is on (our DSN enforces it). The queries
+-- carry the integrity instead: SetSeriesProfile requires the profile to exist,
+-- DeleteQualityProfile refuses while any series still points at it.
 ALTER TABLE series ADD COLUMN quality_profile_id INTEGER NOT NULL DEFAULT 1;
 
 -- +goose Down

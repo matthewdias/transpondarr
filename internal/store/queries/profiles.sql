@@ -37,9 +37,10 @@ SET name              = ?,
 WHERE id = ?
 RETURNING *;
 
--- name: DeleteQualityProfile :exec
+-- name: DeleteQualityProfile :execrows
 DELETE FROM quality_profiles
-WHERE id = ? AND is_default = 0;
+WHERE quality_profiles.id = ? AND is_default = 0
+  AND NOT EXISTS (SELECT 1 FROM series WHERE series.quality_profile_id = quality_profiles.id);
 
 -- name: CountSeriesByProfile :one
 SELECT COUNT(*)
@@ -57,16 +58,17 @@ UPDATE series
 SET quality_profile_id = ?
 WHERE quality_profile_id = ?;
 
--- name: SetSeriesProfile :exec
+-- name: SetSeriesProfile :execrows
 UPDATE series
 SET quality_profile_id = ?
-WHERE id = ?;
+WHERE series.id = ?
+  AND EXISTS (SELECT 1 FROM quality_profiles WHERE quality_profiles.id = ?);
 
 -- name: ListProfileGroups :many
 SELECT *
 FROM quality_profile_groups
 WHERE profile_id = ?
-ORDER BY blocked, rank;
+ORDER BY blocked, rank, group_name;
 
 -- name: AddProfileGroup :one
 INSERT INTO quality_profile_groups (profile_id, rank, group_name, blocked)
