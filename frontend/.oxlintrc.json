@@ -1,8 +1,15 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "typescript", "oxc"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error"
+  },
   "rules": {
     "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    // Vite uses the automatic JSX runtime; React never needs to be in scope.
+    "react/react-in-jsx-scope": "off",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
   }
 }
