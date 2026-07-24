@@ -30,13 +30,36 @@ type MetadataCache struct {
 	FetchedAt    string         `json:"fetched_at"`
 }
 
+type QualityProfile struct {
+	ID              int64  `json:"id"`
+	Name            string `json:"name"`
+	IsDefault       int64  `json:"is_default"`
+	ResolutionOrder string `json:"resolution_order"`
+	PreferredSource string `json:"preferred_source"`
+	SubPref         string `json:"sub_pref"`
+	PreferDualAudio int64  `json:"prefer_dual_audio"`
+	CodecPref       string `json:"codec_pref"`
+	HardExcludes    string `json:"hard_excludes"`
+	MinScore        int64  `json:"min_score"`
+	CreatedAt       string `json:"created_at"`
+}
+
+type QualityProfileGroup struct {
+	ID        int64  `json:"id"`
+	ProfileID int64  `json:"profile_id"`
+	Rank      int64  `json:"rank"`
+	GroupName string `json:"group_name"`
+	Blocked   int64  `json:"blocked"`
+}
+
 type Series struct {
-	ID        int64         `json:"id"`
-	AnilistID sql.NullInt64 `json:"anilist_id"`
-	Title     string        `json:"title"`
-	Format    string        `json:"format"`
-	Monitored int64         `json:"monitored"`
-	CreatedAt string        `json:"created_at"`
+	ID               int64         `json:"id"`
+	AnilistID        sql.NullInt64 `json:"anilist_id"`
+	Title            string        `json:"title"`
+	Format           string        `json:"format"`
+	Monitored        int64         `json:"monitored"`
+	CreatedAt        string        `json:"created_at"`
+	QualityProfileID int64         `json:"quality_profile_id"`
 }
 
 type Session struct {

@@ -13,7 +13,7 @@ import (
 const createSeries = `-- name: CreateSeries :one
 INSERT INTO series (anilist_id, title, format, monitored)
 VALUES (?, ?, ?, ?)
-RETURNING id, anilist_id, title, format, monitored, created_at
+RETURNING id, anilist_id, title, format, monitored, created_at, quality_profile_id
 `
 
 type CreateSeriesParams struct {
@@ -38,12 +38,13 @@ func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Ser
 		&i.Format,
 		&i.Monitored,
 		&i.CreatedAt,
+		&i.QualityProfileID,
 	)
 	return i, err
 }
 
 const getSeries = `-- name: GetSeries :one
-SELECT id, anilist_id, title, format, monitored, created_at
+SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id
 FROM series
 WHERE id = ?
 LIMIT 1
@@ -59,12 +60,13 @@ func (q *Queries) GetSeries(ctx context.Context, id int64) (Series, error) {
 		&i.Format,
 		&i.Monitored,
 		&i.CreatedAt,
+		&i.QualityProfileID,
 	)
 	return i, err
 }
 
 const getSeriesByAnilistID = `-- name: GetSeriesByAnilistID :one
-SELECT id, anilist_id, title, format, monitored, created_at
+SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id
 FROM series
 WHERE anilist_id = ?
 LIMIT 1
@@ -80,12 +82,13 @@ func (q *Queries) GetSeriesByAnilistID(ctx context.Context, anilistID sql.NullIn
 		&i.Format,
 		&i.Monitored,
 		&i.CreatedAt,
+		&i.QualityProfileID,
 	)
 	return i, err
 }
 
 const listSeries = `-- name: ListSeries :many
-SELECT id, anilist_id, title, format, monitored, created_at
+SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id
 FROM series
 ORDER BY title
 `
@@ -106,6 +109,7 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 			&i.Format,
 			&i.Monitored,
 			&i.CreatedAt,
+			&i.QualityProfileID,
 		); err != nil {
 			return nil, err
 		}
@@ -122,7 +126,7 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 
 const listSeriesWithProgress = `-- name: ListSeriesWithProgress :many
 SELECT
-    s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at,
+    s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id,
     COUNT(w.id)                            AS total_items,
     CAST(COALESCE(SUM(w.have), 0) AS INTEGER) AS have_items
 FROM series s
@@ -132,14 +136,15 @@ ORDER BY s.title
 `
 
 type ListSeriesWithProgressRow struct {
-	ID         int64         `json:"id"`
-	AnilistID  sql.NullInt64 `json:"anilist_id"`
-	Title      string        `json:"title"`
-	Format     string        `json:"format"`
-	Monitored  int64         `json:"monitored"`
-	CreatedAt  string        `json:"created_at"`
-	TotalItems int64         `json:"total_items"`
-	HaveItems  int64         `json:"have_items"`
+	ID               int64         `json:"id"`
+	AnilistID        sql.NullInt64 `json:"anilist_id"`
+	Title            string        `json:"title"`
+	Format           string        `json:"format"`
+	Monitored        int64         `json:"monitored"`
+	CreatedAt        string        `json:"created_at"`
+	QualityProfileID int64         `json:"quality_profile_id"`
+	TotalItems       int64         `json:"total_items"`
+	HaveItems        int64         `json:"have_items"`
 }
 
 func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithProgressRow, error) {
@@ -158,6 +163,7 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 			&i.Format,
 			&i.Monitored,
 			&i.CreatedAt,
+			&i.QualityProfileID,
 			&i.TotalItems,
 			&i.HaveItems,
 		); err != nil {

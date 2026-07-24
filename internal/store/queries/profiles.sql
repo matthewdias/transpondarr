@@ -1,0 +1,78 @@
+-- NOTE: keep comments in this file ASCII-only. sqlc's sqlite codegen miscounts
+-- byte vs. rune offsets and a multi-byte character in a doc comment silently
+-- truncates the emitted SQL. See CLAUDE.md.
+
+-- name: ListQualityProfiles :many
+SELECT *
+FROM quality_profiles
+ORDER BY is_default DESC, name;
+
+-- name: GetQualityProfile :one
+SELECT *
+FROM quality_profiles
+WHERE id = ?
+LIMIT 1;
+
+-- name: GetDefaultQualityProfile :one
+SELECT *
+FROM quality_profiles
+WHERE is_default = 1
+LIMIT 1;
+
+-- name: CreateQualityProfile :one
+INSERT INTO quality_profiles (name, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING *;
+
+-- name: UpdateQualityProfile :one
+UPDATE quality_profiles
+SET name              = ?,
+    resolution_order  = ?,
+    preferred_source  = ?,
+    sub_pref          = ?,
+    prefer_dual_audio = ?,
+    codec_pref        = ?,
+    hard_excludes     = ?,
+    min_score         = ?
+WHERE id = ?
+RETURNING *;
+
+-- name: DeleteQualityProfile :exec
+DELETE FROM quality_profiles
+WHERE id = ? AND is_default = 0;
+
+-- name: CountSeriesByProfile :one
+SELECT COUNT(*)
+FROM series
+WHERE quality_profile_id = ?;
+
+-- name: ListSeriesByProfile :many
+SELECT id, title
+FROM series
+WHERE quality_profile_id = ?
+ORDER BY title;
+
+-- name: ReassignSeriesProfile :exec
+UPDATE series
+SET quality_profile_id = ?
+WHERE quality_profile_id = ?;
+
+-- name: SetSeriesProfile :exec
+UPDATE series
+SET quality_profile_id = ?
+WHERE id = ?;
+
+-- name: ListProfileGroups :many
+SELECT *
+FROM quality_profile_groups
+WHERE profile_id = ?
+ORDER BY blocked, rank;
+
+-- name: AddProfileGroup :one
+INSERT INTO quality_profile_groups (profile_id, rank, group_name, blocked)
+VALUES (?, ?, ?, ?)
+RETURNING *;
+
+-- name: DeleteProfileGroups :exec
+DELETE FROM quality_profile_groups
+WHERE profile_id = ?;
