@@ -218,9 +218,22 @@ func (h *seriesHandler) matchReleases(ctx context.Context, id int64) (db.Series,
 		}
 	}
 
+	profRow, err := h.store.Q.GetQualityProfile(ctx, series.QualityProfileID)
+	if err != nil {
+		return db.Series{}, nil, nil, huma.Error500InternalServerError("failed to load quality profile", err)
+	}
+	groupRows, err := h.store.Q.ListProfileGroups(ctx, profRow.ID)
+	if err != nil {
+		return db.Series{}, nil, nil, huma.Error500InternalServerError("failed to load profile groups", err)
+	}
+	profile, err := profileFromRows(profRow, groupRows)
+	if err != nil {
+		return db.Series{}, nil, nil, huma.Error500InternalServerError("invalid quality profile", err)
+	}
+
 	releases, err := idx.Search(ctx, indexer.Query{Term: series.Title})
 	if err != nil {
 		return db.Series{}, nil, nil, huma.Error502BadGateway("indexer search failed", err)
 	}
-	return series, items, decide.Match(items, variants, releases), nil
+	return series, items, decide.Match(items, variants, releases, profile), nil
 }
