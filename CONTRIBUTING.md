@@ -50,8 +50,8 @@ make test
 make dev     # live-reload API (air)
 ```
 
-Any of these installs a fast pre-commit hook (`git config core.hooksPath
-.githooks`) that runs `gofmt` / `prettier --check` on staged files — the same
+`make build`, `lint`, or `test` installs a fast pre-commit hook (`git config
+core.hooksPath .githooks`) that runs `gofmt` / `prettier --check` on staged files — the same
 formatting CI enforces, caught before the commit instead of minutes later.
 Bypass with `git commit --no-verify`.
 
