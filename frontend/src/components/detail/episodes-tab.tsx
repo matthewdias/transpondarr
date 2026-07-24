@@ -1,9 +1,9 @@
-import { Search } from 'lucide-react'
-import type { SeriesDetail, WantedItem } from '@/lib/api'
-import { pad2 } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { ItemStatusBadge } from '@/components/badges'
+import { Search } from "lucide-react";
+import type { SeriesDetail, WantedItem } from "@/lib/api";
+import { pad2 } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { ItemStatusBadge } from "@/components/badges";
 import {
   Table,
   TableBody,
@@ -11,23 +11,23 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
+} from "@/components/ui/table";
 
 export function EpisodesTab({
   detail,
   onSearchAll,
 }: {
-  detail: SeriesDetail
-  onSearchAll: () => void
+  detail: SeriesDetail;
+  onSearchAll: () => void;
 }) {
-  const items = detail.items
-  const total = items.length
-  const have = items.filter((i) => i.status === 'have').length
-  const downloading = items.filter((i) => i.status === 'downloading').length
-  const stuck = items.filter((i) => i.status === 'stuck').length
-  const deferred = items.filter((i) => i.status === 'deferred').length
-  const wanted = total - have - downloading - stuck - deferred
-  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0)
+  const items = detail.items;
+  const total = items.length;
+  const have = items.filter((i) => i.status === "have").length;
+  const downloading = items.filter((i) => i.status === "downloading").length;
+  const stuck = items.filter((i) => i.status === "stuck").length;
+  const deferred = items.filter((i) => i.status === "deferred").length;
+  const wanted = total - have - downloading - stuck - deferred;
+  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
 
   return (
     <div>
@@ -38,33 +38,45 @@ export function EpisodesTab({
             title={`${have} in library · ${downloading} downloading · ${stuck} import blocked · ${deferred} batch downloaded · ${wanted} wanted`}
           >
             {have > 0 && (
-              <span className="h-full min-w-1.5 flex-none bg-have" style={{ width: `${pct(have)}%` }} />
+              <span
+                className="h-full min-w-1.5 flex-none bg-have"
+                style={{ width: `${pct(have)}%` }}
+              />
             )}
             {downloading > 0 && (
-              <span className="h-full min-w-1.5 flex-none bg-dl" style={{ width: `${pct(downloading)}%` }} />
+              <span
+                className="h-full min-w-1.5 flex-none bg-dl"
+                style={{ width: `${pct(downloading)}%` }}
+              />
             )}
           </div>
           <div className="min-w-0 text-[13px] text-muted-foreground">
             <b className="font-semibold tabular-nums text-foreground">
               {have} / {total}
-            </b>{' '}
+            </b>{" "}
             in library
             {downloading > 0 && (
               <>
                 <span className="mx-1 text-faint">·</span>
-                <span className="font-semibold text-dl">{downloading} downloading</span>
+                <span className="font-semibold text-dl">
+                  {downloading} downloading
+                </span>
               </>
             )}
             {stuck > 0 && (
               <>
                 <span className="mx-1 text-faint">·</span>
-                <span className="font-semibold text-destructive">{stuck} import blocked</span>
+                <span className="font-semibold text-destructive">
+                  {stuck} import blocked
+                </span>
               </>
             )}
             {deferred > 0 && (
               <>
                 <span className="mx-1 text-faint">·</span>
-                <span className="font-semibold text-dl">{deferred} batch downloaded</span>
+                <span className="font-semibold text-dl">
+                  {deferred} batch downloaded
+                </span>
               </>
             )}
             <span className="mx-1 text-faint">·</span>
@@ -102,12 +114,20 @@ export function EpisodesTab({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-function EpisodeRow({ item, onSearch }: { item: WantedItem; onSearch: () => void }) {
+function EpisodeRow({
+  item,
+  onSearch,
+}: {
+  item: WantedItem;
+  onSearch: () => void;
+}) {
   return (
-    <TableRow className={cn(item.status === 'wanted' && 'text-muted-foreground')}>
+    <TableRow
+      className={cn(item.status === "wanted" && "text-muted-foreground")}
+    >
       <TableCell className="font-mono font-semibold tabular-nums">
         {pad2(item.number)}
       </TableCell>
@@ -124,7 +144,7 @@ function EpisodeRow({ item, onSearch }: { item: WantedItem; onSearch: () => void
         )}
       </TableCell>
       <TableCell className="text-right">
-        {(item.status === 'wanted' || item.status === 'deferred') && (
+        {(item.status === "wanted" || item.status === "deferred") && (
           <button
             className="text-sm font-medium text-accent-foreground hover:underline"
             onClick={onSearch}
@@ -134,5 +154,5 @@ function EpisodeRow({ item, onSearch }: { item: WantedItem; onSearch: () => void
         )}
       </TableCell>
     </TableRow>
-  )
+  );
 }

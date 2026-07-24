@@ -1,38 +1,75 @@
-import { useQuery } from '@tanstack/react-query'
-import { Check, Download, FolderClock, History, RefreshCw, TriangleAlert } from 'lucide-react'
-import { ApiError, type GrabEvent } from '@/lib/api'
-import { grabsQuery } from '@/lib/queries'
-import { timeAgo } from '@/lib/format'
-import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import { Item, ItemContent, ItemMedia, ItemActions, ItemGroup } from '@/components/ui/item'
-import { Skeleton } from '@/components/ui/skeleton'
+import { useQuery } from "@tanstack/react-query";
+import {
+  Check,
+  Download,
+  FolderClock,
+  History,
+  RefreshCw,
+  TriangleAlert,
+} from "lucide-react";
+import { ApiError, type GrabEvent } from "@/lib/api";
+import { grabsQuery } from "@/lib/queries";
+import { timeAgo } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import {
+  Item,
+  ItemContent,
+  ItemMedia,
+  ItemActions,
+  ItemGroup,
+} from "@/components/ui/item";
+import { Skeleton } from "@/components/ui/skeleton";
 
 function present(event: GrabEvent) {
   switch (event.status) {
-    case 'imported':
-      return { verb: 'Imported', icon: Check, tone: 'bg-have-weak text-have' }
-    case 'import_deferred':
-      return { verb: 'Downloaded (batch)', icon: FolderClock, tone: 'bg-panel-2 text-muted-foreground' }
+    case "imported":
+      return { verb: "Imported", icon: Check, tone: "bg-have-weak text-have" };
+    case "import_deferred":
+      return {
+        verb: "Downloaded (batch)",
+        icon: FolderClock,
+        tone: "bg-panel-2 text-muted-foreground",
+      };
     default:
       return event.last_error
-        ? { verb: 'Import blocked', icon: TriangleAlert, tone: 'bg-destructive/15 text-destructive' }
-        : { verb: 'Downloading', icon: Download, tone: 'bg-dl-weak text-dl' }
+        ? {
+            verb: "Import blocked",
+            icon: TriangleAlert,
+            tone: "bg-destructive/15 text-destructive",
+          }
+        : { verb: "Downloading", icon: Download, tone: "bg-dl-weak text-dl" };
   }
 }
 
-export function HistoryTab({ seriesId, active }: { seriesId: number; active: boolean }) {
-  const { data: events, isLoading, isPaused, isError, error, refetch } = useQuery({
+export function HistoryTab({
+  seriesId,
+  active,
+}: {
+  seriesId: number;
+  active: boolean;
+}) {
+  const {
+    data: events,
+    isLoading,
+    isPaused,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     ...grabsQuery(seriesId),
     enabled: active,
-  })
+  });
 
   // A paused retry (browser offline) reports neither fetching nor error.
   if (isLoading || isPaused) {
     return (
       <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
         {Array.from({ length: 2 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 border-b px-3.5 py-3 last:border-b-0">
+          <div
+            key={i}
+            className="flex items-center gap-3 border-b px-3.5 py-3 last:border-b-0"
+          >
             <Skeleton className="size-8 rounded-lg" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-3.5 w-40" />
@@ -41,7 +78,7 @@ export function HistoryTab({ seriesId, active }: { seriesId: number; active: boo
           </div>
         ))}
       </div>
-    )
+    );
   }
 
   if (isError) {
@@ -52,11 +89,16 @@ export function HistoryTab({ seriesId, active }: { seriesId: number; active: boo
         <p className="mt-1.5 max-w-md text-sm text-muted-foreground">
           {error instanceof ApiError ? error.message : String(error)}
         </p>
-        <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-4"
+          onClick={() => refetch()}
+        >
           <RefreshCw className="size-4" /> Try again
         </Button>
       </div>
-    )
+    );
   }
 
   if (!events || events.length === 0) {
@@ -67,7 +109,7 @@ export function HistoryTab({ seriesId, active }: { seriesId: number; active: boo
           No grab or import history yet. Grab a release from the Releases tab.
         </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -76,15 +118,15 @@ export function HistoryTab({ seriesId, active }: { seriesId: number; active: boo
         <HistoryRow key={e.id} event={e} />
       ))}
     </ItemGroup>
-  )
+  );
 }
 
 function HistoryRow({ event }: { event: GrabEvent }) {
-  const { verb, icon: Icon, tone } = present(event)
+  const { verb, icon: Icon, tone } = present(event);
   return (
     <Item className="gap-3">
       <ItemMedia>
-        <span className={cn('grid size-8 place-items-center rounded-lg', tone)}>
+        <span className={cn("grid size-8 place-items-center rounded-lg", tone)}>
           <Icon className="size-4" />
         </span>
       </ItemMedia>
@@ -96,12 +138,14 @@ function HistoryRow({ event }: { event: GrabEvent }) {
           {event.release_title}
         </div>
         {event.last_error && (
-          <div className="line-clamp-2 text-[12px] text-destructive">{event.last_error}</div>
+          <div className="line-clamp-2 text-[12px] text-destructive">
+            {event.last_error}
+          </div>
         )}
       </ItemContent>
       <ItemActions>
         <span className="text-xs text-faint">{timeAgo(event.created_at)}</span>
       </ItemActions>
     </Item>
-  )
+  );
 }

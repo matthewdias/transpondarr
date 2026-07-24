@@ -1,12 +1,12 @@
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { ChevronRight, Tv } from 'lucide-react'
-import { seriesQuery } from '@/lib/queries'
-import { Topbar } from '@/components/topbar'
-import { AddSeriesButton } from '@/components/add-series'
-import { Poster } from '@/components/poster'
-import { FormatBadge, MonitoredBadge } from '@/components/badges'
-import { HaveProgress } from '@/components/have-progress'
+import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, Tv } from "lucide-react";
+import { seriesQuery } from "@/lib/queries";
+import { Topbar } from "@/components/topbar";
+import { AddSeriesButton } from "@/components/add-series";
+import { Poster } from "@/components/poster";
+import { FormatBadge, MonitoredBadge } from "@/components/badges";
+import { HaveProgress } from "@/components/have-progress";
 import {
   Table,
   TableBody,
@@ -14,11 +14,11 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Skeleton } from '@/components/ui/skeleton'
+} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function SeriesListPage() {
-  const { data: series, isLoading, isError, error } = useQuery(seriesQuery())
+  const { data: series, isLoading, isError, error } = useQuery(seriesQuery());
 
   return (
     <>
@@ -27,7 +27,8 @@ export function SeriesListPage() {
       <div className="px-4 py-6 sm:px-6">
         {isError && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Failed to load series: {error instanceof Error ? error.message : String(error)}
+            Failed to load series:{" "}
+            {error instanceof Error ? error.message : String(error)}
           </div>
         )}
 
@@ -38,7 +39,8 @@ export function SeriesListPage() {
             <Tv className="mb-4 size-8 text-faint" />
             <h2 className="text-base font-semibold">No series yet</h2>
             <p className="mb-5 mt-2 text-sm text-muted-foreground">
-              Add a series from AniList to start tracking and grabbing its episodes.
+              Add a series from AniList to start tracking and grabbing its
+              episodes.
             </p>
             <AddSeriesButton />
           </div>
@@ -51,7 +53,9 @@ export function SeriesListPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Title</TableHead>
-                    <TableHead className="hidden sm:table-cell">Format</TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      Format
+                    </TableHead>
                     <TableHead>Monitored</TableHead>
                     <TableHead className="sm:w-[200px]">Episodes</TableHead>
                     <TableHead className="hidden w-8 sm:table-cell" />
@@ -95,14 +99,17 @@ export function SeriesListPage() {
         )}
       </div>
     </>
-  )
+  );
 }
 
 function SeriesTableSkeleton() {
   return (
     <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0">
+        <div
+          key={i}
+          className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0"
+        >
           <Skeleton className="h-12 w-[34px] rounded-[5px]" />
           <Skeleton className="h-4 w-48" />
           <Skeleton className="ml-auto h-5 w-16 rounded-full" />
@@ -110,5 +117,5 @@ function SeriesTableSkeleton() {
         </div>
       ))}
     </div>
-  )
+  );
 }

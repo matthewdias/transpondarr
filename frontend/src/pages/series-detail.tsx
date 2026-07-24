@@ -1,55 +1,60 @@
-import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { api, ApiError, type SeriesDetail } from '@/lib/api'
-import { seriesDetailQuery, seriesQuery } from '@/lib/queries'
-import { cn } from '@/lib/utils'
-import { Topbar } from '@/components/topbar'
-import { Poster } from '@/components/poster'
-import { Switch } from '@/components/ui/switch'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { EpisodesTab } from '@/components/detail/episodes-tab'
-import { ReleasesTab } from '@/components/detail/releases-tab'
-import { HistoryTab } from '@/components/detail/history-tab'
+import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { api, ApiError, type SeriesDetail } from "@/lib/api";
+import { seriesDetailQuery, seriesQuery } from "@/lib/queries";
+import { cn } from "@/lib/utils";
+import { Topbar } from "@/components/topbar";
+import { Poster } from "@/components/poster";
+import { Switch } from "@/components/ui/switch";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EpisodesTab } from "@/components/detail/episodes-tab";
+import { ReleasesTab } from "@/components/detail/releases-tab";
+import { HistoryTab } from "@/components/detail/history-tab";
 
-type TabKey = 'episodes' | 'releases' | 'history'
+type TabKey = "episodes" | "releases" | "history";
 
 export function SeriesDetailPage() {
-  const params = useParams()
-  const id = Number(params.id)
-  const [tab, setTab] = useState<TabKey>('episodes')
-  const queryClient = useQueryClient()
+  const params = useParams();
+  const id = Number(params.id);
+  const [tab, setTab] = useState<TabKey>("episodes");
+  const queryClient = useQueryClient();
 
-  const detailKey = seriesDetailQuery(id).queryKey
+  const detailKey = seriesDetailQuery(id).queryKey;
 
-  const { data: detail, isLoading, isError, error } = useQuery({
+  const {
+    data: detail,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     ...seriesDetailQuery(id),
     enabled: Number.isFinite(id),
-  })
+  });
 
   const monitor = useMutation({
     mutationFn: (v: boolean) => api.setMonitored(id, v),
     onMutate: async (v) => {
-      await queryClient.cancelQueries({ queryKey: detailKey })
-      const prev = queryClient.getQueryData(detailKey)
+      await queryClient.cancelQueries({ queryKey: detailKey });
+      const prev = queryClient.getQueryData(detailKey);
       queryClient.setQueryData(detailKey, (old) =>
         old ? { ...old, monitored: v } : old,
-      )
-      return { prev }
+      );
+      return { prev };
     },
     onError: (_e, _v, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev)
-      toast.error('Could not update monitoring')
+      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
+      toast.error("Could not update monitoring");
     },
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: detailKey })
-      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey })
+      queryClient.invalidateQueries({ queryKey: detailKey });
+      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
     },
-  })
+  });
 
-  const notFound = isError && error instanceof ApiError && error.status === 404
+  const notFound = isError && error instanceof ApiError && error.status === 404;
 
   const breadcrumb = (
     <div className="flex min-w-0 items-center gap-2">
@@ -58,12 +63,12 @@ export function SeriesDetailPage() {
       </Link>
       <span className="text-faint">/</span>
       <h1 className="truncate text-base font-semibold tracking-tight">
-        {detail?.title ?? (notFound ? 'Not found' : '…')}
+        {detail?.title ?? (notFound ? "Not found" : "…")}
       </h1>
     </div>
-  )
+  );
 
-  const goSearch = () => setTab('releases')
+  const goSearch = () => setTab("releases");
 
   return (
     <>
@@ -75,7 +80,7 @@ export function SeriesDetailPage() {
           <div className="rounded-lg border border-dashed bg-card px-6 py-16 text-center">
             <h2 className="text-base font-semibold">Series not found</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              It may have been removed.{' '}
+              It may have been removed.{" "}
               <Link to="/" className="text-accent-foreground hover:underline">
                 Back to series
               </Link>
@@ -86,7 +91,8 @@ export function SeriesDetailPage() {
 
         {isError && !notFound && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Failed to load series: {error instanceof Error ? error.message : String(error)}
+            Failed to load series:{" "}
+            {error instanceof Error ? error.message : String(error)}
           </div>
         )}
 
@@ -106,41 +112,54 @@ export function SeriesDetailPage() {
                 variant="line"
                 className="mb-[18px] h-auto w-full justify-start gap-0.5 rounded-none border-b bg-transparent p-0"
               >
-                <DetailTab value="episodes" label="Episodes" count={detail.items.length} active={tab === 'episodes'} />
-                <DetailTab value="releases" label="Releases" active={tab === 'releases'} />
-                <DetailTab value="history" label="History" active={tab === 'history'} />
+                <DetailTab
+                  value="episodes"
+                  label="Episodes"
+                  count={detail.items.length}
+                  active={tab === "episodes"}
+                />
+                <DetailTab
+                  value="releases"
+                  label="Releases"
+                  active={tab === "releases"}
+                />
+                <DetailTab
+                  value="history"
+                  label="History"
+                  active={tab === "history"}
+                />
               </TabsList>
 
               <TabsContent value="episodes">
                 <EpisodesTab detail={detail} onSearchAll={goSearch} />
               </TabsContent>
               <TabsContent value="releases">
-                <ReleasesTab seriesId={id} active={tab === 'releases'} />
+                <ReleasesTab seriesId={id} active={tab === "releases"} />
               </TabsContent>
               <TabsContent value="history">
-                <HistoryTab seriesId={id} active={tab === 'history'} />
+                <HistoryTab seriesId={id} active={tab === "history"} />
               </TabsContent>
             </Tabs>
           </>
         )}
       </div>
     </>
-  )
+  );
 }
 
 function DetailHeader({
   detail,
   onToggleMonitored,
 }: {
-  detail: SeriesDetail
-  onToggleMonitored: (v: boolean) => void
+  detail: SeriesDetail;
+  onToggleMonitored: (v: boolean) => void;
 }) {
-  const subtitle = [detail.english, detail.native].filter(Boolean).join(' · ')
+  const subtitle = [detail.english, detail.native].filter(Boolean).join(" · ");
   const chips = [
     detail.format,
     `${detail.items.length} episodes`,
     statusLabel(detail.status) || null,
-  ].filter(Boolean) as string[]
+  ].filter(Boolean) as string[];
 
   return (
     <div className="mb-5 flex items-start gap-4 sm:gap-5">
@@ -151,11 +170,17 @@ function DetailHeader({
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
               {detail.title}
             </h1>
-            {subtitle && <p className="mt-0.5 text-sm text-faint">{subtitle}</p>}
+            {subtitle && (
+              <p className="mt-0.5 text-sm text-faint">{subtitle}</p>
+            )}
           </div>
           <label className="flex flex-none cursor-pointer items-center gap-2.5 text-[13.5px] font-medium">
-            <span className={detail.monitored ? 'text-foreground' : 'text-muted-foreground'}>
-              {detail.monitored ? 'Monitored' : 'Unmonitored'}
+            <span
+              className={
+                detail.monitored ? "text-foreground" : "text-muted-foreground"
+              }
+            >
+              {detail.monitored ? "Monitored" : "Unmonitored"}
             </span>
             <Switch
               checked={detail.monitored}
@@ -187,7 +212,7 @@ function DetailHeader({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function DetailTab({
@@ -196,10 +221,10 @@ function DetailTab({
   count,
   active,
 }: {
-  value: TabKey
-  label: string
-  count?: number
-  active: boolean
+  value: TabKey;
+  label: string;
+  count?: number;
+  active: boolean;
 }) {
   return (
     <TabsTrigger
@@ -210,23 +235,23 @@ function DetailTab({
       {count != null && (
         <span
           className={cn(
-            'rounded-full border px-1.5 text-[11px] tabular-nums',
+            "rounded-full border px-1.5 text-[11px] tabular-nums",
             active
-              ? 'border-transparent bg-accent text-accent-foreground'
-              : 'border-border bg-background text-faint',
+              ? "border-transparent bg-accent text-accent-foreground"
+              : "border-border bg-background text-faint",
           )}
         >
           {count}
         </span>
       )}
     </TabsTrigger>
-  )
+  );
 }
 
 function statusLabel(status?: string): string {
-  if (!status) return ''
+  if (!status) return "";
   // AniList statuses are SCREAMING_CASE — title-case them.
-  return status.charAt(0) + status.slice(1).toLowerCase()
+  return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
 function HeaderSkeleton() {
@@ -243,5 +268,5 @@ function HeaderSkeleton() {
         </div>
       </div>
     </div>
-  )
+  );
 }

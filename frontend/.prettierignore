@@ -1,0 +1,8 @@
+# Generated from the OpenAPI spec (openapi-typescript) - regenerated, never hand-edited
+src/lib/api-types.ts
+
+# Tool-managed lockfile; npm rewrites it in its own style
+package-lock.json
+
+# gen-api intermediate; deleted on success but can linger after a failed run
+openapi.gen.yaml

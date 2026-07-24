@@ -1,18 +1,18 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { HashRouter, Routes, Route } from 'react-router-dom'
-import './index.css'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { HashRouter, Routes, Route } from "react-router-dom";
+import "./index.css";
 
-import { ThemeProvider } from '@/components/theme-provider'
-import { AuthGate } from '@/components/auth-gate'
-import { Toaster } from '@/components/ui/sonner'
-import { ApiError } from '@/lib/api'
-import { AppLayout } from '@/components/app-layout'
-import { SeriesListPage } from '@/pages/series-list'
-import { SeriesDetailPage } from '@/pages/series-detail'
-import { SettingsPage } from '@/pages/settings'
-import { PlaceholderPage } from '@/pages/placeholder'
+import { ThemeProvider } from "@/components/theme-provider";
+import { AuthGate } from "@/components/auth-gate";
+import { Toaster } from "@/components/ui/sonner";
+import { ApiError } from "@/lib/api";
+import { AppLayout } from "@/components/app-layout";
+import { SeriesListPage } from "@/pages/series-list";
+import { SeriesDetailPage } from "@/pages/series-detail";
+import { SettingsPage } from "@/pages/settings";
+import { PlaceholderPage } from "@/pages/placeholder";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,9 +24,9 @@ const queryClient = new QueryClient({
         error instanceof ApiError && error.status < 500 ? false : count < 1,
     },
   },
-})
+});
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
@@ -63,4 +63,4 @@ createRoot(document.getElementById('root')!).render(
       </QueryClientProvider>
     </ThemeProvider>
   </StrictMode>,
-)
+);
