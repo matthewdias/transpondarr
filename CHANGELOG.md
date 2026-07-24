@@ -6,6 +6,49 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-07-23
+
+A reliability release: no download can appear stuck as "downloading" forever
+anymore, and imports now survive crashes, power loss, and restarts.
+
+### Fixed
+
+- **Every permanently-stuck "downloading" state is gone.** The three ways a grab
+  could wedge forever are each fixed or surfaced honestly:
+  - A torrent removed from the download client out-of-band is now reconciled:
+    after a 5-minute grace period the grab fails and the episode reverts to
+    wanted (this closes the known limitation from 0.1.0).
+  - A deferred batch/season-pack grab now shows a distinct **deferred** status
+    instead of "downloading" forever. It stays honest — the bytes are on disk
+    and seeding — and manually grabbing a single-episode release replaces the
+    deferred grab cleanly.
+  - An import that keeps failing (a qBittorrent path-mapping gap, library
+    permissions, disk full) now surfaces as **stuck**, with the actual error
+    shown on the grab, instead of retrying silently with the reason visible
+    only in the logs.
+- **Folder-wrapped downloads now import.** A single-episode torrent that
+  delivers a directory payload is resolved to its one episode file at
+  completion time; `import_deferred` is reserved for payloads that genuinely
+  can't be disambiguated (real batches).
+- **Imports are crash-safe.** Durability and shutdown ordering across the whole
+  import path:
+  - Copy-mode imports fsync the file before renaming it into the library —
+    previously a power loss could land the rename before the data, leaving a
+    truncated episode that was treated as already-imported forever.
+  - Hardlink-mode imports fsync the linked inode (and directory entry) before
+    the grab settles, closing the same window.
+  - Truncated files left in the library by past crashes are detected and
+    reclaimed for re-import instead of being invisible.
+  - Graceful shutdown now waits for the importer: the store can no longer close
+    mid-import, in-flight multi-GB copies abort promptly within the shutdown
+    budget, and a completed `Place` always gets its have/status writes.
+- **API failures in the web UI render as error states with retry**, not as
+  misleading empty states ("No titles found" after a rate-limited AniList
+  search). Abandoned searches are now aborted instead of left running, and an
+  untrimmed search cache key no longer causes duplicate AniList queries.
+- **Expired sessions are swept on a daily ticker**, not only at startup, so
+  long-lived instances no longer accumulate expired session rows.
+
 ### Security
 
 - **Rate-limited the change-password endpoint** (`POST /api/v1/auth/password`).
@@ -63,5 +106,6 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/matthewdias/transpondarr/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/matthewdias/transpondarr/releases/tag/v0.1.0
