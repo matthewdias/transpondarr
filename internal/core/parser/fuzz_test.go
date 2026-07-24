@@ -12,6 +12,7 @@ func FuzzParseNoPanic(f *testing.F) {
 		"[Batchers] Placeholder Saga S02E13 (01-10) (1080p) [Batch]",
 		"Placeholder Saga S3 - 01 (51) [Dual Audio]",
 		"[[]]()---..__~~!!##$$%%^^&&**(())",
+		"(-1)0", // anitogo emits "-1" as an episode number; atoi must clamp it
 	}
 	for _, s := range seeds {
 		f.Add(s)
