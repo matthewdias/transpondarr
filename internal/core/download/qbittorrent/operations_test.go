@@ -156,19 +156,19 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 
 func TestMapState(t *testing.T) {
 	cases := map[string]download.State{
-		"downloading": download.StateDownloading,
-		"metaDL":      download.StateDownloading,
-		"stalledDL":   download.StateStalled,
-		"uploading":   download.StateComplete,
-		"pausedUP":    download.StateComplete,
-		"stoppedUP":   download.StateComplete,
-		"pausedDL":    download.StatePaused,
-		"stoppedDL":   download.StatePaused,
-		"checkingDL":  download.StateChecking,
-		"moving":      download.StateChecking,
-		"error":       download.StateError,
+		"downloading":  download.StateDownloading,
+		"metaDL":       download.StateDownloading,
+		"stalledDL":    download.StateStalled,
+		"uploading":    download.StateComplete,
+		"pausedUP":     download.StateComplete,
+		"stoppedUP":    download.StateComplete,
+		"pausedDL":     download.StatePaused,
+		"stoppedDL":    download.StatePaused,
+		"checkingDL":   download.StateChecking,
+		"moving":       download.StateChecking,
+		"error":        download.StateError,
 		"missingFiles": download.StateError,
-		"wat":         download.StateUnknown,
+		"wat":          download.StateUnknown,
 	}
 	for in, want := range cases {
 		if got := mapState(in); got != want {
