@@ -21,5 +21,11 @@ func FuzzParseNoPanic(f *testing.F) {
 		if p.EpisodeEnd < p.EpisodeStart {
 			t.Errorf("Parse(%q): EpisodeEnd %d < EpisodeStart %d", title, p.EpisodeEnd, p.EpisodeStart)
 		}
+		if p.Season < 0 || p.EpisodeStart < 0 || p.EpisodeEnd < 0 || p.AbsoluteEpisode < 0 {
+			t.Errorf("Parse(%q): negative numeric field: %+v", title, p)
+		}
+		if p.EpisodeEnd > p.EpisodeStart && !p.Batch {
+			t.Errorf("Parse(%q): episode range %d-%d but Batch is false", title, p.EpisodeStart, p.EpisodeEnd)
+		}
 	})
 }
