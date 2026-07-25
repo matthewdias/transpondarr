@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
@@ -68,7 +69,7 @@ func TestSearchExposesScoreBreakdown(t *testing.T) {
 	hasGroupPart := false
 	for _, p := range top.ScoreParts {
 		sum += p.Points
-		if p.Points != 0 && p.Label != "" && (p.Label[:5] == "group") {
+		if p.Points != 0 && strings.HasPrefix(p.Label, "group") {
 			hasGroupPart = true
 		}
 	}

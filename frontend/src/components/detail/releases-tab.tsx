@@ -2,7 +2,12 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Search, TriangleAlert } from "lucide-react";
-import { api, ApiError, type CandidateRelease } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type CandidateRelease,
+  type GrabResult,
+} from "@/lib/api";
 import {
   grabsQuery,
   releasesQuery,
@@ -56,7 +61,9 @@ function signed(points: number): string {
 }
 
 // ScoreBreakdown is the "why this rank" surface (#17): per-axis contributions,
-// the total, and — when the profile refuses the release — the reason.
+// the total, and — when the profile refuses the release — the reason. Its tokens
+// assume an upright surface, so the tooltip that hosts it overrides the inverted
+// default (where text-dl falls to 1.84:1 in dark mode).
 export function ScoreBreakdown({ r }: { r: CandidateRelease }) {
   const parts = r.score_parts ?? [];
   return (
@@ -93,27 +100,43 @@ export function ScoreBreakdown({ r }: { r: CandidateRelease }) {
 
 export function ScoreCell({ r }: { r: CandidateRelease }) {
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span
-            className={cn(
-              "inline-flex cursor-default items-center gap-1 font-semibold tabular-nums",
-              !r.eligible && "text-dl",
-            )}
-          >
-            {!r.eligible && (
-              <TriangleAlert aria-label="ineligible" className="size-3.5" />
-            )}
-            {r.score}
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="left">
-          <ScoreBreakdown r={r} />
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          tabIndex={0}
+          className={cn(
+            "inline-flex cursor-default items-center gap-1 rounded-sm font-semibold tabular-nums outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            !r.eligible && "text-dl",
+          )}
+        >
+          {!r.eligible && (
+            <TriangleAlert aria-label="ineligible" className="size-3.5" />
+          )}
+          {r.score}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent
+        side="left"
+        className="border bg-popover fill-popover text-popover-foreground shadow-md"
+      >
+        <ScoreBreakdown r={r} />
+      </TooltipContent>
+    </Tooltip>
   );
+}
+
+export function grabToast(res: GrabResult) {
+  return res.ineligible_reason
+    ? {
+        level: "warning" as const,
+        title: "Grabbed despite the profile",
+        description: `${res.release} · ${res.ineligible_reason}`,
+      }
+    : {
+        level: "success" as const,
+        title: "Grab sent to download client",
+        description: `${res.release} · ${res.outcome}`,
+      };
 }
 
 function MatchCell({ r }: { r: CandidateRelease }) {
@@ -152,15 +175,8 @@ export function ReleasesTab({
       api.grabRelease(seriesId, r.download_url),
     onSuccess: (res, r) => {
       setGrabbed((prev) => new Set(prev).add(r.download_url));
-      if (res.ineligible_reason) {
-        toast.warning("Grabbed despite the profile", {
-          description: res.ineligible_reason,
-        });
-      } else {
-        toast.success("Grab sent to download client", {
-          description: `${res.release} · ${res.outcome}`,
-        });
-      }
+      const t = grabToast(res);
+      toast[t.level](t.title, { description: t.description });
       queryClient.invalidateQueries({
         queryKey: seriesDetailQuery(seriesId).queryKey,
       });
@@ -243,87 +259,91 @@ export function ReleasesTab({
       )}
 
       {results.length > 0 && (
-        <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Release</TableHead>
-                  <TableHead className="hidden md:table-cell">Group</TableHead>
-                  <TableHead className="hidden sm:table-cell">
-                    Quality
-                  </TableHead>
-                  <TableHead className="text-right">Size</TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
-                    Seed
-                  </TableHead>
-                  <TableHead className="hidden text-right sm:table-cell">
-                    Score
-                  </TableHead>
-                  <TableHead>Match</TableHead>
-                  <TableHead className="w-16" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {results.map((r, i) => (
-                  <TableRow
-                    key={r.download_url || i}
-                    className={cn(
-                      !r.matched && "opacity-60",
-                      isMobile && "cursor-pointer",
-                    )}
-                    onClick={isMobile ? () => setSelected(r) : undefined}
-                  >
-                    <TableCell className="max-w-[280px]">
-                      <span className="line-clamp-2 font-mono text-[12.5px] tracking-tight">
-                        {r.title}
-                      </span>
-                    </TableCell>
-                    <TableCell className="hidden text-muted-foreground md:table-cell">
-                      {r.release_group || "—"}
-                    </TableCell>
-                    <TableCell className="hidden text-muted-foreground sm:table-cell">
-                      {quality(r)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatBytes(r.size)}
-                    </TableCell>
-                    <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                      {r.seeders}
-                    </TableCell>
-                    <TableCell className="hidden text-right sm:table-cell">
-                      <ScoreCell r={r} />
-                    </TableCell>
-                    <TableCell>
-                      <MatchCell r={r} />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {r.matched && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="hidden sm:inline-flex"
-                          disabled={
-                            grab.isPending || grabbed.has(r.download_url)
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            grab.mutate(r);
-                          }}
-                        >
-                          {grabbing(r) && (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          )}
-                          {grabbed.has(r.download_url) ? "Grabbed" : "Grab"}
-                        </Button>
-                      )}
-                    </TableCell>
+        <TooltipProvider>
+          <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Release</TableHead>
+                    <TableHead className="hidden md:table-cell">
+                      Group
+                    </TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      Quality
+                    </TableHead>
+                    <TableHead className="text-right">Size</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">
+                      Seed
+                    </TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">
+                      Score
+                    </TableHead>
+                    <TableHead>Match</TableHead>
+                    <TableHead className="w-16" />
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {results.map((r, i) => (
+                    <TableRow
+                      key={r.download_url || i}
+                      className={cn(
+                        !r.matched && "opacity-60",
+                        isMobile && "cursor-pointer",
+                      )}
+                      onClick={isMobile ? () => setSelected(r) : undefined}
+                    >
+                      <TableCell className="max-w-[280px]">
+                        <span className="line-clamp-2 font-mono text-[12.5px] tracking-tight">
+                          {r.title}
+                        </span>
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground md:table-cell">
+                        {r.release_group || "—"}
+                      </TableCell>
+                      <TableCell className="hidden text-muted-foreground sm:table-cell">
+                        {quality(r)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatBytes(r.size)}
+                      </TableCell>
+                      <TableCell className="hidden text-right tabular-nums sm:table-cell">
+                        {r.seeders}
+                      </TableCell>
+                      <TableCell className="hidden text-right sm:table-cell">
+                        <ScoreCell r={r} />
+                      </TableCell>
+                      <TableCell>
+                        <MatchCell r={r} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.matched && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="hidden sm:inline-flex"
+                            disabled={
+                              grab.isPending || grabbed.has(r.download_url)
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              grab.mutate(r);
+                            }}
+                          >
+                            {grabbing(r) && (
+                              <Loader2 className="size-3.5 animate-spin" />
+                            )}
+                            {grabbed.has(r.download_url) ? "Grabbed" : "Grab"}
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
-        </div>
+        </TooltipProvider>
       )}
 
       <Drawer open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
