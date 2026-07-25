@@ -124,6 +124,9 @@ export type LibraryInput = Schemas["LibraryInputBody"];
 // non-nullable in the OpenAPI schema (Huma's DefaultArrayNullable is off; the
 // backend always emits []), so this is a plain alias — no null remapping needed.
 export type SeriesDetail = Schemas["SeriesDetailReadDTO"];
+export type QualityProfile = Schemas["QualityProfileDTO"];
+export type ProfileGroup = Schemas["ProfileGroupDTO"];
+export type ProfileInput = Schemas["ProfileBody"];
 
 // The auth status/setup/login endpoints are plain chi handlers (not Huma), so they
 // are not in the OpenAPI spec — these shapes stay hand-declared.
@@ -284,4 +287,33 @@ export const api = {
     client.PUT("/api/v1/settings/library", { body }).then(unwrap),
   testLibrary: (body: LibraryInput) =>
     client.POST("/api/v1/settings/library/test", { body }).then(unwrap),
+
+  listProfiles: (signal?: AbortSignal) =>
+    client
+      .GET("/api/v1/profiles", { signal })
+      .then(unwrap)
+      .then((r) => r.profiles),
+
+  createProfile: (body: ProfileInput) =>
+    client.POST("/api/v1/profiles", { body }).then(unwrap),
+
+  updateProfile: (id: number, body: ProfileInput) =>
+    client
+      .PUT("/api/v1/profiles/{id}", { params: { path: { id } }, body })
+      .then(unwrap),
+
+  deleteProfile: (id: number, reassignTo?: number) =>
+    client
+      .DELETE("/api/v1/profiles/{id}", {
+        params: { path: { id }, query: { reassign_to: reassignTo } },
+      })
+      .then(unwrap),
+
+  assignSeriesProfile: (seriesId: number, profileId: number) =>
+    client
+      .PUT("/api/v1/series/{id}/profile", {
+        params: { path: { id: seriesId } },
+        body: { profile_id: profileId },
+      })
+      .then(unwrap),
 };

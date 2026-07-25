@@ -75,16 +75,17 @@ type detailItemDTO struct {
 }
 
 type seriesDetailReadDTO struct {
-	ID        int64           `json:"id"`
-	AniListID int64           `json:"anilist_id,omitempty"`
-	Title     string          `json:"title"`
-	English   string          `json:"english,omitempty"`
-	Native    string          `json:"native,omitempty"`
-	Format    string          `json:"format"`
-	Status    string          `json:"status,omitempty" doc:"Provider status (e.g. RELEASING, FINISHED)"`
-	CoverURL  string          `json:"cover_url,omitempty"`
-	Monitored bool            `json:"monitored"`
-	Items     []detailItemDTO `json:"items"`
+	ID               int64           `json:"id"`
+	AniListID        int64           `json:"anilist_id,omitempty"`
+	Title            string          `json:"title"`
+	English          string          `json:"english,omitempty"`
+	Native           string          `json:"native,omitempty"`
+	Format           string          `json:"format"`
+	Status           string          `json:"status,omitempty" doc:"Provider status (e.g. RELEASING, FINISHED)"`
+	CoverURL         string          `json:"cover_url,omitempty"`
+	Monitored        bool            `json:"monitored"`
+	QualityProfileID int64           `json:"quality_profile_id"`
+	Items            []detailItemDTO `json:"items"`
 }
 
 type getSeriesInput struct {
@@ -290,11 +291,12 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 
 	out := &getSeriesOutput{}
 	out.Body = seriesDetailReadDTO{
-		ID:        series.ID,
-		Title:     series.Title,
-		Format:    series.Format,
-		Monitored: series.Monitored == 1,
-		Items:     make([]detailItemDTO, 0, len(rows)),
+		ID:               series.ID,
+		Title:            series.Title,
+		Format:           series.Format,
+		Monitored:        series.Monitored == 1,
+		QualityProfileID: series.QualityProfileID,
+		Items:            make([]detailItemDTO, 0, len(rows)),
 	}
 	if series.AnilistID.Valid {
 		out.Body.AniListID = series.AnilistID.Int64
