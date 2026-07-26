@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **`GET /api/v1/system/jobs` reports background job status** — each job's
+  interval, last run, how long it took, its last error, and when it runs next.
+  "Did the refresh run, and did it fail?" was previously answerable only by
+  reading server logs.
+
+### Internal
+
+- **Background work runs on a named job runner** (`internal/core/jobs`) instead
+  of a bare `go` per feature. Jobs are registered by name with an interval, a
+  panicking job is contained to the run that caused it (its own loop and every
+  other job survive), and shutdown drains in-flight runs before the store
+  closes. Deliberately not a cron library and not a persistent queue: intervals
+  only, nothing durable across restarts.
+- **Session cleanup no longer races the database close on shutdown.** It was
+  started as an unawaited goroutine, so a sweep could be mid-`DELETE` when the
+  store closed; it now drains with everything else inside the shutdown budget.
+  The shutdown warning also names which worker overran instead of just
+  reporting that something did.
+- **Interval loops are now tested with `testing/synctest`**, so scheduling
+  behaviour is asserted exactly against a virtual clock rather than polled
+  against wall-clock deadlines.
+- **`make test` now runs under the race detector.** The job runner's status
+  fields are written by each job's goroutine and read by the HTTP handler, so a
+  missing lock would be invisible without it. The existing suite was already
+  race-clean; the whole run costs about a second more.
+
 ## [0.2.1] — 2026-07-23
 
 Frontend foundations: the web UI is now held to the same test/lint/format bar

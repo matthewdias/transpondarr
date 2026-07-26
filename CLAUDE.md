@@ -66,6 +66,14 @@ Behaviour changes are test-driven. Work red → green → refactor:
   wrong — and say so in the commit if it is.
 - Use the shared `internal/coretest` harness (temp store + fake indexer/download/
   library) for pipeline-level tests instead of hand-rolling fixtures.
+- **Test interval loops with `testing/synctest`, not sleeps** (see
+  `internal/core/jobs/jobs_test.go`). Inside a bubble the clock is virtual, so
+  "the first run waits a full interval" and "the schedule does not drift" become
+  exact assertions instead of tolerant polls. Two gotchas: a pending
+  `synctest.Wait()` takes priority over advancing the clock, so the test
+  goroutine must `time.Sleep` to let a job's own sleep elapse (the `advance`
+  helper does both); and bubbles forbid real I/O, so store- or network-backed
+  tests stay on the real clock and synchronise on a channel.
 - Pure mechanical changes (renames, generated code via `make gen`, docs) don't
   need a new test — everything that changes behaviour does.
 
@@ -81,6 +89,15 @@ Behaviour changes are test-driven. Work red → green → refactor:
   disambiguate. Deferred grabs are never re-imported (the
   no-infinite-retry property) but stay in the scan for missing-from-client
   reconciliation, so a vanished payload still frees its item.
+- **Periodic work goes on the job runner (`internal/core/jobs`), not a bare
+  `go`.** Register by name with an interval in `main.go`; the runner owns panic
+  containment, the "log failures only when `ctx.Err() == nil`" rule, and the
+  drained shutdown that lets the store outlive in-flight work. It never cancels
+  a job itself — `ctx` is the only shutdown signal, so work past a point of no
+  return can still finish. A job closure must read its dependencies from the
+  registry/service each run, not capture a snapshot, or live config edits stop
+  applying. **The importer is deliberately still on its own goroutine** (its
+  shutdown semantics predate the runner); migrating it is tracked separately.
 - **Auth is forms-based** (`internal/core/auth`): the web UI logs in (username +
   argon2id password) and gets an httpOnly session cookie; the **API key** is for
   machine clients only (`X-Api-Key`). A request to `/api/*` is authorized by a

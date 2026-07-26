@@ -17,6 +17,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
+	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/server"
@@ -31,6 +32,7 @@ type harness struct {
 	ts    *httptest.Server
 	store *store.Store
 	reg   *clients.Registry
+	jobs  *jobs.Runner
 	idx   *coretest.FakeIndexer
 	dl    *coretest.FakeDownload
 	lib   *coretest.FakeLibrary
@@ -66,10 +68,11 @@ func newHarness(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownlo
 	lib := &coretest.FakeLibrary{}
 	reg.SetLibrary(lib)
 
-	h := server.New(cfg, st, discardLogger(), reg, settingsSvc, authSvc)
+	runner := jobs.New(discardLogger())
+	h := server.New(cfg, st, discardLogger(), reg, settingsSvc, authSvc, runner)
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
-	return &harness{ts: ts, store: st, reg: reg, idx: idx, dl: dl, lib: lib}
+	return &harness{ts: ts, store: st, reg: reg, jobs: runner, idx: idx, dl: dl, lib: lib}
 }
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

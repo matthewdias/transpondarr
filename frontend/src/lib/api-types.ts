@@ -295,6 +295,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Status of the runner-managed background jobs */
+        get: operations["list-jobs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -481,6 +498,8 @@ export interface components {
              * @example https://example.com/schemas/GrabSeriesOutputBody.json
              */
             readonly $schema?: string;
+            /** @description Set when the grabbed release falls outside the series' quality profile — informational, the grab still succeeds */
+            ineligible_reason?: string;
             infohash: string;
             items: number[];
             /** @example success */
@@ -516,6 +535,19 @@ export interface components {
             name: string;
             url: string;
         };
+        JobStatusDTO: {
+            /** Format: int64 */
+            interval_ms: number;
+            /** Format: int64 */
+            last_duration_ms: number;
+            last_error?: string;
+            /** @description RFC3339 UTC; absent until the job has run */
+            last_run?: string;
+            name: string;
+            /** @description RFC3339 UTC; absent while the runner is not running */
+            next_run?: string;
+            running: boolean;
+        };
         LibraryInputBody: {
             /**
              * Format: uri
@@ -531,6 +563,15 @@ export interface components {
             configured: boolean;
             dir: string;
             mode: string;
+        };
+        ListJobsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListJobsOutputBody.json
+             */
+            readonly $schema?: string;
+            jobs: components["schemas"]["JobStatusDTO"][];
         };
         ListSeriesOutputBody: {
             /**
@@ -1305,6 +1346,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TestOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListJobsOutputBody"];
                 };
             };
             /** @description Error */

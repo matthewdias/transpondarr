@@ -17,6 +17,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/importer"
+	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/privdrop"
 	"github.com/matthewdias/transpondarr/internal/server"
@@ -29,8 +30,8 @@ import (
 // completed grabs.
 const importPollInterval = 15 * time.Second
 
-// shutdownTimeout is the whole budget for draining the HTTP server and the
-// importer's in-flight scan.
+// shutdownTimeout is the whole budget for draining the HTTP server and any
+// in-flight background work.
 const shutdownTimeout = 10 * time.Second
 
 // sessionCleanupInterval is how often expired session rows are swept; daily is
@@ -119,7 +120,18 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	go authSvc.RunCleanup(ctx, sessionCleanupInterval, logger)
+	runner := jobs.New(logger)
+	runner.Add(jobs.Job{
+		Name:       "session-cleanup",
+		Interval:   sessionCleanupInterval,
+		RunAtStart: true,
+		Run:        authSvc.CleanupExpired,
+	})
+	jobsDone := make(chan struct{})
+	go func() {
+		defer close(jobsDone)
+		runner.Run(ctx)
+	}()
 
 	// The importer always runs; each scan it reads the current download client and
 	// library from the registry and no-ops when either is unconfigured — so
@@ -134,7 +146,7 @@ func run(logger *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(cfg, st, logger, reg, settingsSvc, authSvc),
+		Handler:           server.New(cfg, st, logger, reg, settingsSvc, authSvc, runner),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -156,16 +168,40 @@ func run(logger *slog.Logger) error {
 	defer cancel()
 
 	// Drained concurrently so they share the one budget; the store must outlive
-	// the importer's in-flight scan.
+	// whatever is still writing to it.
 	srvErr := make(chan error, 1)
 	go func() { srvErr <- srv.Shutdown(shutdownCtx) }()
+	drained := make(chan struct{})
+	go func() {
+		<-importerDone
+		<-jobsDone
+		close(drained)
+	}()
 	select {
-	case <-importerDone:
+	case <-drained:
 	case <-shutdownCtx.Done():
 		leaveStoreOpen = true
-		logger.Warn("importer still scanning at the shutdown deadline; leaving the store open for it", "timeout", shutdownTimeout)
+		logger.Warn("background work still running at the shutdown deadline; leaving the store open for it",
+			"timeout", shutdownTimeout, "still_running", straggling(importerDone, runner))
 	}
 	return <-srvErr
+}
+
+// straggling names what is still running at the shutdown deadline, so the warning
+// says which worker to blame rather than only that something overran.
+func straggling(importerDone <-chan struct{}, runner *jobs.Runner) []string {
+	var names []string
+	select {
+	case <-importerDone:
+	default:
+		names = append(names, "importer")
+	}
+	for _, s := range runner.Status() {
+		if s.Running {
+			names = append(names, s.Name)
+		}
+	}
+	return names
 }
 
 // ensureWritable fails fast with an actionable message when the data dir isn't

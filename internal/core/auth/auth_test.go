@@ -2,10 +2,7 @@ package auth
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -14,10 +11,6 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
-
-func discardLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
-}
 
 func newTestAuth(t *testing.T) (*Service, *store.Store) {
 	t.Helper()
@@ -99,12 +92,10 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 }
 
-// RunCleanup must sweep immediately on entry (the interval here is far longer
-// than the test) and leave live sessions alone.
-func TestRunCleanupSweepsExpiredSessions(t *testing.T) {
+// The sweep must remove expired rows and leave live sessions alone.
+func TestCleanupExpiredRemovesOnlyExpiredSessions(t *testing.T) {
 	svc, st := newTestAuth(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := context.Background()
 
 	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
@@ -121,86 +112,32 @@ func TestRunCleanupSweepsExpiredSessions(t *testing.T) {
 		t.Fatalf("insert expired session: %v", err)
 	}
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		svc.RunCleanup(ctx, time.Hour, discardLogger())
-	}()
+	if err := svc.CleanupExpired(ctx); err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
 
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		var n int
-		if err := st.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions").Scan(&n); err != nil {
-			t.Fatalf("count sessions: %v", err)
-		}
-		if n == 1 {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("expected the expired session swept and the live one kept, have %d rows", n)
-		}
-		time.Sleep(5 * time.Millisecond)
+	var n int
+	if err := st.DB.QueryRowContext(ctx, "SELECT COUNT(*) FROM sessions").Scan(&n); err != nil {
+		t.Fatalf("count sessions: %v", err)
+	}
+	if n != 1 {
+		t.Errorf("have %d session rows, want only the live one", n)
 	}
 	if _, ok := svc.ValidateSession(ctx, liveTok); !ok {
-		t.Fatal("live session did not survive the sweep")
-	}
-
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("RunCleanup did not stop on context cancellation")
+		t.Error("live session did not survive the sweep")
 	}
 }
 
-// A failing sweep must be logged: the ticker is the only thing bounding the
-// sessions table on a long-lived instance, so silence would reproduce issue #4.
-func TestRunCleanupLogsFailedSweep(t *testing.T) {
+// The sweep must report failure rather than swallow it: it is the only thing
+// bounding the sessions table on a long-lived instance, so a silent failure
+// would reproduce issue #4. The job runner logs what this returns.
+func TestCleanupExpiredReportsStoreFailure(t *testing.T) {
 	svc, st := newTestAuth(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	_ = st.DB.Close()
 
-	w := &syncWriter{}
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		svc.RunCleanup(ctx, time.Hour, slog.New(slog.NewTextHandler(w, nil)))
-	}()
-
-	deadline := time.Now().Add(2 * time.Second)
-	for !strings.Contains(w.String(), "session cleanup failed") {
-		if time.Now().After(deadline) {
-			t.Fatalf("no warning logged for a failed sweep; log output: %q", w.String())
-		}
-		time.Sleep(5 * time.Millisecond)
+	if err := svc.CleanupExpired(context.Background()); err == nil {
+		t.Fatal("cleanup on a closed store returned nil, want an error")
 	}
-
-	cancel()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("RunCleanup did not stop on context cancellation")
-	}
-}
-
-// syncWriter is a goroutine-safe log sink: the test polls it while RunCleanup writes.
-type syncWriter struct {
-	mu sync.Mutex
-	b  strings.Builder
-}
-
-func (w *syncWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.b.Write(p)
-}
-
-func (w *syncWriter) String() string {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	return w.b.String()
 }
 
 // A password change must revoke existing sessions so other logged-in clients are

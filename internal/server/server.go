@@ -20,6 +20,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 	"github.com/matthewdias/transpondarr/internal/core/metadata/anilist"
 	"github.com/matthewdias/transpondarr/internal/core/metadata/dbcache"
@@ -35,8 +36,9 @@ func init() {
 
 // New builds the top-level HTTP handler. The clients registry supplies the live
 // download/indexer/library clients (any may be nil when unconfigured); settings
-// backs the runtime-config endpoints; auth backs forms login + sessions.
-func New(cfg *config.Config, st *store.Store, logger *slog.Logger, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service) http.Handler {
+// backs the runtime-config endpoints; auth backs forms login + sessions; runner
+// backs the job-status endpoint.
+func New(cfg *config.Config, st *store.Store, logger *slog.Logger, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -55,6 +57,7 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, reg *clients.
 		clients:  reg,
 		settings: settingsSvc,
 		auth:     authSvc,
+		jobs:     runner,
 	})
 
 	r.NotFound(spaHandler())

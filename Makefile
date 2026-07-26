@@ -40,7 +40,9 @@ web-lint: web-deps ## Lint the frontend (oxlint + prettier check)
 	cd frontend && npm run format:check
 
 test: web-test ## Run tests (Go + frontend)
-	go test ./...
+	# -race: the job runner's status fields are written by each job's goroutine and
+	# read by the HTTP handler, so a missing lock is invisible without the detector.
+	go test -race ./...
 
 web-test: web-deps ## Run the frontend tests (vitest)
 	cd frontend && npm run test
