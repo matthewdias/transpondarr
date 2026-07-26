@@ -22,6 +22,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 	"github.com/matthewdias/transpondarr/internal/core/metadata/anilist"
 	"github.com/matthewdias/transpondarr/internal/core/metadata/dbcache"
+	"github.com/matthewdias/transpondarr/internal/core/refresh"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/privdrop"
 	"github.com/matthewdias/transpondarr/internal/server"
@@ -46,6 +47,11 @@ const sessionCleanupInterval = 24 * time.Hour
 // within minutes. What each pass actually fetches is throttled by the per-series
 // staleness cutoffs, so a tick with nothing due costs one query and no requests.
 const airingSyncInterval = 15 * time.Minute
+
+// metadataRefreshInterval ticks on the same rhythm as the airing sync and for
+// the same reason: per-series TTL cutoffs decide what actually gets fetched, so
+// an idle tick costs one query and no requests.
+const metadataRefreshInterval = 15 * time.Minute
 
 func main() {
 	// `transpondarrd openapi` prints the OpenAPI spec to stdout and exits — used by
@@ -145,6 +151,12 @@ func run(logger *slog.Logger) error {
 		Interval:   airingSyncInterval,
 		RunAtStart: true,
 		Run:        airing.New(st, provider, logger).SyncOnce,
+	})
+	runner.Add(jobs.Job{
+		Name:       "metadata-refresh",
+		Interval:   metadataRefreshInterval,
+		RunAtStart: true,
+		Run:        refresh.New(st, provider, logger).RefreshOnce,
 	})
 	jobsDone := runner.Start(ctx)
 

@@ -10,6 +10,17 @@ import (
 	"database/sql"
 )
 
+const clearSeriesAiringSyncedAt = `-- name: ClearSeriesAiringSyncedAt :exec
+UPDATE series SET airing_synced_at = NULL WHERE id = ?
+`
+
+// Forces the next airing pass to re-page full history, so items inserted after
+// the last sync get air dates without waiting out the series' TTL.
+func (q *Queries) ClearSeriesAiringSyncedAt(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, clearSeriesAiringSyncedAt, id)
+	return err
+}
+
 const createSeries = `-- name: CreateSeries :one
 INSERT INTO series (anilist_id, title, format, monitored)
 VALUES (?, ?, ?, ?)
@@ -160,6 +171,66 @@ type ListSeriesDueAiringSyncParams struct {
 // how much of the request budget one pass can burn.
 func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDueAiringSyncParams) ([]Series, error) {
 	rows, err := q.db.QueryContext(ctx, listSeriesDueAiringSync, arg.AiringSyncedAt, arg.AiringSyncedAt_2, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Series{}
+	for rows.Next() {
+		var i Series
+		if err := rows.Scan(
+			&i.ID,
+			&i.AnilistID,
+			&i.Title,
+			&i.Format,
+			&i.Monitored,
+			&i.CreatedAt,
+			&i.QualityProfileID,
+			&i.AiringSyncedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSeriesDueMetadataRefresh = `-- name: ListSeriesDueMetadataRefresh :many
+SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at
+FROM series s
+LEFT JOIN metadata_cache m ON m.provider = 'anilist' AND m.provider_id = s.anilist_id
+WHERE s.monitored = 1
+  AND s.anilist_id IS NOT NULL
+  AND (
+      m.provider_id IS NULL
+      OR m.fetched_at < CASE
+             WHEN m.status IN ('FINISHED', 'CANCELLED') AND m.episode_count IS NOT NULL THEN ?
+             ELSE ?
+         END
+  )
+ORDER BY m.fetched_at IS NOT NULL, m.fetched_at
+LIMIT ?
+`
+
+type ListSeriesDueMetadataRefreshParams struct {
+	FetchedAt   string `json:"fetched_at"`
+	FetchedAt_2 string `json:"fetched_at_2"`
+	Limit       int64  `json:"limit"`
+}
+
+// Monitored series whose cached title snapshot is missing or stale under the
+// status-aware TTL policy. Only a finished title with a known episode count
+// earns the long cutoff; anything moving, unknown, or empty rides the short
+// one, mirroring the freshness rule in metadata.Cached. Never-fetched series
+// sort first; the limit bounds how much of the request budget one pass burns.
+func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeriesDueMetadataRefreshParams) ([]Series, error) {
+	rows, err := q.db.QueryContext(ctx, listSeriesDueMetadataRefresh, arg.FetchedAt, arg.FetchedAt_2, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

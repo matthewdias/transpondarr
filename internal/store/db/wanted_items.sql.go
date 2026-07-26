@@ -119,3 +119,31 @@ func (q *Queries) SetWantedItemHave(ctx context.Context, arg SetWantedItemHavePa
 	_, err := q.db.ExecContext(ctx, setWantedItemHave, arg.Have, arg.ID)
 	return err
 }
+
+const upsertWantedItem = `-- name: UpsertWantedItem :execrows
+INSERT INTO wanted_items (series_id, kind, number, title, have)
+VALUES (?, ?, ?, ?, 0)
+ON CONFLICT (series_id, kind, number) DO NOTHING
+`
+
+type UpsertWantedItemParams struct {
+	SeriesID int64          `json:"series_id"`
+	Kind     string         `json:"kind"`
+	Number   sql.NullInt64  `json:"number"`
+	Title    sql.NullString `json:"title"`
+}
+
+// DO NOTHING keeps refresh from ever clobbering an existing item's have or
+// title; the row count tells the caller whether the series actually grew.
+func (q *Queries) UpsertWantedItem(ctx context.Context, arg UpsertWantedItemParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertWantedItem,
+		arg.SeriesID,
+		arg.Kind,
+		arg.Number,
+		arg.Title,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
