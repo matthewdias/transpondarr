@@ -20,6 +20,7 @@ just pins their versions):
 - `make build` — frontend (`web/dist`) + backend → `./transpondarrd`
 - `make dev` — live-reload API (`air`)
 - `make gen` — regenerate the sqlc layer after editing `internal/store/queries`
+- `make gen-api` — regenerate `frontend/src/lib/api-types.ts` from the OpenAPI spec
 - `make lint`, `make test`
 
 Server listens on `:9797`; on first run it logs a generated API key (set
@@ -102,6 +103,14 @@ Behaviour changes are test-driven. Work red → green → refactor:
     bytes. The result compiles, `make gen` reports no error, and the query fails
     only at runtime. Also note `sqlc.arg(name)` is rejected by this dialect
     (`extraneous input '?1'`) — use positional `?` params.
+  - **Migration numbers are a shared sequence — check `main` before claiming one.**
+    Two branches that each add `000NN_*.sql` merge without a git conflict (different
+    filenames) and leave a migration set goose sees as a duplicate version. Renumber
+    on rebase; never merge past a collision.
+- **`frontend/src/lib/api-types.ts` is generated and CI fails on drift**, so every
+  backend schema change regenerates it and every concurrent branch conflicts there.
+  Resolve by re-running `make gen-api` against the merged spec — never by hand-editing
+  the conflict, which produces types that pass review and disagree with the server.
 - **Quality profiles inform manual actions; they gate only automation.** A manual
   grab always succeeds in one request — the grab endpoint evaluates eligibility
   server-side at grab time and returns `ineligible_reason` on the 201, but never
