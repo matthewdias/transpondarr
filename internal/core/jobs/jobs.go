@@ -1,9 +1,10 @@
 // Package jobs runs named background work on a fixed interval, in memory. It
 // gives the daemon one lifecycle and one status surface for periodic work
-// instead of a bare `go` per feature: jobs are registered by name before Run,
+// instead of a bare `go` per feature: jobs are registered by name before Start,
 // each gets its own goroutine, a panic is contained to the single run that
-// caused it, and Run returns only once every in-flight run has returned — which
-// is what lets the caller close the store knowing nothing is still writing.
+// caused it, and Start's channel closes only once every in-flight run has
+// returned — which is what lets the caller close the store knowing nothing is
+// still writing.
 //
 // It is deliberately not a cron library and not a queue: intervals only, no
 // schedule expressions, nothing persisted, and no retry or backoff beyond the
@@ -73,13 +74,13 @@ func New(log *slog.Logger) *Runner {
 	return &Runner{log: log, byName: make(map[string]*job)}
 }
 
-// Add registers j before Run. A late Add, a duplicate name, or a non-positive
+// Add registers j before Start. A late Add, a duplicate name, or a non-positive
 // interval is a wiring bug, so each panics rather than silently dropping work.
 func (r *Runner) Add(j Job) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.started {
-		panic("jobs: Add after Run")
+		panic("jobs: Add after Start")
 	}
 	if j.Interval <= 0 {
 		panic("jobs: non-positive interval for job " + j.Name)
@@ -92,22 +93,34 @@ func (r *Runner) Add(j Job) {
 	r.byName[j.Name] = n
 }
 
-// Run starts every registered job and blocks until ctx is cancelled and every
-// in-flight run has returned. With no jobs registered it returns immediately.
-func (r *Runner) Run(ctx context.Context) {
+// Start launches every registered job and returns a channel closed once ctx is
+// cancelled and every in-flight run has returned — the signal that nothing is
+// still writing and the store is safe to close. It owns the goroutines so that
+// registration closes synchronously here: an Add afterwards always panics
+// instead of racing the launch. With no jobs registered the channel closes
+// immediately, so it is not a "block until shutdown" primitive.
+func (r *Runner) Start(ctx context.Context) <-chan struct{} {
 	r.mu.Lock()
+	if r.started {
+		panic("jobs: Start called twice")
+	}
 	r.started = true
 	js := r.jobs
 	r.mu.Unlock()
 
-	var wg sync.WaitGroup
-	for _, j := range js {
-		wg.Go(func() {
-			r.log.Info("job started", "job", j.spec.Name, "interval", j.spec.Interval)
-			r.loop(ctx, j)
-		})
-	}
-	wg.Wait()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		var wg sync.WaitGroup
+		for _, j := range js {
+			wg.Go(func() {
+				r.log.Info("job started", "job", j.spec.Name, "interval", j.spec.Interval)
+				r.loop(ctx, j)
+			})
+		}
+		wg.Wait()
+	}()
+	return done
 }
 
 func (r *Runner) loop(ctx context.Context, j *job) {
@@ -129,15 +142,19 @@ func (r *Runner) loop(ctx context.Context, j *job) {
 		if ctx.Err() != nil {
 			return
 		}
+
+		// Anchor on the schedule rather than on when the run finishes, so a run's
+		// own duration never pushes later runs out. Published before the run so
+		// NextRun points forward while a long job is still working.
+		next = next.Add(j.spec.Interval)
+		r.schedule(j, next)
+
 		r.runOnce(ctx, j)
 
-		// Anchor on the schedule rather than on when the run finished, so NextRun
-		// is the instant the timer is armed for; an overrun re-anchors to now.
-		next = next.Add(j.spec.Interval)
 		if now := time.Now(); next.Before(now) {
 			next = now.Add(j.spec.Interval)
+			r.schedule(j, next)
 		}
-		r.schedule(j, next)
 		// Safe without draining t.C: Go 1.23+ timers cannot deliver a stale tick
 		// after Reset, which a trigger-driven early wake would otherwise leave behind.
 		t.Reset(time.Until(next))

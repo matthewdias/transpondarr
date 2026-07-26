@@ -538,7 +538,10 @@ export interface components {
         JobStatusDTO: {
             /** Format: int64 */
             interval_ms: number;
-            /** Format: int64 */
+            /**
+             * Format: double
+             * @description Fractional: a sub-millisecond sweep would otherwise always report 0
+             */
             last_duration_ms: number;
             last_error?: string;
             /** @description RFC3339 UTC; absent until the job has run */

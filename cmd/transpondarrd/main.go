@@ -127,11 +127,7 @@ func run(logger *slog.Logger) error {
 		RunAtStart: true,
 		Run:        authSvc.CleanupExpired,
 	})
-	jobsDone := make(chan struct{})
-	go func() {
-		defer close(jobsDone)
-		runner.Run(ctx)
-	}()
+	jobsDone := runner.Start(ctx)
 
 	// The importer always runs; each scan it reads the current download client and
 	// library from the registry and no-ops when either is unconfigured — so

@@ -11,13 +11,13 @@ import (
 
 // jobStatusDTO mirrors the job-status endpoint's per-job shape.
 type jobStatusDTO struct {
-	Name           string `json:"name"`
-	IntervalMs     int64  `json:"interval_ms"`
-	Running        bool   `json:"running"`
-	LastRun        string `json:"last_run"`
-	LastDurationMs int64  `json:"last_duration_ms"`
-	LastError      string `json:"last_error"`
-	NextRun        string `json:"next_run"`
+	Name           string  `json:"name"`
+	IntervalMs     int64   `json:"interval_ms"`
+	Running        bool    `json:"running"`
+	LastRun        string  `json:"last_run"`
+	LastDurationMs float64 `json:"last_duration_ms"`
+	LastError      string  `json:"last_error"`
+	NextRun        string  `json:"next_run"`
 }
 
 type jobsResponse struct {
@@ -59,15 +59,12 @@ func TestListJobsReportsLastRunDurationAndError(t *testing.T) {
 	ran := make(chan struct{}, 1)
 	h.jobs.Add(jobs.Job{Name: "flaky", Interval: time.Hour, RunAtStart: true, Run: func(context.Context) error {
 		ran <- struct{}{}
+		time.Sleep(2500 * time.Microsecond)
 		return errors.New("boom")
 	}})
 
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		h.jobs.Run(ctx)
-	}()
+	done := h.jobs.Start(ctx)
 	<-ran
 	// Forcing a second run proves the first one's bookkeeping is committed.
 	if err := h.jobs.Trigger("flaky"); err != nil {
@@ -88,8 +85,10 @@ func TestListJobsReportsLastRunDurationAndError(t *testing.T) {
 	if _, err := time.Parse(time.RFC3339, j.LastRun); err != nil {
 		t.Errorf("last_run = %q, want an RFC3339 timestamp: %v", j.LastRun, err)
 	}
-	if j.LastDurationMs < 0 {
-		t.Errorf("last_duration_ms = %d, want a non-negative duration", j.LastDurationMs)
+	// Sanity only — sleep overshoot means this can't pin the fractional rendering.
+	// TestJobStatusDTOKeepsSubMillisecondDurations does that deterministically.
+	if j.LastDurationMs < 2 {
+		t.Errorf("last_duration_ms = %v, want at least the job's 2.5ms sleep", j.LastDurationMs)
 	}
 	if j.LastError != "boom" {
 		t.Errorf("last_error = %q, want boom", j.LastError)

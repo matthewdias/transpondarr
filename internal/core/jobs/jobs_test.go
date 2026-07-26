@@ -35,15 +35,10 @@ func advance(d time.Duration) {
 	synctest.Wait()
 }
 
-// start runs r in the background and returns a cancel func and its done channel.
+// start launches r on a cancellable context and returns both halves.
 func start(r *Runner) (context.CancelFunc, <-chan struct{}) {
 	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		r.Run(ctx)
-	}()
-	return cancel, done
+	return cancel, r.Start(ctx)
 }
 
 // syncWriter is a goroutine-safe log sink: the test reads it while a job writes.
@@ -83,9 +78,9 @@ func TestRunExecutesAJobImmediatelyWhenRunAtStart(t *testing.T) {
 	})
 }
 
-// The acceptance criterion that makes closing the store safe: Run must not
-// return while a job is still executing.
-func TestRunReturnsOnlyAfterInFlightJobsReturn(t *testing.T) {
+// The acceptance criterion that makes closing the store safe: done must not
+// close while a job is still executing.
+func TestDoneWaitsForInFlightJobs(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		entered := make(chan struct{})
 		release := make(chan struct{})
@@ -102,7 +97,7 @@ func TestRunReturnsOnlyAfterInFlightJobsReturn(t *testing.T) {
 		synctest.Wait()
 		select {
 		case <-done:
-			t.Fatal("Run returned while a job was still in flight")
+			t.Fatal("done closed while a job was still in flight")
 		default:
 		}
 
@@ -111,7 +106,7 @@ func TestRunReturnsOnlyAfterInFlightJobsReturn(t *testing.T) {
 		select {
 		case <-done:
 		default:
-			t.Fatal("Run did not return once the in-flight job finished")
+			t.Fatal("done did not close once the in-flight job finished")
 		}
 	})
 }
@@ -206,6 +201,32 @@ func TestNextRunTracksTheSchedule(t *testing.T) {
 		advance(interval)
 		if got, want := statusByName(t, r, "a").NextRun, begin.Add(2*interval); !got.Equal(want) {
 			t.Errorf("NextRun after run 2 = %v, want %v: the schedule drifted by the run's duration", got, want)
+		}
+	})
+}
+
+// A long job would otherwise report a next run in the past for its whole
+// duration, since the schedule was only published once the run finished.
+func TestNextRunPointsForwardWhileAJobRuns(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		const interval = time.Hour
+		r := New(discardLogger())
+		r.Add(Job{Name: "a", Interval: interval, RunAtStart: true, Run: func(context.Context) error {
+			time.Sleep(30 * time.Minute)
+			return nil
+		}})
+
+		cancel, done := start(r)
+		defer func() { cancel(); <-done }()
+
+		// Wait settles with the job durably blocked inside its own sleep — mid-run.
+		synctest.Wait()
+		st := statusByName(t, r, "a")
+		if !st.Running {
+			t.Fatal("expected the job to still be running")
+		}
+		if !st.NextRun.After(time.Now()) {
+			t.Errorf("NextRun = %v while running at %v, want a future time", st.NextRun, time.Now())
 		}
 	})
 }
@@ -435,12 +456,7 @@ func TestCancellationIsNotLoggedAsAFailure(t *testing.T) {
 			return ctx.Err()
 		}})
 
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			r.Run(ctx)
-		}()
-		<-done
+		<-r.Start(ctx)
 
 		if out := w.String(); strings.Contains(out, "job failed") {
 			t.Errorf("log = %q, want cancellation not reported as a failure", out)
@@ -469,14 +485,40 @@ func TestAddRejectsNonPositiveInterval(t *testing.T) {
 	New(discardLogger()).Add(Job{Name: "a", Run: func(context.Context) error { return nil }})
 }
 
-// Also pins the documented edge that Run with no jobs returns immediately.
-func TestAddAfterRunPanics(t *testing.T) {
+// Start closes registration synchronously, so this panics deterministically
+// rather than racing the launch.
+func TestAddAfterStartPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {
-			t.Fatal("Add after Run did not panic")
+			t.Fatal("Add after Start did not panic")
 		}
 	}()
 	r := New(discardLogger())
-	r.Run(context.Background())
+	r.Start(context.Background())
 	r.Add(Job{Name: "a", Interval: time.Hour, Run: func(context.Context) error { return nil }})
+}
+
+func TestStartTwicePanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("a second Start did not panic")
+		}
+	}()
+	r := New(discardLogger())
+	r.Start(context.Background())
+	r.Start(context.Background())
+}
+
+// Pins the documented edge that a runner with no jobs is done immediately.
+func TestStartWithNoJobsIsDoneImmediately(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		select {
+		case <-New(discardLogger()).Start(ctx):
+		case <-time.After(time.Minute):
+			t.Fatal("an empty runner never signalled done")
+		}
+	})
 }

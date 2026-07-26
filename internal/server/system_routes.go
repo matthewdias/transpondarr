@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"time"
 
@@ -19,13 +20,13 @@ type healthOutput struct {
 }
 
 type jobStatusDTO struct {
-	Name           string `json:"name"`
-	IntervalMs     int64  `json:"interval_ms"`
-	Running        bool   `json:"running"`
-	LastRun        string `json:"last_run,omitempty" doc:"RFC3339 UTC; absent until the job has run"`
-	LastDurationMs int64  `json:"last_duration_ms"`
-	LastError      string `json:"last_error,omitempty"`
-	NextRun        string `json:"next_run,omitempty" doc:"RFC3339 UTC; absent while the runner is not running"`
+	Name           string  `json:"name"`
+	IntervalMs     int64   `json:"interval_ms"`
+	Running        bool    `json:"running"`
+	LastRun        string  `json:"last_run,omitempty" doc:"RFC3339 UTC; absent until the job has run"`
+	LastDurationMs float64 `json:"last_duration_ms" doc:"Fractional: a sub-millisecond sweep would otherwise always report 0"`
+	LastError      string  `json:"last_error,omitempty"`
+	NextRun        string  `json:"next_run,omitempty" doc:"RFC3339 UTC; absent while the runner is not running"`
 }
 
 type listJobsOutput struct {
@@ -75,7 +76,7 @@ func toJobStatusDTO(s jobs.JobStatus) jobStatusDTO {
 		Name:           s.Name,
 		IntervalMs:     s.Interval.Milliseconds(),
 		Running:        s.Running,
-		LastDurationMs: s.LastDuration.Milliseconds(),
+		LastDurationMs: math.Round(float64(s.LastDuration)/float64(time.Microsecond)) / 1000,
 	}
 	if !s.LastRun.IsZero() {
 		dto.LastRun = s.LastRun.UTC().Format(time.RFC3339)
