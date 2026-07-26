@@ -420,9 +420,6 @@ func boolToInt(b bool) int64 {
 	return 0
 }
 
-// storedTimestampLayout is SQLite's datetime('now') output: UTC with no zone.
-const storedTimestampLayout = "2006-01-02 15:04:05"
-
 // airsAtRFC3339 restores the zone the stored form drops. Emitting it raw would
 // leave a browser to read a UTC instant as local time and shift the row by hours.
 // An unparseable value degrades to absent, matching a title with no schedule.
@@ -430,9 +427,9 @@ func airsAtRFC3339(stored sql.NullString) string {
 	if !stored.Valid {
 		return ""
 	}
-	t, err := time.Parse(storedTimestampLayout, stored.String)
+	t, err := store.ParseTimestamp(stored.String)
 	if err != nil {
 		return ""
 	}
-	return t.UTC().Format(time.RFC3339)
+	return t.Format(time.RFC3339)
 }

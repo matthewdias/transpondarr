@@ -131,7 +131,7 @@ func run(logger *slog.Logger) error {
 	}
 	// One provider process-wide: it carries the AniList rate limiter, so a second
 	// instance would put two independent callers inside one budget.
-	provider := metadata.Cached(anilist.New(), dbcache.New(st.Q))
+	provider := metadata.Cached(anilist.New(logger), dbcache.New(st.Q))
 
 	runner := jobs.New(logger)
 	runner.Add(jobs.Job{

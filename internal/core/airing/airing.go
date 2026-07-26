@@ -18,10 +18,6 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// timestampLayout matches SQLite's datetime('now') output (UTC, no zone), which
-// is what every timestamp column in this database holds.
-const timestampLayout = "2006-01-02 15:04:05"
-
 // seriesPerPass bounds how much of the request budget one pass can spend. Series
 // due for a sync sort never-synced first, so a newly added title is picked up on
 // the next tick rather than queued behind a backlog of routine refreshes.
@@ -69,9 +65,9 @@ func (s *Service) SyncOnce(ctx context.Context) error {
 // due lists the series whose schedule has never been synced or has gone stale,
 // pacing each status by the same TTL policy the title cache uses.
 func (s *Service) due(ctx context.Context) ([]db.Series, error) {
-	now := time.Now().UTC()
+	now := time.Now()
 	cutoff := func(status string) sql.NullString {
-		return sql.NullString{String: now.Add(-metadata.TTLFor(status)).Format(timestampLayout), Valid: true}
+		return sql.NullString{String: store.FormatTimestamp(now.Add(-metadata.TTLFor(status))), Valid: true}
 	}
 	return s.store.Q.ListSeriesDueAiringSync(ctx, db.ListSeriesDueAiringSyncParams{
 		AiringSyncedAt:   cutoff("FINISHED"),
@@ -95,7 +91,7 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 
 	for _, a := range schedule {
 		if err := s.store.Q.SetWantedItemAirsAt(ctx, db.SetWantedItemAirsAtParams{
-			AirsAt:   sql.NullString{String: a.AirsAt.UTC().Format(timestampLayout), Valid: true},
+			AirsAt:   sql.NullString{String: store.FormatTimestamp(a.AirsAt), Valid: true},
 			SeriesID: series.ID,
 			Kind:     string(domain.KindEpisode),
 			Number:   sql.NullInt64{Int64: int64(a.Number), Valid: true},

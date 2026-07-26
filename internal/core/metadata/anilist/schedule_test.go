@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,7 +18,7 @@ import (
 // stubClient points a Client at a stub server and removes the rate limiter, so
 // paging tests run at wall-clock zero instead of one 2s spacing wait per page.
 func stubClient(url string) *Client {
-	c := New()
+	c := New(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	c.endpoint = url
 	c.limiter = rate.NewLimiter(rate.Inf, 1)
 	return c
@@ -101,6 +102,25 @@ func TestGetScheduleNotYetAiredOnlyFetchesTail(t *testing.T) {
 	}
 	if notYetAired, _ := got["notYetAired"].(bool); !notYetAired {
 		t.Errorf("notYetAired variable = %v, want true", got["notYetAired"])
+	}
+}
+
+// A full-history fetch omits the filter entirely: nothing rests on the resolver
+// treating an explicit false as "no filter" rather than as a filter.
+func TestGetScheduleFullHistoryOmitsTheFilter(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = requestVars(t, r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, scheduleResponse(false, node(1, 1700000000)))
+	}))
+	defer srv.Close()
+
+	if _, err := stubClient(srv.URL).GetSchedule(context.Background(), 123, false); err != nil {
+		t.Fatalf("GetSchedule: %v", err)
+	}
+	if v, present := got["notYetAired"]; present {
+		t.Errorf("notYetAired variable = %v, want it omitted", v)
 	}
 }
 

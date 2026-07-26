@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	schedulePerPage = 50 // AniList's per-page ceiling for this connection
+	schedulePerPage = 25 // AniList silently clamps this connection to 25, whatever is asked
 	// maxSchedulePages bounds one call at ~3000 episodes, comfortably past the
 	// longest running series. It exists so a provider that never clears
 	// hasNextPage cannot page forever against a 30 req/min budget.
-	maxSchedulePages = 60
+	maxSchedulePages = 120
 )
 
 const scheduleQuery = `
@@ -30,7 +30,7 @@ query ($id: Int!, $page: Int!, $perPage: Int!, $notYetAired: Boolean) {
 // aired times are immutable, so only a never-synced title pays for all of them.
 func (c *Client) GetSchedule(ctx context.Context, id int64, notYetAired bool) ([]metadata.Airing, error) {
 	var out []metadata.Airing
-	for page := 1; page <= maxSchedulePages; page++ {
+	for page := 1; ; page++ {
 		var data struct {
 			Media struct {
 				AiringSchedule struct {
@@ -44,7 +44,12 @@ func (c *Client) GetSchedule(ctx context.Context, id int64, notYetAired bool) ([
 				} `json:"airingSchedule"`
 			} `json:"Media"`
 		}
-		vars := map[string]any{"id": id, "page": page, "perPage": schedulePerPage, "notYetAired": notYetAired}
+		vars := map[string]any{"id": id, "page": page, "perPage": schedulePerPage}
+		// Omitted rather than sent as false, so nothing rests on the resolver
+		// treating an explicit false as "no filter" rather than as a filter.
+		if notYetAired {
+			vars["notYetAired"] = true
+		}
 		if err := c.do(ctx, scheduleQuery, vars, &data); err != nil {
 			return nil, err
 		}
@@ -59,6 +64,10 @@ func (c *Client) GetSchedule(ctx context.Context, id int64, notYetAired bool) ([
 			out = append(out, metadata.Airing{Number: n.Episode, AirsAt: time.Unix(n.AiringAt, 0).UTC()})
 		}
 		if !sched.PageInfo.HasNextPage {
+			break
+		}
+		if page == maxSchedulePages {
+			c.log.Warn("airing schedule truncated at the page cap", "media", id, "pages", maxSchedulePages)
 			break
 		}
 	}

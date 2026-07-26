@@ -153,8 +153,11 @@ type ListSeriesDueAiringSyncParams struct {
 
 // Monitored series whose broadcast schedule has never been synced or has gone
 // stale. A finished title's aired times are immutable, so it waits on the long
-// cutoff while anything still moving waits on the short one. Never-synced series
-// sort first; the limit bounds how much of the request budget one pass can burn.
+// cutoff while anything still moving waits on the short one. A series with no
+// cache row has unknown status and deliberately rides the short cutoff: unknown
+// is likelier a transient anomaly than a finished title, and the cost is one
+// tail request per short TTL. Never-synced series sort first; the limit bounds
+// how much of the request budget one pass can burn.
 func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDueAiringSyncParams) ([]Series, error) {
 	rows, err := q.db.QueryContext(ctx, listSeriesDueAiringSync, arg.AiringSyncedAt, arg.AiringSyncedAt_2, arg.Limit)
 	if err != nil {

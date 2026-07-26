@@ -14,9 +14,6 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// sqliteLayout is how every timestamp column in this DB is written.
-const sqliteLayout = "2006-01-02 15:04:05"
-
 // fakeProvider is a metadata.Provider that publishes a schedule, recording what
 // each series was asked for.
 type fakeProvider struct {
@@ -94,7 +91,7 @@ func seedSeries(t *testing.T, st *store.Store, anilistID int64, episodes int) in
 func setSyncedAt(t *testing.T, st *store.Store, seriesID int64, at time.Time) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET airing_synced_at = ? WHERE id = ?`, at.UTC().Format(sqliteLayout), seriesID); err != nil {
+		`UPDATE series SET airing_synced_at = ? WHERE id = ?`, store.FormatTimestamp(at), seriesID); err != nil {
 		t.Fatalf("set airing_synced_at: %v", err)
 	}
 }
@@ -254,6 +251,40 @@ func TestSyncSkipsUnmonitoredSeries(t *testing.T) {
 	}
 	if len(prov.calls) != 0 {
 		t.Errorf("provider called %d times for an unmonitored series, want 0", len(prov.calls))
+	}
+}
+
+// One pass fetches at most seriesPerPass series, and never-synced series go
+// ahead of stale ones, so a newly added title is never queued behind refreshes.
+func TestSyncBoundsEachPassAndPrioritizesNeverSynced(t *testing.T) {
+	st := coretest.NewStore(t)
+	for id := int64(200); id < 206; id++ {
+		seedSeries(t, st, id, 1)
+	}
+	stale := seedSeries(t, st, 210, 1)
+	setCachedStatus(t, st, 210, "RELEASING")
+	setSyncedAt(t, st, stale, time.Now().Add(-24*time.Hour))
+
+	prov := newFakeProvider()
+	svc := newService(t, st, prov)
+	if err := svc.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if len(prov.calls) != 5 {
+		t.Fatalf("first pass fetched %d series, want the 5-series bound", len(prov.calls))
+	}
+	for _, id := range prov.calls {
+		if id == 210 {
+			t.Fatal("the stale series was fetched ahead of never-synced ones")
+		}
+	}
+
+	if err := svc.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("second SyncOnce: %v", err)
+	}
+	rest := prov.calls[5:]
+	if len(rest) != 2 || rest[0] == 210 || rest[1] != 210 {
+		t.Fatalf("second pass fetched %v, want the last never-synced series then the stale one", rest)
 	}
 }
 

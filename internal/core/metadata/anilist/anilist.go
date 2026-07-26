@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -39,14 +40,16 @@ type Client struct {
 	http     *http.Client
 	limiter  *rate.Limiter
 	endpoint string
+	log      *slog.Logger
 }
 
 // New constructs an AniList client with sane defaults.
-func New() *Client {
+func New(log *slog.Logger) *Client {
 	return &Client{
 		http:     &http.Client{Timeout: 20 * time.Second},
 		limiter:  rate.NewLimiter(rate.Every(minInterval), 1), // burst 1 ≈ spacing
 		endpoint: defaultEndpoint,
+		log:      log,
 	}
 }
 
