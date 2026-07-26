@@ -42,9 +42,6 @@ const (
 // is fully back; an unreachable client errors out of the scan instead.
 const missingGracePeriod = 5 * time.Minute
 
-// missingSinceLayout is SQLite's datetime('now') format, which missing_since is stored in.
-const missingSinceLayout = "2006-01-02 15:04:05"
-
 // ClientSource supplies the current download client and library target. It is
 // read on every scan so a runtime settings change (which swaps the clients) is
 // picked up on the next poll without restarting the importer.
@@ -168,15 +165,15 @@ func (im *Importer) openGrabs(ctx context.Context) ([]db.ListGrabsByStatusRow, e
 func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatusRow, now time.Time) {
 	if !g.MissingSince.Valid {
 		im.log.Info("importer: download not reported by client; watching", "release", g.ReleaseTitle, "hash", g.InfoHash)
-		im.setMissingSince(ctx, g.ID, sql.NullString{String: now.Format(missingSinceLayout), Valid: true})
+		im.setMissingSince(ctx, g.ID, sql.NullString{String: store.FormatTimestamp(now), Valid: true})
 		return
 	}
 
-	since, err := time.Parse(missingSinceLayout, g.MissingSince.String)
+	since, err := store.ParseTimestamp(g.MissingSince.String)
 	if err != nil {
 		// A value we cannot parse must not fail the grab, so wait another full period.
 		im.log.Warn("importer: missing_since could not be parsed; setting it to now", "hash", g.InfoHash, "value", g.MissingSince.String, "err", err)
-		im.setMissingSince(ctx, g.ID, sql.NullString{String: now.Format(missingSinceLayout), Valid: true})
+		im.setMissingSince(ctx, g.ID, sql.NullString{String: store.FormatTimestamp(now), Valid: true})
 		return
 	}
 	if now.Sub(since) < missingGracePeriod {

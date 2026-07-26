@@ -57,6 +57,24 @@ type Provider interface {
 	GetTitle(ctx context.Context, id int64) (TitleMeta, []ItemMeta, error)
 }
 
+// Airing is one item's scheduled broadcast. AirsAt is the provider's own clock —
+// AniList publishes the Japanese broadcast time, which is the right one to hang
+// fansub delay windows off.
+type Airing struct {
+	Number int
+	AirsAt time.Time
+}
+
+// AiringProvider is an optional Provider capability: providers that publish a
+// broadcast schedule implement it. It stays off Provider because paging a full
+// schedule costs many requests, and GetTitle is on the request path.
+type AiringProvider interface {
+	// GetSchedule returns a title's known broadcast times. notYetAired limits the
+	// fetch to the upcoming tail — aired times never change, so a resync pays for
+	// history once.
+	GetSchedule(ctx context.Context, id int64, notYetAired bool) ([]Airing, error)
+}
+
 type CachedTitle struct {
 	Title TitleMeta  `json:"title"`
 	Items []ItemMeta `json:"items"`
@@ -67,13 +85,31 @@ type Cache interface {
 	Put(ctx context.Context, provider string, id int64, snap CachedTitle) error
 }
 
+// Cached wraps a provider in a read-through title cache. The wrapper carries
+// AiringProvider only when inner implements it, so asserting the capability on a
+// composed provider still answers for the adapter underneath.
 func Cached(inner Provider, cache Cache) Provider {
-	return &cached{inner: inner, cache: cache}
+	c := &cached{inner: inner, cache: cache}
+	if airing, ok := inner.(AiringProvider); ok {
+		return &cachedAiring{cached: c, airing: airing}
+	}
+	return c
 }
 
 type cached struct {
 	inner Provider
 	cache Cache
+}
+
+type cachedAiring struct {
+	*cached
+	airing AiringProvider
+}
+
+// GetSchedule passes through uncached: schedules are persisted per item by the
+// airing sync, not held in the title snapshot this cache stores.
+func (c *cachedAiring) GetSchedule(ctx context.Context, id int64, notYetAired bool) ([]Airing, error) {
+	return c.airing.GetSchedule(ctx, id, notYetAired)
 }
 
 func (c *cached) Name() string { return c.inner.Name() }
@@ -110,17 +146,17 @@ const shortTTL = 6 * time.Hour
 // episode count came back unknown/null would otherwise be trusted as "zero
 // episodes" for weeks instead of being re-checked soon.
 func fresh(status string, itemCount int, fetchedAt time.Time) bool {
-	ttl := ttlFor(status)
+	ttl := TTLFor(status)
 	if itemCount == 0 {
 		ttl = shortTTL
 	}
 	return time.Since(fetchedAt) < ttl
 }
 
-// ttlFor keeps finished titles cached far longer than releasing ones (whose
-// episode count and status are still moving). Tuned conservatively for the rate
-// limit; the future refresh job will drive re-fetches on its own cadence.
-func ttlFor(status string) time.Duration {
+// TTLFor keeps finished titles cached far longer than releasing ones (whose
+// episode count and status are still moving). Exported so background refreshes
+// pace themselves by the same status-aware policy instead of inventing a second.
+func TTLFor(status string) time.Duration {
 	switch status {
 	case "FINISHED", "CANCELLED":
 		return 30 * 24 * time.Hour

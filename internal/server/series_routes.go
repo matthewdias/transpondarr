@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -70,6 +71,7 @@ type detailItemDTO struct {
 	Status       string `json:"status" enum:"have,downloading,stuck,deferred,wanted" doc:"Derived acquisition state"`
 	ReleaseTitle string `json:"release_title,omitempty"`
 	ImportError  string `json:"import_error,omitempty" doc:"Why the last import attempt failed (status stuck)"`
+	AirsAt       string `json:"airs_at,omitempty" format:"date-time" doc:"Broadcast time (RFC 3339, Japanese broadcast clock); absent when the provider publishes none"`
 }
 
 type seriesDetailReadDTO struct {
@@ -351,6 +353,7 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 			Status:       status,
 			ReleaseTitle: releaseTitle,
 			ImportError:  importError,
+			AirsAt:       airsAtRFC3339(r.AirsAt),
 		})
 	}
 	return out, nil
@@ -415,4 +418,18 @@ func boolToInt(b bool) int64 {
 		return 1
 	}
 	return 0
+}
+
+// airsAtRFC3339 restores the zone the stored form drops. Emitting it raw would
+// leave a browser to read a UTC instant as local time and shift the row by hours.
+// An unparseable value degrades to absent, matching a title with no schedule.
+func airsAtRFC3339(stored sql.NullString) string {
+	if !stored.Valid {
+		return ""
+	}
+	t, err := store.ParseTimestamp(stored.String)
+	if err != nil {
+		return ""
+	}
+	return t.Format(time.RFC3339)
 }

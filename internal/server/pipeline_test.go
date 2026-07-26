@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
+	"github.com/matthewdias/transpondarr/internal/core/metadata"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/server"
@@ -69,13 +71,30 @@ func newHarness(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownlo
 	reg.SetLibrary(lib)
 
 	runner := jobs.New(discardLogger())
-	h := server.New(cfg, st, discardLogger(), reg, settingsSvc, authSvc, runner)
+	h := server.New(cfg, st, discardLogger(), testProvider(), reg, settingsSvc, authSvc, runner)
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
 	return &harness{ts: ts, store: st, reg: reg, jobs: runner, idx: idx, dl: dl, lib: lib}
 }
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+
+// stubProvider stands in for AniList. Every method errors: these tests seed
+// series with no AniList id precisely so the provider is never reached, and a
+// loud failure is what proves that still holds.
+type stubProvider struct{}
+
+func testProvider() metadata.Provider { return stubProvider{} }
+
+func (stubProvider) Name() string { return "stub" }
+
+func (stubProvider) Search(context.Context, string) ([]metadata.Candidate, error) {
+	return nil, errors.New("stub provider: unexpected metadata call")
+}
+
+func (stubProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, []metadata.ItemMeta, error) {
+	return metadata.TitleMeta{}, nil, errors.New("stub provider: unexpected metadata call")
+}
 
 // seedSeries inserts a series (no AniList id, so the handler never calls out to
 // the real metadata provider) with episodes 1..count as wanted items.

@@ -22,8 +22,6 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
-	"github.com/matthewdias/transpondarr/internal/core/metadata/anilist"
-	"github.com/matthewdias/transpondarr/internal/core/metadata/dbcache"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/version"
@@ -37,8 +35,9 @@ func init() {
 // New builds the top-level HTTP handler. The clients registry supplies the live
 // download/indexer/library clients (any may be nil when unconfigured); settings
 // backs the runtime-config endpoints; auth backs forms login + sessions; runner
-// backs the job-status endpoint.
-func New(cfg *config.Config, st *store.Store, logger *slog.Logger, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner) http.Handler {
+// backs the job-status endpoint. provider is passed in rather than built here so
+// the daemon's background jobs share one — and so share its rate limiter.
+func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider metadata.Provider, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -47,7 +46,6 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, reg *clients.
 	logger.Info("auth: forms login", "required", authSvc.Required(), "configured", authSvc.Configured())
 	registerAuthRoutes(r, authSvc, settingsSvc.APIKey)
 
-	provider := metadata.Cached(anilist.New(), dbcache.New(st.Q))
 	svc := catalog.NewService(st, provider)
 
 	api := humachi.New(r, apiConfig())

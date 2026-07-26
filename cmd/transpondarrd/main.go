@@ -14,10 +14,14 @@ import (
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/config"
+	"github.com/matthewdias/transpondarr/internal/core/airing"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
+	"github.com/matthewdias/transpondarr/internal/core/metadata"
+	"github.com/matthewdias/transpondarr/internal/core/metadata/anilist"
+	"github.com/matthewdias/transpondarr/internal/core/metadata/dbcache"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/privdrop"
 	"github.com/matthewdias/transpondarr/internal/server"
@@ -37,6 +41,11 @@ const shutdownTimeout = 10 * time.Second
 // sessionCleanupInterval is how often expired session rows are swept; daily is
 // plenty for a 30-day session TTL.
 const sessionCleanupInterval = 24 * time.Hour
+
+// airingSyncInterval ticks often so a newly added series gets its air dates
+// within minutes. What each pass actually fetches is throttled by the per-series
+// staleness cutoffs, so a tick with nothing due costs one query and no requests.
+const airingSyncInterval = 15 * time.Minute
 
 func main() {
 	// `transpondarrd openapi` prints the OpenAPI spec to stdout and exits — used by
@@ -120,12 +129,22 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	// One provider process-wide: it carries the AniList rate limiter, so a second
+	// instance would put two independent callers inside one budget.
+	provider := metadata.Cached(anilist.New(logger), dbcache.New(st.Q))
+
 	runner := jobs.New(logger)
 	runner.Add(jobs.Job{
 		Name:       "session-cleanup",
 		Interval:   sessionCleanupInterval,
 		RunAtStart: true,
 		Run:        authSvc.CleanupExpired,
+	})
+	runner.Add(jobs.Job{
+		Name:       "airing-sync",
+		Interval:   airingSyncInterval,
+		RunAtStart: true,
+		Run:        airing.New(st, provider, logger).SyncOnce,
 	})
 	jobsDone := runner.Start(ctx)
 
@@ -142,7 +161,7 @@ func run(logger *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(cfg, st, logger, reg, settingsSvc, authSvc, runner),
+		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

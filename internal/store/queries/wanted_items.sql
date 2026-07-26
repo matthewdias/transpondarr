@@ -11,3 +11,8 @@ RETURNING *;
 
 -- name: SetWantedItemHave :exec
 UPDATE wanted_items SET have = ? WHERE id = ?;
+
+-- name: SetWantedItemAirsAt :exec
+UPDATE wanted_items
+SET airs_at = ?
+WHERE series_id = ? AND kind = ? AND number = ?;

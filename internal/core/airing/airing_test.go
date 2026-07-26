@@ -1,0 +1,324 @@
+package airing_test
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/matthewdias/transpondarr/internal/core/airing"
+	"github.com/matthewdias/transpondarr/internal/core/metadata"
+	"github.com/matthewdias/transpondarr/internal/coretest"
+	"github.com/matthewdias/transpondarr/internal/store"
+)
+
+// fakeProvider is a metadata.Provider that publishes a schedule, recording what
+// each series was asked for.
+type fakeProvider struct {
+	schedules map[int64][]metadata.Airing
+	errs      map[int64]error
+
+	calls       []int64 // provider ids, in call order
+	notYetAired map[int64]bool
+}
+
+func newFakeProvider() *fakeProvider {
+	return &fakeProvider{
+		schedules:   map[int64][]metadata.Airing{},
+		errs:        map[int64]error{},
+		notYetAired: map[int64]bool{},
+	}
+}
+
+func (f *fakeProvider) Name() string { return "anilist" }
+
+func (f *fakeProvider) Search(context.Context, string) ([]metadata.Candidate, error) {
+	return nil, nil
+}
+
+func (f *fakeProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, []metadata.ItemMeta, error) {
+	return metadata.TitleMeta{}, nil, nil
+}
+
+func (f *fakeProvider) GetSchedule(_ context.Context, id int64, notYetAired bool) ([]metadata.Airing, error) {
+	f.calls = append(f.calls, id)
+	f.notYetAired[id] = notYetAired
+	if err := f.errs[id]; err != nil {
+		return nil, err
+	}
+	return f.schedules[id], nil
+}
+
+// plainProvider has no schedule to publish.
+type plainProvider struct{}
+
+func (*plainProvider) Name() string { return "plain" }
+
+func (*plainProvider) Search(context.Context, string) ([]metadata.Candidate, error) {
+	return nil, nil
+}
+
+func (*plainProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, []metadata.ItemMeta, error) {
+	return metadata.TitleMeta{}, nil, nil
+}
+
+func newService(t *testing.T, st *store.Store, prov metadata.Provider) *airing.Service {
+	t.Helper()
+	return airing.New(st, prov, slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+// seedSeries inserts a monitored series with items 1..episodes and returns its id.
+func seedSeries(t *testing.T, st *store.Store, anilistID int64, episodes int) int64 {
+	t.Helper()
+	ctx := context.Background()
+	var id int64
+	if err := st.DB.QueryRowContext(ctx,
+		`INSERT INTO series (anilist_id, title, monitored) VALUES (?, 'Placeholder', 1) RETURNING id`,
+		anilistID).Scan(&id); err != nil {
+		t.Fatalf("insert series: %v", err)
+	}
+	for n := 1; n <= episodes; n++ {
+		if _, err := st.DB.ExecContext(ctx,
+			`INSERT INTO wanted_items (series_id, kind, number) VALUES (?, 'episode', ?)`, id, n); err != nil {
+			t.Fatalf("insert item %d: %v", n, err)
+		}
+	}
+	return id
+}
+
+func setSyncedAt(t *testing.T, st *store.Store, seriesID int64, at time.Time) {
+	t.Helper()
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET airing_synced_at = ? WHERE id = ?`, store.FormatTimestamp(at), seriesID); err != nil {
+		t.Fatalf("set airing_synced_at: %v", err)
+	}
+}
+
+func setCachedStatus(t *testing.T, st *store.Store, anilistID int64, status string) {
+	t.Helper()
+	if _, err := st.DB.ExecContext(context.Background(),
+		`INSERT INTO metadata_cache (provider, provider_id, status, raw) VALUES ('anilist', ?, ?, '{}')`,
+		anilistID, status); err != nil {
+		t.Fatalf("seed metadata cache: %v", err)
+	}
+}
+
+// airsAt reads one item's stored air date; ok is false when it is still null.
+func airsAt(t *testing.T, st *store.Store, seriesID int64, number int) (value string, ok bool) {
+	t.Helper()
+	var stored *string
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT airs_at FROM wanted_items WHERE series_id = ? AND number = ?`, seriesID, number).Scan(&stored); err != nil {
+		t.Fatalf("read airs_at: %v", err)
+	}
+	if stored == nil {
+		return "", false
+	}
+	return *stored, true
+}
+
+func syncedAt(t *testing.T, st *store.Store, seriesID int64) (string, bool) {
+	t.Helper()
+	var stored *string
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT airing_synced_at FROM series WHERE id = ?`, seriesID).Scan(&stored); err != nil {
+		t.Fatalf("read airing_synced_at: %v", err)
+	}
+	if stored == nil {
+		return "", false
+	}
+	return *stored, true
+}
+
+func TestSyncWritesAirDatesForANeverSyncedSeries(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 100, 3)
+
+	prov := newFakeProvider()
+	prov.schedules[100] = []metadata.Airing{
+		{Number: 1, AirsAt: time.Date(2026, 1, 4, 15, 30, 0, 0, time.UTC)},
+		{Number: 2, AirsAt: time.Date(2026, 1, 11, 15, 30, 0, 0, time.UTC)},
+	}
+
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	if got, ok := airsAt(t, st, seriesID, 1); !ok || got != "2026-01-04 15:30:00" {
+		t.Errorf("item 1 airs_at = %q (set=%t), want 2026-01-04 15:30:00", got, ok)
+	}
+	if got, ok := airsAt(t, st, seriesID, 2); !ok || got != "2026-01-11 15:30:00" {
+		t.Errorf("item 2 airs_at = %q (set=%t), want 2026-01-11 15:30:00", got, ok)
+	}
+	// Item 3 is outside the schedule AniList published; it must stay null rather
+	// than pick up a neighbour's date.
+	if got, ok := airsAt(t, st, seriesID, 3); ok {
+		t.Errorf("item 3 airs_at = %q, want null", got)
+	}
+	if _, ok := syncedAt(t, st, seriesID); !ok {
+		t.Error("airing_synced_at was not stamped")
+	}
+	// Never synced before, so history is fetched in full exactly once.
+	if prov.notYetAired[100] {
+		t.Error("a never-synced series fetched only the tail, so its aired history is lost")
+	}
+}
+
+// The asymmetry that makes full history affordable: a resync pages only the tail.
+func TestSyncRefetchesOnlyTheTailOnResync(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 101, 2)
+	setCachedStatus(t, st, 101, "RELEASING")
+	setSyncedAt(t, st, seriesID, time.Now().Add(-24*time.Hour))
+
+	prov := newFakeProvider()
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	if len(prov.calls) != 1 {
+		t.Fatalf("provider called %d times, want 1", len(prov.calls))
+	}
+	if !prov.notYetAired[101] {
+		t.Error("a resync re-paged aired history instead of just the tail")
+	}
+}
+
+func TestSyncSkipsFreshlySyncedSeries(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 102, 2)
+	setCachedStatus(t, st, 102, "RELEASING")
+	setSyncedAt(t, st, seriesID, time.Now().Add(-time.Minute))
+
+	prov := newFakeProvider()
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if len(prov.calls) != 0 {
+		t.Errorf("provider called %d times for a freshly synced series, want 0", len(prov.calls))
+	}
+}
+
+// A finished title's aired times never change, so it must not resync on the
+// releasing cadence.
+func TestSyncHoldsFinishedSeriesForTheLongCutoff(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 103, 2)
+	setCachedStatus(t, st, 103, "FINISHED")
+	setSyncedAt(t, st, seriesID, time.Now().Add(-48*time.Hour))
+
+	prov := newFakeProvider()
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if len(prov.calls) != 0 {
+		t.Errorf("a finished series resynced after 48h; want it held to the long cutoff")
+	}
+}
+
+// AniList's coverage thins out badly before ~2015. An empty schedule is a normal
+// answer, and re-asking every tick would burn the request budget for nothing.
+func TestSyncStampsSeriesWithNoScheduleData(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 104, 2)
+
+	prov := newFakeProvider()
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	if _, ok := syncedAt(t, st, seriesID); !ok {
+		t.Fatal("a series with no schedule data was left unsynced, so it retries forever")
+	}
+	if got, ok := airsAt(t, st, seriesID, 1); ok {
+		t.Errorf("item 1 airs_at = %q, want null", got)
+	}
+}
+
+func TestSyncSkipsUnmonitoredSeries(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 105, 1)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET monitored = 0 WHERE id = ?`, seriesID); err != nil {
+		t.Fatalf("unmonitor: %v", err)
+	}
+
+	prov := newFakeProvider()
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if len(prov.calls) != 0 {
+		t.Errorf("provider called %d times for an unmonitored series, want 0", len(prov.calls))
+	}
+}
+
+// One pass fetches at most seriesPerPass series, and never-synced series go
+// ahead of stale ones, so a newly added title is never queued behind refreshes.
+func TestSyncBoundsEachPassAndPrioritizesNeverSynced(t *testing.T) {
+	st := coretest.NewStore(t)
+	for id := int64(200); id < 206; id++ {
+		seedSeries(t, st, id, 1)
+	}
+	stale := seedSeries(t, st, 210, 1)
+	setCachedStatus(t, st, 210, "RELEASING")
+	setSyncedAt(t, st, stale, time.Now().Add(-24*time.Hour))
+
+	prov := newFakeProvider()
+	svc := newService(t, st, prov)
+	if err := svc.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if len(prov.calls) != 5 {
+		t.Fatalf("first pass fetched %d series, want the 5-series bound", len(prov.calls))
+	}
+	for _, id := range prov.calls {
+		if id == 210 {
+			t.Fatal("the stale series was fetched ahead of never-synced ones")
+		}
+	}
+
+	if err := svc.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("second SyncOnce: %v", err)
+	}
+	rest := prov.calls[5:]
+	if len(rest) != 2 || rest[0] == 210 || rest[1] != 210 {
+		t.Fatalf("second pass fetched %v, want the last never-synced series then the stale one", rest)
+	}
+}
+
+// One unreachable title must not cost every other series its sync.
+func TestSyncContinuesPastAFailingSeries(t *testing.T) {
+	st := coretest.NewStore(t)
+	failing := seedSeries(t, st, 106, 1)
+	healthy := seedSeries(t, st, 107, 1)
+
+	prov := newFakeProvider()
+	prov.errs[106] = errors.New("boom")
+	prov.schedules[107] = []metadata.Airing{{Number: 1, AirsAt: time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)}}
+
+	err := newService(t, st, prov).SyncOnce(context.Background())
+	if err == nil {
+		t.Fatal("SyncOnce reported success despite a failing series")
+	}
+
+	if _, ok := airsAt(t, st, healthy, 1); !ok {
+		t.Error("the healthy series was skipped because another one failed")
+	}
+	// A failed fetch must not be recorded as a successful sync.
+	if _, ok := syncedAt(t, st, failing); ok {
+		t.Error("the failing series was stamped as synced, so its schedule is never retried")
+	}
+}
+
+// A provider with no schedule to publish is a supported configuration, not a
+// failure: the job no-ops instead of erroring every tick.
+func TestSyncNoOpsWithoutTheAiringCapability(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedSeries(t, st, 108, 1)
+
+	if err := newService(t, st, &plainProvider{}).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce on a provider without schedules: %v", err)
+	}
+}

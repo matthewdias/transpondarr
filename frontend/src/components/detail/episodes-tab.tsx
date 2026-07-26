@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 import type { SeriesDetail, WantedItem } from "@/lib/api";
-import { pad2 } from "@/lib/format";
+import { airDate, pad2 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ItemStatusBadge } from "@/components/badges";
@@ -101,6 +101,9 @@ export function EpisodesTab({
               <TableRow>
                 <TableHead className="w-[70px]">Ep</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="hidden w-32 md:table-cell">
+                  Airs
+                </TableHead>
                 <TableHead className="hidden sm:table-cell">Quality</TableHead>
                 <TableHead className="w-24 text-right" />
               </TableRow>
@@ -133,6 +136,16 @@ function EpisodeRow({
       </TableCell>
       <TableCell>
         <ItemStatusBadge status={item.status} error={item.import_error} />
+      </TableCell>
+      <TableCell
+        className="hidden whitespace-nowrap text-muted-foreground md:table-cell"
+        title={item.airs_at}
+      >
+        {item.airs_at ? (
+          airDate(item.airs_at)
+        ) : (
+          <span className="text-faint">—</span>
+        )}
       </TableCell>
       <TableCell className="hidden text-muted-foreground sm:table-cell">
         {item.release_title ? (

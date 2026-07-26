@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { formatBytes, pad2, timeAgo } from "@/lib/format";
+import { airDate, formatBytes, pad2, timeAgo } from "@/lib/format";
 
 describe("formatBytes", () => {
   it("renders a placeholder for zero or negative sizes", () => {
@@ -70,5 +70,41 @@ describe("pad2", () => {
   it("leaves two or more digits alone", () => {
     expect(pad2(12)).toBe("12");
     expect(pad2(112)).toBe("112");
+  });
+});
+
+describe("airDate", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const freeze = (iso: string) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  };
+
+  it("renders an absolute date for an episode that has aired", () => {
+    freeze("2026-07-23T12:00:00Z");
+    expect(airDate("2026-01-04T15:30:00Z", "en-GB")).toBe("4 Jan 2026");
+  });
+
+  it("counts down to an upcoming episode instead of dating it", () => {
+    freeze("2026-07-23T12:00:00Z");
+    expect(airDate("2026-07-23T13:30:00Z")).toBe("in 1h");
+    expect(airDate("2026-07-26T12:00:00Z")).toBe("in 3d");
+    expect(airDate("2026-07-23T12:00:30Z")).toBe("any moment");
+  });
+
+  it("stops counting down past a week out", () => {
+    freeze("2026-07-23T12:00:00Z");
+    expect(airDate("2026-09-01T12:00:00Z", "en-GB")).toBe("1 Sept 2026");
+  });
+
+  // AniList publishes no schedule for many older titles, so an absent date is a
+  // normal row rather than an error.
+  it("renders a placeholder for a missing or unparseable date", () => {
+    expect(airDate(undefined)).toBe("—");
+    expect(airDate("")).toBe("—");
+    expect(airDate("not a timestamp")).toBe("—");
   });
 });

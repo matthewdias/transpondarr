@@ -107,7 +107,7 @@ func TestCleanupExpiredRemovesOnlyExpiredSessions(t *testing.T) {
 	if err := st.Q.CreateSession(ctx, db.CreateSessionParams{
 		Token:     "expired-token",
 		Username:  "admin",
-		ExpiresAt: time.Now().UTC().Add(-time.Hour).Format(sqliteTimeLayout),
+		ExpiresAt: store.FormatTimestamp(time.Now().Add(-time.Hour)),
 	}); err != nil {
 		t.Fatalf("insert expired session: %v", err)
 	}

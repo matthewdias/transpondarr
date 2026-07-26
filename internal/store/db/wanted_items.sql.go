@@ -13,7 +13,7 @@ import (
 const createWantedItem = `-- name: CreateWantedItem :one
 INSERT INTO wanted_items (series_id, kind, number, title, have)
 VALUES (?, ?, ?, ?, ?)
-RETURNING id, series_id, kind, number, title, have
+RETURNING id, series_id, kind, number, title, have, airs_at
 `
 
 type CreateWantedItemParams struct {
@@ -40,12 +40,13 @@ func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemPara
 		&i.Number,
 		&i.Title,
 		&i.Have,
+		&i.AirsAt,
 	)
 	return i, err
 }
 
 const listWantedItems = `-- name: ListWantedItems :many
-SELECT id, series_id, kind, number, title, have
+SELECT id, series_id, kind, number, title, have, airs_at
 FROM wanted_items
 WHERE series_id = ?
 ORDER BY number
@@ -67,6 +68,7 @@ func (q *Queries) ListWantedItems(ctx context.Context, seriesID int64) ([]Wanted
 			&i.Number,
 			&i.Title,
 			&i.Have,
+			&i.AirsAt,
 		); err != nil {
 			return nil, err
 		}
@@ -79,6 +81,29 @@ func (q *Queries) ListWantedItems(ctx context.Context, seriesID int64) ([]Wanted
 		return nil, err
 	}
 	return items, nil
+}
+
+const setWantedItemAirsAt = `-- name: SetWantedItemAirsAt :exec
+UPDATE wanted_items
+SET airs_at = ?
+WHERE series_id = ? AND kind = ? AND number = ?
+`
+
+type SetWantedItemAirsAtParams struct {
+	AirsAt   sql.NullString `json:"airs_at"`
+	SeriesID int64          `json:"series_id"`
+	Kind     string         `json:"kind"`
+	Number   sql.NullInt64  `json:"number"`
+}
+
+func (q *Queries) SetWantedItemAirsAt(ctx context.Context, arg SetWantedItemAirsAtParams) error {
+	_, err := q.db.ExecContext(ctx, setWantedItemAirsAt,
+		arg.AirsAt,
+		arg.SeriesID,
+		arg.Kind,
+		arg.Number,
+	)
+	return err
 }
 
 const setWantedItemHave = `-- name: SetWantedItemHave :exec

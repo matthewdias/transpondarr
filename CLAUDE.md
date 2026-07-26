@@ -50,6 +50,13 @@ web/                   embeds web/dist; frontend/ is the Vite source
   later), `DownloadClient` (qBittorrent first), `LibraryTarget`
   (media-server layout now; a drop-folder later). Add new sources/clients/
   targets behind these interfaces.
+- **Optional provider capabilities are type assertions, not wider interfaces.**
+  `metadata.AiringProvider` (broadcast schedules) sits alongside `Provider`
+  because paging a schedule costs one request per 50 episodes and `GetTitle` is
+  on the request path. Two rules follow: a decorator must forward the capability
+  *conditionally* (`metadata.Cached` returns a schedule-carrying wrapper only
+  when its inner provider has one, so the assertion never lies), and the caller
+  treats a missing capability as a supported configuration, not an error.
 
 ## Development process — TDD, red/green
 
@@ -99,6 +106,15 @@ Behaviour changes are test-driven. Work red → green → refactor:
   registry/service each run, not capture a snapshot, or live config edits stop
   applying. **The importer is deliberately still on its own goroutine** (its
   shutdown semantics predate the runner); migrating it is tracked separately.
+- **Air dates are nullable everywhere, by design.** AniList's schedule coverage
+  thins out badly before ~2015 and can skip episodes even for a modern title (it
+  lists no entry for a multi-episode premiere block), so `wanted_items.airs_at`
+  is null for real titles in normal operation — never treat its absence as an
+  error. `internal/core/airing` syncs it in the background off the job runner and
+  stamps `series.airing_synced_at` even when the provider returns nothing, which
+  is what stops an unschedulable title being re-asked every tick. Aired times are
+  immutable, so only a never-synced series pages full history; a resync passes
+  `notYetAired` and fetches the tail.
 - **Auth is forms-based** (`internal/core/auth`): the web UI logs in (username +
   argon2id password) and gets an httpOnly session cookie; the **API key** is for
   machine clients only (`X-Api-Key`). A request to `/api/*` is authorized by a

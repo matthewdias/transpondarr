@@ -14,6 +14,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/coretest"
+	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
@@ -118,7 +119,7 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 		t.Fatalf("got %d grabs, want 1", len(grabs))
 	}
 	if err := h.store.Q.SetGrabMissingSince(context.Background(), db.SetGrabMissingSinceParams{
-		MissingSince: sql.NullString{String: time.Now().UTC().Add(-time.Hour).Format("2006-01-02 15:04:05"), Valid: true},
+		MissingSince: sql.NullString{String: store.FormatTimestamp(time.Now().Add(-time.Hour)), Valid: true},
 		ID:           grabs[0].ID,
 	}); err != nil {
 		t.Fatalf("stamp missing_since: %v", err)
