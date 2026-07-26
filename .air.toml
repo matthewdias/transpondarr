@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-cmd = "go build -o ./tmp/transpondarrd ./cmd/transpondarrd"
+cmd = "CGO_ENABLED=0 go build -o ./tmp/transpondarrd ./cmd/transpondarrd"
 bin = "./tmp/transpondarrd"
 include_ext = ["go", "sql", "html"]
 exclude_dir = ["tmp", "frontend", "web/dist", "dist", "data"]

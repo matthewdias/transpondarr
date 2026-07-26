@@ -6,19 +6,22 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
 // routeDeps bundles what the handlers need. The clients registry supplies the
 // live download/indexer clients (either may be nil when unconfigured; handlers
-// report that as 503); settings backs the runtime-config endpoints.
+// report that as 503); settings backs the runtime-config endpoints; jobs backs
+// the job-status endpoint and is nil on the spec-dump path.
 type routeDeps struct {
 	store    *store.Store
 	catalog  *catalog.Service
 	clients  *clients.Registry
 	settings *settings.Service
 	auth     *auth.Service
+	jobs     *jobs.Runner
 }
 
 // registerRoutes wires every Huma endpoint. Handlers are grouped by resource in
@@ -26,7 +29,7 @@ type routeDeps struct {
 // Larger groups (series, settings) hang their handlers off a per-resource
 // receiver struct; single-route groups keep them as inline closures.
 func registerRoutes(api huma.API, deps routeDeps) {
-	registerSystemRoutes(api)
+	registerSystemRoutes(api, deps)
 	registerMetadataRoutes(api, deps)
 	registerIndexerRoutes(api, deps)
 	registerDownloadRoutes(api, deps)

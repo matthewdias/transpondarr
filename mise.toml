@@ -9,5 +9,7 @@ sqlc = "1.31.1"
 "go:github.com/air-verse/air" = "1.66.0"
 "go:golang.org/x/vuln/cmd/govulncheck" = "1.6.0"
 
-[env]
-CGO_ENABLED = "0"
+# No [env] CGO_ENABLED here: mise re-applies it inside its shims, which silently
+# overrides a command-level CGO_ENABLED=1 and leaves `go test -race` unable to
+# link the race runtime on Linux. Every artifact path sets it explicitly instead
+# (Makefile, Dockerfile, .goreleaser.yaml, .air.toml).

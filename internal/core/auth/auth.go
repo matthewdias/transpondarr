@@ -14,7 +14,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -234,27 +233,6 @@ func (s *Service) DeleteSession(ctx context.Context, token string) {
 // CleanupExpired removes expired session rows.
 func (s *Service) CleanupExpired(ctx context.Context) error {
 	return s.store.Q.DeleteExpiredSessions(ctx)
-}
-
-// RunCleanup sweeps expired session rows once immediately, then every interval,
-// until ctx is cancelled. Failures are logged: this loop is the only thing
-// bounding the sessions table on a long-lived instance.
-func (s *Service) RunCleanup(ctx context.Context, interval time.Duration, log *slog.Logger) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		if err := s.CleanupExpired(ctx); err != nil && ctx.Err() == nil {
-			log.Warn("session cleanup failed", "err", err)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-	}
 }
 
 // ── password hashing (argon2id) ───────────────────────────────────────────────
