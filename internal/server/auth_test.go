@@ -41,7 +41,7 @@ func newAuthServer(t *testing.T, cfg *config.Config) (*httptest.Server, *auth.Se
 	if err != nil {
 		t.Fatalf("auth.New: %v", err)
 	}
-	ts := httptest.NewServer(server.New(cfg, st, discardLogger(), reg, settingsSvc, authSvc, jobs.New(discardLogger())))
+	ts := httptest.NewServer(server.New(cfg, st, discardLogger(), testProvider(), reg, settingsSvc, authSvc, jobs.New(discardLogger())))
 	t.Cleanup(ts.Close)
 	return ts, authSvc
 }

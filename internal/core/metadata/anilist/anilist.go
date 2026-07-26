@@ -23,26 +23,30 @@ import (
 )
 
 const (
-	endpoint       = "https://graphql.anilist.co"
-	minInterval    = 2 * time.Second   // ~30 req/min ceiling
-	defaultBackoff = 10 * time.Second  // 429 fallback when Retry-After is absent
-	maxBackoff     = 120 * time.Second // cap on any single backoff wait
-	maxAttempts    = 3
-	searchPerPage  = 10
-	maxRespBytes   = 8 << 20 // 8 MiB cap on a decoded response body
+	defaultEndpoint = "https://graphql.anilist.co"
+	minInterval     = 2 * time.Second   // ~30 req/min ceiling
+	defaultBackoff  = 10 * time.Second  // 429 fallback when Retry-After is absent
+	maxBackoff      = 120 * time.Second // cap on any single backoff wait
+	maxAttempts     = 3
+	searchPerPage   = 10
+	maxRespBytes    = 8 << 20 // 8 MiB cap on a decoded response body
 )
 
-// Client is an AniList metadata provider.
+// Client is an AniList metadata provider. One instance is shared process-wide:
+// the limiter it carries is the only thing keeping concurrent callers inside the
+// budget, so a second client would silently double the request rate.
 type Client struct {
-	http    *http.Client
-	limiter *rate.Limiter
+	http     *http.Client
+	limiter  *rate.Limiter
+	endpoint string
 }
 
 // New constructs an AniList client with sane defaults.
 func New() *Client {
 	return &Client{
-		http:    &http.Client{Timeout: 20 * time.Second},
-		limiter: rate.NewLimiter(rate.Every(minInterval), 1), // burst 1 ≈ spacing
+		http:     &http.Client{Timeout: 20 * time.Second},
+		limiter:  rate.NewLimiter(rate.Every(minInterval), 1), // burst 1 ≈ spacing
+		endpoint: defaultEndpoint,
 	}
 }
 
@@ -199,7 +203,7 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 			return err
 		}
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.endpoint, bytes.NewReader(payload))
 		if err != nil {
 			return fmt.Errorf("anilist: build request: %w", err)
 		}

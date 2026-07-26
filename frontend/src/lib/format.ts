@@ -12,11 +12,42 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(digits)} ${units[unit]}`;
 }
 
-/** Compact relative time from an ISO/SQLite timestamp, e.g. "2h ago". */
-export function timeAgo(input: string): string {
+/** Epoch millis from an ISO or bare SQLite timestamp; NaN when unparseable. */
+function parseTimestamp(input: string): number {
   // SQLite datetime('now') is UTC without a zone suffix; treat it as UTC.
   const iso = input.includes("T") ? input : input.replace(" ", "T") + "Z";
-  const then = new Date(iso).getTime();
+  return new Date(iso).getTime();
+}
+
+/**
+ * Broadcast time for an episode row: a countdown while it is within a week of
+ * airing, an absolute date otherwise. AniList publishes no schedule for many
+ * older titles, so an absent date renders as a placeholder rather than an error.
+ */
+export function airDate(input: string | undefined, locale?: string): string {
+  if (!input) return "—";
+  const at = parseTimestamp(input);
+  if (Number.isNaN(at)) return "—";
+
+  const secs = (at - Date.now()) / 1000;
+  if (secs > 0 && secs < 7 * 86400) {
+    if (secs < 60) return "any moment";
+    if (secs < 3600) return `in ${Math.floor(secs / 60)}m`;
+    if (secs < 86400) return `in ${Math.floor(secs / 3600)}h`;
+    return `in ${Math.floor(secs / 86400)}d`;
+  }
+  // locale defaults to the viewer's; tests pin it so the assertion is not at the
+  // mercy of the runner's ICU default.
+  return new Date(at).toLocaleDateString(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/** Compact relative time from an ISO/SQLite timestamp, e.g. "2h ago". */
+export function timeAgo(input: string): string {
+  const then = parseTimestamp(input);
   if (Number.isNaN(then)) return input;
   const secs = Math.max(0, (Date.now() - then) / 1000);
   if (secs < 60) return "just now";

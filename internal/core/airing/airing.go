@@ -1,0 +1,112 @@
+// Package airing keeps per-item broadcast times in step with the metadata
+// provider. It exists as background work rather than as part of GetTitle because
+// paging a full schedule costs one request per 50 episodes: unremarkable off the
+// request path, unacceptable behind a user action against a ~30 req/min budget.
+package airing
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/matthewdias/transpondarr/internal/core/domain"
+	"github.com/matthewdias/transpondarr/internal/core/metadata"
+	"github.com/matthewdias/transpondarr/internal/store"
+	"github.com/matthewdias/transpondarr/internal/store/db"
+)
+
+// timestampLayout matches SQLite's datetime('now') output (UTC, no zone), which
+// is what every timestamp column in this database holds.
+const timestampLayout = "2006-01-02 15:04:05"
+
+// seriesPerPass bounds how much of the request budget one pass can spend. Series
+// due for a sync sort never-synced first, so a newly added title is picked up on
+// the next tick rather than queued behind a backlog of routine refreshes.
+const seriesPerPass = 5
+
+// Service syncs broadcast schedules into wanted_items.airs_at.
+type Service struct {
+	store    *store.Store
+	provider metadata.Provider
+	log      *slog.Logger
+}
+
+// New builds a Service over the shared provider. Sharing matters: the provider
+// carries the rate limiter, so a private instance would double the request rate.
+func New(st *store.Store, provider metadata.Provider, log *slog.Logger) *Service {
+	return &Service{store: st, provider: provider, log: log}
+}
+
+// SyncOnce fetches schedules for every series due one, and is what the job runner
+// calls. A provider that publishes no schedule is a supported configuration, not
+// a failure. One series' error never costs the rest their sync.
+func (s *Service) SyncOnce(ctx context.Context) error {
+	airing, ok := s.provider.(metadata.AiringProvider)
+	if !ok {
+		return nil
+	}
+
+	due, err := s.due(ctx)
+	if err != nil {
+		return fmt.Errorf("list series due an airing sync: %w", err)
+	}
+
+	var errs []error
+	for _, series := range due {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err := s.syncSeries(ctx, airing, series); err != nil {
+			errs = append(errs, fmt.Errorf("series %d: %w", series.ID, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// due lists the series whose schedule has never been synced or has gone stale,
+// pacing each status by the same TTL policy the title cache uses.
+func (s *Service) due(ctx context.Context) ([]db.Series, error) {
+	now := time.Now().UTC()
+	cutoff := func(status string) sql.NullString {
+		return sql.NullString{String: now.Add(-metadata.TTLFor(status)).Format(timestampLayout), Valid: true}
+	}
+	return s.store.Q.ListSeriesDueAiringSync(ctx, db.ListSeriesDueAiringSyncParams{
+		AiringSyncedAt:   cutoff("FINISHED"),
+		AiringSyncedAt_2: cutoff("RELEASING"),
+		Limit:            seriesPerPass,
+	})
+}
+
+// syncSeries writes one series' schedule, then stamps it as synced. The stamp is
+// what stops a title AniList has no schedule for (its coverage thins out badly
+// before ~2015) from being re-asked every tick forever.
+func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider, series db.Series) error {
+	// A series synced before has its aired history already; only the not-yet-aired
+	// tail can still move, and that is 1-2 pages instead of one per 50 episodes.
+	notYetAired := series.AiringSyncedAt.Valid
+
+	schedule, err := airing.GetSchedule(ctx, series.AnilistID.Int64, notYetAired)
+	if err != nil {
+		return fmt.Errorf("fetch schedule: %w", err)
+	}
+
+	for _, a := range schedule {
+		if err := s.store.Q.SetWantedItemAirsAt(ctx, db.SetWantedItemAirsAtParams{
+			AirsAt:   sql.NullString{String: a.AirsAt.UTC().Format(timestampLayout), Valid: true},
+			SeriesID: series.ID,
+			Kind:     string(domain.KindEpisode),
+			Number:   sql.NullInt64{Int64: int64(a.Number), Valid: true},
+		}); err != nil {
+			return fmt.Errorf("set air date for item %d: %w", a.Number, err)
+		}
+	}
+
+	if err := s.store.Q.SetSeriesAiringSyncedAt(ctx, series.ID); err != nil {
+		return fmt.Errorf("stamp synced: %w", err)
+	}
+	s.log.Debug("airing schedule synced", "series", series.ID, "airings", len(schedule), "tail_only", notYetAired)
+	return nil
+}

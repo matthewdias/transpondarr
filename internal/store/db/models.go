@@ -53,13 +53,14 @@ type QualityProfileGroup struct {
 }
 
 type Series struct {
-	ID               int64         `json:"id"`
-	AnilistID        sql.NullInt64 `json:"anilist_id"`
-	Title            string        `json:"title"`
-	Format           string        `json:"format"`
-	Monitored        int64         `json:"monitored"`
-	CreatedAt        string        `json:"created_at"`
-	QualityProfileID int64         `json:"quality_profile_id"`
+	ID               int64          `json:"id"`
+	AnilistID        sql.NullInt64  `json:"anilist_id"`
+	Title            string         `json:"title"`
+	Format           string         `json:"format"`
+	Monitored        int64          `json:"monitored"`
+	CreatedAt        string         `json:"created_at"`
+	QualityProfileID int64          `json:"quality_profile_id"`
+	AiringSyncedAt   sql.NullString `json:"airing_synced_at"`
 }
 
 type Session struct {
@@ -82,4 +83,5 @@ type WantedItem struct {
 	Number   sql.NullInt64  `json:"number"`
 	Title    sql.NullString `json:"title"`
 	Have     int64          `json:"have"`
+	AirsAt   sql.NullString `json:"airs_at"`
 }

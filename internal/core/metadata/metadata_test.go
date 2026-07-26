@@ -213,8 +213,8 @@ func TestTTLFor(t *testing.T) {
 		"anything else":    short,
 	}
 	for status, want := range cases {
-		if got := ttlFor(status); got != want {
-			t.Errorf("ttlFor(%q) = %v, want %v", status, got, want)
+		if got := TTLFor(status); got != want {
+			t.Errorf("TTLFor(%q) = %v, want %v", status, got, want)
 		}
 	}
 }
@@ -229,5 +229,45 @@ func TestFresh(t *testing.T) {
 	// An empty FINISHED snapshot uses the short TTL, not 30 days.
 	if fresh("FINISHED", 0, time.Now().Add(-7*time.Hour)) {
 		t.Error("an empty FINISHED snapshot fetched 7 hours ago should be stale")
+	}
+}
+
+// fakeAiringProvider is a provider that also publishes a schedule.
+type fakeAiringProvider struct {
+	fakeProvider
+	airings       []Airing
+	lastNotYetAir bool
+	scheduleCalls int
+}
+
+func (f *fakeAiringProvider) GetSchedule(_ context.Context, _ int64, notYetAired bool) ([]Airing, error) {
+	f.scheduleCalls++
+	f.lastNotYetAir = notYetAired
+	return f.airings, nil
+}
+
+func TestCachedForwardsAiringCapability(t *testing.T) {
+	prov := &fakeAiringProvider{airings: []Airing{{Number: 1, AirsAt: time.Unix(1700000000, 0).UTC()}}}
+
+	airing, ok := Cached(prov, &fakeCache{}).(AiringProvider)
+	if !ok {
+		t.Fatal("Cached dropped the AiringProvider capability of its inner provider")
+	}
+	got, err := airing.GetSchedule(context.Background(), 5, true)
+	if err != nil {
+		t.Fatalf("GetSchedule: %v", err)
+	}
+	if len(got) != 1 || got[0].Number != 1 {
+		t.Errorf("got %+v, want the inner provider's schedule", got)
+	}
+	if !prov.lastNotYetAir {
+		t.Error("notYetAired was not passed through to the inner provider")
+	}
+}
+
+// The capability must not be invented for a provider that has no schedule to give.
+func TestCachedDoesNotInventAiringCapability(t *testing.T) {
+	if _, ok := Cached(&fakeProvider{}, &fakeCache{}).(AiringProvider); ok {
+		t.Error("Cached claims AiringProvider for an inner provider that lacks it")
 	}
 }

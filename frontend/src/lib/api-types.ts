@@ -376,6 +376,11 @@ export interface components {
             title: string;
         };
         DetailItemDTO: {
+            /**
+             * Format: date-time
+             * @description Broadcast time (RFC 3339, Japanese broadcast clock); absent when the provider publishes none
+             */
+            airs_at?: string;
             have: boolean;
             /** Format: int64 */
             id: number;

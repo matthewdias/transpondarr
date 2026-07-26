@@ -13,7 +13,7 @@ import (
 const createSeries = `-- name: CreateSeries :one
 INSERT INTO series (anilist_id, title, format, monitored)
 VALUES (?, ?, ?, ?)
-RETURNING id, anilist_id, title, format, monitored, created_at, quality_profile_id
+RETURNING id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at
 `
 
 type CreateSeriesParams struct {
@@ -39,12 +39,13 @@ func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Ser
 		&i.Monitored,
 		&i.CreatedAt,
 		&i.QualityProfileID,
+		&i.AiringSyncedAt,
 	)
 	return i, err
 }
 
 const getSeries = `-- name: GetSeries :one
-SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id
+SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at
 FROM series
 WHERE id = ?
 LIMIT 1
@@ -61,12 +62,13 @@ func (q *Queries) GetSeries(ctx context.Context, id int64) (Series, error) {
 		&i.Monitored,
 		&i.CreatedAt,
 		&i.QualityProfileID,
+		&i.AiringSyncedAt,
 	)
 	return i, err
 }
 
 const getSeriesByAnilistID = `-- name: GetSeriesByAnilistID :one
-SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id
+SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at
 FROM series
 WHERE anilist_id = ?
 LIMIT 1
@@ -83,12 +85,13 @@ func (q *Queries) GetSeriesByAnilistID(ctx context.Context, anilistID sql.NullIn
 		&i.Monitored,
 		&i.CreatedAt,
 		&i.QualityProfileID,
+		&i.AiringSyncedAt,
 	)
 	return i, err
 }
 
 const listSeries = `-- name: ListSeries :many
-SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id
+SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at
 FROM series
 ORDER BY title
 `
@@ -110,6 +113,66 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 			&i.Monitored,
 			&i.CreatedAt,
 			&i.QualityProfileID,
+			&i.AiringSyncedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSeriesDueAiringSync = `-- name: ListSeriesDueAiringSync :many
+SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at
+FROM series s
+LEFT JOIN metadata_cache m ON m.provider = 'anilist' AND m.provider_id = s.anilist_id
+WHERE s.monitored = 1
+  AND s.anilist_id IS NOT NULL
+  AND (
+      s.airing_synced_at IS NULL
+      OR s.airing_synced_at < CASE
+             WHEN m.status IN ('FINISHED', 'CANCELLED') THEN ?
+             ELSE ?
+         END
+  )
+ORDER BY s.airing_synced_at IS NOT NULL, s.airing_synced_at
+LIMIT ?
+`
+
+type ListSeriesDueAiringSyncParams struct {
+	AiringSyncedAt   sql.NullString `json:"airing_synced_at"`
+	AiringSyncedAt_2 sql.NullString `json:"airing_synced_at_2"`
+	Limit            int64          `json:"limit"`
+}
+
+// Monitored series whose broadcast schedule has never been synced or has gone
+// stale. A finished title's aired times are immutable, so it waits on the long
+// cutoff while anything still moving waits on the short one. Never-synced series
+// sort first; the limit bounds how much of the request budget one pass can burn.
+func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDueAiringSyncParams) ([]Series, error) {
+	rows, err := q.db.QueryContext(ctx, listSeriesDueAiringSync, arg.AiringSyncedAt, arg.AiringSyncedAt_2, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Series{}
+	for rows.Next() {
+		var i Series
+		if err := rows.Scan(
+			&i.ID,
+			&i.AnilistID,
+			&i.Title,
+			&i.Format,
+			&i.Monitored,
+			&i.CreatedAt,
+			&i.QualityProfileID,
+			&i.AiringSyncedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -126,7 +189,7 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 
 const listSeriesWithProgress = `-- name: ListSeriesWithProgress :many
 SELECT
-    s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id,
+    s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at,
     COUNT(w.id)                            AS total_items,
     CAST(COALESCE(SUM(w.have), 0) AS INTEGER) AS have_items
 FROM series s
@@ -136,15 +199,16 @@ ORDER BY s.title
 `
 
 type ListSeriesWithProgressRow struct {
-	ID               int64         `json:"id"`
-	AnilistID        sql.NullInt64 `json:"anilist_id"`
-	Title            string        `json:"title"`
-	Format           string        `json:"format"`
-	Monitored        int64         `json:"monitored"`
-	CreatedAt        string        `json:"created_at"`
-	QualityProfileID int64         `json:"quality_profile_id"`
-	TotalItems       int64         `json:"total_items"`
-	HaveItems        int64         `json:"have_items"`
+	ID               int64          `json:"id"`
+	AnilistID        sql.NullInt64  `json:"anilist_id"`
+	Title            string         `json:"title"`
+	Format           string         `json:"format"`
+	Monitored        int64          `json:"monitored"`
+	CreatedAt        string         `json:"created_at"`
+	QualityProfileID int64          `json:"quality_profile_id"`
+	AiringSyncedAt   sql.NullString `json:"airing_synced_at"`
+	TotalItems       int64          `json:"total_items"`
+	HaveItems        int64          `json:"have_items"`
 }
 
 func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithProgressRow, error) {
@@ -164,6 +228,7 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 			&i.Monitored,
 			&i.CreatedAt,
 			&i.QualityProfileID,
+			&i.AiringSyncedAt,
 			&i.TotalItems,
 			&i.HaveItems,
 		); err != nil {
@@ -178,6 +243,15 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 		return nil, err
 	}
 	return items, nil
+}
+
+const setSeriesAiringSyncedAt = `-- name: SetSeriesAiringSyncedAt :exec
+UPDATE series SET airing_synced_at = datetime('now') WHERE id = ?
+`
+
+func (q *Queries) SetSeriesAiringSyncedAt(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, setSeriesAiringSyncedAt, id)
+	return err
 }
 
 const setSeriesMonitored = `-- name: SetSeriesMonitored :exec
