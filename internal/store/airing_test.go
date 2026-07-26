@@ -31,8 +31,10 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 	ctx := context.Background()
 
 	seriesID := insertSeries(t, st, 2)
-	if err := goose.Down(st.DB, "migrations"); err != nil {
-		t.Fatalf("roll back airing migration: %v", err)
+	// DownTo pins the rollback at the pre-airing schema; a one-step Down would
+	// start unwinding whichever migration is newest once 00011 lands.
+	if err := goose.DownTo(st.DB, "migrations", 9); err != nil {
+		t.Fatalf("roll back to the pre-airing schema: %v", err)
 	}
 
 	// The row holding have is inserted last, so "keep the survivor with state" and

@@ -106,7 +106,7 @@ func setLastError(t *testing.T, st *store.Store, hash, msg string) {
 // returns it, so a test can assert the grace period was not restarted.
 func backdateMissingSince(t *testing.T, st *store.Store, hash string, ago time.Duration) string {
 	t.Helper()
-	value := time.Now().UTC().Add(-ago).Format("2006-01-02 15:04:05")
+	value := store.FormatTimestamp(time.Now().Add(-ago))
 	if err := st.Q.SetGrabMissingSince(context.Background(), db.SetGrabMissingSinceParams{
 		MissingSince: sql.NullString{String: value, Valid: true},
 		ID:           grabByHash(t, st, hash).ID,

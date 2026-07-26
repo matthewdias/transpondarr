@@ -53,9 +53,6 @@ var argon2idParams = &argon2id.Params{
 	KeyLength:   32,
 }
 
-// sqliteTimeLayout matches SQLite's datetime('now') so expiry comparisons work.
-const sqliteTimeLayout = "2006-01-02 15:04:05"
-
 // Service holds the admin credentials and required-mode and manages sessions.
 type Service struct {
 	mu       sync.RWMutex
@@ -204,7 +201,7 @@ func (s *Service) CreateSession(ctx context.Context, username string) (string, t
 	if err := s.store.Q.CreateSession(ctx, db.CreateSessionParams{
 		Token:     tok,
 		Username:  username,
-		ExpiresAt: exp.UTC().Format(sqliteTimeLayout),
+		ExpiresAt: store.FormatTimestamp(exp),
 	}); err != nil {
 		return "", time.Time{}, err
 	}

@@ -11,11 +11,9 @@ import (
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
+	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
-
-// fetchedAtLayout matches SQLite's datetime('now') output (UTC, no zone).
-const fetchedAtLayout = "2006-01-02 15:04:05"
 
 // Cache is a metadata.Cache backed by the metadata_cache table.
 type Cache struct {
@@ -41,7 +39,7 @@ func (c *Cache) Get(ctx context.Context, provider string, id int64) (metadata.Ca
 	if err := json.Unmarshal([]byte(row.Raw), &snap); err != nil {
 		return metadata.CachedTitle{}, time.Time{}, false, nil
 	}
-	fetchedAt, err := time.Parse(fetchedAtLayout, row.FetchedAt)
+	fetchedAt, err := store.ParseTimestamp(row.FetchedAt)
 	if err != nil {
 		return metadata.CachedTitle{}, time.Time{}, false, nil
 	}
