@@ -19,6 +19,7 @@ type seasonEntryDTO struct {
 	Native       string     `json:"native,omitempty"`
 	Format       string     `json:"format,omitempty"`
 	Status       string     `json:"status,omitempty"`
+	Description  string     `json:"description,omitempty" doc:"Provider-formatted HTML synopsis"`
 	Episodes     int        `json:"episodes"`
 	Genres       []string   `json:"genres"`
 	AverageScore int        `json:"average_score"`
@@ -26,6 +27,8 @@ type seasonEntryDTO struct {
 	CoverURL     string     `json:"cover_url,omitempty"`
 	NextEpisode  int        `json:"next_episode,omitempty"`
 	NextAirsAt   *time.Time `json:"next_airs_at,omitempty"`
+	Tracked      bool       `json:"tracked"`
+	SeriesID     int64      `json:"series_id,omitempty" doc:"Local series id when tracked"`
 }
 
 type browseSeasonInput struct {
@@ -57,7 +60,7 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 			year = in.Year
 		}
 
-		entries, err := deps.browse.Season(ctx, season, year)
+		entries, err := deps.browse.Chart(ctx, season, year)
 		if err != nil {
 			return nil, huma.Error502BadGateway("seasonal browse failed", err)
 		}
@@ -80,11 +83,14 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 				Native:       e.Titles.Native,
 				Format:       e.Format,
 				Status:       e.Status,
+				Description:  e.Description,
 				Episodes:     e.Episodes,
 				Genres:       genres,
 				AverageScore: e.AverageScore,
 				Studio:       e.Studio,
 				CoverURL:     e.CoverURL,
+				Tracked:      e.Tracked,
+				SeriesID:     e.SeriesID,
 			}
 			if e.NextAiring != nil {
 				dto.NextEpisode = e.NextAiring.Number

@@ -2,6 +2,7 @@ package browse_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
+	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
 type seasonKey struct {
@@ -347,5 +349,121 @@ func TestCurrentSeason(t *testing.T) {
 		if season != tc.season || year != 2026 {
 			t.Errorf("CurrentSeason(%s) = %s %d, want %s 2026", tc.month, season, year, tc.season)
 		}
+	}
+}
+
+// ── Chart: the discovery view over Season ────────────────────────────────────
+
+// trackSeries creates a series carrying an AniList id; synced controls whether
+// the airing job has ever stamped it.
+func trackSeries(t *testing.T, st *store.Store, anilistID int64, synced bool) int64 {
+	t.Helper()
+	s, err := st.Q.CreateSeries(context.Background(), db.CreateSeriesParams{
+		AnilistID: sql.NullInt64{Int64: anilistID, Valid: true},
+		Title:     fmt.Sprintf("Tracked %d", anilistID),
+		Format:    "TV",
+		Monitored: 1,
+	})
+	if err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+	if synced {
+		if _, err := st.DB.Exec(`UPDATE series SET airing_synced_at = datetime('now') WHERE id = ?`, s.ID); err != nil {
+			t.Fatalf("stamp airing sync: %v", err)
+		}
+	}
+	return s.ID
+}
+
+func scheduleItem(t *testing.T, st *store.Store, seriesID int64, number int, airsAt time.Time) {
+	t.Helper()
+	err := st.Q.UpsertWantedItemAiring(context.Background(), db.UpsertWantedItemAiringParams{
+		SeriesID: seriesID,
+		Kind:     "episode",
+		Number:   sql.NullInt64{Int64: int64(number), Valid: true},
+		AirsAt:   sql.NullString{String: store.FormatTimestamp(airsAt), Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("schedule item: %v", err)
+	}
+}
+
+func TestChartMarksTrackedAndOverlaysLocalAiring(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := newFakeProvider()
+	snapshot := time.Now().Add(-3 * time.Hour).UTC().Truncate(time.Second)
+	chart := entries(101, 102)
+	chart[0].NextAiring = &metadata.Airing{Number: 5, AirsAt: snapshot}
+	prov.entries[seasonKey{metadata.SeasonSpring, 2026}] = chart
+
+	localNext := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
+	id := trackSeries(t, st, 101, true)
+	scheduleItem(t, st, id, 5, time.Now().Add(-3*time.Hour)) // already aired
+	scheduleItem(t, st, id, 6, localNext)
+
+	got, err := newService(t, st, prov).Chart(context.Background(), metadata.SeasonSpring, 2026)
+	if err != nil {
+		t.Fatalf("Chart: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2", len(got))
+	}
+
+	tracked := got[0]
+	if !tracked.Tracked || tracked.SeriesID != id {
+		t.Errorf("entry 101 tracked=%t series=%d, want tracked with series %d", tracked.Tracked, tracked.SeriesID, id)
+	}
+	if tracked.NextAiring == nil || tracked.NextAiring.Number != 6 || !tracked.NextAiring.AirsAt.Equal(localNext) {
+		t.Errorf("entry 101 next airing = %+v, want local ep 6 at %s to beat the stale snapshot", tracked.NextAiring, localNext)
+	}
+
+	untracked := got[1]
+	if untracked.Tracked || untracked.SeriesID != 0 {
+		t.Errorf("entry 102 = %+v, want untracked", untracked)
+	}
+}
+
+// A synced series with nothing upcoming is local truth too: the snapshot's
+// countdown must not survive on a tracked entry whose schedule has run out.
+func TestChartSyncedSeriesWithNothingUpcomingDropsSnapshot(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := newFakeProvider()
+	chart := entries(101)
+	chart[0].NextAiring = &metadata.Airing{Number: 12, AirsAt: time.Now().Add(-2 * time.Hour)}
+	prov.entries[seasonKey{metadata.SeasonSpring, 2026}] = chart
+
+	id := trackSeries(t, st, 101, true)
+	scheduleItem(t, st, id, 12, time.Now().Add(-2*time.Hour))
+
+	got, err := newService(t, st, prov).Chart(context.Background(), metadata.SeasonSpring, 2026)
+	if err != nil {
+		t.Fatalf("Chart: %v", err)
+	}
+	if got[0].NextAiring != nil {
+		t.Errorf("next airing = %+v, want nil once local truth says nothing is upcoming", got[0].NextAiring)
+	}
+}
+
+// Before the airing job's first pass there is no local truth to prefer, so the
+// snapshot's countdown stands.
+func TestChartNeverSyncedSeriesKeepsSnapshot(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := newFakeProvider()
+	snapshotAt := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)
+	chart := entries(101)
+	chart[0].NextAiring = &metadata.Airing{Number: 3, AirsAt: snapshotAt}
+	prov.entries[seasonKey{metadata.SeasonSpring, 2026}] = chart
+
+	trackSeries(t, st, 101, false)
+
+	got, err := newService(t, st, prov).Chart(context.Background(), metadata.SeasonSpring, 2026)
+	if err != nil {
+		t.Fatalf("Chart: %v", err)
+	}
+	if !got[0].Tracked {
+		t.Error("entry 101 should be marked tracked even before its first airing sync")
+	}
+	if got[0].NextAiring == nil || got[0].NextAiring.Number != 3 || !got[0].NextAiring.AirsAt.Equal(snapshotAt) {
+		t.Errorf("next airing = %+v, want the snapshot kept (ep 3 at %s)", got[0].NextAiring, snapshotAt)
 	}
 }

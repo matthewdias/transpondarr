@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { airDate, formatBytes, pad2, timeAgo } from "@/lib/format";
+import {
+  airDate,
+  formatBytes,
+  nextEpisodeLabel,
+  pad2,
+  timeAgo,
+} from "@/lib/format";
 
 describe("formatBytes", () => {
   it("renders a placeholder for zero or negative sizes", () => {
@@ -106,5 +112,47 @@ describe("airDate", () => {
     expect(airDate(undefined)).toBe("—");
     expect(airDate("")).toBe("—");
     expect(airDate("not a timestamp")).toBe("—");
+  });
+});
+
+describe("nextEpisodeLabel", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const freeze = (iso: string) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  };
+
+  it("returns null without a scheduled time", () => {
+    expect(nextEpisodeLabel(6, undefined)).toBeNull();
+    expect(nextEpisodeLabel(6, "garbage")).toBeNull();
+  });
+
+  it("counts down to an upcoming episode", () => {
+    freeze("2026-07-23T12:00:00Z");
+    expect(nextEpisodeLabel(6, "2026-07-26T12:30:00Z")).toBe("Ep 6 in 3d");
+    expect(nextEpisodeLabel(2, "2026-07-23T13:30:00Z")).toBe("Ep 2 in 1h");
+  });
+
+  it("clamps a stale timestamp to aired instead of a negative countdown", () => {
+    // The season cache can lag ~6h behind a broadcast.
+    freeze("2026-07-23T12:00:00Z");
+    expect(nextEpisodeLabel(6, "2026-07-23T09:00:00Z")).toBe("Ep 6 aired");
+  });
+
+  it("falls back to an absolute date beyond a week out", () => {
+    freeze("2026-07-01T12:00:00Z");
+    expect(nextEpisodeLabel(13, "2026-08-20T12:00:00Z", "en-US")).toBe(
+      "Ep 13 on Aug 20, 2026",
+    );
+  });
+
+  it("copes with a missing episode number", () => {
+    freeze("2026-07-23T12:00:00Z");
+    expect(nextEpisodeLabel(undefined, "2026-07-26T12:30:00Z")).toBe(
+      "Next ep in 3d",
+    );
   });
 });

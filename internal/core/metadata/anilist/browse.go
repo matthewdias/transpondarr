@@ -22,6 +22,7 @@ query ($season: MediaSeason!, $seasonYear: Int!, $page: Int!, $perPage: Int!) {
     media(season: $season, seasonYear: $seasonYear, type: ANIME, sort: POPULARITY_DESC) {
       id
       title { romaji english native }
+      description
       format
       episodes
       status
@@ -67,13 +68,14 @@ func (c *Client) BrowseSeason(ctx context.Context, season metadata.Season, year 
 
 func (m media) seasonEntry() metadata.SeasonEntry {
 	e := metadata.SeasonEntry{
-		ProviderID: m.ID,
-		Titles:     m.titles(),
-		Format:     m.Format,
-		Status:     m.Status,
-		Episodes:   m.episodes(),
-		Genres:     m.Genres,
-		CoverURL:   m.CoverImage.Large,
+		ProviderID:  m.ID,
+		Titles:      m.titles(),
+		Format:      m.Format,
+		Status:      m.Status,
+		Description: m.Description,
+		Episodes:    m.episodes(),
+		Genres:      m.Genres,
+		CoverURL:    m.CoverImage.Large,
 	}
 	if m.AverageScore != nil {
 		e.AverageScore = *m.AverageScore

@@ -319,6 +319,66 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 	return items, nil
 }
 
+const listTrackedNextAiring = `-- name: ListTrackedNextAiring :many
+SELECT
+    s.id,
+    s.anilist_id,
+    s.airing_synced_at,
+    w.number AS next_number,
+    w.airs_at AS next_airs_at
+FROM series s
+LEFT JOIN wanted_items w ON w.id = (
+    SELECT w2.id
+    FROM wanted_items w2
+    WHERE w2.series_id = s.id
+      AND w2.airs_at IS NOT NULL
+      AND w2.airs_at > ?
+    ORDER BY w2.airs_at
+    LIMIT 1
+)
+WHERE s.anilist_id IS NOT NULL
+`
+
+type ListTrackedNextAiringRow struct {
+	ID             int64          `json:"id"`
+	AnilistID      sql.NullInt64  `json:"anilist_id"`
+	AiringSyncedAt sql.NullString `json:"airing_synced_at"`
+	NextNumber     sql.NullInt64  `json:"next_number"`
+	NextAirsAt     sql.NullString `json:"next_airs_at"`
+}
+
+// Discovery overlay rows: every series carrying an AniList id, joined to its
+// next item scheduled after the given instant. airing_synced_at rides along so
+// the caller can tell "synced, nothing upcoming" from "never synced".
+func (q *Queries) ListTrackedNextAiring(ctx context.Context, airsAt sql.NullString) ([]ListTrackedNextAiringRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTrackedNextAiring, airsAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTrackedNextAiringRow{}
+	for rows.Next() {
+		var i ListTrackedNextAiringRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AnilistID,
+			&i.AiringSyncedAt,
+			&i.NextNumber,
+			&i.NextAirsAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setSeriesAiringSyncedAt = `-- name: SetSeriesAiringSyncedAt :exec
 UPDATE series SET airing_synced_at = datetime('now')
 WHERE id = ? AND airing_synced_at IS ?

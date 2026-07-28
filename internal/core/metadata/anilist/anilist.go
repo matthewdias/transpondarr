@@ -70,13 +70,14 @@ type mediaTitle struct {
 }
 
 type media struct {
-	ID         int64      `json:"id"`
-	Title      mediaTitle `json:"title"`
-	Format     string     `json:"format"`
-	Episodes   *int       `json:"episodes"`
-	Status     string     `json:"status"`
-	SeasonYear *int       `json:"seasonYear"`
-	CoverImage struct {
+	ID          int64      `json:"id"`
+	Title       mediaTitle `json:"title"`
+	Format      string     `json:"format"`
+	Description string     `json:"description"`
+	Episodes    *int       `json:"episodes"`
+	Status      string     `json:"status"`
+	SeasonYear  *int       `json:"seasonYear"`
+	CoverImage  struct {
 		Large string `json:"large"`
 	} `json:"coverImage"`
 	Genres       []string `json:"genres"`
@@ -159,6 +160,7 @@ query ($id: Int!) {
     format
     episodes
     status
+    coverImage { large }
   }
 }`
 
@@ -181,6 +183,7 @@ func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []
 		Format:     mapFormat(m.Format),
 		Episodes:   m.episodes(),
 		Status:     m.Status,
+		CoverURL:   m.CoverImage.Large,
 	}
 
 	items := make([]metadata.ItemMeta, 0, meta.Episodes)

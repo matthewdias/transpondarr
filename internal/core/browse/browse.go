@@ -6,6 +6,7 @@ package browse
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -71,6 +72,61 @@ func (s *Service) Season(ctx context.Context, season metadata.Season, year int) 
 		s.log.Warn("season cache write failed", "season", season, "year", year, "err", err)
 	}
 	return entries, nil
+}
+
+// Entry is one chart row as the discovery page sees it: the provider snapshot
+// plus this library's view of the same title.
+type Entry struct {
+	metadata.SeasonEntry
+	SeriesID int64
+	Tracked  bool
+}
+
+// Chart is Season enriched with the tracked-series overlay: an entry already in
+// the library is marked as such, and once the airing job has synced it, local
+// wanted_items.airs_at replaces the snapshot's countdown — same AniList fact,
+// fresher schedule. A never-synced series has no local truth yet, so its
+// snapshot stands.
+func (s *Service) Chart(ctx context.Context, season metadata.Season, year int) ([]Entry, error) {
+	entries, err := s.Season(ctx, season, year)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.store.Q.ListTrackedNextAiring(ctx, sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("list tracked next airing: %w", err)
+	}
+	tracked := make(map[int64]db.ListTrackedNextAiringRow, len(rows))
+	for _, row := range rows {
+		tracked[row.AnilistID.Int64] = row
+	}
+
+	out := make([]Entry, 0, len(entries))
+	for _, e := range entries {
+		entry := Entry{SeasonEntry: e}
+		if row, ok := tracked[e.ProviderID]; ok {
+			entry.Tracked = true
+			entry.SeriesID = row.ID
+			if row.AiringSyncedAt.Valid {
+				entry.NextAiring = localAiring(row)
+			}
+		}
+		out = append(out, entry)
+	}
+	return out, nil
+}
+
+// localAiring converts an overlay row's next scheduled item; nil when nothing
+// is upcoming or the stored timestamp is unreadable.
+func localAiring(row db.ListTrackedNextAiringRow) *metadata.Airing {
+	if !row.NextAirsAt.Valid {
+		return nil
+	}
+	airsAt, err := store.ParseTimestamp(row.NextAirsAt.String)
+	if err != nil {
+		return nil
+	}
+	return &metadata.Airing{Number: int(row.NextNumber.Int64), AirsAt: airsAt}
 }
 
 // RefreshOnce re-fetches every season due a refresh, and is what the job runner

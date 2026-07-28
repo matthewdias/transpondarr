@@ -665,6 +665,8 @@ export interface components {
             /** Format: int64 */
             average_score: number;
             cover_url?: string;
+            /** @description Provider-formatted HTML synopsis */
+            description?: string;
             english?: string;
             /** Format: int64 */
             episodes: number;
@@ -676,8 +678,14 @@ export interface components {
             /** Format: int64 */
             next_episode?: number;
             romaji?: string;
+            /**
+             * Format: int64
+             * @description Local series id when tracked
+             */
+            series_id?: number;
             status?: string;
             studio?: string;
+            tracked: boolean;
         };
         SeriesDTO: {
             format: string;
@@ -715,6 +723,7 @@ export interface components {
             readonly $schema?: string;
             /** Format: int64 */
             anilist_id?: number;
+            cover_url?: string;
             english?: string;
             format: string;
             /** Format: int64 */
