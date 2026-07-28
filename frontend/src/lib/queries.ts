@@ -56,6 +56,19 @@ export const browseSeasonQuery = ({ season, year }: SeasonRef) =>
     placeholderData: keepPreviousData,
   });
 
+// keepPreviousData holds the outgoing grid while a prev/next page loads
+// instead of flashing it empty.
+export const calendarQuery = (
+  start: string,
+  end: string,
+  unmonitored = false,
+) =>
+  queryOptions({
+    queryKey: ["calendar", start, end, unmonitored],
+    queryFn: ({ signal }) => api.calendar(start, end, unmonitored, signal),
+    placeholderData: keepPreviousData,
+  });
+
 export const settingsQuery = () =>
   queryOptions({
     queryKey: ["settings"],

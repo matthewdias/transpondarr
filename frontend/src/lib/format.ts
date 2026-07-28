@@ -13,7 +13,7 @@ export function formatBytes(bytes: number): string {
 }
 
 /** Epoch millis from an ISO or bare SQLite timestamp; NaN when unparseable. */
-function parseTimestamp(input: string): number {
+export function parseTimestamp(input: string): number {
   // SQLite datetime('now') is UTC without a zone suffix; treat it as UTC.
   const iso = input.includes("T") ? input : input.replace(" ", "T") + "Z";
   return new Date(iso).getTime();
