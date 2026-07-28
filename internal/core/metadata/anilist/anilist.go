@@ -160,6 +160,7 @@ query ($id: Int!) {
     format
     episodes
     status
+    coverImage { large }
   }
 }`
 
@@ -182,6 +183,7 @@ func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []
 		Format:     mapFormat(m.Format),
 		Episodes:   m.episodes(),
 		Status:     m.Status,
+		CoverURL:   m.CoverImage.Large,
 	}
 
 	items := make([]metadata.ItemMeta, 0, meta.Episodes)

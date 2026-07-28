@@ -723,6 +723,7 @@ export interface components {
             readonly $schema?: string;
             /** Format: int64 */
             anilist_id?: number;
+            cover_url?: string;
             english?: string;
             format: string;
             /** Format: int64 */

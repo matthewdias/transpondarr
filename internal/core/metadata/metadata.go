@@ -44,6 +44,7 @@ type TitleMeta struct {
 	Format     domain.Format // provider-native format mapped to the domain vocabulary by the adapter
 	Episodes   int           // 0 when the count is not yet known (e.g. still releasing)
 	Status     string
+	CoverURL   string
 }
 
 type ItemMeta struct {

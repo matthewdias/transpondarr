@@ -82,6 +82,7 @@ type seriesDetailReadDTO struct {
 	Native    string          `json:"native,omitempty"`
 	Format    string          `json:"format"`
 	Status    string          `json:"status,omitempty" doc:"Provider status (e.g. RELEASING, FINISHED)"`
+	CoverURL  string          `json:"cover_url,omitempty"`
 	Monitored bool            `json:"monitored"`
 	Items     []detailItemDTO `json:"items"`
 }
@@ -309,6 +310,7 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 				out.Body.English = snap.Title.Titles.English
 				out.Body.Native = snap.Title.Titles.Native
 				out.Body.Status = snap.Title.Status
+				out.Body.CoverURL = snap.Title.CoverURL
 			}
 		}
 	}

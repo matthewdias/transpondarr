@@ -34,6 +34,7 @@ import {
   stepSeason,
 } from "@/lib/season";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AniListLink } from "@/components/anilist-link";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -365,21 +366,10 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
           Add
         </Button>
       )}
-      <Button
-        asChild
-        variant="outline"
-        size="sm"
-        className="px-2"
-        title="Open on AniList"
-      >
-        <a
-          href={`https://anilist.co/anime/${entry.anilist_id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Open on AniList"
-        >
+      <Button asChild variant="outline" size="sm" className="px-2">
+        <AniListLink id={entry.anilist_id}>
           <ExternalLink className="size-3.5" />
-        </a>
+        </AniListLink>
       </Button>
     </>
   );

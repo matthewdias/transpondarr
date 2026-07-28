@@ -3,8 +3,10 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError, type SeriesDetail } from "@/lib/api";
+import { statusLabel } from "@/lib/chart";
 import { seriesDetailQuery, seriesQuery } from "@/lib/queries";
 import { cn } from "@/lib/utils";
+import { AniListLink } from "@/components/anilist-link";
 import { Topbar } from "@/components/topbar";
 import { Poster } from "@/components/poster";
 import { Switch } from "@/components/ui/switch";
@@ -154,16 +156,22 @@ function DetailHeader({
   detail: SeriesDetail;
   onToggleMonitored: (v: boolean) => void;
 }) {
-  const subtitle = [detail.english, detail.native].filter(Boolean).join(" · ");
+  // English only, matching the discovery detail view.
+  const subtitle = detail.english !== detail.title ? detail.english : null;
   const chips = [
     detail.format,
     `${detail.items.length} episodes`,
-    statusLabel(detail.status) || null,
+    detail.status ? statusLabel(detail.status) : null,
   ].filter(Boolean) as string[];
 
   return (
     <div className="mb-5 flex items-start gap-4 sm:gap-5">
-      <Poster title={detail.title} size="lg" className="hidden sm:grid" />
+      <Poster
+        title={detail.title}
+        coverUrl={detail.cover_url}
+        size="lg"
+        className="hidden sm:grid"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
@@ -200,14 +208,12 @@ function DetailHeader({
             </span>
           ))}
           {detail.anilist_id ? (
-            <a
-              href={`https://anilist.co/anime/${detail.anilist_id}`}
-              target="_blank"
-              rel="noreferrer"
+            <AniListLink
+              id={detail.anilist_id}
               className="inline-flex items-center rounded-md border border-border bg-panel-2 px-2.5 py-1 font-mono text-[11.5px] font-medium text-muted-foreground hover:text-accent-foreground"
             >
               AniList {detail.anilist_id}
-            </a>
+            </AniListLink>
           ) : null}
         </div>
       </div>
@@ -246,12 +252,6 @@ function DetailTab({
       )}
     </TabsTrigger>
   );
-}
-
-function statusLabel(status?: string): string {
-  if (!status) return "";
-  // AniList statuses are SCREAMING_CASE — title-case them.
-  return status.charAt(0) + status.slice(1).toLowerCase();
 }
 
 function HeaderSkeleton() {
