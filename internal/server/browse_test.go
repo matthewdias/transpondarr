@@ -27,6 +27,8 @@ type browseSeasonResponse struct {
 		CoverURL     string   `json:"cover_url"`
 		NextEpisode  int      `json:"next_episode"`
 		NextAirsAt   string   `json:"next_airs_at"`
+		Tracked      bool     `json:"tracked"`
+		SeriesID     int64    `json:"series_id"`
 	} `json:"entries"`
 }
 
@@ -126,5 +128,54 @@ func TestBrowseSeasonRejectsUnknownSeason(t *testing.T) {
 	var out struct{}
 	if code := h.get(t, "/api/v1/browse/season?season=autumn", &out); code != http.StatusUnprocessableEntity {
 		t.Fatalf("GET browse season with a bad season = %d, want 422", code)
+	}
+}
+
+// A chart entry already in the library is marked tracked, and its countdown is
+// the local airing schedule, not the season-cache snapshot.
+func TestBrowseSeasonMarksTrackedAndOverlaysAiring(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	seedSeasonCache(t, h, "SPRING", 2026, `[
+		{"provider_id": 101, "titles": {"romaji": "Tracked Show"},
+		 "next_airing": {"number": 5, "airs_at": "2026-07-27T15:30:00Z"}},
+		{"provider_id": 102, "titles": {"romaji": "Untracked Show"},
+		 "next_airing": {"number": 2, "airs_at": "2026-07-29T15:30:00Z"}}
+	]`)
+
+	ctx := context.Background()
+	seriesID := seedSeries(t, h.store, "Tracked Show", 6)
+	localNext := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
+	if _, err := h.store.DB.ExecContext(ctx,
+		`UPDATE series SET anilist_id = 101, airing_synced_at = datetime('now') WHERE id = ?`, seriesID); err != nil {
+		t.Fatalf("mark series tracked: %v", err)
+	}
+	if _, err := h.store.DB.ExecContext(ctx,
+		`UPDATE wanted_items SET airs_at = ? WHERE series_id = ? AND number = 6`,
+		localNext.Format("2006-01-02 15:04:05"), seriesID); err != nil {
+		t.Fatalf("schedule item: %v", err)
+	}
+
+	var out browseSeasonResponse
+	if code := h.get(t, "/api/v1/browse/season?season=spring&year=2026", &out); code != http.StatusOK {
+		t.Fatalf("GET browse season = %d, want 200", code)
+	}
+	if len(out.Entries) != 2 {
+		t.Fatalf("got %d entries, want 2", len(out.Entries))
+	}
+
+	tracked := out.Entries[0]
+	if !tracked.Tracked || tracked.SeriesID != seriesID {
+		t.Errorf("entry 101 tracked=%t series_id=%d, want tracked with series %d", tracked.Tracked, tracked.SeriesID, seriesID)
+	}
+	if tracked.NextEpisode != 6 || tracked.NextAirsAt != localNext.Format(time.RFC3339) {
+		t.Errorf("entry 101 next airing = ep %d at %q, want the local ep 6 at %s", tracked.NextEpisode, tracked.NextAirsAt, localNext.Format(time.RFC3339))
+	}
+
+	untracked := out.Entries[1]
+	if untracked.Tracked || untracked.SeriesID != 0 {
+		t.Errorf("entry 102 = %+v, want untracked", untracked)
+	}
+	if untracked.NextEpisode != 2 || untracked.NextAirsAt != "2026-07-29T15:30:00Z" {
+		t.Errorf("entry 102 next airing = ep %d at %q, want the snapshot kept", untracked.NextEpisode, untracked.NextAirsAt)
 	}
 }

@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ApiError } from "@/lib/api";
 import { AppLayout } from "@/components/app-layout";
 import { SeriesListPage } from "@/pages/series-list";
+import { DiscoveryPage } from "@/pages/discovery";
 import { SeriesDetailPage } from "@/pages/series-detail";
 import { SettingsPage } from "@/pages/settings";
 import { PlaceholderPage } from "@/pages/placeholder";
@@ -36,6 +37,7 @@ createRoot(document.getElementById("root")!).render(
               <Route element={<AppLayout />}>
                 <Route index element={<SeriesListPage />} />
                 <Route path="series/:id" element={<SeriesDetailPage />} />
+                <Route path="discovery" element={<DiscoveryPage />} />
                 <Route
                   path="wanted"
                   element={

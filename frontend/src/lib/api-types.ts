@@ -676,8 +676,14 @@ export interface components {
             /** Format: int64 */
             next_episode?: number;
             romaji?: string;
+            /**
+             * Format: int64
+             * @description Local series id when tracked
+             */
+            series_id?: number;
             status?: string;
             studio?: string;
+            tracked: boolean;
         };
         SeriesDTO: {
             format: string;

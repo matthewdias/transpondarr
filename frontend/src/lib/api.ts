@@ -100,6 +100,8 @@ type Schemas = components["schemas"];
 
 export type Series = Schemas["SeriesDTO"];
 export type Candidate = Schemas["CandidateDTO"];
+export type SeasonEntry = Schemas["SeasonEntryDTO"];
+export type SeasonChart = Schemas["BrowseSeasonOutputBody"];
 export type WantedItem = Schemas["DetailItemDTO"];
 export type ItemStatus = WantedItem["status"]; // 'have' | 'downloading' | 'stuck' | 'deferred' | 'wanted'
 export type CandidateRelease = Schemas["CandidateReleaseDTO"];
@@ -204,6 +206,18 @@ export const api = {
       .PATCH("/api/v1/series/{id}", {
         params: { path: { id } },
         body: { monitored },
+      })
+      .then(unwrap),
+
+  browseSeason: (
+    season: "winter" | "spring" | "summer" | "fall",
+    year: number,
+    signal?: AbortSignal,
+  ) =>
+    client
+      .GET("/api/v1/browse/season", {
+        params: { query: { season, year } },
+        signal,
       })
       .then(unwrap),
 

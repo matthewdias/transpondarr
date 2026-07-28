@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   authStatusQuery,
+  browseSeasonQuery,
   grabsQuery,
   metadataSearchQuery,
   releasesQuery,
@@ -23,6 +24,9 @@ describe("query key factories", () => {
     expect(seriesDetailQuery(1).queryKey).not.toEqual(
       seriesDetailQuery(2).queryKey,
     );
+    expect(
+      browseSeasonQuery({ season: "summer", year: 2026 }).queryKey,
+    ).not.toEqual(browseSeasonQuery({ season: "fall", year: 2026 }).queryKey);
     expect(metadataSearchQuery("a").queryKey).not.toEqual(
       metadataSearchQuery("b").queryKey,
     );
@@ -44,6 +48,7 @@ describe("query key factories", () => {
       releasesQuery(1),
       grabsQuery(1),
       settingsQuery(),
+      browseSeasonQuery({ season: "summer", year: 2026 }),
     ].map((q) => q.queryKey[0]);
     expect(new Set(roots).size).toBe(roots.length);
   });

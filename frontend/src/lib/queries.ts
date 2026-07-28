@@ -3,6 +3,7 @@
 // threading for cancellation lives here so components never mention it.
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import type { SeasonRef } from "@/lib/season";
 
 // seriesQuery's key prefix-matches seriesDetailQuery's: invalidating it covers both.
 export const seriesQuery = () =>
@@ -42,6 +43,15 @@ export const grabsQuery = (seriesId: number) =>
   queryOptions({
     queryKey: ["grabs", seriesId],
     queryFn: ({ signal }) => api.listGrabs(seriesId, signal),
+  });
+
+// staleTime: the chart is a 6h-TTL cache server-side; refetching on every
+// season flip would only re-read the same snapshot.
+export const browseSeasonQuery = ({ season, year }: SeasonRef) =>
+  queryOptions({
+    queryKey: ["browse-season", season, year],
+    queryFn: ({ signal }) => api.browseSeason(season, year, signal),
+    staleTime: 5 * 60 * 1000,
   });
 
 export const settingsQuery = () =>

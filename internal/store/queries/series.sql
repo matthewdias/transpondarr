@@ -67,6 +67,28 @@ WHERE id = ? AND airing_synced_at IS ?;
 -- the last sync get air dates without waiting out the series' TTL.
 UPDATE series SET airing_synced_at = NULL WHERE id = ?;
 
+-- name: ListTrackedNextAiring :many
+-- Discovery overlay rows: every series carrying an AniList id, joined to its
+-- next item scheduled after the given instant. airing_synced_at rides along so
+-- the caller can tell "synced, nothing upcoming" from "never synced".
+SELECT
+    s.id,
+    s.anilist_id,
+    s.airing_synced_at,
+    w.number AS next_number,
+    w.airs_at AS next_airs_at
+FROM series s
+LEFT JOIN wanted_items w ON w.id = (
+    SELECT w2.id
+    FROM wanted_items w2
+    WHERE w2.series_id = s.id
+      AND w2.airs_at IS NOT NULL
+      AND w2.airs_at > ?
+    ORDER BY w2.airs_at
+    LIMIT 1
+)
+WHERE s.anilist_id IS NOT NULL;
+
 -- name: ListSeriesDueMetadataRefresh :many
 -- Monitored series whose cached title snapshot is missing or stale under the
 -- status-aware TTL policy. Only a finished title with a known episode count

@@ -19,6 +19,25 @@ function parseTimestamp(input: string): number {
   return new Date(iso).getTime();
 }
 
+/** Relative countdown while within a week of airing; null outside that window. */
+function countdown(secs: number): string | null {
+  if (secs <= 0 || secs >= 7 * 86400) return null;
+  if (secs < 60) return "any moment";
+  if (secs < 3600) return `in ${Math.floor(secs / 60)}m`;
+  if (secs < 86400) return `in ${Math.floor(secs / 3600)}h`;
+  return `in ${Math.floor(secs / 86400)}d`;
+}
+
+// locale defaults to the viewer's; tests pin it so assertions are not at the
+// mercy of the runner's ICU default.
+function absoluteDate(at: number, locale?: string): string {
+  return new Date(at).toLocaleDateString(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 /**
  * Broadcast time for an episode row: a countdown while it is within a week of
  * airing, an absolute date otherwise. AniList publishes no schedule for many
@@ -28,21 +47,28 @@ export function airDate(input: string | undefined, locale?: string): string {
   if (!input) return "—";
   const at = parseTimestamp(input);
   if (Number.isNaN(at)) return "—";
-
   const secs = (at - Date.now()) / 1000;
-  if (secs > 0 && secs < 7 * 86400) {
-    if (secs < 60) return "any moment";
-    if (secs < 3600) return `in ${Math.floor(secs / 60)}m`;
-    if (secs < 86400) return `in ${Math.floor(secs / 3600)}h`;
-    return `in ${Math.floor(secs / 86400)}d`;
-  }
-  // locale defaults to the viewer's; tests pin it so the assertion is not at the
-  // mercy of the runner's ICU default.
-  return new Date(at).toLocaleDateString(locale, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return countdown(secs) ?? absoluteDate(at, locale);
+}
+
+/**
+ * Next-episode line for a discovery card. The season cache can lag a broadcast
+ * by hours, so a non-positive countdown clamps to "aired" instead of counting
+ * negative time.
+ */
+export function nextEpisodeLabel(
+  number: number | undefined,
+  airsAt: string | undefined,
+  locale?: string,
+): string | null {
+  if (!airsAt) return null;
+  const at = parseTimestamp(airsAt);
+  if (Number.isNaN(at)) return null;
+  const ep = number ? `Ep ${number}` : "Next ep";
+  const secs = (at - Date.now()) / 1000;
+  if (secs <= 0) return `${ep} aired`;
+  const rel = countdown(secs);
+  return rel ? `${ep} ${rel}` : `${ep} on ${absoluteDate(at, locale)}`;
 }
 
 /** Compact relative time from an ISO/SQLite timestamp, e.g. "2h ago". */
