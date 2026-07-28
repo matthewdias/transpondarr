@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -104,6 +105,19 @@ func TestBrowseSeasonDefaultsToCurrent(t *testing.T) {
 	}
 	if len(out.Entries) != 1 || out.Entries[0].AniListID != 7 {
 		t.Errorf("entries = %+v, want the cached current-season chart", out.Entries)
+	}
+
+	// The schema promises a non-nullable array, so an entry cached with no
+	// genres must still serve "genres": [] — never omit it or emit null.
+	var raw struct {
+		Entries []map[string]json.RawMessage `json:"entries"`
+	}
+	if code := h.get(t, "/api/v1/browse/season", &raw); code != http.StatusOK {
+		t.Fatalf("GET browse season (raw) = %d, want 200", code)
+	}
+	genres, present := raw.Entries[0]["genres"]
+	if !present || string(genres) != "[]" {
+		t.Errorf("genres = %q (present=%t), want the empty array", genres, present)
 	}
 }
 

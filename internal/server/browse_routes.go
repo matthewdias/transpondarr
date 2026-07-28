@@ -20,7 +20,7 @@ type seasonEntryDTO struct {
 	Format       string     `json:"format,omitempty"`
 	Status       string     `json:"status,omitempty"`
 	Episodes     int        `json:"episodes"`
-	Genres       []string   `json:"genres,omitempty"`
+	Genres       []string   `json:"genres"`
 	AverageScore int        `json:"average_score"`
 	Studio       string     `json:"studio,omitempty"`
 	CoverURL     string     `json:"cover_url,omitempty"`
@@ -67,6 +67,12 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 		out.Body.Year = year
 		out.Body.Entries = make([]seasonEntryDTO, 0, len(entries))
 		for _, e := range entries {
+			genres := e.Genres
+			// The schema promises a non-nullable array; a nil slice would marshal
+			// as null and break that contract.
+			if genres == nil {
+				genres = []string{}
+			}
 			dto := seasonEntryDTO{
 				AniListID:    e.ProviderID,
 				Romaji:       e.Titles.Romaji,
@@ -75,7 +81,7 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 				Format:       e.Format,
 				Status:       e.Status,
 				Episodes:     e.Episodes,
-				Genres:       e.Genres,
+				Genres:       genres,
 				AverageScore: e.AverageScore,
 				Studio:       e.Studio,
 				CoverURL:     e.CoverURL,

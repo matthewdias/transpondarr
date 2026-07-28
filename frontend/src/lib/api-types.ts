@@ -669,7 +669,7 @@ export interface components {
             /** Format: int64 */
             episodes: number;
             format?: string;
-            genres?: string[];
+            genres: string[];
             native?: string;
             /** Format: date-time */
             next_airs_at?: string;
