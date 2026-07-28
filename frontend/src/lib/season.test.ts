@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { currentSeason, seasonLabel, stepSeason } from "@/lib/season";
+import {
+  currentSeason,
+  seasonLabel,
+  stepSeason,
+  stepSeasonClamped,
+  YEAR_FLOOR,
+} from "@/lib/season";
 
 describe("currentSeason", () => {
   it("maps months onto the AniList quarters", () => {
@@ -49,5 +55,23 @@ describe("stepSeason", () => {
 describe("seasonLabel", () => {
   it("renders a title-cased season with its year", () => {
     expect(seasonLabel({ season: "summer", year: 2026 })).toBe("Summer 2026");
+  });
+});
+
+describe("stepSeasonClamped", () => {
+  it("steps normally inside the range", () => {
+    expect(
+      stepSeasonClamped({ season: "spring", year: 2026 }, 1, 2027),
+    ).toEqual({ season: "summer", year: 2026 });
+  });
+
+  it("refuses to step below winter of the floor year", () => {
+    const floor = { season: "winter" as const, year: YEAR_FLOOR };
+    expect(stepSeasonClamped(floor, -1, 2027)).toBe(floor);
+  });
+
+  it("refuses to step past fall of the ceiling year", () => {
+    const ceiling = { season: "fall" as const, year: 2027 };
+    expect(stepSeasonClamped(ceiling, 1, 2027)).toBe(ceiling);
   });
 });

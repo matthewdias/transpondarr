@@ -158,6 +158,33 @@ describe("DiscoveryPage", () => {
     ).toHaveAttribute("href", "/series/9");
   });
 
+  it("shows the detail as a drawer on mobile", async () => {
+    const wide = window.innerWidth;
+    window.innerWidth = 375;
+    try {
+      server.use(
+        chartHandler([
+          entry({
+            anilist_id: 101,
+            romaji: "Alpha Adventure",
+            description: "A compact tale.",
+          }),
+        ]),
+      );
+
+      renderPage();
+
+      await userEvent.click(
+        await screen.findByRole("button", { name: /alpha adventure/i }),
+      );
+      const detail = await screen.findByRole("dialog");
+      expect(detail).toHaveAttribute("data-slot", "drawer-content");
+      expect(within(detail).getByText("A compact tale.")).toBeInTheDocument();
+    } finally {
+      window.innerWidth = wide;
+    }
+  });
+
   it("keeps a movie visible but not addable", async () => {
     server.use(
       chartHandler([

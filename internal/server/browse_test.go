@@ -184,3 +184,21 @@ func TestBrowseSeasonMarksTrackedAndOverlaysAiring(t *testing.T) {
 		t.Errorf("entry 102 next airing = ep %d at %q, want the snapshot kept", untracked.NextEpisode, untracked.NextAirsAt)
 	}
 }
+
+// A season without a year keeps the current year rather than defaulting both.
+func TestBrowseSeasonDefaultsYearWithExplicitSeason(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	_, year := browse.CurrentSeason(time.Now())
+	seedSeasonCache(t, h, "WINTER", year, `[{"provider_id": 3, "titles": {"romaji": "Winter Show"}}]`)
+
+	var out browseSeasonResponse
+	if code := h.get(t, "/api/v1/browse/season?season=winter", &out); code != http.StatusOK {
+		t.Fatalf("GET browse season = %d, want 200", code)
+	}
+	if out.Season != "winter" || out.Year != year {
+		t.Errorf("resolved to %s %d, want winter %d", out.Season, out.Year, year)
+	}
+	if len(out.Entries) != 1 || out.Entries[0].AniListID != 3 {
+		t.Errorf("entries = %+v, want the cached winter chart", out.Entries)
+	}
+}

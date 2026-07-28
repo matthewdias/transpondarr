@@ -1,3 +1,4 @@
+import { keepPreviousData } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
   authStatusQuery,
@@ -55,5 +56,11 @@ describe("query key factories", () => {
 
   it("keeps releases fresh for five minutes to spare the rate-limited indexer", () => {
     expect(releasesQuery(3).staleTime).toBe(5 * 60 * 1000);
+  });
+
+  it("holds the outgoing chart on a season flip instead of flashing a skeleton", () => {
+    expect(
+      browseSeasonQuery({ season: "summer", year: 2026 }).placeholderData,
+    ).toBe(keepPreviousData);
   });
 });

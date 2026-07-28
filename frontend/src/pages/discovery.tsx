@@ -24,6 +24,7 @@ import {
   statusLabel,
 } from "@/lib/chart";
 import { browseSeasonQuery, seriesQuery } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 import { nextEpisodeLabel } from "@/lib/format";
 import {
   currentSeason,
@@ -31,7 +32,8 @@ import {
   SEASONS,
   type SeasonName,
   type SeasonRef,
-  stepSeason,
+  stepSeasonClamped,
+  YEAR_FLOOR,
 } from "@/lib/season";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AniListLink } from "@/components/anilist-link";
@@ -64,10 +66,6 @@ function entryTitle(e: SeasonEntry) {
   return e.romaji || e.english || e.native || `AniList ${e.anilist_id}`;
 }
 
-// The season picker spans anime's cataloged history; older charts are sparse
-// but valid.
-const YEAR_FLOOR = 1960;
-
 export function DiscoveryPage() {
   const today = currentSeason();
   const [ref, setRef] = useState<SeasonRef>(today);
@@ -95,10 +93,14 @@ export function DiscoveryPage() {
   );
 
   const isCurrent = ref.season === today.season && ref.year === today.year;
+  const maxYear = today.year + 1;
   const years = Array.from(
-    { length: today.year + 1 - YEAR_FLOOR + 1 },
-    (_, i) => today.year + 1 - i,
+    { length: maxYear - YEAR_FLOOR + 1 },
+    (_, i) => maxYear - i,
   );
+  // The clamp returns ref itself at an edge, which doubles as the disabled test.
+  const prevRef = stepSeasonClamped(ref, -1, maxYear);
+  const nextRef = stepSeasonClamped(ref, 1, maxYear);
 
   const setFilter = (key: keyof ChartFilters) => (value: string) =>
     setFilters((f) => ({ ...f, [key]: value }));
@@ -115,7 +117,8 @@ export function DiscoveryPage() {
                 variant="outline"
                 size="icon"
                 aria-label="Previous season"
-                onClick={() => setRef(stepSeason(ref, -1))}
+                disabled={prevRef === ref}
+                onClick={() => setRef(prevRef)}
               >
                 <ChevronLeft className="size-4" />
               </Button>
@@ -155,7 +158,8 @@ export function DiscoveryPage() {
                 variant="outline"
                 size="icon"
                 aria-label="Next season"
-                onClick={() => setRef(stepSeason(ref, 1))}
+                disabled={nextRef === ref}
+                onClick={() => setRef(nextRef)}
               >
                 <ChevronRight className="size-4" />
               </Button>
@@ -194,7 +198,8 @@ export function DiscoveryPage() {
 
         <h2 className="mt-5 text-sm font-medium text-muted-foreground">
           {seasonLabel(ref)}
-          {chart.isSuccess && (
+          {/* Placeholder data belongs to the outgoing season; its count would lie. */}
+          {chart.isSuccess && !chart.isPlaceholderData && (
             <span className="text-faint">
               {" "}
               · {filtered.length} title{filtered.length === 1 ? "" : "s"}
@@ -256,7 +261,12 @@ export function DiscoveryPage() {
         )}
 
         {filtered.length > 0 && (
-          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div
+            className={cn(
+              "mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+              chart.isPlaceholderData && "opacity-50",
+            )}
+          >
             {filtered.map((e) => (
               <SeasonCard key={e.anilist_id} entry={e} />
             ))}
