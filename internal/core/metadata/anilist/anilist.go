@@ -81,7 +81,6 @@ type media struct {
 	} `json:"coverImage"`
 	Genres       []string `json:"genres"`
 	AverageScore *int     `json:"averageScore"`
-	Popularity   int      `json:"popularity"`
 	Studios      struct {
 		Nodes []struct {
 			Name string `json:"name"`

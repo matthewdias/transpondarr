@@ -27,7 +27,6 @@ query ($season: MediaSeason!, $seasonYear: Int!, $page: Int!, $perPage: Int!) {
       status
       genres
       averageScore
-      popularity
       coverImage { large }
       studios(isMain: true) { nodes { name } }
       nextAiringEpisode { episode airingAt }
@@ -74,7 +73,6 @@ func (m media) seasonEntry() metadata.SeasonEntry {
 		Status:     m.Status,
 		Episodes:   m.episodes(),
 		Genres:     m.Genres,
-		Popularity: m.Popularity,
 		CoverURL:   m.CoverImage.Large,
 	}
 	if m.AverageScore != nil {

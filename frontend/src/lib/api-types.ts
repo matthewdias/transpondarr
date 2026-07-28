@@ -675,8 +675,6 @@ export interface components {
             next_airs_at?: string;
             /** Format: int64 */
             next_episode?: number;
-            /** Format: int64 */
-            popularity: number;
             romaji?: string;
             status?: string;
             studio?: string;

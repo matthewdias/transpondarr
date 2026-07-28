@@ -86,8 +86,7 @@ type SeasonEntry struct {
 	Episodes     int      `json:"episodes,omitempty"`
 	Genres       []string `json:"genres,omitempty"`
 	AverageScore int      `json:"average_score,omitempty"` // 0-100; 0 when unranked
-	Popularity   int      `json:"popularity,omitempty"`
-	Studio       string   `json:"studio,omitempty"` // main studio
+	Studio       string   `json:"studio,omitempty"`        // main studio
 	CoverURL     string   `json:"cover_url,omitempty"`
 	NextAiring   *Airing  `json:"next_airing,omitempty"` // nil when nothing is scheduled
 }

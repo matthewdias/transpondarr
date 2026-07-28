@@ -28,7 +28,6 @@ func browseMedia(id int64) string {
 		"status": "RELEASING",
 		"genres": ["Action", "Comedy"],
 		"averageScore": 81,
-		"popularity": 54321,
 		"coverImage": {"large": "https://img.example/%d.png"},
 		"studios": {"nodes": [{"name": "Studio Alpha"}]},
 		"nextAiringEpisode": {"episode": 5, "airingAt": 1700000000}
@@ -94,8 +93,8 @@ func TestBrowseSeasonMapsEveryField(t *testing.T) {
 	if len(e.Genres) != 2 || e.Genres[0] != "Action" {
 		t.Errorf("Genres = %v, want [Action Comedy]", e.Genres)
 	}
-	if e.AverageScore != 81 || e.Popularity != 54321 {
-		t.Errorf("score/popularity = %d/%d, want 81/54321", e.AverageScore, e.Popularity)
+	if e.AverageScore != 81 {
+		t.Errorf("AverageScore = %d, want 81", e.AverageScore)
 	}
 	if e.Studio != "Studio Alpha" {
 		t.Errorf("Studio = %q, want Studio Alpha", e.Studio)
@@ -121,7 +120,6 @@ func TestBrowseSeasonSparseEntry(t *testing.T) {
 			"status": "NOT_YET_RELEASED",
 			"genres": [],
 			"averageScore": null,
-			"popularity": 10,
 			"coverImage": {"large": ""},
 			"studios": {"nodes": []},
 			"nextAiringEpisode": null

@@ -22,7 +22,6 @@ type seasonEntryDTO struct {
 	Episodes     int        `json:"episodes"`
 	Genres       []string   `json:"genres,omitempty"`
 	AverageScore int        `json:"average_score"`
-	Popularity   int        `json:"popularity"`
 	Studio       string     `json:"studio,omitempty"`
 	CoverURL     string     `json:"cover_url,omitempty"`
 	NextEpisode  int        `json:"next_episode,omitempty"`
@@ -78,7 +77,6 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 				Episodes:     e.Episodes,
 				Genres:       e.Genres,
 				AverageScore: e.AverageScore,
-				Popularity:   e.Popularity,
 				Studio:       e.Studio,
 				CoverURL:     e.CoverURL,
 			}

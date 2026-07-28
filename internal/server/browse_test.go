@@ -22,7 +22,6 @@ type browseSeasonResponse struct {
 		Episodes     int      `json:"episodes"`
 		Genres       []string `json:"genres"`
 		AverageScore int      `json:"average_score"`
-		Popularity   int      `json:"popularity"`
 		Studio       string   `json:"studio"`
 		CoverURL     string   `json:"cover_url"`
 		NextEpisode  int      `json:"next_episode"`
@@ -46,6 +45,8 @@ func seedSeasonCache(t *testing.T, h *harness, season string, year int, raw stri
 // at all).
 func TestBrowseSeasonServedFromCache(t *testing.T) {
 	h := newHarness(t, nil, nil)
+	// "popularity" is no longer a SeasonEntry field: a blob cached before the drop
+	// must still unmarshal, ignoring it.
 	seedSeasonCache(t, h, "SPRING", 2026, `[{
 		"provider_id": 101,
 		"titles": {"romaji": "Cached Show", "english": "Cached Show EN"},
@@ -77,7 +78,7 @@ func TestBrowseSeasonServedFromCache(t *testing.T) {
 	if e.Format != "TV" || e.Status != "RELEASING" || e.Episodes != 12 {
 		t.Errorf("format/status/episodes wrong: %+v", e)
 	}
-	if len(e.Genres) != 2 || e.AverageScore != 78 || e.Popularity != 4321 || e.Studio != "Studio Alpha" {
+	if len(e.Genres) != 2 || e.AverageScore != 78 || e.Studio != "Studio Alpha" {
 		t.Errorf("chart fields wrong: %+v", e)
 	}
 	if e.CoverURL != "https://img.example/101.png" {
