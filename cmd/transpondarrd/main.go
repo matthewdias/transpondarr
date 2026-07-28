@@ -16,6 +16,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/core/airing"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
+	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
@@ -52,6 +53,11 @@ const airingSyncInterval = 15 * time.Minute
 // the same reason: per-series TTL cutoffs decide what actually gets fetched, so
 // an idle tick costs one query and no requests.
 const metadataRefreshInterval = 15 * time.Minute
+
+// seasonRefreshInterval ticks on the same rhythm again: per-season TTL cutoffs
+// decide what actually gets fetched, so an idle tick costs one query and no
+// requests.
+const seasonRefreshInterval = 15 * time.Minute
 
 func main() {
 	// `transpondarrd openapi` prints the OpenAPI spec to stdout and exits — used by
@@ -157,6 +163,12 @@ func run(logger *slog.Logger) error {
 		Interval:   metadataRefreshInterval,
 		RunAtStart: true,
 		Run:        refresh.New(st, provider, logger).RefreshOnce,
+	})
+	runner.Add(jobs.Job{
+		Name:       "season-refresh",
+		Interval:   seasonRefreshInterval,
+		RunAtStart: true,
+		Run:        browse.New(st, provider, logger).RefreshOnce,
 	})
 	jobsDone := runner.Start(ctx)
 

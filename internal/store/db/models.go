@@ -52,6 +52,14 @@ type QualityProfileGroup struct {
 	Blocked   int64  `json:"blocked"`
 }
 
+type SeasonCache struct {
+	Provider  string `json:"provider"`
+	Season    string `json:"season"`
+	Year      int64  `json:"year"`
+	Raw       string `json:"raw"`
+	FetchedAt string `json:"fetched_at"`
+}
+
 type Series struct {
 	ID               int64          `json:"id"`
 	AnilistID        sql.NullInt64  `json:"anilist_id"`
