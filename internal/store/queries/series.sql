@@ -57,7 +57,10 @@ ORDER BY s.airing_synced_at IS NOT NULL, s.airing_synced_at
 LIMIT ?;
 
 -- name: SetSeriesAiringSyncedAt :exec
-UPDATE series SET airing_synced_at = datetime('now') WHERE id = ?;
+-- Guarded on the value read at selection: a refresh that cleared the stamp
+-- mid-sync must win, so the next airing pass re-pages the grown series.
+UPDATE series SET airing_synced_at = datetime('now')
+WHERE id = ? AND airing_synced_at IS ?;
 
 -- name: ClearSeriesAiringSyncedAt :exec
 -- Forces the next airing pass to re-page full history, so items inserted after

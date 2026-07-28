@@ -100,7 +100,12 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		}
 	}
 
-	if err := s.store.Q.SetSeriesAiringSyncedAt(ctx, series.ID); err != nil {
+	// Guarded on the stamp read at selection: if the metadata refresh cleared it
+	// mid-sync (the series grew), the clear wins and the next pass re-pages.
+	if err := s.store.Q.SetSeriesAiringSyncedAt(ctx, db.SetSeriesAiringSyncedAtParams{
+		ID:             series.ID,
+		AiringSyncedAt: series.AiringSyncedAt,
+	}); err != nil {
 		return fmt.Errorf("stamp synced: %w", err)
 	}
 	s.log.Debug("airing schedule synced", "series", series.ID, "airings", len(schedule), "tail_only", notYetAired)

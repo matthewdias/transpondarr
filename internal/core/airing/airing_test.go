@@ -20,8 +20,9 @@ type fakeProvider struct {
 	schedules map[int64][]metadata.Airing
 	errs      map[int64]error
 
-	calls       []int64 // provider ids, in call order
-	notYetAired map[int64]bool
+	calls         []int64 // provider ids, in call order
+	notYetAired   map[int64]bool
+	onGetSchedule func() // runs mid-fetch, for interleaving concurrent writers
 }
 
 func newFakeProvider() *fakeProvider {
@@ -45,6 +46,9 @@ func (f *fakeProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, []m
 func (f *fakeProvider) GetSchedule(_ context.Context, id int64, notYetAired bool) ([]metadata.Airing, error) {
 	f.calls = append(f.calls, id)
 	f.notYetAired[id] = notYetAired
+	if f.onGetSchedule != nil {
+		f.onGetSchedule()
+	}
 	if err := f.errs[id]; err != nil {
 		return nil, err
 	}
@@ -163,6 +167,32 @@ func TestSyncWritesAirDatesForANeverSyncedSeries(t *testing.T) {
 	// Never synced before, so history is fetched in full exactly once.
 	if prov.notYetAired[100] {
 		t.Error("a never-synced series fetched only the tail, so its aired history is lost")
+	}
+}
+
+// The metadata refresh clears airing_synced_at when a series grows; a sync
+// already in flight must not stamp over that clear, or the grown item could
+// wait out the long TTL (or forever, for aired history) for its air date.
+func TestSyncDoesNotRestampASeriesClearedMidSync(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 100, 2)
+	setCachedStatus(t, st, 100, "RELEASING")
+	setSyncedAt(t, st, seriesID, time.Now().Add(-24*time.Hour))
+
+	prov := newFakeProvider()
+	prov.onGetSchedule = func() {
+		if _, err := st.DB.ExecContext(context.Background(),
+			`UPDATE series SET airing_synced_at = NULL WHERE id = ?`, seriesID); err != nil {
+			t.Errorf("clear stamp mid-sync: %v", err)
+		}
+	}
+
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	if stamp, ok := syncedAt(t, st, seriesID); ok {
+		t.Errorf("airing_synced_at = %q, want the mid-sync clear preserved", stamp)
 	}
 }
 

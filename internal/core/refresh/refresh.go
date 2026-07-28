@@ -71,19 +71,25 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 	})
 }
 
-// refreshSeries upserts one series' items from a re-fetch. When the series
-// grew, its airing stamp is cleared so the next airing pass re-pages full
-// history — without it, an item born after the last sync (a tail-only resync
-// never revisits aired history) could wait out the long TTL for its air date.
+// refreshSeries upserts one series' items from a re-fetch, in one transaction.
+// Clearing the airing stamp on growth is what gets the new items air dates: the
+// next airing pass re-pages exactly the series that grew.
 func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
 	_, items, err := s.provider.GetTitle(ctx, series.AnilistID.Int64)
 	if err != nil {
 		return fmt.Errorf("fetch metadata: %w", err)
 	}
 
+	tx, err := s.store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
+	q := s.store.Q.WithTx(tx)
+
 	var inserted int64
 	for _, it := range items {
-		n, err := s.store.Q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
+		n, err := q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
 			SeriesID: series.ID,
 			Kind:     string(domain.KindEpisode),
 			Number:   sql.NullInt64{Int64: int64(it.Number), Valid: true},
@@ -94,11 +100,16 @@ func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
 		}
 		inserted += n
 	}
-
 	if inserted > 0 {
-		if err := s.store.Q.ClearSeriesAiringSyncedAt(ctx, series.ID); err != nil {
+		if err := q.ClearSeriesAiringSyncedAt(ctx, series.ID); err != nil {
 			return fmt.Errorf("clear airing stamp: %w", err)
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
+
+	if inserted > 0 {
 		s.log.Info("series grew", "series", series.ID, "new_items", inserted)
 	}
 	return nil

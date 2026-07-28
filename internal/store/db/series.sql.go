@@ -320,11 +320,19 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 }
 
 const setSeriesAiringSyncedAt = `-- name: SetSeriesAiringSyncedAt :exec
-UPDATE series SET airing_synced_at = datetime('now') WHERE id = ?
+UPDATE series SET airing_synced_at = datetime('now')
+WHERE id = ? AND airing_synced_at IS ?
 `
 
-func (q *Queries) SetSeriesAiringSyncedAt(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, setSeriesAiringSyncedAt, id)
+type SetSeriesAiringSyncedAtParams struct {
+	ID             int64          `json:"id"`
+	AiringSyncedAt sql.NullString `json:"airing_synced_at"`
+}
+
+// Guarded on the value read at selection: a refresh that cleared the stamp
+// mid-sync must win, so the next airing pass re-pages the grown series.
+func (q *Queries) SetSeriesAiringSyncedAt(ctx context.Context, arg SetSeriesAiringSyncedAtParams) error {
+	_, err := q.db.ExecContext(ctx, setSeriesAiringSyncedAt, arg.ID, arg.AiringSyncedAt)
 	return err
 }
 
