@@ -90,64 +90,66 @@ export function DiscoveryPage() {
       <Topbar title="Discovery" />
 
       <div className="px-4 py-6 sm:px-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Previous season"
-              onClick={() => setRef(stepSeason(ref, -1))}
-            >
-              <ChevronLeft className="size-4" />
-            </Button>
-            <Select
-              value={ref.season}
-              onValueChange={(season) =>
-                setRef({ ...ref, season: season as SeasonName })
-              }
-            >
-              <SelectTrigger aria-label="Season" className="w-[7.5rem]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SEASONS.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s.charAt(0).toUpperCase() + s.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={String(ref.year)}
-              onValueChange={(year) => setRef({ ...ref, year: Number(year) })}
-            >
-              <SelectTrigger aria-label="Year" className="w-[5.5rem]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {years.map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    {y}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label="Next season"
-              onClick={() => setRef(stepSeason(ref, 1))}
-            >
-              <ChevronRight className="size-4" />
-            </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Previous season"
+                onClick={() => setRef(stepSeason(ref, -1))}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <Select
+                value={ref.season}
+                onValueChange={(season) =>
+                  setRef({ ...ref, season: season as SeasonName })
+                }
+              >
+                <SelectTrigger aria-label="Season" className="w-[7.5rem]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SEASONS.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={String(ref.year)}
+                onValueChange={(year) => setRef({ ...ref, year: Number(year) })}
+              >
+                <SelectTrigger aria-label="Year" className="w-[5.5rem]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={String(y)}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Next season"
+                onClick={() => setRef(stepSeason(ref, 1))}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+            {!isCurrent && (
+              <Button variant="ghost" size="sm" onClick={() => setRef(today)}>
+                Current season
+              </Button>
+            )}
           </div>
-          {!isCurrent && (
-            <Button variant="ghost" size="sm" onClick={() => setRef(today)}>
-              Current season
-            </Button>
-          )}
 
-          <div className="ml-auto flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <FilterSelect
               label="Format"
               value={filters.format}
