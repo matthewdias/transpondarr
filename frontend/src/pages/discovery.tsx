@@ -23,7 +23,6 @@ import {
   plainDescription,
   statusLabel,
 } from "@/lib/chart";
-import { cn } from "@/lib/utils";
 import { browseSeasonQuery, seriesQuery } from "@/lib/queries";
 import { nextEpisodeLabel } from "@/lib/format";
 import {
@@ -34,9 +33,24 @@ import {
   type SeasonRef,
   stepSeason,
 } from "@/lib/season";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import {
   Select,
   SelectContent,
@@ -284,7 +298,7 @@ function FilterSelect({
 
 function SeasonCard({ entry }: { entry: SeasonEntry }) {
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const title = entryTitle(entry);
   const isMovie = entry.format === "MOVIE";
 
@@ -319,30 +333,89 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
   ].filter(Boolean) as string[];
 
   const airing = nextEpisodeLabel(entry.next_episode, entry.next_airs_at);
-  const synopsis = plainDescription(entry.description);
+
+  // One definition, rendered on both the card and the detail view.
+  const actions = (
+    <>
+      {entry.tracked ? (
+        <Button
+          asChild
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          title="Already in your library"
+        >
+          <Link to={`/series/${entry.series_id}`}>
+            <Check className="size-3.5" /> In library
+          </Link>
+        </Button>
+      ) : (
+        <Button
+          size="sm"
+          className="flex-1"
+          disabled={isMovie || add.isPending}
+          title={isMovie ? "Reserved — v1 tracks series" : undefined}
+          onClick={() => add.mutate()}
+        >
+          {add.isPending ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <Plus className="size-3.5" />
+          )}
+          Add
+        </Button>
+      )}
+      <Button
+        asChild
+        variant="outline"
+        size="sm"
+        className="px-2"
+        title="Open on AniList"
+      >
+        <a
+          href={`https://anilist.co/anime/${entry.anilist_id}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open on AniList"
+        >
+          <ExternalLink className="size-3.5" />
+        </a>
+      </Button>
+    </>
+  );
+
+  const cover = entry.cover_url ? (
+    <img
+      src={entry.cover_url}
+      alt=""
+      loading="lazy"
+      className="aspect-[2/3] w-full border-b object-cover"
+    />
+  ) : (
+    <div className="grid aspect-[2/3] w-full place-items-center border-b bg-gradient-to-br from-accent to-panel-2 text-4xl font-bold text-accent-foreground">
+      {title.trim().charAt(0).toUpperCase() || "?"}
+    </div>
+  );
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border bg-card shadow-sm">
-      {entry.cover_url ? (
-        <img
-          src={entry.cover_url}
-          alt=""
-          loading="lazy"
-          className="aspect-[2/3] w-full border-b object-cover"
-        />
-      ) : (
-        <div className="grid aspect-[2/3] w-full place-items-center border-b bg-gradient-to-br from-accent to-panel-2 text-4xl font-bold text-accent-foreground">
-          {title.trim().charAt(0).toUpperCase() || "?"}
-        </div>
-      )}
-
-      <div className="flex flex-1 flex-col gap-1 p-3">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        onClick={() => setDetailOpen(true)}
+        className="cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&:hover_[data-slot=card-title]]:underline"
+      >
+        {cover}
         <div
-          className="line-clamp-2 text-sm font-medium leading-snug"
+          data-slot="card-title"
+          className="line-clamp-2 px-3 pt-3 text-sm font-medium leading-snug underline-offset-2"
           title={title}
         >
           {title}
         </div>
+      </button>
+
+      <div className="flex flex-1 flex-col gap-1 p-3 pt-1">
         {meta.length > 0 && (
           <div className="truncate text-xs text-muted-foreground">
             {meta.join(" · ")}
@@ -358,69 +431,118 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
             <Clock className="size-3" /> {airing}
           </div>
         )}
-        {synopsis && (
-          // A button so the clamp toggles from the keyboard too.
-          <button
-            type="button"
-            aria-expanded={expanded}
-            onClick={() => setExpanded((e) => !e)}
-            className={cn(
-              "mt-0.5 cursor-pointer text-left text-xs leading-relaxed text-faint",
-              !expanded && "line-clamp-3",
-            )}
-          >
-            {synopsis}
-          </button>
-        )}
 
-        <div className="mt-auto flex items-center gap-1.5 pt-2">
-          {entry.tracked ? (
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="flex-1"
-              title="Already in your library"
-            >
-              <Link to={`/series/${entry.series_id}`}>
-                <Check className="size-3.5" /> In library
-              </Link>
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              className="flex-1"
-              disabled={isMovie || add.isPending}
-              title={isMovie ? "Reserved — v1 tracks series" : undefined}
-              onClick={() => add.mutate()}
-            >
-              {add.isPending ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Plus className="size-3.5" />
-              )}
-              Add
-            </Button>
+        <div className="mt-auto flex items-center gap-1.5 pt-2">{actions}</div>
+      </div>
+
+      <SeasonDetail
+        entry={entry}
+        title={title}
+        meta={meta}
+        airing={airing}
+        actions={actions}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
+    </div>
+  );
+}
+
+// The full record for one entry - everything the card compresses, in a dialog
+// (drawer on mobile) so an expanded synopsis never reflows the grid.
+function SeasonDetail({
+  entry,
+  title,
+  meta,
+  airing,
+  actions,
+  open,
+  onOpenChange,
+}: {
+  entry: SeasonEntry;
+  title: string;
+  meta: string[];
+  airing: string | null;
+  actions: React.ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const isMobile = useIsMobile();
+  const synopsis = plainDescription(entry.description);
+  const english =
+    entry.english && entry.english !== title ? entry.english : null;
+  const subtitle = english ?? meta.join(" · ");
+
+  const body = (
+    <>
+      <div className="flex gap-4">
+        {entry.cover_url ? (
+          <img
+            src={entry.cover_url}
+            alt=""
+            className="h-44 w-[118px] flex-none rounded-md border object-cover"
+          />
+        ) : (
+          <div className="grid h-44 w-[118px] flex-none place-items-center rounded-md border bg-gradient-to-br from-accent to-panel-2 text-3xl font-bold text-accent-foreground">
+            {title.trim().charAt(0).toUpperCase() || "?"}
+          </div>
+        )}
+        <div className="min-w-0 flex-1 space-y-1.5 text-sm">
+          {meta.length > 0 && (
+            <div className="text-muted-foreground">{meta.join(" · ")}</div>
           )}
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="px-2"
-            title="Open on AniList"
-          >
-            <a
-              href={`https://anilist.co/anime/${entry.anilist_id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open on AniList"
-            >
-              <ExternalLink className="size-3.5" />
-            </a>
-          </Button>
+          {entry.status && (
+            <div className="text-muted-foreground">
+              {statusLabel(entry.status)}
+            </div>
+          )}
+          {entry.genres.length > 0 && (
+            <div className="text-faint">{entry.genres.join(" · ")}</div>
+          )}
+          {airing && (
+            <div className="flex items-center gap-1 text-muted-foreground">
+              <Clock className="size-3.5" /> {airing}
+            </div>
+          )}
+          <div className="flex max-w-56 items-center gap-1.5 pt-1">
+            {actions}
+          </div>
         </div>
       </div>
-    </div>
+      {synopsis ? (
+        <p className="max-h-[45vh] overflow-y-auto text-sm leading-relaxed text-muted-foreground">
+          {synopsis}
+        </p>
+      ) : (
+        <p className="text-sm text-faint">No synopsis on AniList.</p>
+      )}
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="px-4 pb-6">
+          <DrawerHeader className="px-0">
+            <DrawerTitle>{title}</DrawerTitle>
+            <DrawerDescription>{subtitle}</DrawerDescription>
+          </DrawerHeader>
+          <div className="space-y-4 overflow-y-auto">{body}</div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="pr-6">{title}</DialogTitle>
+          <DialogDescription>{subtitle}</DialogDescription>
+        </DialogHeader>
+        {body}
+      </DialogContent>
+    </Dialog>
   );
 }
 

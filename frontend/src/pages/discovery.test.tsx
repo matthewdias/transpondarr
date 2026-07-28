@@ -92,13 +92,26 @@ describe("DiscoveryPage", () => {
     expect(inLibrary).toHaveAttribute("href", "/series/7");
     expect(screen.getAllByRole("button", { name: /^add$/i })).toHaveLength(1);
 
-    // The synopsis renders as stripped plain text, collapsed until toggled.
-    const synopsis = screen.getByRole("button", {
-      name: "A hero rises. Adapted from the manga.",
-    });
-    expect(synopsis).toHaveAttribute("aria-expanded", "false");
-    await userEvent.click(synopsis);
-    expect(synopsis).toHaveAttribute("aria-expanded", "true");
+    // The synopsis lives in the detail dialog, not on the card, so an expanded
+    // description can never reflow the grid.
+    expect(
+      screen.queryByText("A hero rises. Adapted from the manga."),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: /alpha adventure/i }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("A hero rises. Adapted from the manga."),
+    ).toBeInTheDocument();
+    // The dialog carries the same actions as its card.
+    expect(
+      within(dialog).getByRole("link", { name: /open on anilist/i }),
+    ).toHaveAttribute("href", "https://anilist.co/anime/101");
+    expect(
+      within(dialog).getByRole("button", { name: /add/i }),
+    ).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
 
     // Every card links out to its AniList page.
     const anilist = screen.getAllByRole("link", { name: /open on anilist/i });
@@ -137,10 +150,8 @@ describe("DiscoveryPage", () => {
 
     renderPage();
 
-    const card = (await screen.findByText("Alpha Adventure")).closest(
-      "div",
-    )!.parentElement!;
-    await userEvent.click(within(card).getByRole("button", { name: /add/i }));
+    await screen.findByText("Alpha Adventure");
+    await userEvent.click(screen.getByRole("button", { name: /^add$/i }));
 
     expect(
       await screen.findByRole("link", { name: /in library/i }),
