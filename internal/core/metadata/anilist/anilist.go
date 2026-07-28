@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -41,6 +42,11 @@ type Client struct {
 	limiter  *rate.Limiter
 	endpoint string
 	log      *slog.Logger
+
+	// mu guards retryAt, the shared 429 backoff deadline: one caller's 429 must
+	// hold back every caller, or concurrency makes a rate-limited window worse.
+	mu      sync.Mutex
+	retryAt time.Time
 }
 
 // New constructs an AniList client with sane defaults.
@@ -202,6 +208,9 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 	}
 
 	for attempt := 1; ; attempt++ {
+		if err := c.awaitBackoff(ctx); err != nil {
+			return err
+		}
 		if err := c.limiter.Wait(ctx); err != nil {
 			return err
 		}
@@ -221,11 +230,11 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 		if resp.StatusCode == http.StatusTooManyRequests {
 			wait := retryAfter(resp.Header.Get("Retry-After"))
 			_ = resp.Body.Close()
+			// Published even on the final attempt: the window is rate limited
+			// regardless of whether this caller has retries left.
+			c.extendBackoff(time.Now().Add(wait))
 			if attempt >= maxAttempts {
 				return fmt.Errorf("anilist: rate limited after %d attempts", attempt)
-			}
-			if err := sleep(ctx, wait); err != nil {
-				return err
 			}
 			continue
 		}
@@ -233,6 +242,33 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 		err = decode(resp, out)
 		_ = resp.Body.Close()
 		return err
+	}
+}
+
+// extendBackoff moves the shared deadline out, never in — concurrent 429s keep
+// the furthest wait any of them was told.
+func (c *Client) extendBackoff(until time.Time) {
+	c.mu.Lock()
+	if until.After(c.retryAt) {
+		c.retryAt = until
+	}
+	c.mu.Unlock()
+}
+
+// awaitBackoff sleeps until the shared deadline, re-checking in case another
+// caller's 429 extended it mid-sleep.
+func (c *Client) awaitBackoff(ctx context.Context) error {
+	for {
+		c.mu.Lock()
+		until := c.retryAt
+		c.mu.Unlock()
+		d := time.Until(until)
+		if d <= 0 {
+			return nil
+		}
+		if err := sleep(ctx, d); err != nil {
+			return err
+		}
 	}
 }
 

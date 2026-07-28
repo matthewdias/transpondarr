@@ -83,29 +83,6 @@ func (q *Queries) ListWantedItems(ctx context.Context, seriesID int64) ([]Wanted
 	return items, nil
 }
 
-const setWantedItemAirsAt = `-- name: SetWantedItemAirsAt :exec
-UPDATE wanted_items
-SET airs_at = ?
-WHERE series_id = ? AND kind = ? AND number = ?
-`
-
-type SetWantedItemAirsAtParams struct {
-	AirsAt   sql.NullString `json:"airs_at"`
-	SeriesID int64          `json:"series_id"`
-	Kind     string         `json:"kind"`
-	Number   sql.NullInt64  `json:"number"`
-}
-
-func (q *Queries) SetWantedItemAirsAt(ctx context.Context, arg SetWantedItemAirsAtParams) error {
-	_, err := q.db.ExecContext(ctx, setWantedItemAirsAt,
-		arg.AirsAt,
-		arg.SeriesID,
-		arg.Kind,
-		arg.Number,
-	)
-	return err
-}
-
 const setWantedItemHave = `-- name: SetWantedItemHave :exec
 UPDATE wanted_items SET have = ? WHERE id = ?
 `
@@ -117,5 +94,58 @@ type SetWantedItemHaveParams struct {
 
 func (q *Queries) SetWantedItemHave(ctx context.Context, arg SetWantedItemHaveParams) error {
 	_, err := q.db.ExecContext(ctx, setWantedItemHave, arg.Have, arg.ID)
+	return err
+}
+
+const upsertWantedItem = `-- name: UpsertWantedItem :execrows
+INSERT INTO wanted_items (series_id, kind, number, title, have)
+VALUES (?, ?, ?, ?, 0)
+ON CONFLICT (series_id, kind, number) DO NOTHING
+`
+
+type UpsertWantedItemParams struct {
+	SeriesID int64          `json:"series_id"`
+	Kind     string         `json:"kind"`
+	Number   sql.NullInt64  `json:"number"`
+	Title    sql.NullString `json:"title"`
+}
+
+// DO NOTHING keeps refresh from ever clobbering an existing item's have or
+// title; the row count tells the caller whether the series actually grew.
+func (q *Queries) UpsertWantedItem(ctx context.Context, arg UpsertWantedItemParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertWantedItem,
+		arg.SeriesID,
+		arg.Kind,
+		arg.Number,
+		arg.Title,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertWantedItemAiring = `-- name: UpsertWantedItemAiring :exec
+INSERT INTO wanted_items (series_id, kind, number, airs_at)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (series_id, kind, number) DO UPDATE SET airs_at = excluded.airs_at
+`
+
+type UpsertWantedItemAiringParams struct {
+	SeriesID int64          `json:"series_id"`
+	Kind     string         `json:"kind"`
+	Number   sql.NullInt64  `json:"number"`
+	AirsAt   sql.NullString `json:"airs_at"`
+}
+
+// Creating the item matters for a null-count long-runner: the schedule is the
+// only source that knows its episodes exist. Only airs_at moves on conflict.
+func (q *Queries) UpsertWantedItemAiring(ctx context.Context, arg UpsertWantedItemAiringParams) error {
+	_, err := q.db.ExecContext(ctx, upsertWantedItemAiring,
+		arg.SeriesID,
+		arg.Kind,
+		arg.Number,
+		arg.AirsAt,
+	)
 	return err
 }

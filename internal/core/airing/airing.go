@@ -1,7 +1,10 @@
 // Package airing keeps per-item broadcast times in step with the metadata
-// provider. It exists as background work rather than as part of GetTitle because
-// paging a full schedule costs one request per 50 episodes: unremarkable off the
-// request path, unacceptable behind a user action against a ~30 req/min budget.
+// provider, creating the wanted items a schedule names as it goes — for a
+// long-runner whose episode total AniList never publishes, the schedule is the
+// only source that knows those episodes exist. It is background work rather
+// than part of GetTitle because paging a full schedule costs one request per
+// 50 episodes: unremarkable off the request path, unacceptable behind a user
+// action against a ~30 req/min budget.
 package airing
 
 import (
@@ -90,17 +93,22 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	}
 
 	for _, a := range schedule {
-		if err := s.store.Q.SetWantedItemAirsAt(ctx, db.SetWantedItemAirsAtParams{
-			AirsAt:   sql.NullString{String: store.FormatTimestamp(a.AirsAt), Valid: true},
+		if err := s.store.Q.UpsertWantedItemAiring(ctx, db.UpsertWantedItemAiringParams{
 			SeriesID: series.ID,
 			Kind:     string(domain.KindEpisode),
 			Number:   sql.NullInt64{Int64: int64(a.Number), Valid: true},
+			AirsAt:   sql.NullString{String: store.FormatTimestamp(a.AirsAt), Valid: true},
 		}); err != nil {
-			return fmt.Errorf("set air date for item %d: %w", a.Number, err)
+			return fmt.Errorf("upsert airing for item %d: %w", a.Number, err)
 		}
 	}
 
-	if err := s.store.Q.SetSeriesAiringSyncedAt(ctx, series.ID); err != nil {
+	// Guarded on the stamp read at selection: if the metadata refresh cleared it
+	// mid-sync (the series grew), the clear wins and the next pass re-pages.
+	if err := s.store.Q.SetSeriesAiringSyncedAt(ctx, db.SetSeriesAiringSyncedAtParams{
+		ID:             series.ID,
+		AiringSyncedAt: series.AiringSyncedAt,
+	}); err != nil {
 		return fmt.Errorf("stamp synced: %w", err)
 	}
 	s.log.Debug("airing schedule synced", "series", series.ID, "airings", len(schedule), "tail_only", notYetAired)
