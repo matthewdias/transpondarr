@@ -79,6 +79,18 @@ type media struct {
 	CoverImage struct {
 		Large string `json:"large"`
 	} `json:"coverImage"`
+	Genres       []string `json:"genres"`
+	AverageScore *int     `json:"averageScore"`
+	Popularity   int      `json:"popularity"`
+	Studios      struct {
+		Nodes []struct {
+			Name string `json:"name"`
+		} `json:"nodes"`
+	} `json:"studios"`
+	NextAiringEpisode *struct {
+		Episode  int   `json:"episode"`
+		AiringAt int64 `json:"airingAt"`
+	} `json:"nextAiringEpisode"`
 }
 
 func (m media) titles() metadata.Titles {

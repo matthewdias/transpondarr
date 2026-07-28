@@ -61,8 +61,43 @@ type Provider interface {
 // AniList publishes the Japanese broadcast time, which is the right one to hang
 // fansub delay windows off.
 type Airing struct {
-	Number int
-	AirsAt time.Time
+	Number int       `json:"number"`
+	AirsAt time.Time `json:"airs_at"`
+}
+
+// Season names a broadcast quarter in the provider's vocabulary.
+type Season string
+
+const (
+	SeasonWinter Season = "WINTER" // Jan-Mar
+	SeasonSpring Season = "SPRING" // Apr-Jun
+	SeasonSummer Season = "SUMMER" // Jul-Sep
+	SeasonFall   Season = "FALL"   // Oct-Dec
+)
+
+// SeasonEntry is one title in a seasonal chart — richer than Candidate because
+// the discovery page filters on these fields, and JSON-tagged because a whole
+// season is cached as one blob.
+type SeasonEntry struct {
+	ProviderID   int64    `json:"provider_id"`
+	Titles       Titles   `json:"titles"`
+	Format       string   `json:"format,omitempty"` // provider-native (e.g. "TV", "OVA")
+	Status       string   `json:"status,omitempty"` // provider-native (e.g. "RELEASING")
+	Episodes     int      `json:"episodes,omitempty"`
+	Genres       []string `json:"genres,omitempty"`
+	AverageScore int      `json:"average_score,omitempty"` // 0-100; 0 when unranked
+	Popularity   int      `json:"popularity,omitempty"`
+	Studio       string   `json:"studio,omitempty"` // main studio
+	CoverURL     string   `json:"cover_url,omitempty"`
+	NextAiring   *Airing  `json:"next_airing,omitempty"` // nil when nothing is scheduled
+}
+
+// BrowseProvider is an optional Provider capability: providers that can chart a
+// broadcast season implement it. It stays off Provider because a season is a
+// multi-request paged query against the same budget GetTitle lives on.
+type BrowseProvider interface {
+	// BrowseSeason returns every title airing in the given season.
+	BrowseSeason(ctx context.Context, season Season, year int) ([]SeasonEntry, error)
 }
 
 // AiringProvider is an optional Provider capability: providers that publish a
@@ -85,15 +120,24 @@ type Cache interface {
 	Put(ctx context.Context, provider string, id int64, snap CachedTitle) error
 }
 
-// Cached wraps a provider in a read-through title cache. The wrapper carries
-// AiringProvider only when inner implements it, so asserting the capability on a
-// composed provider still answers for the adapter underneath.
+// Cached wraps a provider in a read-through title cache. The wrapper carries an
+// optional capability (AiringProvider, BrowseProvider) only when inner implements
+// it, so asserting a capability on a composed provider still answers for the
+// adapter underneath.
 func Cached(inner Provider, cache Cache) Provider {
 	c := &cached{inner: inner, cache: cache}
-	if airing, ok := inner.(AiringProvider); ok {
+	airing, hasAiring := inner.(AiringProvider)
+	browse, hasBrowse := inner.(BrowseProvider)
+	switch {
+	case hasAiring && hasBrowse:
+		return &cachedAiringBrowse{cachedAiring: &cachedAiring{cached: c, airing: airing}, browse: browse}
+	case hasAiring:
 		return &cachedAiring{cached: c, airing: airing}
+	case hasBrowse:
+		return &cachedBrowse{cached: c, browse: browse}
+	default:
+		return c
 	}
-	return c
 }
 
 type cached struct {
@@ -110,6 +154,26 @@ type cachedAiring struct {
 // airing sync, not held in the title snapshot this cache stores.
 func (c *cachedAiring) GetSchedule(ctx context.Context, id int64, notYetAired bool) ([]Airing, error) {
 	return c.airing.GetSchedule(ctx, id, notYetAired)
+}
+
+type cachedBrowse struct {
+	*cached
+	browse BrowseProvider
+}
+
+// BrowseSeason passes through uncached: season charts are persisted per season
+// in their own table, not held in the title snapshot this cache stores.
+func (c *cachedBrowse) BrowseSeason(ctx context.Context, season Season, year int) ([]SeasonEntry, error) {
+	return c.browse.BrowseSeason(ctx, season, year)
+}
+
+type cachedAiringBrowse struct {
+	*cachedAiring
+	browse BrowseProvider
+}
+
+func (c *cachedAiringBrowse) BrowseSeason(ctx context.Context, season Season, year int) ([]SeasonEntry, error) {
+	return c.browse.BrowseSeason(ctx, season, year)
 }
 
 func (c *cached) Name() string { return c.inner.Name() }

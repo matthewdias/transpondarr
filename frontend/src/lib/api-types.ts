@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/browse/season": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Chart a broadcast season, served from the per-season cache */
+        get: operations["browse-season"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/download/test": {
         parameters: {
             query?: never;
@@ -346,6 +363,19 @@ export interface components {
             required: string;
             username: string;
         };
+        BrowseSeasonOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/BrowseSeasonOutputBody.json
+             */
+            readonly $schema?: string;
+            entries: components["schemas"]["SeasonEntryDTO"][];
+            /** @enum {string} */
+            season: "winter" | "spring" | "summer" | "fall";
+            /** Format: int64 */
+            year: number;
+        };
         CandidateDTO: {
             /** Format: int64 */
             anilist_id: number;
@@ -629,6 +659,28 @@ export interface components {
             series: string;
             term: string;
         };
+        SeasonEntryDTO: {
+            /** Format: int64 */
+            anilist_id: number;
+            /** Format: int64 */
+            average_score: number;
+            cover_url?: string;
+            english?: string;
+            /** Format: int64 */
+            episodes: number;
+            format?: string;
+            genres?: string[];
+            native?: string;
+            /** Format: date-time */
+            next_airs_at?: string;
+            /** Format: int64 */
+            next_episode?: number;
+            /** Format: int64 */
+            popularity: number;
+            romaji?: string;
+            status?: string;
+            studio?: string;
+        };
         SeriesDTO: {
             format: string;
             /** Format: int64 */
@@ -759,6 +811,40 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "browse-season": {
+        parameters: {
+            query?: {
+                /** @description Season to chart; defaults to the current one */
+                season?: "winter" | "spring" | "summer" | "fall";
+                /** @description Season year; defaults to the current one */
+                year?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowseSeasonOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "test-download-client": {
         parameters: {
             query?: never;

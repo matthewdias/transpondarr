@@ -4,6 +4,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/matthewdias/transpondarr/internal/core/auth"
+	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
@@ -18,6 +19,7 @@ import (
 type routeDeps struct {
 	store    *store.Store
 	catalog  *catalog.Service
+	browse   *browse.Service
 	clients  *clients.Registry
 	settings *settings.Service
 	auth     *auth.Service
@@ -31,6 +33,7 @@ type routeDeps struct {
 func registerRoutes(api huma.API, deps routeDeps) {
 	registerSystemRoutes(api, deps)
 	registerMetadataRoutes(api, deps)
+	registerBrowseRoutes(api, deps)
 	registerIndexerRoutes(api, deps)
 	registerDownloadRoutes(api, deps)
 	registerSeriesRoutes(api, deps)

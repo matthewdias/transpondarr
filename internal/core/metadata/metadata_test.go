@@ -271,3 +271,83 @@ func TestCachedDoesNotInventAiringCapability(t *testing.T) {
 		t.Error("Cached claims AiringProvider for an inner provider that lacks it")
 	}
 }
+
+// fakeBrowseProvider is a provider that can also chart a season.
+type fakeBrowseProvider struct {
+	fakeProvider
+	entries     []SeasonEntry
+	browseCalls int
+	lastSeason  Season
+	lastYear    int
+}
+
+func (f *fakeBrowseProvider) BrowseSeason(_ context.Context, season Season, year int) ([]SeasonEntry, error) {
+	f.browseCalls++
+	f.lastSeason = season
+	f.lastYear = year
+	return f.entries, nil
+}
+
+func TestCachedForwardsBrowseCapability(t *testing.T) {
+	prov := &fakeBrowseProvider{entries: []SeasonEntry{{ProviderID: 7}}}
+
+	browse, ok := Cached(prov, &fakeCache{}).(BrowseProvider)
+	if !ok {
+		t.Fatal("Cached dropped the BrowseProvider capability of its inner provider")
+	}
+	got, err := browse.BrowseSeason(context.Background(), SeasonSpring, 2026)
+	if err != nil {
+		t.Fatalf("BrowseSeason: %v", err)
+	}
+	if len(got) != 1 || got[0].ProviderID != 7 {
+		t.Errorf("got %+v, want the inner provider's entries", got)
+	}
+	if prov.lastSeason != SeasonSpring || prov.lastYear != 2026 {
+		t.Errorf("inner provider asked for %s %d, want SPRING 2026", prov.lastSeason, prov.lastYear)
+	}
+}
+
+// The capability must not be invented for a provider that cannot chart a season.
+func TestCachedDoesNotInventBrowseCapability(t *testing.T) {
+	if _, ok := Cached(&fakeProvider{}, &fakeCache{}).(BrowseProvider); ok {
+		t.Error("Cached claims BrowseProvider for an inner provider that lacks it")
+	}
+}
+
+// fakeFullProvider carries both optional capabilities, like the AniList adapter.
+type fakeFullProvider struct {
+	fakeAiringProvider
+	fakeBrowseProvider
+}
+
+func (f *fakeFullProvider) Name() string { return "full" }
+
+func (f *fakeFullProvider) Search(context.Context, string) ([]Candidate, error) { return nil, nil }
+
+func (f *fakeFullProvider) GetTitle(context.Context, int64) (TitleMeta, []ItemMeta, error) {
+	return TitleMeta{}, nil, nil
+}
+
+// A provider with both capabilities keeps both through the wrapper.
+func TestCachedForwardsBothCapabilities(t *testing.T) {
+	prov := &fakeFullProvider{}
+	c := Cached(prov, &fakeCache{})
+
+	airing, ok := c.(AiringProvider)
+	if !ok {
+		t.Fatal("Cached dropped AiringProvider from a provider carrying both capabilities")
+	}
+	browse, ok := c.(BrowseProvider)
+	if !ok {
+		t.Fatal("Cached dropped BrowseProvider from a provider carrying both capabilities")
+	}
+	if _, err := airing.GetSchedule(context.Background(), 1, false); err != nil {
+		t.Fatalf("GetSchedule: %v", err)
+	}
+	if _, err := browse.BrowseSeason(context.Background(), SeasonFall, 2025); err != nil {
+		t.Fatalf("BrowseSeason: %v", err)
+	}
+	if prov.scheduleCalls != 1 || prov.browseCalls != 1 {
+		t.Errorf("inner calls = %d schedule / %d browse, want 1 / 1", prov.scheduleCalls, prov.browseCalls)
+	}
+}

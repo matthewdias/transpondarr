@@ -18,6 +18,7 @@ import (
 
 	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
+	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
@@ -52,6 +53,7 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider meta
 	registerRoutes(api, routeDeps{
 		store:    st,
 		catalog:  svc,
+		browse:   browse.New(st, provider, logger),
 		clients:  reg,
 		settings: settingsSvc,
 		auth:     authSvc,
