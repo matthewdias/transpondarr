@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clock,
   Compass,
+  ExternalLink,
   Loader2,
   Plus,
   RefreshCw,
@@ -19,8 +20,10 @@ import {
   filterEntries,
   formatLabel,
   NO_FILTERS,
+  plainDescription,
   statusLabel,
 } from "@/lib/chart";
+import { cn } from "@/lib/utils";
 import { browseSeasonQuery, seriesQuery } from "@/lib/queries";
 import { nextEpisodeLabel } from "@/lib/format";
 import {
@@ -281,6 +284,7 @@ function FilterSelect({
 
 function SeasonCard({ entry }: { entry: SeasonEntry }) {
   const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState(false);
   const title = entryTitle(entry);
   const isMovie = entry.format === "MOVIE";
 
@@ -315,6 +319,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
   ].filter(Boolean) as string[];
 
   const airing = nextEpisodeLabel(entry.next_episode, entry.next_airs_at);
+  const synopsis = plainDescription(entry.description);
 
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border bg-card shadow-sm">
@@ -353,14 +358,28 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
             <Clock className="size-3" /> {airing}
           </div>
         )}
+        {synopsis && (
+          // A button so the clamp toggles from the keyboard too.
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((e) => !e)}
+            className={cn(
+              "mt-0.5 cursor-pointer text-left text-xs leading-relaxed text-faint",
+              !expanded && "line-clamp-3",
+            )}
+          >
+            {synopsis}
+          </button>
+        )}
 
-        <div className="mt-auto pt-2">
+        <div className="mt-auto flex items-center gap-1.5 pt-2">
           {entry.tracked ? (
             <Button
               asChild
               variant="outline"
               size="sm"
-              className="w-full"
+              className="flex-1"
               title="Already in your library"
             >
               <Link to={`/series/${entry.series_id}`}>
@@ -370,7 +389,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
           ) : (
             <Button
               size="sm"
-              className="w-full"
+              className="flex-1"
               disabled={isMovie || add.isPending}
               title={isMovie ? "Reserved — v1 tracks series" : undefined}
               onClick={() => add.mutate()}
@@ -383,6 +402,22 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
               Add
             </Button>
           )}
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="px-2"
+            title="Open on AniList"
+          >
+            <a
+              href={`https://anilist.co/anime/${entry.anilist_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open on AniList"
+            >
+              <ExternalLink className="size-3.5" />
+            </a>
+          </Button>
         </div>
       </div>
     </div>

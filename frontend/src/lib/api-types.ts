@@ -665,6 +665,8 @@ export interface components {
             /** Format: int64 */
             average_score: number;
             cover_url?: string;
+            /** @description Provider-formatted HTML synopsis */
+            description?: string;
             english?: string;
             /** Format: int64 */
             episodes: number;

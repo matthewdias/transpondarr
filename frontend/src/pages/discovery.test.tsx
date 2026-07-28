@@ -63,6 +63,7 @@ describe("DiscoveryPage", () => {
           studio: "Studio A",
           next_episode: 6,
           next_airs_at: inTwoDays,
+          description: "A hero rises.<br><i>Adapted from the manga.</i>",
         }),
         entry({
           anilist_id: 102,
@@ -90,6 +91,19 @@ describe("DiscoveryPage", () => {
     const inLibrary = screen.getByRole("link", { name: /in library/i });
     expect(inLibrary).toHaveAttribute("href", "/series/7");
     expect(screen.getAllByRole("button", { name: /^add$/i })).toHaveLength(1);
+
+    // The synopsis renders as stripped plain text, collapsed until toggled.
+    const synopsis = screen.getByRole("button", {
+      name: "A hero rises. Adapted from the manga.",
+    });
+    expect(synopsis).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(synopsis);
+    expect(synopsis).toHaveAttribute("aria-expanded", "true");
+
+    // Every card links out to its AniList page.
+    const anilist = screen.getAllByRole("link", { name: /open on anilist/i });
+    expect(anilist).toHaveLength(2);
+    expect(anilist[0]).toHaveAttribute("href", "https://anilist.co/anime/101");
   });
 
   it("adds a show in place and re-marks it as tracked", async () => {

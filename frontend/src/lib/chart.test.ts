@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SeasonEntry } from "@/lib/api";
 import {
   filterEntries,
+  plainDescription,
   formatLabel,
   NO_FILTERS,
   statusLabel,
@@ -80,5 +81,25 @@ describe("labels", () => {
   it("passes unknown values through verbatim", () => {
     expect(formatLabel("HOLOGRAM")).toBe("HOLOGRAM");
     expect(statusLabel("PAUSED")).toBe("PAUSED");
+  });
+});
+
+describe("plainDescription", () => {
+  it("returns null when absent or empty after stripping", () => {
+    expect(plainDescription(undefined)).toBeNull();
+    expect(plainDescription("")).toBeNull();
+    expect(plainDescription("<i></i>")).toBeNull();
+  });
+
+  it("strips AniList's HTML markup and collapses whitespace", () => {
+    expect(
+      plainDescription("A hero rises.<br><br><i>Adapted from the manga.</i>"),
+    ).toBe("A hero rises. Adapted from the manga.");
+  });
+
+  it("decodes the common entities AniList emits", () => {
+    expect(
+      plainDescription("&quot;Go,&quot; she said &amp; left. It&#039;s over."),
+    ).toBe('"Go," she said & left. It\'s over.');
   });
 });

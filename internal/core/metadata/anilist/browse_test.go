@@ -26,12 +26,13 @@ func browseMedia(id int64) string {
 		"format": "TV",
 		"episodes": 12,
 		"status": "RELEASING",
+		"description": "A synopsis for show %d.",
 		"genres": ["Action", "Comedy"],
 		"averageScore": 81,
 		"coverImage": {"large": "https://img.example/%d.png"},
 		"studios": {"nodes": [{"name": "Studio Alpha"}]},
 		"nextAiringEpisode": {"episode": 5, "airingAt": 1700000000}
-	}`, id, id, id, id, id)
+	}`, id, id, id, id, id, id)
 }
 
 func TestBrowseSeasonPagesUntilExhausted(t *testing.T) {
@@ -70,7 +71,10 @@ func TestBrowseSeasonPagesUntilExhausted(t *testing.T) {
 }
 
 func TestBrowseSeasonMapsEveryField(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var query string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		query = string(body)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, browseResponse(false, browseMedia(9)))
 	}))
@@ -104,6 +108,12 @@ func TestBrowseSeasonMapsEveryField(t *testing.T) {
 	}
 	if e.NextAiring == nil || e.NextAiring.Number != 5 || !e.NextAiring.AirsAt.Equal(time.Unix(1700000000, 0).UTC()) {
 		t.Errorf("NextAiring = %+v, want episode 5 at 1700000000", e.NextAiring)
+	}
+	if e.Description != "A synopsis for show 9." {
+		t.Errorf("Description = %q, want the synopsis mapped", e.Description)
+	}
+	if !strings.Contains(query, "description") {
+		t.Error("browse query does not request description")
 	}
 }
 

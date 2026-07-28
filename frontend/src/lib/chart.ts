@@ -46,3 +46,19 @@ export function filterEntries(
       (genre === "all" || e.genres.includes(genre)),
   );
 }
+
+// AniList descriptions arrive as an HTML snippet (<br>, <i>, a few entities);
+// the cards render plain text, never markup.
+export function plainDescription(html: string | undefined): string | null {
+  if (!html) return null;
+  const text = html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&#0?39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text || null;
+}

@@ -20,6 +20,7 @@ type browseSeasonResponse struct {
 		English      string   `json:"english"`
 		Format       string   `json:"format"`
 		Status       string   `json:"status"`
+		Description  string   `json:"description"`
 		Episodes     int      `json:"episodes"`
 		Genres       []string `json:"genres"`
 		AverageScore int      `json:"average_score"`
@@ -55,6 +56,7 @@ func TestBrowseSeasonServedFromCache(t *testing.T) {
 		"titles": {"romaji": "Cached Show", "english": "Cached Show EN"},
 		"format": "TV",
 		"status": "RELEASING",
+		"description": "A cached synopsis.",
 		"episodes": 12,
 		"genres": ["Action", "Comedy"],
 		"average_score": 78,
@@ -80,6 +82,9 @@ func TestBrowseSeasonServedFromCache(t *testing.T) {
 	}
 	if e.Format != "TV" || e.Status != "RELEASING" || e.Episodes != 12 {
 		t.Errorf("format/status/episodes wrong: %+v", e)
+	}
+	if e.Description != "A cached synopsis." {
+		t.Errorf("Description = %q, want the cached synopsis served", e.Description)
 	}
 	if len(e.Genres) != 2 || e.AverageScore != 78 || e.Studio != "Studio Alpha" {
 		t.Errorf("chart fields wrong: %+v", e)

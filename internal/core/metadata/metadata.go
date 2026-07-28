@@ -81,8 +81,9 @@ const (
 type SeasonEntry struct {
 	ProviderID   int64    `json:"provider_id"`
 	Titles       Titles   `json:"titles"`
-	Format       string   `json:"format,omitempty"` // provider-native (e.g. "TV", "OVA")
-	Status       string   `json:"status,omitempty"` // provider-native (e.g. "RELEASING")
+	Format       string   `json:"format,omitempty"`      // provider-native (e.g. "TV", "OVA")
+	Description  string   `json:"description,omitempty"` // provider-formatted HTML snippet
+	Status       string   `json:"status,omitempty"`      // provider-native (e.g. "RELEASING")
 	Episodes     int      `json:"episodes,omitempty"`
 	Genres       []string `json:"genres,omitempty"`
 	AverageScore int      `json:"average_score,omitempty"` // 0-100; 0 when unranked

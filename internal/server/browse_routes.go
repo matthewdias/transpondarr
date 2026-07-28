@@ -19,6 +19,7 @@ type seasonEntryDTO struct {
 	Native       string     `json:"native,omitempty"`
 	Format       string     `json:"format,omitempty"`
 	Status       string     `json:"status,omitempty"`
+	Description  string     `json:"description,omitempty" doc:"Provider-formatted HTML synopsis"`
 	Episodes     int        `json:"episodes"`
 	Genres       []string   `json:"genres"`
 	AverageScore int        `json:"average_score"`
@@ -82,6 +83,7 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 				Native:       e.Titles.Native,
 				Format:       e.Format,
 				Status:       e.Status,
+				Description:  e.Description,
 				Episodes:     e.Episodes,
 				Genres:       genres,
 				AverageScore: e.AverageScore,

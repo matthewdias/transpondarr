@@ -70,13 +70,14 @@ type mediaTitle struct {
 }
 
 type media struct {
-	ID         int64      `json:"id"`
-	Title      mediaTitle `json:"title"`
-	Format     string     `json:"format"`
-	Episodes   *int       `json:"episodes"`
-	Status     string     `json:"status"`
-	SeasonYear *int       `json:"seasonYear"`
-	CoverImage struct {
+	ID          int64      `json:"id"`
+	Title       mediaTitle `json:"title"`
+	Format      string     `json:"format"`
+	Description string     `json:"description"`
+	Episodes    *int       `json:"episodes"`
+	Status      string     `json:"status"`
+	SeasonYear  *int       `json:"seasonYear"`
+	CoverImage  struct {
 		Large string `json:"large"`
 	} `json:"coverImage"`
 	Genres       []string `json:"genres"`
