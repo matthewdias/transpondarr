@@ -1,6 +1,9 @@
 package parser
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Release titles arrive from external Torznab indexers and anitogo is
 // unmaintained, so guard that Parse never panics on arbitrary input.
@@ -11,6 +14,7 @@ func FuzzParseNoPanic(f *testing.F) {
 		"[FakeGroup] Placeholder Saga - 28 (1080p) [ABCD1234].mkv",
 		"[Batchers] Placeholder Saga S02E13 (01-10) (1080p) [Batch]",
 		"Placeholder Saga S3 - 01 (51) [Dual Audio]",
+		"[Archivers] Placeholder Saga - 12 (BDRip 1920x1080 AVC)",
 		"[[]]()---..__~~!!##$$%%^^&&**(())",
 		"(-1)0", // anitogo emits "-1" as an episode number; atoi must clamp it
 	}
@@ -27,6 +31,11 @@ func FuzzParseNoPanic(f *testing.F) {
 		}
 		if p.EpisodeEnd > p.EpisodeStart && !p.Batch {
 			t.Errorf("Parse(%q): episode range %d-%d but Batch is false", title, p.EpisodeStart, p.EpisodeEnd)
+		}
+		// decide matches resolutions by string, so the dimension form must never
+		// escape the parser.
+		if strings.ContainsAny(p.Resolution, "xX×") {
+			t.Errorf("Parse(%q): un-normalized resolution %q", title, p.Resolution)
 		}
 	})
 }

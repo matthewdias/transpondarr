@@ -12,7 +12,8 @@ describe("ExcludePicker", () => {
       "H.265 / HEVC",
       "WEB",
       "2160p",
-      "480p",
+      "576p",
+      "360p",
     ]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
@@ -33,9 +34,9 @@ describe("ExcludePicker", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
-      <ExcludePicker excludes={["1920x1080"]} stale={[]} onChange={onChange} />,
+      <ExcludePicker excludes={["544p"]} stale={[]} onChange={onChange} />,
     );
-    const chip = screen.getByRole("button", { name: "1920x1080" });
+    const chip = screen.getByRole("button", { name: "544p" });
     expect(chip).toHaveAttribute("aria-pressed", "true");
     await user.click(chip);
     expect(onChange).toHaveBeenLastCalledWith([]);

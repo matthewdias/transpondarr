@@ -91,10 +91,10 @@ describe("fromProfile / toProfileInput", () => {
     expect(state.staleExcludes).toEqual([]);
   });
 
-  it("treats anitogo's dimension form as matchable — it is emitted verbatim", () => {
+  it("treats a stored dimension form as stale — the parser now folds it away", () => {
     const state = fromProfile(profile({ hard_excludes: ["1920x1080"] }));
-    expect(state.excludes).toEqual(["1920x1080"]);
-    expect(state.staleExcludes).toEqual([]);
+    expect(state.excludes).toEqual([]);
+    expect(state.staleExcludes).toEqual(["1920x1080"]);
   });
 
   it("separates stored tokens no release can ever carry, without dropping them", () => {
@@ -112,7 +112,9 @@ describe("fromProfile / toProfileInput", () => {
       "1440p:false",
       "1080p:false",
       "720p:true",
+      "576p:false",
       "480p:false",
+      "360p:false",
     ]);
     expect(toProfileInput(state).resolution_order).toEqual(["720p"]);
   });
@@ -124,7 +126,9 @@ describe("fromProfile / toProfileInput", () => {
       "1440p:false",
       "1080p:true",
       "720p:true",
+      "576p:false",
       "480p:true",
+      "360p:false",
     ]);
     expect(toProfileInput(state).resolution_order).toEqual([
       "1080p",

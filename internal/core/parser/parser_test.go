@@ -84,6 +84,56 @@ func TestParseNonDualAudio(t *testing.T) {
 	}
 }
 
+// anitogo reports whatever form the release name used, so a dimension-form title
+// must fold to the height form the quality profile axes are written in.
+func TestParseResolutionNormalization(t *testing.T) {
+	tests := []struct {
+		title string
+		res   string
+		raw   string
+	}{
+		{title: "[Archivers] Placeholder Saga - 12 (BDRip 1920x1080 AVC)", res: "1080p", raw: "1920x1080"},
+		{title: "[Archivers] Placeholder Saga - 12 [BD 1280x720 x264]", res: "720p", raw: "1280x720"},
+		{title: "[UHDGroup] Placeholder Saga - 01 [3840x2160 HEVC]", res: "2160p", raw: "3840x2160"},
+		{title: "[OldRips] Placeholder Saga - 03 [640x480 XviD]", res: "480p", raw: "640x480"},
+		// A cropped/anamorphic BD encode is still a 1080p release.
+		{title: "[Archivers] Placeholder Saga - 12 [BD 1920x1036 FLAC]", res: "1080p", raw: "1920x1036"},
+		// The raw form keeps the release's own casing, so it reads back against the title.
+		{title: "[Archivers] Placeholder Saga - 12 [BD 1920X1080]", res: "1080p", raw: "1920X1080"},
+		{title: "[Archivers] Placeholder Saga - 12 [BD 1920×1080]", res: "1080p", raw: "1920×1080"},
+		// Neither dimension names a tier: the height is the honest answer.
+		{title: "[OldRips] Placeholder Saga - 03 [960x544 XviD]", res: "544p", raw: "960x544"},
+		// A non-tier height with a tier-naming width folds by the width table.
+		{title: "[OldRips] Placeholder Saga - 03 [704x396 XviD]", res: "480p", raw: "704x396"},
+		// anitogo extracts a glued standard tier itself; a glued non-tier height
+		// reaches us whole and folds to its suffix.
+		{title: "[FakeGroup] Placeholder Saga - 05 [BD1080p]", res: "1080p"},
+		{title: "[FakeGroup] Placeholder Saga - 05 [BD540p]", res: "540p", raw: "BD540p"},
+		// anitogo classes 4K as a video term, so it names the tier only when no
+		// digit form did.
+		{title: "[UHDGroup] Placeholder Saga - 01 [4K HEVC]", res: "2160p", raw: "4K"},
+		// anitogo's resolution pattern is unanchored, so junk can reach us carrying a
+		// separator (both found by the fuzzer); it must resolve to nothing rather
+		// than escape with the separator intact.
+		{title: "000X000"},
+		{title: "A000X000"},
+		// Already canonical: nothing was inferred, so no raw form is reported.
+		{title: "[ExampleSubs] Placeholder Saga - 05 [1080p]", res: "1080p"},
+		{title: "[ExampleSubs] Placeholder Saga - 05 [1080P]", res: "1080p"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			p := Parse(tt.title)
+			if p.Resolution != tt.res {
+				t.Errorf("resolution = %q, want %q", p.Resolution, tt.res)
+			}
+			if p.ResolutionRaw != tt.raw {
+				t.Errorf("resolutionRaw = %q, want %q", p.ResolutionRaw, tt.raw)
+			}
+		})
+	}
+}
+
 func TestParseScoringAxes(t *testing.T) {
 	tests := []struct {
 		title    string

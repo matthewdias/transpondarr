@@ -122,7 +122,13 @@ func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) 
 		add(fmt.Sprintf("group %s (rank %d)", p.Group, i+1), stepped(scoreGroupBase, scoreGroupStep, scoreGroupMin, i))
 	}
 	if i := indexFold(profile.ResolutionOrder, p.Resolution); i >= 0 {
-		add(fmt.Sprintf("resolution %s (rank %d)", p.Resolution, i+1), stepped(scoreResBase, scoreResStep, scoreResMin, i))
+		// A folded resolution names the dimensions it was read from, so the tier
+		// never reads as something the release itself claimed.
+		if p.ResolutionRaw != "" {
+			add(fmt.Sprintf("resolution %s (from %s, rank %d)", p.Resolution, p.ResolutionRaw, i+1), stepped(scoreResBase, scoreResStep, scoreResMin, i))
+		} else {
+			add(fmt.Sprintf("resolution %s (rank %d)", p.Resolution, i+1), stepped(scoreResBase, scoreResStep, scoreResMin, i))
+		}
 	}
 	if profile.PreferredSource != "" && strings.EqualFold(p.Source, profile.PreferredSource) {
 		add("source "+p.Source, scoreSource)
@@ -159,7 +165,11 @@ func ineligibleReason(p parser.Parsed, profile domain.QualityProfile, score int)
 	for _, tok := range profile.HardExcludes {
 		for _, v := range []string{p.Subs, p.Codec, p.Source, p.Resolution} {
 			if v != "" && strings.EqualFold(v, strings.TrimSpace(tok)) {
-				return fmt.Sprintf("release is %s (excluded by the profile)", strings.ToLower(v))
+				what := strings.ToLower(v)
+				if v == p.Resolution && p.ResolutionRaw != "" {
+					what += ", from " + p.ResolutionRaw
+				}
+				return fmt.Sprintf("release is %s (excluded by the profile)", what)
 			}
 		}
 	}

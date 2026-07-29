@@ -16,10 +16,10 @@ export type EditorState = {
   minScore: number;
 };
 
-// Best first. 4K and 1440p are offered but not defaulted on: anime rarely ships
-// at those sizes, so switching one on is a deliberate choice that then outranks
+// The parser's height tiers, best first. Only the common anime sizes default
+// on: switching another tier on is a deliberate choice that then outranks
 // everything below it.
-const RESOLUTIONS = ["2160p", "1440p", "1080p", "720p", "480p"];
+const RESOLUTIONS = ["2160p", "1440p", "1080p", "720p", "576p", "480p", "360p"];
 const DEFAULT_RESOLUTIONS = ["1080p", "720p", "480p"];
 
 export type ExcludeValue = { token: string; label: string };
@@ -66,10 +66,10 @@ const EXCLUDE_TOKENS = EXCLUDE_AXES.flatMap((a) =>
   a.values.map((v) => v.token),
 );
 
-// anitogo emits its keyword resolutions plus anything shaped like a height or a
-// dimension pair, verbatim, so 540p and 1920x1080 match even though the picker
-// does not offer them. The open axis renders those as chips of their own.
-const resolutionLike = /^\d{3,4}(p|[x×]\d{3,4})$/;
+// The parser folds dimension pairs to the height form but can emit non-tier
+// heights (960x544 becomes 544p), so those match even though the picker does
+// not offer them. The open axis renders them as chips of their own.
+const resolutionLike = /^\d{3,4}p$/;
 
 function canonicalExclude(token: string): string | null {
   const t = token.trim().toLowerCase();
