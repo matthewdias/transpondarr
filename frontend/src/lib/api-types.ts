@@ -444,12 +444,22 @@ export interface components {
         CandidateReleaseDTO: {
             download_url: string;
             dual_audio: boolean;
+            eligible: boolean;
+            /** @description Why the profile refuses this release; empty when eligible */
+            ineligible_reason?: string;
             infohash?: string;
             items?: number[];
             matched: boolean;
             reason: string;
             release_group?: string;
             resolution?: string;
+            /**
+             * Format: int64
+             * @description Profile score; ranking is by this, seeders only break ties
+             */
+            score: number;
+            /** @description Per-axis contributions summing to score */
+            score_parts?: components["schemas"]["ScorePartDTO"][];
             /** Format: int64 */
             seeders: number;
             /** Format: int64 */
@@ -680,6 +690,11 @@ export interface components {
             /** Format: int64 */
             size: number;
             title: string;
+        };
+        ScorePartDTO: {
+            label: string;
+            /** Format: int64 */
+            points: number;
         };
         SearchIndexerOutputBody: {
             /**

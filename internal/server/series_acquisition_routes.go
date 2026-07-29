@@ -25,6 +25,16 @@ type candidateReleaseDTO struct {
 	Matched      bool   `json:"matched"`
 	Items        []int  `json:"items,omitempty"`
 	Reason       string `json:"reason"`
+
+	Score            int            `json:"score" doc:"Profile score; ranking is by this, seeders only break ties"`
+	ScoreParts       []scorePartDTO `json:"score_parts,omitempty" doc:"Per-axis contributions summing to score"`
+	Eligible         bool           `json:"eligible"`
+	IneligibleReason string         `json:"ineligible_reason,omitempty" doc:"Why the profile refuses this release; empty when eligible"`
+}
+
+type scorePartDTO struct {
+	Label  string `json:"label"`
+	Points int    `json:"points"`
 }
 
 type searchSeriesInput struct {
@@ -93,18 +103,26 @@ func (h *seriesHandler) searchReleases(ctx context.Context, in *searchSeriesInpu
 	out.Body.Term = series.Title
 	out.Body.Results = make([]candidateReleaseDTO, 0, len(cands))
 	for _, c := range cands {
+		parts := make([]scorePartDTO, 0, len(c.ScoreParts))
+		for _, p := range c.ScoreParts {
+			parts = append(parts, scorePartDTO{Label: p.Label, Points: p.Points})
+		}
 		out.Body.Results = append(out.Body.Results, candidateReleaseDTO{
-			Title:        c.Release.Title,
-			DownloadURL:  c.Release.DownloadURL,
-			InfoHash:     c.Release.InfoHash,
-			Size:         c.Release.Size,
-			Seeders:      c.Release.Seeders,
-			ReleaseGroup: c.Release.ReleaseGroup,
-			Resolution:   c.Release.Resolution,
-			DualAudio:    c.Release.DualAudio,
-			Matched:      c.Matched,
-			Items:        c.Items,
-			Reason:       c.Reason,
+			Title:            c.Release.Title,
+			DownloadURL:      c.Release.DownloadURL,
+			InfoHash:         c.Release.InfoHash,
+			Size:             c.Release.Size,
+			Seeders:          c.Release.Seeders,
+			ReleaseGroup:     c.Release.ReleaseGroup,
+			Resolution:       c.Release.Resolution,
+			DualAudio:        c.Release.DualAudio,
+			Matched:          c.Matched,
+			Items:            c.Items,
+			Reason:           c.Reason,
+			Score:            c.Score,
+			ScoreParts:       parts,
+			Eligible:         c.Eligible,
+			IneligibleReason: c.IneligibleReason,
 		})
 	}
 	return out, nil
