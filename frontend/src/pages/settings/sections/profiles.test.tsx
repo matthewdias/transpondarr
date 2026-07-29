@@ -72,8 +72,14 @@ describe("fromProfile / toProfileInput", () => {
   });
 
   it("treats a resolution outside the offered list as matchable, not stale", () => {
-    const state = fromProfile(profile({ hard_excludes: ["2160p"] }));
-    expect(state.excludes).toEqual(["2160p"]);
+    const state = fromProfile(profile({ hard_excludes: ["540p"] }));
+    expect(state.excludes).toEqual(["540p"]);
+    expect(state.staleExcludes).toEqual([]);
+  });
+
+  it("treats anitogo's dimension form as matchable — it is emitted verbatim", () => {
+    const state = fromProfile(profile({ hard_excludes: ["1920x1080"] }));
+    expect(state.excludes).toEqual(["1920x1080"]);
     expect(state.staleExcludes).toEqual([]);
   });
 
@@ -87,12 +93,25 @@ describe("fromProfile / toProfileInput", () => {
   it("surfaces excluded resolutions as unincluded rows that do not serialize", () => {
     const state = fromProfile(profile({ resolution_order: ["720p"] }));
     const names = state.resolutions.map((r) => `${r.name}:${r.included}`);
-    expect(names).toEqual(["720p:true", "1080p:false", "480p:false"]);
+    expect(names).toEqual([
+      "2160p:false",
+      "1440p:false",
+      "1080p:false",
+      "720p:true",
+      "480p:false",
+    ]);
     expect(toProfileInput(state).resolution_order).toEqual(["720p"]);
   });
 
-  it("starts a new profile with every resolution included and nothing excluded", () => {
+  it("offers 4K above 1080p but leaves it off, so scoring is unchanged", () => {
     const state = fromProfile(null);
+    expect(state.resolutions.map((r) => `${r.name}:${r.included}`)).toEqual([
+      "2160p:false",
+      "1440p:false",
+      "1080p:true",
+      "720p:true",
+      "480p:true",
+    ]);
     expect(toProfileInput(state).resolution_order).toEqual([
       "1080p",
       "720p",
@@ -101,15 +120,50 @@ describe("fromProfile / toProfileInput", () => {
     expect(state.name).toBe("");
     expect(state.excludes).toEqual([]);
   });
+
+  it("ranks 4K first once it is switched on, without a drag", () => {
+    const state = fromProfile(null);
+    const on: EditorState = {
+      ...state,
+      resolutions: state.resolutions.map((r) =>
+        r.name === "2160p" ? { ...r, included: true } : r,
+      ),
+    };
+    expect(toProfileInput(on).resolution_order).toEqual([
+      "2160p",
+      "1080p",
+      "720p",
+      "480p",
+    ]);
+  });
 });
 
 describe("ExcludePicker", () => {
   it("offers only axis values the parser can emit", () => {
     render(<ExcludePicker excludes={[]} stale={[]} onChange={() => {}} />);
-    for (const label of ["Hardsub", "Softsub", "H.265 / HEVC", "WEB", "480p"]) {
+    for (const label of [
+      "Hardsub",
+      "Softsub",
+      "H.265 / HEVC",
+      "WEB",
+      "2160p",
+      "480p",
+    ]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("shows a matchable resolution it does not offer, so nothing is invisible", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ExcludePicker excludes={["1920x1080"]} stale={[]} onChange={onChange} />,
+    );
+    const chip = screen.getByRole("button", { name: "1920x1080" });
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    await user.click(chip);
+    expect(onChange).toHaveBeenLastCalledWith([]);
   });
 
   it("states that detection is name-based and points at the real protection", () => {

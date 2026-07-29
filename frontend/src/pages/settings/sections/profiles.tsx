@@ -225,6 +225,13 @@ export function ExcludePicker({
         : [...excludes, token],
     );
 
+  // Matchable values the picker does not offer (540p, 1920x1080) still get a
+  // chip, so a stored exclude is never active-but-invisible.
+  const offered = EXCLUDE_AXES.flatMap((a) => a.values.map((v) => v.token));
+  const extras = excludes
+    .filter((t) => !offered.includes(t))
+    .map((t) => ({ token: t, label: t }));
+
   return (
     <div>
       <span className="mb-1 block text-xs font-medium text-muted-foreground">
@@ -237,26 +244,28 @@ export function ExcludePicker({
       </span>
       <div className="space-y-2">
         {EXCLUDE_AXES.map((a) => (
-          <div key={a.axis} className="flex flex-wrap items-center gap-1.5">
-            <span className="w-16 shrink-0 text-[11px] text-faint">
+          <div key={a.axis} className="flex items-start gap-1.5">
+            <span className="w-16 shrink-0 pt-1 text-[11px] text-faint">
               {a.axis}
             </span>
-            {a.values.map((v) => (
-              <Button
-                key={v.token}
-                type="button"
-                variant="outline"
-                size="xs"
-                aria-pressed={excludes.includes(v.token)}
-                onClick={() => toggle(v.token)}
-                className={cn(
-                  excludes.includes(v.token) &&
-                    "border-dl/40 bg-dl-weak text-dl dark:border-dl/40 dark:bg-dl-weak dark:hover:bg-dl-weak/80",
-                )}
-              >
-                {v.label}
-              </Button>
-            ))}
+            <div className="flex flex-wrap gap-1.5">
+              {[...a.values, ...(a.open ? extras : [])].map((v) => (
+                <Button
+                  key={v.token}
+                  type="button"
+                  variant="outline"
+                  size="xs"
+                  aria-pressed={excludes.includes(v.token)}
+                  onClick={() => toggle(v.token)}
+                  className={cn(
+                    excludes.includes(v.token) &&
+                      "border-dl/40 bg-dl-weak text-dl dark:border-dl/40 dark:bg-dl-weak dark:hover:bg-dl-weak/80",
+                  )}
+                >
+                  {v.label}
+                </Button>
+              ))}
+            </div>
           </div>
         ))}
       </div>

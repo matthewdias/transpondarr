@@ -16,13 +16,21 @@ export type EditorState = {
   minScore: number;
 };
 
-const RESOLUTIONS = ["1080p", "720p", "480p"];
+// Best first. 4K and 1440p are offered but not defaulted on: anime rarely ships
+// at those sizes, so switching one on is a deliberate choice that then outranks
+// everything below it.
+const RESOLUTIONS = ["2160p", "1440p", "1080p", "720p", "480p"];
+const DEFAULT_RESOLUTIONS = ["1080p", "720p", "480p"];
 
 export type ExcludeValue = { token: string; label: string };
 
 // What the parser normalizes each axis to, and so the only tokens an exclude
 // can ever match — anything else would silently never fire.
-export const EXCLUDE_AXES: { axis: string; values: ExcludeValue[] }[] = [
+export const EXCLUDE_AXES: {
+  axis: string;
+  values: ExcludeValue[];
+  open?: boolean; // accepts values beyond the offered ones (see resolutionLike)
+}[] = [
   {
     axis: "Subtitles",
     values: [
@@ -50,6 +58,7 @@ export const EXCLUDE_AXES: { axis: string; values: ExcludeValue[] }[] = [
   {
     axis: "Resolution",
     values: RESOLUTIONS.map((r) => ({ token: r, label: r })),
+    open: true,
   },
 ];
 
@@ -57,9 +66,10 @@ const EXCLUDE_TOKENS = EXCLUDE_AXES.flatMap((a) =>
   a.values.map((v) => v.token),
 );
 
-// Resolution is passed through from the parser rather than normalized, so a
-// height this UI does not offer (2160p) still matches and must not be called stale.
-const resolutionLike = /^\d{3,4}p$/;
+// anitogo emits its keyword resolutions plus anything shaped like a height or a
+// dimension pair, verbatim, so 540p and 1920x1080 match even though the picker
+// does not offer them. The open axis renders those as chips of their own.
+const resolutionLike = /^\d{3,4}(p|[x×]\d{3,4})$/;
 
 function canonicalExclude(token: string): string | null {
   const t = token.trim().toLowerCase();
@@ -68,19 +78,32 @@ function canonicalExclude(token: string): string | null {
   return resolutionLike.test(t) ? t : null;
 }
 
+// A resolution the catalogue does not list keeps whatever rank the user gave it,
+// so it sorts after every offered one rather than jumping to the top.
+function catalogueRank(name: string): number {
+  const i = RESOLUTIONS.indexOf(name);
+  return i < 0 ? RESOLUTIONS.length : i;
+}
+
 let rowKey = 0;
 export const nextKey = () => `row-${rowKey++}`;
 
 export function fromProfile(p: QualityProfile | null): EditorState {
-  const order = p?.resolution_order ?? RESOLUTIONS;
-  const resolutions: ResolutionRow[] = [
-    ...order.map((name) => ({ key: nextKey(), name, included: true })),
-    ...RESOLUTIONS.filter((r) => !order.includes(r)).map((name) => ({
-      key: nextKey(),
-      name,
-      included: false,
-    })),
-  ];
+  const order = p?.resolution_order ?? DEFAULT_RESOLUTIONS;
+  // An off row sits where the catalogue ranks it, not at the end, so switching
+  // 2160p on promotes it above 1080p without a drag.
+  const resolutions: ResolutionRow[] = order.map((name) => ({
+    key: nextKey(),
+    name,
+    included: true,
+  }));
+  for (const name of RESOLUTIONS.filter((r) => !order.includes(r))) {
+    const at = resolutions.findIndex(
+      (r) => catalogueRank(r.name) > catalogueRank(name),
+    );
+    const row = { key: nextKey(), name, included: false };
+    resolutions.splice(at < 0 ? resolutions.length : at, 0, row);
+  }
   const stored = (p?.hard_excludes ?? []).map((t) => ({
     raw: t,
     canonical: canonicalExclude(t),
