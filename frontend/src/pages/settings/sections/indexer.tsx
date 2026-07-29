@@ -6,9 +6,9 @@ import {
   Field,
   SectionShell,
   SectionFooter,
-  useSaveToast,
   type TestState,
 } from "../section-shell";
+import { useSaveToast } from "../section-helpers";
 
 export function IndexerSection({ settings }: { settings: Settings }) {
   const i = settings.indexer;

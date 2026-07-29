@@ -6,9 +6,9 @@ import {
   Field,
   SectionShell,
   SectionFooter,
-  useSaveToast,
   type TestState,
 } from "../section-shell";
+import { useSaveToast } from "../section-helpers";
 
 export function DownloadSection({ settings }: { settings: Settings }) {
   const d = settings.download;

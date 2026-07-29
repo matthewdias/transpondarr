@@ -1,11 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import {
-  grabToast,
-  ScoreBreakdown,
-  ScoreCell,
-} from "@/components/detail/releases-tab";
+import { ScoreBreakdown, ScoreCell } from "@/components/detail/releases-tab";
+import { grabToast } from "@/components/detail/grab-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { CandidateRelease, GrabResult } from "@/lib/api";
 

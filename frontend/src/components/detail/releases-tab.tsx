@@ -2,12 +2,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, RefreshCw, Search, TriangleAlert } from "lucide-react";
-import {
-  api,
-  ApiError,
-  type CandidateRelease,
-  type GrabResult,
-} from "@/lib/api";
+import { api, ApiError, type CandidateRelease } from "@/lib/api";
+import { grabToast } from "./grab-toast";
 import {
   grabsQuery,
   releasesQuery,
@@ -123,20 +119,6 @@ export function ScoreCell({ r }: { r: CandidateRelease }) {
       </TooltipContent>
     </Tooltip>
   );
-}
-
-export function grabToast(res: GrabResult) {
-  return res.ineligible_reason
-    ? {
-        level: "warning" as const,
-        title: "Grabbed despite the profile",
-        description: `${res.release} · ${res.ineligible_reason}`,
-      }
-    : {
-        level: "success" as const,
-        title: "Grab sent to download client",
-        description: `${res.release} · ${res.outcome}`,
-      };
 }
 
 function MatchCell({ r }: { r: CandidateRelease }) {

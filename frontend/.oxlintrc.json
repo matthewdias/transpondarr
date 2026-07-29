@@ -11,5 +11,15 @@
     // Vite uses the automatic JSX runtime; React never needs to be in scope.
     "react/react-in-jsx-scope": "off",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "overrides": [
+    {
+      // shadcn-generated files deliberately export cva variants/hooks alongside
+      // their components; a dev-only full reload there is an accepted trade-off.
+      "files": ["src/components/ui/**"],
+      "rules": {
+        "react/only-export-components": "off"
+      }
+    }
+  ]
 }

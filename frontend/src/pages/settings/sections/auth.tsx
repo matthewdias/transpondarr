@@ -5,7 +5,8 @@ import { Lock, Loader2 } from "lucide-react";
 import { api, UnauthorizedError, type Settings } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SectionShell, selectClass } from "../section-shell";
+import { SectionShell } from "../section-shell";
+import { selectClass } from "../section-helpers";
 
 export function AuthSection({ settings }: { settings: Settings }) {
   const queryClient = useQueryClient();
