@@ -21,6 +21,11 @@ just pins their versions):
 - `make dev` — live-reload API (`air`)
 - `make gen` — regenerate the sqlc layer after editing `internal/store/queries`
 - `make gen-api` — regenerate `frontend/src/lib/api-types.ts` from the OpenAPI spec
+- `make notices` — regenerate `THIRD-PARTY-NOTICES.md` after a dependency change; CI
+  fails on drift, mirroring the `api-types.ts` rule. The trigger is narrower than
+  "touched `go.mod`": the file covers Go modules *linked into the binary*
+  (`go version -m`, not the module graph) and frontend *production* deps, so a
+  devDependency bump needs nothing.
 - `make lint`, `make test` — the full suite CI runs; locally prefer the scoped
   commands below
 

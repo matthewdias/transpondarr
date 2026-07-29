@@ -45,6 +45,7 @@ The `Makefile` is the canonical task interface and only assumes these are on you
 make build   # frontend + backend -> ./transpondarrd
 make run     # build, then run the server on :9797
 make gen     # regenerate sqlc code after editing internal/store/queries
+make notices # regenerate THIRD-PARTY-NOTICES.md after a dependency change
 make lint
 make test
 make dev     # live-reload API (air)
@@ -63,6 +64,12 @@ pure-logic one to the list to keep it out of the slower lane.
 core.hooksPath .githooks`) that runs `gofmt` / `prettier --check` on staged files — the same
 formatting CI enforces, caught before the commit instead of minutes later.
 Bypass with `git commit --no-verify`.
+
+CI also regenerates `THIRD-PARTY-NOTICES.md` and fails if it differs from the
+committed copy, so run `make notices` whenever you change the shipped dependency
+set. The trigger is narrower than "touched `go.mod`": the file covers Go modules
+actually linked into the binary (not the full module graph) and frontend
+*production* dependencies, so a devDependency bump needs nothing.
 
 ## Local dev configuration
 
