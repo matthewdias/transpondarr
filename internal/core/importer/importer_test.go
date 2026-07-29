@@ -133,9 +133,11 @@ func TestImportsCompletedGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
 	target := &coretest.FakeLibrary{}
-	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second)
+	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger())
 
-	im.ScanOnce(context.Background())
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if len(target.Placed) != 1 {
 		t.Fatalf("Place called %d times, want 1", len(target.Placed))
@@ -172,16 +174,7 @@ func TestFinishesInFlightImportAfterCancel(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Millisecond).Run(ctx)
-	}()
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("Run did not return after its context was cancelled")
-	}
+	_ = New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(ctx)
 
 	if g := grabByHash(t, st, "abc"); g.Status != "imported" {
 		t.Errorf("status = %q, want imported: the file was already placed when the cancel arrived", g.Status)
@@ -216,17 +209,11 @@ func TestStopsScanMidwayOnCancel(t *testing.T) {
 	target := &cancelOnPlace{cancel: cancel}
 	dl := &coretest.FakeDownload{Statuses: statuses}
 
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Millisecond).Run(ctx)
-	}()
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		t.Fatal("Run did not return after its context was cancelled")
-	}
+	err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(ctx)
 
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("ScanOnce() = %v, want context.Canceled: a mid-scan cancel must surface, not read as a clean scan", err)
+	}
 	if n := len(target.Placed); n != 1 {
 		t.Fatalf("Place called %d times, want 1: the second grab must wait for the next run", n)
 	}
@@ -250,13 +237,45 @@ func TestDoesNotScanAfterCancel(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Millisecond).Run(ctx)
+	_ = New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(ctx)
 
 	if len(target.Placed) != 0 {
-		t.Error("Run scanned on an already-cancelled context")
+		t.Error("ScanOnce placed a file on an already-cancelled context")
 	}
 	if g := grabByHash(t, st, "abc"); g.Status != "grabbed" {
 		t.Errorf("status = %q, want still grabbed (untouched)", g.Status)
+	}
+}
+
+// TestScanOnceReturnsStatusError: a scan-level failure must surface in the
+// return value, so the job runner's LastError can report it.
+func TestScanOnceReturnsStatusError(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	dl := &coretest.FakeDownload{StatusErr: errors.New("client unreachable")}
+	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger())
+
+	err := im.ScanOnce(context.Background())
+
+	if err == nil || !strings.Contains(err.Error(), "client unreachable") {
+		t.Errorf("ScanOnce() = %v, want the download client error", err)
+	}
+}
+
+// TestScanOnceReturnsListGrabsError: the store-side failure path must surface
+// in the return value too, not just the download-client one.
+func TestScanOnceReturnsListGrabsError(t *testing.T) {
+	st := coretest.NewStore(t)
+	if err := st.DB.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+	dl := &coretest.FakeDownload{}
+	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger())
+
+	err := im.ScanOnce(context.Background())
+
+	if err == nil || !strings.Contains(err.Error(), "list grabs") {
+		t.Errorf("ScanOnce() = %v, want the list-grabs error", err)
 	}
 }
 
@@ -267,7 +286,9 @@ func TestSkipsIncompleteGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if len(target.Placed) != 0 {
 		t.Errorf("Place called for an incomplete download")
@@ -293,7 +314,9 @@ func TestImportsFolderWrappedEpisode(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if len(target.Placed) != 1 {
 		t.Fatalf("Place called %d times, want 1", len(target.Placed))
@@ -325,7 +348,9 @@ func TestDefersMultiEpisodeDirectory(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if len(target.Placed) != 0 {
 		t.Error("a multi-episode payload should not be placed")
@@ -347,7 +372,9 @@ func TestDoesNotReexamineDeferredGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if len(target.Placed) != 0 {
 		t.Error("a deferred grab should not be re-imported")
@@ -367,7 +394,9 @@ func TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 
 	dl := &coretest.FakeDownload{} // client reports nothing at all
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if g := grabByHash(t, st, "abc"); g.Status != "failed" {
 		t.Errorf("status = %q, want failed once the deferred grab's torrent was gone for the grace period", g.Status)
@@ -382,7 +411,9 @@ func TestWatchesDeferredGrabOnFirstAbsence(t *testing.T) {
 
 	dl := &coretest.FakeDownload{}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	g := grabByHash(t, st, "abc")
 	if g.Status != "import_deferred" {
@@ -400,7 +431,9 @@ func TestFailsErroredGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if len(target.Placed) != 0 {
 		t.Error("an errored download should not be placed")
@@ -421,7 +454,9 @@ func TestWatchesGrabOnFirstAbsenceFromClient(t *testing.T) {
 		{Hash: "zzz", State: download.StateComplete, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if len(target.Placed) != 0 {
 		t.Error("nothing should be placed when the hash is absent from the client")
@@ -444,7 +479,9 @@ func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 
 	dl := &coretest.FakeDownload{} // client reports nothing at all
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	g := grabByHash(t, st, "abc")
 	if g.Status != "grabbed" {
@@ -466,7 +503,9 @@ func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 		{Hash: "zzz", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if len(target.Placed) != 0 {
 		t.Error("nothing should be placed for a torrent that vanished from the client")
@@ -494,7 +533,9 @@ func TestReappearingHashClearsMissingSince(t *testing.T) {
 		{Hash: "abc", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	g := grabByHash(t, st, "abc")
 	if g.Status != "grabbed" {
@@ -515,7 +556,9 @@ func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: filepath.Join(t.TempDir(), "does-not-exist.mkv")},
 	}}
 	target := &coretest.FakeLibrary{}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if len(target.Placed) != 0 {
 		t.Error("nothing should be placed when the source path is not accessible")
@@ -542,7 +585,9 @@ func TestRecordsLastErrorWhenPlaceFails(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
 	target := &coretest.FakeLibrary{DestErr: errors.New("mkdir /library: permission denied")}
-	New(st, fakeSource{dl: dl, lib: target}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	g := grabByHash(t, st, "abc")
 	if g.Status != "grabbed" {
@@ -566,7 +611,9 @@ func TestClearsLastErrorOnSuccessfulImport(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
-	New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	g := grabByHash(t, st, "abc")
 	if g.Status != "imported" {
