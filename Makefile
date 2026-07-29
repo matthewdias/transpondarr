@@ -5,7 +5,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/matthewdias/transpondarr/internal/version.Version=$(VERSION)
 SQLC_VERSION := $(shell sed -n 's/^sqlc = "\([^"]*\)".*/\1/p' mise.toml)
 
-.PHONY: build web web-deps hooks gen lint web-lint test web-test dev run migrate tidy notices clean
+.PHONY: build web web-deps hooks gen gen-api lint web-lint test web-test dev run migrate tidy notices clean
 
 build: web ## Build frontend + server into ./$(BIN)
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/transpondarrd

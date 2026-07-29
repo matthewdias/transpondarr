@@ -48,14 +48,17 @@ reproduce it locally — run what the change touched.
   won't hand back a stale pass. `(cached)` means the compiled inputs really are
   unchanged (a comment-only edit to a dependency legitimately keeps the hit); reach for
   `-count=1` only to force a test whose result depends on state Go can't see.
-- **Lint** — `golangci-lint run ./internal/core/decide/...`. Skip `make lint`;
+- **Lint** — `golangci-lint run ./internal/core/decide/...` for Go,
+  `./node_modules/.bin/oxlint src/components` for the frontend. Skip `make lint`;
   `.githooks/pre-commit` already blocks unformatted Go/TS and CI runs the rest.
-- **Frontend** (from `frontend/`) — `npx vitest run src/lib/format.test.ts` filters by
-  filename; `--project unit` / `--project dom` runs one project, `-t "name"` one test.
+- **Frontend** (from `frontend/`) — `./node_modules/.bin/vitest run src/lib/format.test.ts`
+  filters by filename; `--project unit` / `--project dom` runs one project, `-t "name"`
+  one test. Use the direct binary rather than `npx` throughout — `npx` adds ~1.5s to
+  vitest and ~0.8s to oxlint, on commands you run dozens of times a session.
 - **vitest does not typecheck** — it strips types, so a file with a hard type error runs
   green. `tsc -b` runs only inside `npm run build`, leaving the error invisible to vitest
   and `make lint` both. After a frontend type change run `./node_modules/.bin/tsc -b`
-  from `frontend/` — `npx` costs ~2.5s extra. It covers `*.test.ts(x)` too
+  from `frontend/`. It covers `*.test.ts(x)` too
   (`tsconfig.app.json` includes all of `src`), and re-checks the whole program every run
   (~4.5s; `noEmit` without `composite` makes the tsbuildinfo near-useless), so run it
   once before committing rather than per edit.
@@ -63,9 +66,9 @@ reproduce it locally — run what the change touched.
   package, and it type-checks `_test.go` files too, so it catches a broken test in a
   package you never ran. Don't scope it; the packages you didn't touch are the whole
   point. Then push and let CI run the suite.
-- **Still regenerate locally**: `make gen` after editing `internal/store/queries`,
-  `make gen-api` after a schema change, `make notices` after a dependency change — CI
-  fails on drift in all three, and a CI round-trip is the slow way to learn it.
+- **Still regenerate locally** — `make gen` / `make gen-api` / `make notices`, per the
+  Build & run list above. CI fails on drift in all three, and a round-trip is the slow
+  way to learn it.
 - **Run the full `make test` anyway** for cross-cutting work: `domain` or `store`
   signature changes, dependency bumps, a refactor spanning packages, or a release tag.
 
