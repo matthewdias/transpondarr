@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wanted items airing in a range, with derived acquisition state */
+        get: operations["get-calendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/download/test": {
         parameters: {
             query?: never;
@@ -375,6 +392,40 @@ export interface components {
             season: "winter" | "spring" | "summer" | "fall";
             /** Format: int64 */
             year: number;
+        };
+        CalendarItemDTO: {
+            /**
+             * Format: date-time
+             * @description Broadcast time (RFC 3339 UTC)
+             */
+            airs_at: string;
+            /** Format: int64 */
+            id: number;
+            /** @description Why the last import attempt failed (status stuck) */
+            import_error?: string;
+            monitored: boolean;
+            name?: string;
+            /** Format: int64 */
+            number: number;
+            /** Format: int64 */
+            series_id: number;
+            series_title: string;
+            /**
+             * @description Derived acquisition state
+             * @enum {string}
+             */
+            status: "have" | "downloading" | "stuck" | "deferred" | "wanted";
+        };
+        CalendarOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/CalendarOutputBody.json
+             */
+            readonly $schema?: string;
+            items: components["schemas"]["CalendarItemDTO"][];
+            /** @description Monitored series missing episodes with no schedule data */
+            unscheduled: components["schemas"]["UnscheduledSeriesDTO"][];
         };
         CandidateDTO: {
             /** Format: int64 */
@@ -801,6 +852,11 @@ export interface components {
             /** @example ok */
             status: string;
         };
+        UnscheduledSeriesDTO: {
+            /** Format: int64 */
+            series_id: number;
+            title: string;
+        };
         WantedItemDTO: {
             have: boolean;
             /** Format: int64 */
@@ -839,6 +895,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BrowseSeasonOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-calendar": {
+        parameters: {
+            query: {
+                /** @description Range start, inclusive (RFC 3339) */
+                start: string;
+                /** @description Range end, exclusive (RFC 3339) */
+                end: string;
+                /** @description Include unmonitored series */
+                unmonitored?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarOutputBody"];
                 };
             };
             /** @description Error */

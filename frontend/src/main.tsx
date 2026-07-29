@@ -11,6 +11,7 @@ import { ApiError } from "@/lib/api";
 import { AppLayout } from "@/components/app-layout";
 import { SeriesListPage } from "@/pages/series-list";
 import { DiscoveryPage } from "@/pages/discovery";
+import { CalendarPage } from "@/pages/calendar";
 import { SeriesDetailPage } from "@/pages/series-detail";
 import { SettingsPage } from "@/pages/settings";
 import { PlaceholderPage } from "@/pages/placeholder";
@@ -38,6 +39,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route index element={<SeriesListPage />} />
                 <Route path="series/:id" element={<SeriesDetailPage />} />
                 <Route path="discovery" element={<DiscoveryPage />} />
+                <Route path="calendar" element={<CalendarPage />} />
                 <Route
                   path="wanted"
                   element={

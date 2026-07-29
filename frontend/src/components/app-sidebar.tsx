@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  CalendarDays,
   Compass,
   Library,
   ListChecks,
@@ -61,6 +62,7 @@ export function AppSidebar() {
   const library: NavItem[] = [
     { title: "Series", to: "/", icon: Library, badge: series?.length },
     { title: "Discovery", to: "/discovery", icon: Compass },
+    { title: "Calendar", to: "/calendar", icon: CalendarDays },
     { title: "Wanted", to: "/wanted", icon: ListChecks },
     { title: "Activity", to: "/activity", icon: Activity },
   ];

@@ -316,45 +316,16 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 	}
 
 	for _, r := range rows {
-		have := r.Have == 1
-		status := "wanted"
-		var releaseTitle, grabStatus, importError string
-		// A failed grab does not count as downloading: the item reverts to
-		// "wanted" so it can be searched/grabbed again (the failure stays in the
-		// grabs history). Only a non-failed grab marks the item downloading.
-		if g, ok := grabByItem[r.ID]; ok && g.Status != "failed" {
-			releaseTitle = g.ReleaseTitle
-			grabStatus = g.Status
-			importError = g.LastError.String
-		}
-		switch {
-		case have:
-			status = "have"
-		case grabStatus == "import_deferred":
-			// Settled without an import (a batch payload): distinct from
-			// downloading, which would otherwise show as in-progress forever.
-			status = "deferred"
-		case importError != "":
-			// Download done but the import keeps failing (path mapping, library
-			// permissions): distinct from downloading, with the reason attached.
-			status = "stuck"
-		case releaseTitle != "":
-			// A grab exists but the item isn't had yet → still downloading/importing.
-			status = "downloading"
-		}
-		if status != "stuck" {
-			// The reason is part of the stuck contract; a settled item must not
-			// carry a stale one.
-			importError = ""
-		}
+		g, ok := grabByItem[r.ID]
+		state := deriveItemState(r.Have == 1, g, ok)
 		out.Body.Items = append(out.Body.Items, detailItemDTO{
 			ID:           r.ID,
 			Number:       int(r.Number.Int64),
 			Name:         r.Title.String,
-			Have:         have,
-			Status:       status,
-			ReleaseTitle: releaseTitle,
-			ImportError:  importError,
+			Have:         r.Have == 1,
+			Status:       state.Status,
+			ReleaseTitle: state.ReleaseTitle,
+			ImportError:  state.ImportError,
 			AirsAt:       airsAtRFC3339(r.AirsAt),
 		})
 	}

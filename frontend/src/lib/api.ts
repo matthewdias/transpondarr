@@ -105,6 +105,9 @@ export type SeasonChart = Schemas["BrowseSeasonOutputBody"];
 export type WantedItem = Schemas["DetailItemDTO"];
 export type ItemStatus = WantedItem["status"]; // 'have' | 'downloading' | 'stuck' | 'deferred' | 'wanted'
 export type CandidateRelease = Schemas["CandidateReleaseDTO"];
+export type CalendarItem = Schemas["CalendarItemDTO"];
+export type UnscheduledSeries = Schemas["UnscheduledSeriesDTO"];
+export type Calendar = Schemas["CalendarOutputBody"];
 export type GrabEvent = Schemas["GrabEventDTO"];
 export type GrabResult = Schemas["GrabSeriesOutputBody"];
 export type DownloadSettings = Schemas["DownloadSettingsDTO"];
@@ -217,6 +220,19 @@ export const api = {
     client
       .GET("/api/v1/browse/season", {
         params: { query: { season, year } },
+        signal,
+      })
+      .then(unwrap),
+
+  calendar: (
+    start: string,
+    end: string,
+    unmonitored = false,
+    signal?: AbortSignal,
+  ) =>
+    client
+      .GET("/api/v1/calendar", {
+        params: { query: { start, end, unmonitored } },
         signal,
       })
       .then(unwrap),

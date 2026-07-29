@@ -45,6 +45,116 @@ func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemPara
 	return i, err
 }
 
+const listCalendarItems = `-- name: ListCalendarItems :many
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at,
+       s.title         AS series_title,
+       s.monitored     AS series_monitored,
+       g.status        AS grab_status,
+       g.release_title AS grab_release_title,
+       g.last_error    AS grab_last_error
+FROM wanted_items w
+JOIN series s ON s.id = w.series_id
+LEFT JOIN grabs g ON g.wanted_item_id = w.id
+WHERE w.airs_at IS NOT NULL AND w.airs_at >= ? AND w.airs_at < ?
+ORDER BY w.airs_at, s.title, w.number
+`
+
+type ListCalendarItemsParams struct {
+	AirsAt   sql.NullString `json:"airs_at"`
+	AirsAt_2 sql.NullString `json:"airs_at_2"`
+}
+
+type ListCalendarItemsRow struct {
+	ID               int64          `json:"id"`
+	SeriesID         int64          `json:"series_id"`
+	Kind             string         `json:"kind"`
+	Number           sql.NullInt64  `json:"number"`
+	Title            sql.NullString `json:"title"`
+	Have             int64          `json:"have"`
+	AirsAt           sql.NullString `json:"airs_at"`
+	SeriesTitle      string         `json:"series_title"`
+	SeriesMonitored  int64          `json:"series_monitored"`
+	GrabStatus       sql.NullString `json:"grab_status"`
+	GrabReleaseTitle sql.NullString `json:"grab_release_title"`
+	GrabLastError    sql.NullString `json:"grab_last_error"`
+}
+
+// Stored timestamps are UTC in one fixed layout, so lexicographic range
+// compare is chronological. One grab per item (UNIQUE) keeps the join 1:1.
+func (q *Queries) ListCalendarItems(ctx context.Context, arg ListCalendarItemsParams) ([]ListCalendarItemsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCalendarItems, arg.AirsAt, arg.AirsAt_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCalendarItemsRow{}
+	for rows.Next() {
+		var i ListCalendarItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SeriesID,
+			&i.Kind,
+			&i.Number,
+			&i.Title,
+			&i.Have,
+			&i.AirsAt,
+			&i.SeriesTitle,
+			&i.SeriesMonitored,
+			&i.GrabStatus,
+			&i.GrabReleaseTitle,
+			&i.GrabLastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnscheduledSeries = `-- name: ListUnscheduledSeries :many
+SELECT DISTINCT s.id, s.title
+FROM series s
+JOIN wanted_items w ON w.series_id = s.id
+WHERE s.monitored = 1 AND w.have = 0 AND w.airs_at IS NULL
+ORDER BY s.title
+`
+
+type ListUnscheduledSeriesRow struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+}
+
+// Monitored series still missing an episode the provider gives no air date
+// for, so the calendar can surface them instead of silently omitting them.
+func (q *Queries) ListUnscheduledSeries(ctx context.Context) ([]ListUnscheduledSeriesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnscheduledSeries)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUnscheduledSeriesRow{}
+	for rows.Next() {
+		var i ListUnscheduledSeriesRow
+		if err := rows.Scan(&i.ID, &i.Title); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWantedItems = `-- name: ListWantedItems :many
 SELECT id, series_id, kind, number, title, have, airs_at
 FROM wanted_items
