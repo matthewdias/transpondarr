@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   bucketByDay,
   dayKey,
@@ -8,13 +8,10 @@ import {
   visibleDays,
 } from "@/lib/calendar";
 
-// Pin the zone so local-day assertions mean something: New York is UTC-4 in
-// July, so a UTC evening instant must land on the *previous* local day.
-beforeAll(() => {
-  vi.stubEnv("TZ", "America/New_York");
-});
-afterAll(() => {
-  vi.unstubAllEnvs();
+// Every assertion below reads as a zone error if the pin in vite.config.ts stops
+// applying, so name the real cause once.
+it("runs in the pinned zone (see vite.config.ts)", () => {
+  expect(new Date(2026, 6, 6).getTimezoneOffset()).toBe(240);
 });
 
 describe("startOfWeek", () => {

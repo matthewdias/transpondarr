@@ -3,6 +3,13 @@ import { defaultExclude, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
+// Local-day logic (src/lib/calendar) is only testable against a known zone, and
+// New York exercises the interesting case: a UTC evening instant belongs to the
+// previous local day. Pinned here rather than per-file because assigning TZ from
+// inside a worker is ignored by the threads pool, which surfaces as a one-hour
+// arithmetic error rather than as a config problem.
+if (process.env.VITEST) process.env.TZ = "America/New_York";
+
 // Pure-logic suites run without a DOM or the jest-dom setup, worth ~350ms of
 // environment per file. Anything that renders — or drives fetch — stays off it.
 const unitTests = [
