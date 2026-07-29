@@ -3,8 +3,9 @@
 BIN     := transpondarrd
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/matthewdias/transpondarr/internal/version.Version=$(VERSION)
+SQLC_VERSION := $(shell sed -n 's/^sqlc = "\([^"]*\)".*/\1/p' mise.toml)
 
-.PHONY: build web web-deps hooks gen lint web-lint test web-test dev run migrate tidy notices clean
+.PHONY: build web web-deps hooks gen gen-api lint web-lint test web-test dev run migrate tidy notices clean
 
 build: web ## Build frontend + server into ./$(BIN)
 	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/transpondarrd
@@ -22,7 +23,16 @@ frontend/node_modules: frontend/package-lock.json
 hooks: ## Point git at .githooks (fast pre-commit format check)
 	@git config core.hooksPath .githooks 2>/dev/null || true
 
+# sqlc's output is version-sensitive and committed, and CI diffs it — generating
+# with an unpinned sqlc produces drift that looks like an unrelated failure.
 gen: ## Regenerate the sqlc query layer
+	@test -n "$(SQLC_VERSION)" || { echo "gen: no sqlc pin found in mise.toml" >&2; exit 1; }
+	@have=$$(sqlc version 2>/dev/null); \
+	if [ "$$have" != "v$(SQLC_VERSION)" ]; then \
+		echo "gen: sqlc $${have:-not found} but mise.toml pins v$(SQLC_VERSION)." >&2; \
+		echo "gen: run 'mise exec -- make gen', or install sqlc v$(SQLC_VERSION)." >&2; \
+		exit 1; \
+	fi
 	sqlc generate
 
 gen-api: ## Regenerate the frontend API types from the OpenAPI spec
