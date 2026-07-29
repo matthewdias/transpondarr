@@ -18,6 +18,7 @@ const unitTests = [
   "src/lib/format.test.ts",
   "src/lib/queries.test.ts",
   "src/lib/season.test.ts",
+  "src/pages/settings/sections/profile-editor-state.test.ts",
 ];
 
 // The frontend builds into ../web/dist, which the Go binary embeds (see web/web.go).

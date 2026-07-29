@@ -74,3 +74,9 @@ export const settingsQuery = () =>
     queryKey: ["settings"],
     queryFn: ({ signal }) => api.getSettings(signal),
   });
+
+export const profilesQuery = () =>
+  queryOptions({
+    queryKey: ["profiles"],
+    queryFn: ({ signal }) => api.listProfiles(signal),
+  });

@@ -4,12 +4,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError, type SeriesDetail } from "@/lib/api";
 import { statusLabel } from "@/lib/chart";
-import { seriesDetailQuery, seriesQuery } from "@/lib/queries";
+import { profilesQuery, seriesDetailQuery, seriesQuery } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { AniListLink } from "@/components/anilist-link";
 import { Topbar } from "@/components/topbar";
 import { Poster } from "@/components/poster";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EpisodesTab } from "@/components/detail/episodes-tab";
@@ -149,6 +156,53 @@ export function SeriesDetailPage() {
   );
 }
 
+// ProfilePicker sits in the chips row: the profile is context you glance at and
+// occasionally change, not a form you fill in.
+function ProfilePicker({ detail }: { detail: SeriesDetail }) {
+  const queryClient = useQueryClient();
+  const profiles = useQuery(profilesQuery());
+  const assign = useMutation({
+    mutationFn: (profileId: number) =>
+      api.assignSeriesProfile(detail.id, profileId),
+    onSuccess: (_res, profileId) => {
+      const name = profiles.data?.find((p) => p.id === profileId)?.name;
+      toast.success(name ? `Profile set to “${name}”` : "Profile updated");
+      queryClient.invalidateQueries({
+        queryKey: seriesDetailQuery(detail.id).queryKey,
+      });
+      queryClient.invalidateQueries({ queryKey: profilesQuery().queryKey });
+    },
+    onError: (e) =>
+      toast.error("Failed to set profile", {
+        description: e instanceof Error ? e.message : String(e),
+      }),
+  });
+
+  if (!profiles.data?.length) return null;
+  return (
+    <Select
+      value={String(detail.quality_profile_id)}
+      onValueChange={(v) => assign.mutate(Number(v))}
+      disabled={assign.isPending}
+    >
+      <SelectTrigger
+        size="sm"
+        aria-label="Quality profile"
+        className="h-[26px] gap-1.5 rounded-md border-border bg-panel-2 px-2.5 text-xs font-medium text-muted-foreground shadow-none"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {profiles.data.map((p) => (
+          <SelectItem key={p.id} value={String(p.id)}>
+            {p.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function DetailHeader({
   detail,
   onToggleMonitored,
@@ -215,6 +269,7 @@ function DetailHeader({
               AniList {detail.anilist_id}
             </AniListLink>
           ) : null}
+          <ProfilePicker detail={detail} />
         </div>
       </div>
     </div>

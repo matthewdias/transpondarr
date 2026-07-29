@@ -8,6 +8,7 @@ import { LibrarySection } from "./sections/library";
 import { AuthSection } from "./sections/auth";
 import { ApiKeySection } from "./sections/api-key";
 import { GeneralSection } from "./sections/general";
+import { ProfilesSection } from "./sections/profiles";
 
 export function SettingsPage() {
   const { data, isLoading, isError, error } = useQuery(settingsQuery());
@@ -28,6 +29,7 @@ export function SettingsPage() {
             <DownloadSection settings={data} />
             <IndexerSection settings={data} />
             <LibrarySection settings={data} />
+            <ProfilesSection />
             <AuthSection settings={data} />
             <ApiKeySection settings={data} />
             <GeneralSection settings={data} />

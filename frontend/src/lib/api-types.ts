@@ -106,6 +106,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List quality profiles with their ranked groups and usage counts */
+        get: operations["list-quality-profiles"];
+        put?: never;
+        /** Create a quality profile */
+        post: operations["create-quality-profile"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/profiles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a quality profile, replacing its ranked groups */
+        put: operations["update-quality-profile"];
+        post?: never;
+        /** Delete a quality profile, migrating its series to reassign_to first */
+        delete: operations["delete-quality-profile"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/series": {
         parameters: {
             query?: never;
@@ -169,6 +205,23 @@ export interface paths {
         /** List grab/import history for a series */
         get: operations["list-series-grabs"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/series/{id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Assign a quality profile to a series */
+        put: operations["assign-series-profile"];
         post?: never;
         delete?: never;
         options?: never;
@@ -373,6 +426,28 @@ export interface components {
              */
             readonly $schema?: string;
             api_key: string;
+        };
+        AssignSeriesProfileInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/AssignSeriesProfileInputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            profile_id: number;
+        };
+        AssignSeriesProfileOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/AssignSeriesProfileOutputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            profile_id: number;
+            /** Format: int64 */
+            series_id: number;
         };
         AuthSettingsDTO: {
             configured: boolean;
@@ -672,6 +747,15 @@ export interface components {
             readonly $schema?: string;
             jobs: components["schemas"]["JobStatusDTO"][];
         };
+        ListProfilesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ListProfilesOutputBody.json
+             */
+            readonly $schema?: string;
+            profiles: components["schemas"]["QualityProfileDTO"][];
+        };
         ListSeriesOutputBody: {
             /**
              * Format: uri
@@ -680,6 +764,65 @@ export interface components {
              */
             readonly $schema?: string;
             series: components["schemas"]["SeriesDTO"][];
+        };
+        ProfileBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ProfileBody.json
+             */
+            readonly $schema?: string;
+            /** @description h264, h265 or av1; empty for no preference */
+            codec_pref?: string;
+            /** @description Ranked group preference, most preferred first */
+            groups?: components["schemas"]["ProfileGroupDTO"][];
+            /** @description Axis values a release must never carry, e.g. hardsub */
+            hard_excludes?: string[];
+            /**
+             * Format: int64
+             * @description Floor: candidates scoring below are ineligible
+             */
+            min_score?: number;
+            name: string;
+            prefer_dual_audio?: boolean;
+            /** @description web, bd, tv or dvd; empty for no preference */
+            preferred_source?: string;
+            /** @description Best first; an unlisted resolution scores zero */
+            resolution_order?: string[];
+            /** @description softsub or hardsub; empty for no preference */
+            sub_pref?: string;
+        };
+        ProfileGroupDTO: {
+            /** @description Never take this group, at any quality */
+            blocked?: boolean;
+            /** @description Release group name; array order is the preference rank */
+            name: string;
+        };
+        QualityProfileDTO: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/QualityProfileDTO.json
+             */
+            readonly $schema?: string;
+            codec_pref: string;
+            groups: components["schemas"]["ProfileGroupDTO"][];
+            hard_excludes: string[];
+            /** Format: int64 */
+            id: number;
+            is_default: boolean;
+            /** Format: int64 */
+            min_score: number;
+            name: string;
+            prefer_dual_audio: boolean;
+            preferred_source: string;
+            resolution_order: string[];
+            /**
+             * Format: int64
+             * @description How many series are assigned this profile
+             */
+            series_count: number;
+            sub_pref: string;
         };
         ReleaseDTO: {
             download_url: string;
@@ -797,6 +940,8 @@ export interface components {
             items: components["schemas"]["DetailItemDTO"][];
             monitored: boolean;
             native?: string;
+            /** Format: int64 */
+            quality_profile_id: number;
             /** @description Provider status (e.g. RELEASING, FINISHED) */
             status?: string;
             title: string;
@@ -1081,6 +1226,137 @@ export interface operations {
             };
         };
     };
+    "list-quality-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListProfilesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "create-quality-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityProfileDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-quality-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Profile id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityProfileDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-quality-profile": {
+        parameters: {
+            query?: {
+                /** @description Profile to move this profile's series to; required when the profile is in use */
+                reassign_to?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Profile id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-series": {
         parameters: {
             query?: never;
@@ -1266,6 +1542,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesGrabsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "assign-series-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignSeriesProfileInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignSeriesProfileOutputBody"];
                 };
             };
             /** @description Error */
