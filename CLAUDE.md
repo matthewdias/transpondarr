@@ -21,10 +21,48 @@ just pins their versions):
 - `make dev` — live-reload API (`air`)
 - `make gen` — regenerate the sqlc layer after editing `internal/store/queries`
 - `make gen-api` — regenerate `frontend/src/lib/api-types.ts` from the OpenAPI spec
-- `make lint`, `make test`
+- `make lint`, `make test` — the full suite CI runs; locally prefer the scoped
+  commands below
 
 Server listens on `:9797`; on first run it logs a generated API key (set
 `TRANSPONDARR_API_KEY` to persist one). Health check is public: `GET /api/v1/health`.
+
+## Local verification — scope it, CI runs the rest
+
+`make test` and `make lint` are whole-repo: the entire vitest suite plus
+`go test -race ./...`, and oxlint + prettier + `golangci-lint` over everything. CI
+(`.github/workflows/ci.yml`) already runs all of it on every push and PR, so don't
+reproduce it locally — run what the change touched.
+
+- **Go** — `go test ./internal/core/decide/...` for the touched package(s), `-run TestFoo`
+  to narrow during red/green. Plain `go test`; add `-race` when the change touches shared
+  mutable state (`internal/core/jobs`, the importer goroutine, the `clients` registry and
+  the handlers reading it), which is what the suite's `-race` exists for.
+- **Scoping is safe because the test cache is content-addressed through the dependency
+  graph** — editing `internal/store` does re-run `internal/core/importer`'s tests, it
+  won't hand back a stale pass. `(cached)` means the compiled inputs really are
+  unchanged (a comment-only edit to a dependency legitimately keeps the hit); reach for
+  `-count=1` only to force a test whose result depends on state Go can't see.
+- **Lint** — `golangci-lint run ./internal/core/decide/...`. Skip `make lint`;
+  `.githooks/pre-commit` already blocks unformatted Go/TS and CI runs the rest.
+- **Frontend** (from `frontend/`) — `npx vitest run src/lib/format.test.ts` filters by
+  filename; `--project unit` / `--project dom` runs one project, `-t "name"` one test.
+- **vitest does not typecheck** — it strips types, so a file with a hard type error runs
+  green. `tsc -b` runs only inside `npm run build`, leaving the error invisible to vitest
+  and `make lint` both. After a frontend type change run `./node_modules/.bin/tsc -b`
+  from `frontend/` — `npx` costs ~2.5s extra. It covers `*.test.ts(x)` too
+  (`tsconfig.app.json` includes all of `src`), and re-checks the whole program every run
+  (~4.5s; `noEmit` without `composite` makes the tsbuildinfo near-useless), so run it
+  once before committing rather than per edit.
+- **Before committing, run `go vet ./...`** — 0.6s idle, ~2s after a change to a core
+  package, and it type-checks `_test.go` files too, so it catches a broken test in a
+  package you never ran. Don't scope it; the packages you didn't touch are the whole
+  point. Then push and let CI run the suite.
+- **Still regenerate locally**: `make gen` after editing `internal/store/queries`,
+  `make gen-api` after a schema change, `make notices` after a dependency change — CI
+  fails on drift in all three, and a CI round-trip is the slow way to learn it.
+- **Run the full `make test` anyway** for cross-cutting work: `domain` or `store`
+  signature changes, dependency bumps, a refactor spanning packages, or a release tag.
 
 ## Layout
 
@@ -65,8 +103,8 @@ Behaviour changes are test-driven. Work red → green → refactor:
 1. **Red** — write the failing test first, run it, and confirm it fails *for the
    right reason* (the missing behaviour, not a compile error or typo).
 2. **Green** — write the minimum implementation that makes it pass.
-3. **Refactor** — clean up with the suite green; run `make test` (and `make lint`)
-   before moving on.
+3. **Refactor** — clean up with the touched packages green, then `go vet ./...` before
+   committing. Scope every step to what changed (see *Local verification*).
 
 - A bug fix starts with a test that reproduces the bug — it must fail on the old
   code before the fix lands.
