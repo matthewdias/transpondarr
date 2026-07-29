@@ -25,6 +25,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, ListOrdered, Loader2, Plus, X } from "lucide-react";
 import { api, ApiError, type QualityProfile } from "@/lib/api";
 import {
+  EXCLUDE_AXES,
   fromProfile,
   nextKey,
   toProfileInput,
@@ -201,6 +202,88 @@ function ToggleRow({
       </span>
       <Switch checked={checked} onCheckedChange={onChange} />
     </label>
+  );
+}
+
+// The exclude list is a closed menu, not free text: an exclude that is not an
+// axis value the parser emits would silently never fire (#60).
+export function ExcludePicker({
+  excludes,
+  stale,
+  onChange,
+  onStaleChange,
+}: {
+  excludes: string[];
+  stale: string[];
+  onChange: (v: string[]) => void;
+  onStaleChange?: (v: string[]) => void;
+}) {
+  const toggle = (token: string) =>
+    onChange(
+      excludes.includes(token)
+        ? excludes.filter((t) => t !== token)
+        : [...excludes, token],
+    );
+
+  return (
+    <div>
+      <span className="mb-1 block text-xs font-medium text-muted-foreground">
+        Never take
+      </span>
+      <span className="mb-2 block text-[11px] text-faint">
+        Attributes are read from the release name, so a release that does not
+        label one is not caught. Rank trusted groups and set a minimum score for
+        real protection.
+      </span>
+      <div className="space-y-2">
+        {EXCLUDE_AXES.map((a) => (
+          <div key={a.axis} className="flex flex-wrap items-center gap-1.5">
+            <span className="w-16 shrink-0 text-[11px] text-faint">
+              {a.axis}
+            </span>
+            {a.values.map((v) => (
+              <Button
+                key={v.token}
+                type="button"
+                variant="outline"
+                size="xs"
+                aria-pressed={excludes.includes(v.token)}
+                onClick={() => toggle(v.token)}
+                className={cn(
+                  excludes.includes(v.token) &&
+                    "border-dl/40 bg-dl-weak text-dl dark:border-dl/40 dark:bg-dl-weak dark:hover:bg-dl-weak/80",
+                )}
+              >
+                {v.label}
+              </Button>
+            ))}
+          </div>
+        ))}
+      </div>
+      {stale.length > 0 && (
+        <div className="mt-2 space-y-1 rounded-md border border-dl/30 px-2.5 py-2">
+          <span className="block text-[11px] text-dl">
+            These can never match — no release carries them on any axis the
+            parser reads.
+          </span>
+          {stale.map((t) => (
+            <div key={t} className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                {t}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                aria-label={`Remove ${t}`}
+                onClick={() => onStaleChange?.(stale.filter((x) => x !== t))}
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -424,17 +507,11 @@ function ProfileEditor({
             checked={state.dualAudio}
             onChange={(v) => set("dualAudio", v)}
           />
-          <ToggleRow
-            label="Never take hardsub"
-            hint="Hardsubbed releases become ineligible, not just unpreferred."
-            checked={state.neverHardsub}
-            onChange={(v) => set("neverHardsub", v)}
-          />
-          <ToggleRow
-            label="Never take H.265"
-            hint="For playback clients that can’t decode HEVC."
-            checked={state.neverH265}
-            onChange={(v) => set("neverH265", v)}
+          <ExcludePicker
+            excludes={state.excludes}
+            stale={state.staleExcludes}
+            onChange={(v) => set("excludes", v)}
+            onStaleChange={(v) => set("staleExcludes", v)}
           />
         </div>
       </div>

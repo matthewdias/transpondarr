@@ -101,6 +101,25 @@ describe("ScoreBreakdown", () => {
     expect(screen.getByText(/below the profile minimum/)).toBeInTheDocument();
   });
 
+  it("caveats the reason as name-based so an exclude reads as no guarantee", () => {
+    render(
+      <ScoreBreakdown
+        r={release({
+          eligible: false,
+          ineligible_reason: "release is hardsub (excluded by the profile)",
+        })}
+      />,
+    );
+    expect(screen.getByText(/read from the release name/i)).toBeInTheDocument();
+  });
+
+  it("keeps the caveat off an eligible release", () => {
+    render(<ScoreBreakdown r={release({})} />);
+    expect(
+      screen.queryByText(/read from the release name/i),
+    ).not.toBeInTheDocument();
+  });
+
   it("falls back when no profile preference matched", () => {
     render(
       <ScoreBreakdown r={release({ score: 0, score_parts: undefined })} />,

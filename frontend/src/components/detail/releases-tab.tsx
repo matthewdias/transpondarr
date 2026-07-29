@@ -65,9 +65,15 @@ export function ScoreBreakdown({ r }: { r: CandidateRelease }) {
   return (
     <div className="min-w-44">
       {r.ineligible_reason && (
-        <p className="mb-2 max-w-56 text-xs font-medium text-dl">
-          {r.ineligible_reason}
-        </p>
+        <>
+          <p className="max-w-56 text-xs font-medium text-dl">
+            {r.ineligible_reason}
+          </p>
+          <p className="mb-2 max-w-56 text-[11px] text-faint">
+            Judged from attributes read from the release name — an unlabeled
+            release is not caught.
+          </p>
+        </>
       )}
       {parts.length === 0 ? (
         <p className="text-xs text-faint">

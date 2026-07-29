@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import {
   fromProfile,
   toProfileInput,
   type EditorState,
 } from "@/pages/settings/sections/profile-editor-state";
+import { ExcludePicker } from "@/pages/settings/sections/profiles";
 import type { QualityProfile } from "@/lib/api";
 
 function profile(overrides: Partial<QualityProfile>): QualityProfile {
@@ -54,16 +57,31 @@ describe("fromProfile / toProfileInput", () => {
     ]);
   });
 
-  it("maps the never-take toggles onto hard_excludes without dropping unknown tokens", () => {
+  it("reads every axis value the parser can emit as a selectable exclude", () => {
     const state = fromProfile(
-      profile({ hard_excludes: ["hardsub", "480p", "h265"] }),
+      profile({ hard_excludes: ["hardsub", "480p", "h265", "dvd"] }),
     );
-    expect(state.neverHardsub).toBe(true);
-    expect(state.neverH265).toBe(true);
-    expect(state.otherExcludes).toEqual(["480p"]);
+    expect(state.excludes).toEqual(["hardsub", "h265", "dvd", "480p"]);
+    expect(state.staleExcludes).toEqual([]);
+  });
 
-    const off = { ...state, neverHardsub: false };
-    expect(toProfileInput(off).hard_excludes).toEqual(["480p", "h265"]);
+  it("canonicalizes stored excludes that differ only in case", () => {
+    const state = fromProfile(profile({ hard_excludes: ["HardSub", "H265"] }));
+    expect(state.excludes).toEqual(["hardsub", "h265"]);
+    expect(toProfileInput(state).hard_excludes).toEqual(["hardsub", "h265"]);
+  });
+
+  it("treats a resolution outside the offered list as matchable, not stale", () => {
+    const state = fromProfile(profile({ hard_excludes: ["2160p"] }));
+    expect(state.excludes).toEqual(["2160p"]);
+    expect(state.staleExcludes).toEqual([]);
+  });
+
+  it("separates stored tokens no release can ever carry, without dropping them", () => {
+    const state = fromProfile(profile({ hard_excludes: ["dub", "hardsub"] }));
+    expect(state.excludes).toEqual(["hardsub"]);
+    expect(state.staleExcludes).toEqual(["dub"]);
+    expect(toProfileInput(state).hard_excludes).toEqual(["hardsub", "dub"]);
   });
 
   it("surfaces excluded resolutions as unincluded rows that do not serialize", () => {
@@ -73,7 +91,7 @@ describe("fromProfile / toProfileInput", () => {
     expect(toProfileInput(state).resolution_order).toEqual(["720p"]);
   });
 
-  it("starts a new profile with every resolution included", () => {
+  it("starts a new profile with every resolution included and nothing excluded", () => {
     const state = fromProfile(null);
     expect(toProfileInput(state).resolution_order).toEqual([
       "1080p",
@@ -81,5 +99,62 @@ describe("fromProfile / toProfileInput", () => {
       "480p",
     ]);
     expect(state.name).toBe("");
+    expect(state.excludes).toEqual([]);
+  });
+});
+
+describe("ExcludePicker", () => {
+  it("offers only axis values the parser can emit", () => {
+    render(<ExcludePicker excludes={[]} stale={[]} onChange={() => {}} />);
+    for (const label of ["Hardsub", "Softsub", "H.265 / HEVC", "WEB", "480p"]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("states that detection is name-based and points at the real protection", () => {
+    render(<ExcludePicker excludes={[]} stale={[]} onChange={() => {}} />);
+    expect(screen.getByText(/read from the release name/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/does not label|doesn’t label/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/trusted groups|minimum score/i),
+    ).toBeInTheDocument();
+  });
+
+  it("toggles a value on and off through onChange", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <ExcludePicker excludes={[]} stale={[]} onChange={onChange} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Hardsub" }));
+    expect(onChange).toHaveBeenLastCalledWith(["hardsub"]);
+
+    rerender(
+      <ExcludePicker excludes={["hardsub"]} stale={[]} onChange={onChange} />,
+    );
+    const chip = screen.getByRole("button", { name: "Hardsub" });
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    await user.click(chip);
+    expect(onChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it("flags a stored token that can never match and lets it be removed", async () => {
+    const user = userEvent.setup();
+    const onStaleChange = vi.fn();
+    render(
+      <ExcludePicker
+        excludes={[]}
+        stale={["dub"]}
+        onChange={() => {}}
+        onStaleChange={onStaleChange}
+      />,
+    );
+    expect(screen.getByText("dub")).toBeInTheDocument();
+    expect(screen.getByText(/never match/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /remove dub/i }));
+    expect(onStaleChange).toHaveBeenCalledWith([]);
   });
 });
