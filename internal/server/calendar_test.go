@@ -51,10 +51,12 @@ func itemID(t *testing.T, st *store.Store, seriesID int64, number int) int64 {
 // only for monitored series unless unmonitored is requested.
 func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Airing Show", 3)
+	seriesID := seedSeries(t, h.store, "Airing Show", 5)
 	setAirsAt(t, h.store, seriesID, 1, "2026-06-30 15:00:00") // before range
 	setAirsAt(t, h.store, seriesID, 2, "2026-07-07 15:00:00") // in range
 	// episode 3 has no air date: absent from the calendar, not an error
+	setAirsAt(t, h.store, seriesID, 4, "2026-07-01 00:00:00") // exactly at start: included
+	setAirsAt(t, h.store, seriesID, 5, "2026-08-01 00:00:00") // exactly at end: excluded
 
 	otherID := seedSeries(t, h.store, "Unmonitored Show", 1)
 	setAirsAt(t, h.store, otherID, 1, "2026-07-08 15:00:00")
@@ -67,11 +69,12 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 	if code := h.get(t, "/api/v1/calendar?start=2026-07-01T00:00:00Z&end=2026-08-01T00:00:00Z", &out); code != http.StatusOK {
 		t.Fatalf("GET calendar = %d, want 200", code)
 	}
-	if len(out.Items) != 1 {
-		t.Fatalf("items = %d, want just the in-range monitored episode: %+v", len(out.Items), out.Items)
+	// Ordered by air time: the start-boundary episode first, then ep 2.
+	if len(out.Items) != 2 || out.Items[0].Number != 4 || out.Items[1].Number != 2 {
+		t.Fatalf("items = %+v, want eps 4 and 2 (inclusive start, exclusive end)", out.Items)
 	}
-	got := out.Items[0]
-	if got.SeriesID != seriesID || got.Number != 2 || got.SeriesTitle != "Airing Show" {
+	got := out.Items[1]
+	if got.SeriesID != seriesID || got.SeriesTitle != "Airing Show" {
 		t.Errorf("item = %+v, want Airing Show ep 2", got)
 	}
 	if got.AirsAt != "2026-07-07T15:00:00Z" {
@@ -85,8 +88,8 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 	if code := h.get(t, "/api/v1/calendar?start=2026-07-01T00:00:00Z&end=2026-08-01T00:00:00Z&unmonitored=true", &withUnmonitored); code != http.StatusOK {
 		t.Fatalf("GET calendar unmonitored = %d, want 200", code)
 	}
-	if len(withUnmonitored.Items) != 2 {
-		t.Fatalf("items with unmonitored = %d, want 2: %+v", len(withUnmonitored.Items), withUnmonitored.Items)
+	if len(withUnmonitored.Items) != 3 {
+		t.Fatalf("items with unmonitored = %d, want 3: %+v", len(withUnmonitored.Items), withUnmonitored.Items)
 	}
 	for _, it := range withUnmonitored.Items {
 		if it.SeriesID == otherID && it.Monitored {

@@ -22,7 +22,7 @@ import {
 import { calendarQuery } from "@/lib/queries";
 import { airDate, pad2 } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { MOBILE_BREAKPOINT } from "@/hooks/use-mobile";
 import { ItemStatusBadge } from "@/components/badges";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
@@ -49,10 +49,11 @@ const statusLabel: Record<ItemStatus, string> = {
 };
 
 export function CalendarPage() {
-  const isMobile = useIsMobile();
-  const [chosenView, setChosenView] = useState<CalendarView | null>(null);
-  // Narrow screens default to the agenda list; an explicit choice sticks.
-  const view: CalendarView = chosenView ?? (isMobile ? "agenda" : "month");
+  // Read the viewport synchronously: deriving this from useIsMobile would
+  // render (and fetch) the month view once before the effect flips to agenda.
+  const [view, setView] = useState<CalendarView>(() =>
+    window.innerWidth < MOBILE_BREAKPOINT ? "agenda" : "month",
+  );
   const [anchor, setAnchor] = useState(() => new Date());
   const [unmonitored, setUnmonitored] = useState(false);
 
@@ -117,7 +118,7 @@ export function CalendarPage() {
             </label>
             <Tabs
               value={view}
-              onValueChange={(v) => setChosenView(v as CalendarView)}
+              onValueChange={(v) => setView(v as CalendarView)}
             >
               <TabsList>
                 <TabsTrigger value="month">Month</TabsTrigger>
