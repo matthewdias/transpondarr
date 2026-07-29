@@ -147,8 +147,12 @@ var (
 
 // validate rejects axis values the parser can never produce — a profile naming
 // them would silently never match (#14's "should not name axes the parser
-// cannot fill").
+// cannot fill"). hard_excludes and resolution_order stay unchecked: the UI must
+// round-trip stored tokens it does not offer, and the resolution axis is open.
 func validate(b profileBody) error {
+	if strings.TrimSpace(b.Name) == "" {
+		return errors.New("name must not be blank")
+	}
 	if !slices.Contains(sourceVocab, b.PreferredSource) {
 		return fmt.Errorf("preferred_source %q is not one of web, bd, tv, dvd", b.PreferredSource)
 	}

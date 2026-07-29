@@ -103,12 +103,12 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 		t.Errorf("first listed profile should be the default")
 	}
 
-	// --- update: rename and reorder the ranked groups -------------------------
+	// --- update: rename and reorder; a mid-list blocked row reads back last ---
 	in["name"] = "Trusted v2"
 	in["groups"] = []profileGroupJSON{
 		{Name: "SecondChoice"},
-		{Name: "FirstChoice"},
 		{Name: "BadRipCo", Blocked: true},
+		{Name: "FirstChoice"},
 	}
 	var updated profileJSON
 	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/profiles/%d", created.ID), in, &updated); code != http.StatusOK {
@@ -116,6 +116,12 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 	}
 	if updated.Name != "Trusted v2" || updated.Groups[0].Name != "SecondChoice" {
 		t.Errorf("updated = %+v, want renamed with SecondChoice first", updated)
+	}
+	wantUpdated := []profileGroupJSON{
+		{Name: "SecondChoice"}, {Name: "FirstChoice"}, {Name: "BadRipCo", Blocked: true},
+	}
+	if fmt.Sprint(updated.Groups) != fmt.Sprint(wantUpdated) {
+		t.Errorf("groups = %+v, want blocked rows sorted last", updated.Groups)
 	}
 
 	// --- assign to a series ---------------------------------------------------
@@ -190,6 +196,11 @@ func TestCreateProfileValidation(t *testing.T) {
 		map[string]any{"name": "Bad", "preferred_source": "vhs"}, nil)
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("bad source status = %d, want 422", code)
+	}
+
+	// A whitespace-only name passes minLength but trims to nothing.
+	if c := do(t, h, "POST", "/api/v1/profiles", map[string]any{"name": "   "}, nil); c != http.StatusUnprocessableEntity {
+		t.Fatalf("blank name status = %d, want 422", c)
 	}
 
 	// Duplicate names conflict rather than 500.
