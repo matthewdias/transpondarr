@@ -209,8 +209,11 @@ func TestStopsScanMidwayOnCancel(t *testing.T) {
 	target := &cancelOnPlace{cancel: cancel}
 	dl := &coretest.FakeDownload{Statuses: statuses}
 
-	_ = New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(ctx)
+	err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(ctx)
 
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("ScanOnce() = %v, want context.Canceled: a mid-scan cancel must surface, not read as a clean scan", err)
+	}
 	if n := len(target.Placed); n != 1 {
 		t.Fatalf("Place called %d times, want 1: the second grab must wait for the next run", n)
 	}
@@ -256,6 +259,23 @@ func TestScanOnceReturnsStatusError(t *testing.T) {
 
 	if err == nil || !strings.Contains(err.Error(), "client unreachable") {
 		t.Errorf("ScanOnce() = %v, want the download client error", err)
+	}
+}
+
+// TestScanOnceReturnsListGrabsError: the store-side failure path must surface
+// in the return value too, not just the download-client one.
+func TestScanOnceReturnsListGrabsError(t *testing.T) {
+	st := coretest.NewStore(t)
+	if err := st.DB.Close(); err != nil {
+		t.Fatalf("close store: %v", err)
+	}
+	dl := &coretest.FakeDownload{}
+	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger())
+
+	err := im.ScanOnce(context.Background())
+
+	if err == nil || !strings.Contains(err.Error(), "list grabs") {
+		t.Errorf("ScanOnce() = %v, want the list-grabs error", err)
 	}
 }
 
