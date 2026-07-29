@@ -72,7 +72,8 @@ type FakeDownload struct {
 
 	// Statuses is what Status returns (importer-facing). It is not filtered by
 	// requested hash, which is enough for the pipeline tests.
-	Statuses []download.Status
+	Statuses  []download.Status
+	StatusErr error
 
 	Adds []download.AddOptions // recorded, in call order
 }
@@ -97,6 +98,9 @@ func (f *FakeDownload) Add(_ context.Context, opts download.AddOptions) (downloa
 }
 
 func (f *FakeDownload) Status(_ context.Context, _ ...string) ([]download.Status, error) {
+	if f.StatusErr != nil {
+		return nil, f.StatusErr
+	}
 	return f.Statuses, nil
 }
 

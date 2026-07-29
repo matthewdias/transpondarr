@@ -18,6 +18,7 @@ package importer
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -50,66 +51,41 @@ type ClientSource interface {
 	Library() library.Target
 }
 
-// Importer polls the download client and imports completed grabs.
+// Importer scans the download client for completed grabs and imports them. It
+// runs as a job on the runner, which owns the polling interval.
 type Importer struct {
-	store    *store.Store
-	clients  ClientSource
-	log      *slog.Logger
-	interval time.Duration
+	store   *store.Store
+	clients ClientSource
+	log     *slog.Logger
 }
 
-// New builds an Importer. interval is how often the download client is polled.
-// The download client and library target are read from src each scan, so either
-// being unconfigured (nil) simply skips that scan.
-func New(st *store.Store, src ClientSource, log *slog.Logger, interval time.Duration) *Importer {
-	return &Importer{store: st, clients: src, log: log, interval: interval}
-}
-
-// Run scans once immediately, then every interval, and returns once ctx is
-// cancelled and any in-flight scan has returned.
-func (im *Importer) Run(ctx context.Context) {
-	t := time.NewTicker(im.interval)
-	defer t.Stop()
-	for {
-		if ctx.Err() != nil {
-			return
-		}
-		im.ScanOnce(ctx)
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-	}
+// New builds an Importer. The download client and library target are read from
+// src each scan, so either being unconfigured (nil) simply skips that scan.
+func New(st *store.Store, src ClientSource, log *slog.Logger) *Importer {
+	return &Importer{store: st, clients: src, log: log}
 }
 
 // ScanOnce imports every outstanding grab whose torrent has completed. It reads
 // the current clients from the source; if either the download client or the
 // library is unconfigured, there is nothing to do this tick.
-func (im *Importer) ScanOnce(ctx context.Context) {
+func (im *Importer) ScanOnce(ctx context.Context) error {
 	dl := im.clients.Download()
 	target := im.clients.Library()
 	if dl == nil || target == nil {
-		return
+		return nil
 	}
 
 	grabs, err := im.openGrabs(ctx)
 	if err != nil {
-		if ctx.Err() == nil {
-			im.log.Error("importer: list grabs", "err", err)
-		}
-		return
+		return fmt.Errorf("list grabs: %w", err)
 	}
 	if len(grabs) == 0 {
-		return
+		return nil
 	}
 
 	statuses, err := dl.Status(ctx, uniqueHashes(grabs)...)
 	if err != nil {
-		if ctx.Err() == nil {
-			im.log.Error("importer: status", "err", err)
-		}
-		return
+		return fmt.Errorf("download status: %w", err)
 	}
 	byHash := make(map[string]download.Status, len(statuses))
 	for _, s := range statuses {
@@ -119,7 +95,7 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 	now := time.Now().UTC()
 	for _, g := range grabs {
 		if ctx.Err() != nil {
-			return // shutting down; the rest is retryable next run
+			return ctx.Err() // shutting down; the rest is retryable next run
 		}
 		st, ok := byHash[strings.ToLower(g.InfoHash)]
 		if !ok {
@@ -144,6 +120,7 @@ func (im *Importer) ScanOnce(ctx context.Context) {
 			continue // still downloading / stalled / paused
 		}
 	}
+	return nil
 }
 
 // openGrabs returns the grabs still worth scanning: downloading, plus deferred

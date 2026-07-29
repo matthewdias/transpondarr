@@ -109,9 +109,9 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	// leaveStoreOpen skips the close when the importer overruns the shutdown
-	// deadline: SQLite recovers an unclosed store on next open, whereas closing it
-	// under the straggling scan would fail its writes.
+	// leaveStoreOpen skips the close when a job overruns the shutdown deadline:
+	// SQLite recovers an unclosed store on next open, whereas closing it under
+	// the straggling work would fail its writes.
 	var leaveStoreOpen bool
 	defer func() {
 		if !leaveStoreOpen {
@@ -170,18 +170,16 @@ func run(logger *slog.Logger) error {
 		RunAtStart: true,
 		Run:        browse.New(st, provider, logger).RefreshOnce,
 	})
-	jobsDone := runner.Start(ctx)
-
-	// The importer always runs; each scan it reads the current download client and
-	// library from the registry and no-ops when either is unconfigured — so
+	// The import scan always runs; each scan it reads the current download client
+	// and library from the registry and no-ops when either is unconfigured — so
 	// enabling both via Settings activates importing without a restart.
-	im := importer.New(st, reg, logger, importPollInterval)
-	importerDone := make(chan struct{})
-	go func() {
-		defer close(importerDone)
-		im.Run(ctx)
-	}()
-	logger.Info("importer started", "interval", importPollInterval)
+	runner.Add(jobs.Job{
+		Name:       "import-scan",
+		Interval:   importPollInterval,
+		RunAtStart: true,
+		Run:        importer.New(st, reg, logger).ScanOnce,
+	})
+	jobsDone := runner.Start(ctx)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
@@ -210,31 +208,20 @@ func run(logger *slog.Logger) error {
 	// whatever is still writing to it.
 	srvErr := make(chan error, 1)
 	go func() { srvErr <- srv.Shutdown(shutdownCtx) }()
-	drained := make(chan struct{})
-	go func() {
-		<-importerDone
-		<-jobsDone
-		close(drained)
-	}()
 	select {
-	case <-drained:
+	case <-jobsDone:
 	case <-shutdownCtx.Done():
 		leaveStoreOpen = true
 		logger.Warn("background work still running at the shutdown deadline; leaving the store open for it",
-			"timeout", shutdownTimeout, "still_running", straggling(importerDone, runner))
+			"timeout", shutdownTimeout, "still_running", straggling(runner))
 	}
 	return <-srvErr
 }
 
 // straggling names what is still running at the shutdown deadline, so the warning
-// says which worker to blame rather than only that something overran.
-func straggling(importerDone <-chan struct{}, runner *jobs.Runner) []string {
+// says which job to blame rather than only that something overran.
+func straggling(runner *jobs.Runner) []string {
 	var names []string
-	select {
-	case <-importerDone:
-	default:
-		names = append(names, "importer")
-	}
 	for _, s := range runner.Status() {
 		if s.Running {
 			names = append(names, s.Name)

@@ -53,8 +53,10 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	dl.Statuses = []download.Status{{Hash: "hash3", State: download.StateComplete, ContentPath: src}}
 
 	// Run one importer scan over the same registry the server uses.
-	im := importer.New(h.store, h.reg, discardLogger(), time.Second)
-	im.ScanOnce(context.Background())
+	im := importer.New(h.store, h.reg, discardLogger())
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	// The library received exactly the episode-3 file of this series.
 	if len(h.lib.Placed) != 1 {
@@ -125,7 +127,9 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 		t.Fatalf("stamp missing_since: %v", err)
 	}
 
-	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if got := itemStatus(t, h, seriesID, 7); got != "wanted" {
 		t.Errorf("episode 7 status = %q, want wanted after the torrent vanished", got)
@@ -167,7 +171,9 @@ func TestDeferredBatchShowsDeferred(t *testing.T) {
 	}
 	dl.Statuses = []download.Status{{Hash: "hash9", State: download.StateComplete, ContentPath: dir}}
 
-	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if got := itemStatus(t, h, seriesID, 9); got != "deferred" {
 		t.Errorf("episode 9 status = %q, want deferred after a batch payload", got)
@@ -204,7 +210,9 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 		}
 	}
 	dl.Statuses = []download.Status{{Hash: "hashA", State: download.StateComplete, ContentPath: dir}}
-	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 	if got := itemStatus(t, h, seriesID, 9); got != "deferred" {
 		t.Fatalf("episode 9 status = %q, want deferred before the re-grab", got)
 	}
@@ -230,7 +238,9 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 		t.Fatal(err)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashB", State: download.StateComplete, ContentPath: src}}
-	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if got := itemStatus(t, h, seriesID, 9); got != "have" {
 		t.Errorf("episode 9 status = %q, want have after the replacement import", got)
@@ -261,7 +271,9 @@ func TestStuckImportShowsReason(t *testing.T) {
 	// Complete, but at a path Transpondarr cannot see (a path-mapping gap).
 	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete,
 		ContentPath: filepath.Join(t.TempDir(), "unmapped", "raw.mkv")}}
-	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	var out seriesDetailDTO
 	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d", seriesID), &out); code != http.StatusOK {
@@ -304,7 +316,9 @@ func TestStuckImportShowsReason(t *testing.T) {
 		t.Fatal(err)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete, ContentPath: src}}
-	importer.New(h.store, h.reg, discardLogger(), time.Second).ScanOnce(context.Background())
+	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
 
 	if got := itemStatus(t, h, seriesID, 4); got != "have" {
 		t.Errorf("episode 4 status = %q, want have after the path is reachable", got)
