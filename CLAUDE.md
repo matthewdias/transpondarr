@@ -180,6 +180,9 @@ Behaviour changes are test-driven. Work red → green → refactor:
   read through — so edits apply without a restart.
 - A DB change = a goose migration under `internal/store/migrations` + queries in
   `internal/store/queries` + `make gen`.
+  - **`make gen` refuses to run on any sqlc but the `mise.toml` pin.** The generated
+    layer is committed and CI diffs it, so a mismatched sqlc lands as drift blamed on
+    your change rather than on the toolchain.
   - **Keep comments in `internal/store/queries/*.sql` ASCII-only.** sqlc's sqlite
     codegen miscounts byte vs. rune offsets: a doc comment between `-- name:` and
     the SQL body containing a multi-byte character — an em dash, which this repo's
