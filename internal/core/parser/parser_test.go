@@ -103,6 +103,15 @@ func TestParseResolutionNormalization(t *testing.T) {
 		{title: "[Archivers] Placeholder Saga - 12 [BD 1920×1080]", res: "1080p", raw: "1920×1080"},
 		// Neither dimension names a tier: the height is the honest answer.
 		{title: "[OldRips] Placeholder Saga - 03 [960x544 XviD]", res: "544p", raw: "960x544"},
+		// A non-tier height with a tier-naming width folds by the width table.
+		{title: "[OldRips] Placeholder Saga - 03 [704x396 XviD]", res: "480p", raw: "704x396"},
+		// anitogo extracts a glued standard tier itself; a glued non-tier height
+		// reaches us whole and folds to its suffix.
+		{title: "[FakeGroup] Placeholder Saga - 05 [BD1080p]", res: "1080p"},
+		{title: "[FakeGroup] Placeholder Saga - 05 [BD540p]", res: "540p", raw: "BD540p"},
+		// anitogo classes 4K as a video term, so it names the tier only when no
+		// digit form did.
+		{title: "[UHDGroup] Placeholder Saga - 01 [4K HEVC]", res: "2160p", raw: "4K"},
 		// anitogo's resolution pattern is unanchored, so junk can reach us carrying a
 		// separator (both found by the fuzzer); it must resolve to nothing rather
 		// than escape with the separator intact.
