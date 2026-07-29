@@ -55,5 +55,12 @@ jobs:
           make gen-api
           git diff --exit-code frontend/src/lib/api-types.ts
 
+      # internal/store/db is committed sqlc output; fail if it has drifted from
+      # what the current queries and migrations would produce.
+      - name: Query layer up to date
+        run: |
+          make gen
+          git diff --exit-code internal/store/db
+
       - name: Vulnerability scan
         run: govulncheck ./... # version pinned in mise.toml
