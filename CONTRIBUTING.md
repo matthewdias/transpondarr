@@ -32,11 +32,14 @@ Install these yourself (versions are what CI uses; the pinned versions live in
 | --------------------------- | ------- | ---------------------------------------------------------------------------- |
 | Go                          | 1.26+   | https://go.dev/dl/ (or the standard `GOTOOLCHAIN` from `go.mod`)             |
 | Node                        | 24+     | https://nodejs.org (or nvm/asdf)                                             |
-| sqlc                        | 1.31+   | `brew install sqlc` or `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest` |
+| sqlc                        | 1.31.1  | `go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1`                       |
 | goose                       | 3.27+   | `go install github.com/pressly/goose/v3/cmd/goose@latest`                    |
 | golangci-lint               | 2.12+   | `brew install golangci-lint`                                                 |
 | goreleaser                  | 2.17+   | `brew install goreleaser`                                                    |
 | air (optional, live reload) | 1.66+   | `go install github.com/air-verse/air@latest`                                 |
+
+sqlc is the one exact pin: its generated output is committed and CI diffs it, so
+`make gen` refuses to run on any other version rather than produce drift.
 
 The `Makefile` is the canonical task interface and only assumes these are on your
 `PATH`:
@@ -45,6 +48,7 @@ The `Makefile` is the canonical task interface and only assumes these are on you
 make build   # frontend + backend -> ./transpondarrd
 make run     # build, then run the server on :9797
 make gen     # regenerate sqlc code after editing internal/store/queries
+make gen-api # regenerate frontend/src/lib/api-types.ts from the OpenAPI spec
 make notices # regenerate THIRD-PARTY-NOTICES.md after a dependency change
 make lint
 make test
@@ -65,11 +69,15 @@ core.hooksPath .githooks`) that runs `gofmt` / `prettier --check` on staged file
 formatting CI enforces, caught before the commit instead of minutes later.
 Bypass with `git commit --no-verify`.
 
-CI also regenerates `THIRD-PARTY-NOTICES.md` and fails if it differs from the
-committed copy, so run `make notices` whenever you change the shipped dependency
-set. The trigger is narrower than "touched `go.mod`": the file covers Go modules
-actually linked into the binary (not the full module graph) and frontend
-*production* dependencies, so a devDependency bump needs nothing.
+CI regenerates every committed generated file and fails if any differs from what
+it produces — `internal/store/db` (`make gen`), `frontend/src/lib/api-types.ts`
+(`make gen-api`), and `THIRD-PARTY-NOTICES.md` (`make notices`). Run the matching
+target before you push.
+
+`make notices` has the least obvious trigger, and it is narrower than "touched
+`go.mod`": the file covers Go modules actually linked into the binary (not the
+full module graph) and frontend *production* dependencies, so a devDependency
+bump needs nothing.
 
 ## Local dev configuration
 
