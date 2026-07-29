@@ -41,6 +41,23 @@ describe("fromProfile / toProfileInput", () => {
     ]);
   });
 
+  it("serializes a mid-list blocked row after the unblocked ones", () => {
+    const state = fromProfile(profile({}));
+    const midBlocked: EditorState = {
+      ...state,
+      groups: state.groups.map((g) =>
+        g.name === "FirstChoice" ? { ...g, blocked: true } : g,
+      ),
+    };
+    // The store reads blocked rows last, so serializing them anywhere else
+    // would make save-then-reopen reshuffle the list.
+    expect(toProfileInput(midBlocked).groups).toEqual([
+      { name: "SecondChoice", blocked: false },
+      { name: "FirstChoice", blocked: true },
+      { name: "BadRipCo", blocked: true },
+    ]);
+  });
+
   it("keeps group array order as the rank", () => {
     const state = fromProfile(profile({}));
     const swapped: EditorState = {

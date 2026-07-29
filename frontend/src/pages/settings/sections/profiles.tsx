@@ -28,6 +28,7 @@ import {
   EXCLUDE_AXES,
   fromProfile,
   nextKey,
+  partitionBlocked,
   toProfileInput,
   type EditorState,
 } from "./profile-editor-state";
@@ -361,7 +362,7 @@ function ProfileEditor({
           </span>
           <SortableList
             rows={state.groups}
-            onReorder={(rows) => set("groups", rows)}
+            onReorder={(rows) => set("groups", partitionBlocked(rows))}
           >
             {(g, i) => (
               <SortableRow key={g.key} id={g.key}>
@@ -389,8 +390,10 @@ function ProfileEditor({
                     onCheckedChange={(v) =>
                       set(
                         "groups",
-                        state.groups.map((x, xi) =>
-                          xi === i ? { ...x, blocked: v } : x,
+                        partitionBlocked(
+                          state.groups.map((x, xi) =>
+                            xi === i ? { ...x, blocked: v } : x,
+                          ),
                         ),
                       )
                     }

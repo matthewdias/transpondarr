@@ -85,6 +85,12 @@ function catalogueRank(name: string): number {
   return i < 0 ? RESOLUTIONS.length : i;
 }
 
+// The store reads blocked rows last (ListProfileGroups), so the editor keeps
+// them there too — otherwise a save-then-reopen would reshuffle the list.
+export function partitionBlocked(rows: GroupRow[]): GroupRow[] {
+  return [...rows.filter((g) => !g.blocked), ...rows.filter((g) => g.blocked)];
+}
+
 let rowKey = 0;
 export const nextKey = () => `row-${rowKey++}`;
 
@@ -142,6 +148,9 @@ export function toProfileInput(s: EditorState): ProfileInput {
     codec_pref: s.codecPref,
     hard_excludes: [...s.excludes, ...s.staleExcludes],
     min_score: s.minScore,
-    groups: s.groups.map((g) => ({ name: g.name, blocked: g.blocked })),
+    groups: partitionBlocked(s.groups).map((g) => ({
+      name: g.name,
+      blocked: g.blocked,
+    })),
   };
 }
