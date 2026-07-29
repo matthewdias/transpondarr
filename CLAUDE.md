@@ -82,6 +82,19 @@ Behaviour changes are test-driven. Work red → green → refactor:
   goroutine must `time.Sleep` to let a job's own sleep elapse (the `advance`
   helper does both); and bubbles forbid real I/O, so store- or network-backed
   tests stay on the real clock and synchronise on a channel.
+- **The frontend suite runs in two vitest projects** (`frontend/vite.config.ts`):
+  `unit` (node, no setup file) for the pure-logic suites named in `unitTests`, and
+  `dom` (happy-dom + `src/test/setup.ts`) for everything else, which is the
+  default — a new pure-logic suite runs correctly but slowly until it is added to
+  the list. Building a DOM costs ~350ms per file, and a page test's cost is its
+  renders: `render()` of a page is 300-400ms, so prefer asserting more per mount
+  over more mounts.
+- **Tests run in a pinned zone (`America/New_York`), set in
+  `frontend/vite.config.ts` before the workers spawn.** Local-day logic needs a
+  known zone, and setting `TZ` from *inside* a worker — `vi.stubEnv("TZ", ...)`
+  — is silently ignored by the threads pool, so it fails as a one-hour
+  arithmetic error. `src/lib/calendar.test.ts` opens with a guard asserting the
+  offset, which names the cause before the real assertions misreport it.
 - Pure mechanical changes (renames, generated code via `make gen`, docs) don't
   need a new test — everything that changes behaviour does.
 

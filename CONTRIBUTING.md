@@ -54,6 +54,11 @@ make dev     # live-reload API (air)
 (`gcc` or `clang`) because the race runtime links via cgo on Linux. The shipped
 binary is still built `CGO_ENABLED=0` and stays pure Go.
 
+The frontend suite is split into two vitest projects: `unit` runs the pure-logic
+suites listed in `frontend/vite.config.ts` without a DOM, and `dom` runs
+everything else under happy-dom. New suites land in `dom` by default; add a
+pure-logic one to the list to keep it out of the slower lane.
+
 `make build`, `lint`, or `test` installs a fast pre-commit hook (`git config
 core.hooksPath .githooks`) that runs `gofmt` / `prettier --check` on staged files — the same
 formatting CI enforces, caught before the commit instead of minutes later.
