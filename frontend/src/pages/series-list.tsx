@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Tv } from "lucide-react";
 import { seriesQuery } from "@/lib/queries";
