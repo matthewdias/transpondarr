@@ -6,10 +6,9 @@ import {
   Field,
   SectionShell,
   SectionFooter,
-  selectClass,
-  useSaveToast,
   type TestState,
 } from "../section-shell";
+import { selectClass, useSaveToast } from "../section-helpers";
 
 const IMPORT_MODES = [
   { value: "auto", label: "Auto (hardlink, fall back to copy)" },
