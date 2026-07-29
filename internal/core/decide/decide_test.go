@@ -313,6 +313,46 @@ func TestResolutionHardExcludeMakesIneligible(t *testing.T) {
 	}
 }
 
+// A release that named its dimensions ranks on the same axis as one that named a
+// height, and the score part says which dimensions it was read from.
+func TestDimensionResolutionRanksByOrder(t *testing.T) {
+	prof := domain.QualityProfile{ResolutionOrder: []string{"1080p", "720p"}}
+	rels := []indexer.Release{
+		{Title: "[Archivers] Placeholder Saga - 04 [BD 1280x720 x264]", Seeders: 10},
+		{Title: "[Archivers] Placeholder Saga - 03 (BDRip 1920x1036 AVC)", Seeders: 10},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof)
+	if got[0].Release.Resolution != "1080p" {
+		t.Fatalf("first = %q, want the 1080p-class release ranked above 720p", got[0].Release.Resolution)
+	}
+	if got[0].Score <= got[1].Score {
+		t.Errorf("scores = %d vs %d, want 1080p strictly higher", got[0].Score, got[1].Score)
+	}
+	var label string
+	for _, p := range got[0].ScoreParts {
+		if strings.HasPrefix(p.Label, "resolution ") {
+			label = p.Label
+		}
+	}
+	if !strings.Contains(label, "1080p") || !strings.Contains(label, "1920x1036") {
+		t.Errorf("label = %q, want both the tier and the dimensions it came from", label)
+	}
+}
+
+func TestDimensionResolutionHardExcludeMakesIneligible(t *testing.T) {
+	prof := domain.QualityProfile{HardExcludes: []string{"480p"}}
+	rels := []indexer.Release{
+		{Title: "[OldRips] Placeholder Saga - 03 [640x480 XviD]", Seeders: 10},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof)
+	if got[0].Eligible {
+		t.Fatal("640x480 release should be ineligible under a 480p exclude")
+	}
+	if !strings.Contains(got[0].IneligibleReason, "480p") || !strings.Contains(got[0].IneligibleReason, "640x480") {
+		t.Errorf("reason = %q, want both the tier and the dimensions", got[0].IneligibleReason)
+	}
+}
+
 func TestMinScoreFloorMeansNothingYet(t *testing.T) {
 	prof := domain.QualityProfile{
 		Groups:   []string{"TrustedCorp"},

@@ -24,6 +24,10 @@ type Parsed struct {
 	Group      string // release group, e.g. "ExampleSubs"
 	Resolution string // e.g. "1080p"
 
+	// ResolutionRaw is the literal dimensions when Resolution was folded from
+	// them ("1920x1036" -> "1080p"); "" when the release named a height itself.
+	ResolutionRaw string
+
 	Season       int // 0 when unspecified
 	EpisodeStart int // first episode number; 0 when none
 	EpisodeEnd   int // last episode number; == EpisodeStart for a single episode
@@ -49,10 +53,12 @@ func Parse(title string) Parsed {
 	e := anitogo.Parse(title, anitogo.DefaultOptions)
 
 	start, end := episodeRange(e.EpisodeNumber)
+	res, resRaw := normalizeResolution(e.VideoResolution)
 	p := Parsed{
 		Title:           strings.TrimSpace(e.AnimeTitle),
 		Group:           e.ReleaseGroup,
-		Resolution:      e.VideoResolution,
+		Resolution:      res,
+		ResolutionRaw:   resRaw,
 		Season:          firstInt(e.AnimeSeason),
 		EpisodeStart:    start,
 		EpisodeEnd:      end,
@@ -87,6 +93,52 @@ func episodeRange(nums []string) (start, end int) {
 		end = start
 	}
 	return start, end
+}
+
+// Standard tiers by height, plus the widths that still name a tier when the
+// height is cropped (a 1920x1036 encode is a 1080p release).
+var (
+	resHeights = map[int]bool{360: true, 480: true, 576: true, 720: true, 1080: true, 1440: true, 2160: true}
+	resWidths  = map[int]string{640: "480p", 704: "480p", 720: "480p", 848: "480p", 1280: "720p", 1920: "1080p", 3840: "2160p"}
+)
+
+// normalizeResolution folds anitogo's dimension form to the height form quality
+// profiles are written in; raw is the original, reported only when it was folded.
+func normalizeResolution(s string) (res, raw string) {
+	s = strings.TrimSpace(s)
+	w, h, ok := dimensions(s)
+	if !ok {
+		// anitogo's resolution pattern is unanchored, so a token can carry a
+		// separator without a usable pair ("a000x000"); no profile axis could ever
+		// match that, and reporting nothing beats reporting junk.
+		if strings.ContainsAny(s, "xX×") {
+			return "", ""
+		}
+		return strings.ToLower(s), ""
+	}
+	if !resHeights[h] {
+		if tier, ok := resWidths[w]; ok {
+			return tier, s
+		}
+	}
+	return strconv.Itoa(h) + "p", s
+}
+
+// dimensions splits a "1920x1080" token; ok is false for anything else, which is
+// how the already-canonical "1080p" form passes through untouched.
+func dimensions(s string) (w, h int, ok bool) {
+	parts := strings.FieldsFunc(s, func(r rune) bool { return r == 'x' || r == 'X' || r == '×' })
+	if len(parts) != 2 {
+		return 0, 0, false
+	}
+	var err error
+	if w, err = strconv.Atoi(parts[0]); err != nil {
+		return 0, 0, false
+	}
+	if h, err = strconv.Atoi(parts[1]); err != nil {
+		return 0, 0, false
+	}
+	return w, h, w > 0 && h > 0
 }
 
 // looksLikePack reports whether a title with no single episode number still
