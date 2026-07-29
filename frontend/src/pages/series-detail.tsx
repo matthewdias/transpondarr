@@ -2,13 +2,30 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Pin } from "lucide-react";
 import { api, ApiError, type SeriesDetail } from "@/lib/api";
 import { statusLabel } from "@/lib/chart";
-import { profilesQuery, seriesDetailQuery, seriesQuery } from "@/lib/queries";
+import {
+  profilesQuery,
+  releasesQuery,
+  seriesDetailQuery,
+  seriesQuery,
+} from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { AniListLink } from "@/components/anilist-link";
 import { Topbar } from "@/components/topbar";
 import { Poster } from "@/components/poster";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -203,6 +220,91 @@ function ProfilePicker({ detail }: { detail: SeriesDetail }) {
   );
 }
 
+// PinnedGroupChip is the per-series "this group is definitive" knob (#61): free
+// text because the pinned group need not be in the profile's ranked list.
+export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [group, setGroup] = useState("");
+  const current = detail.pinned_group ?? "";
+
+  const pin = useMutation({
+    mutationFn: (g: string) => api.setSeriesPinnedGroup(detail.id, g),
+    onSuccess: (_res, g) => {
+      toast.success(g.trim() ? `Pinned “${g.trim()}”` : "Pin cleared");
+      queryClient.invalidateQueries({
+        queryKey: seriesDetailQuery(detail.id).queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: releasesQuery(detail.id).queryKey,
+      });
+      setOpen(false);
+    },
+    onError: (e) =>
+      toast.error("Failed to update pinned group", {
+        description: e instanceof Error ? e.message : String(e),
+      }),
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) setGroup(current);
+      }}
+    >
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-accent-foreground"
+        >
+          <Pin className="size-3" aria-hidden />
+          {current ? `Pin: ${current}` : "Pin group"}
+        </button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Pinned release group</DialogTitle>
+          <DialogDescription>
+            This group&apos;s eligible releases always rank first for this
+            series, above profile scoring.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            pin.mutate(group);
+          }}
+        >
+          <Input
+            aria-label="Release group"
+            value={group}
+            onChange={(e) => setGroup(e.target.value)}
+            placeholder="e.g. ShinySubs"
+            maxLength={100}
+          />
+          <DialogFooter className="mt-4">
+            {current && (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={pin.isPending}
+                onClick={() => pin.mutate("")}
+              >
+                Clear
+              </Button>
+            )}
+            <Button type="submit" disabled={pin.isPending}>
+              Save
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DetailHeader({
   detail,
   onToggleMonitored,
@@ -270,6 +372,7 @@ function DetailHeader({
             </AniListLink>
           ) : null}
           <ProfilePicker detail={detail} />
+          <PinnedGroupChip detail={detail} />
         </div>
       </div>
     </div>

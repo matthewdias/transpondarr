@@ -69,6 +69,7 @@ type Series struct {
 	CreatedAt        string         `json:"created_at"`
 	QualityProfileID int64          `json:"quality_profile_id"`
 	AiringSyncedAt   sql.NullString `json:"airing_synced_at"`
+	PinnedGroup      sql.NullString `json:"pinned_group"`
 }
 
 type Session struct {

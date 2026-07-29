@@ -60,6 +60,21 @@ describe("typed client (openapi-fetch)", () => {
     expect(err).toMatchObject({ status: 500, message: "indexer unreachable" });
   });
 
+  it("sends the pinned group and unwraps the echo", async () => {
+    let sent: unknown;
+    server.use(
+      http.put("/api/v1/series/7/pinned-group", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ series_id: 7, pinned_group: "ShinyRip" });
+      }),
+    );
+    await expect(api.setSeriesPinnedGroup(7, "ShinyRip")).resolves.toEqual({
+      series_id: 7,
+      pinned_group: "ShinyRip",
+    });
+    expect(sent).toEqual({ group: "ShinyRip" });
+  });
+
   it("dispatches the auth-expired event on a stale-session 401", async () => {
     const listener = watchAuthExpired();
     server.use(

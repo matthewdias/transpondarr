@@ -212,6 +212,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/series/{id}/pinned-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Pin a release group for a series (an absolute tier above profile scoring) */
+        put: operations["set-series-pinned-group"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/series/{id}/profile": {
         parameters: {
             query?: never;
@@ -525,6 +542,8 @@ export interface components {
             infohash?: string;
             items?: number[];
             matched: boolean;
+            /** @description Release group is the series' pinned group; ranks above profile score when eligible */
+            pinned: boolean;
             reason: string;
             release_group?: string;
             resolution?: string;
@@ -940,6 +959,8 @@ export interface components {
             items: components["schemas"]["DetailItemDTO"][];
             monitored: boolean;
             native?: string;
+            /** @description Release group pinned above profile scoring; absent when none */
+            pinned_group?: string;
             /** Format: int64 */
             quality_profile_id: number;
             /** @description Provider status (e.g. RELEASING, FINISHED) */
@@ -976,6 +997,27 @@ export interface components {
             /** Format: int64 */
             id: number;
             monitored: boolean;
+        };
+        SetPinnedGroupInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetPinnedGroupInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Release group to pin above profile scoring; empty clears the pin */
+            group: string;
+        };
+        SetPinnedGroupOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetPinnedGroupOutputBody.json
+             */
+            readonly $schema?: string;
+            pinned_group?: string;
+            /** Format: int64 */
+            series_id: number;
         };
         SettingsDTO: {
             /**
@@ -1542,6 +1584,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesGrabsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "set-series-pinned-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPinnedGroupInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetPinnedGroupOutputBody"];
                 };
             };
             /** @description Error */

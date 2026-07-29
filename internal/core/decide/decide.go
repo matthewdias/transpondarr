@@ -5,7 +5,8 @@
 // wanted-item numbers — surfacing a human-readable reason for every decision so
 // the matching can be eyeballed before it drives an automatic grab. Matched
 // candidates are then ranked by a pure, profile-driven score (group first — see
-// the weights); an explicit floor lets the answer be "nothing yet".
+// the weights), below an absolute tier for a series' pinned group; an explicit
+// floor lets the answer be "nothing yet".
 //
 // v1 is deliberately transparent rather than clever: reconciling absolute vs
 // season-relative numbering is genuinely ambiguous without per-episode metadata,
@@ -35,6 +36,12 @@ type Candidate struct {
 	ScoreParts       []ScorePart
 	Eligible         bool
 	IneligibleReason string // non-empty exactly when !Eligible
+	Pinned           bool   // release group equals the series' pinned group
+}
+
+// MatchOpts carries per-series knobs that are neither profile nor title data.
+type MatchOpts struct {
+	PinnedGroup string
 }
 
 // ScorePart is one axis' contribution to a candidate's score, for display.
@@ -45,9 +52,11 @@ type ScorePart struct {
 
 // Match evaluates releases against a title. titleVariants are the accepted names
 // for the title (e.g. romaji/english/native) used to filter out releases for
-// other series. Results are ranked matched-first, then eligible-first, then by
-// profile score; seeders are only the tie-break between equal scores.
-func Match(items []domain.WantedItem, titleVariants []string, releases []indexer.Release, profile domain.QualityProfile) []Candidate {
+// other series. Results are ranked matched-first, then eligible-first, then
+// pinned-first, then by profile score; seeders are only the tie-break between
+// equal scores. A pin is an absolute tier, never a score: it wins only among
+// eligible releases, so it can never bypass a block, exclude, or the floor.
+func Match(items []domain.WantedItem, titleVariants []string, releases []indexer.Release, profile domain.QualityProfile, opts ...MatchOpts) []Candidate {
 	// itemSet holds the numbers still worth grabbing. Already-had items are excluded
 	// so a fully-downloaded episode is not re-matched and re-grabbed; maxItem still
 	// spans every item (had or not) so absolute-numbering detection below is unaffected.
@@ -62,6 +71,10 @@ func Match(items []domain.WantedItem, titleVariants []string, releases []indexer
 		}
 		itemSet[it.Number] = true
 	}
+	pin := ""
+	if len(opts) > 0 {
+		pin = opts[0].PinnedGroup
+	}
 	variants := normalizeVariants(titleVariants)
 	// Which season this entry represents, derived from its own title (AniList
 	// models each season as a separate entry, e.g. "... 2nd Season"). Defaults to
@@ -75,6 +88,7 @@ func Match(items []domain.WantedItem, titleVariants []string, releases []indexer
 		c.Score, c.ScoreParts = Score(c.Parsed, c.Release, profile)
 		c.IneligibleReason = ineligibleReason(c.Parsed, profile, c.Score)
 		c.Eligible = c.IneligibleReason == ""
+		c.Pinned = pin != "" && strings.EqualFold(c.Parsed.Group, pin)
 		out = append(out, c)
 	}
 
@@ -85,6 +99,9 @@ func Match(items []domain.WantedItem, titleVariants []string, releases []indexer
 		}
 		if out[a].Eligible != out[b].Eligible {
 			return out[a].Eligible
+		}
+		if out[a].Pinned != out[b].Pinned {
+			return out[a].Pinned
 		}
 		if out[a].Score != out[b].Score {
 			return out[a].Score > out[b].Score

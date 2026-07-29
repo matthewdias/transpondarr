@@ -156,6 +156,7 @@ type candidateDTO struct {
 	Matched     bool   `json:"matched"`
 	Items       []int  `json:"items"`
 	Reason      string `json:"reason"`
+	Pinned      bool   `json:"pinned"`
 }
 
 // TestSearchAndGrabPipeline drives the whole acquisition glue over HTTP: the
