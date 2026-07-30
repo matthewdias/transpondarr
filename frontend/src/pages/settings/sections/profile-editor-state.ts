@@ -85,10 +85,20 @@ function catalogueRank(name: string): number {
   return i < 0 ? RESOLUTIONS.length : i;
 }
 
-// The store reads blocked rows last (ListProfileGroups), so the editor keeps
-// them there too — otherwise a save-then-reopen would reshuffle the list.
+// The store reads blocked rows last (ListProfileGroups), so serialization
+// normalizes to that order; a reopen may reshuffle, but never the live list.
 export function partitionBlocked(rows: GroupRow[]): GroupRow[] {
   return [...rows.filter((g) => !g.blocked), ...rows.filter((g) => g.blocked)];
+}
+
+// Toggling block keeps the row under the cursor; blocked-last is applied only
+// at serialization, so the list never jumps mid-edit.
+export function setGroupBlocked(
+  rows: GroupRow[],
+  index: number,
+  blocked: boolean,
+): GroupRow[] {
+  return rows.map((g, i) => (i === index ? { ...g, blocked } : g));
 }
 
 let rowKey = 0;

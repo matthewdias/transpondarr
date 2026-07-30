@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   fromProfile,
+  setGroupBlocked,
   toProfileInput,
   type EditorState,
 } from "@/pages/settings/sections/profile-editor-state";
@@ -68,6 +69,28 @@ describe("fromProfile / toProfileInput", () => {
       "SecondChoice",
       "FirstChoice",
       "BadRipCo",
+    ]);
+  });
+
+  // Blocking must not yank the row away from the cursor mid-edit; blocked-last
+  // is a serialization concern (the test above), not a live-list one.
+  it("keeps a newly blocked row under the cursor", () => {
+    const state = fromProfile(profile({}));
+    const rows = setGroupBlocked(state.groups, 0, true);
+    expect(rows.map((g) => `${g.name}:${g.blocked}`)).toEqual([
+      "FirstChoice:true",
+      "SecondChoice:false",
+      "BadRipCo:true",
+    ]);
+  });
+
+  it("keeps an unblocked row in place too", () => {
+    const state = fromProfile(profile({}));
+    const rows = setGroupBlocked(state.groups, 2, false);
+    expect(rows.map((g) => `${g.name}:${g.blocked}`)).toEqual([
+      "FirstChoice:false",
+      "SecondChoice:false",
+      "BadRipCo:false",
     ]);
   });
 
