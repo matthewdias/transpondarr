@@ -90,9 +90,16 @@ func Parse(title string) Parsed {
 	p.Batch = end > start || (start == 0 && looksLikePack(e, title))
 
 	// Dual-titled scene releases end in an alt-title parenthetical that anitogo
-	// misreads as the group; distrust it and recover the scene -GROUP suffix.
-	if p.Group != "" && implausibleGroup(p.Group) {
-		p.Group = sceneGroup(title)
+	// misreads as the group. A blob-shaped group is distrusted outright; a short
+	// alt-title looks plausible, so a disagreeing codec-dash group overrides it.
+	if p.Group != "" {
+		if implausibleGroup(p.Group) {
+			p.Group = sceneGroup(title)
+		} else if groupFromTrailingParen(title, p.Group) {
+			if g := codecDashGroup(title); g != "" && !strings.EqualFold(g, p.Group) {
+				p.Group = g
+			}
+		}
 	}
 	return p
 }
@@ -103,25 +110,54 @@ func implausibleGroup(g string) bool {
 	return strings.Contains(g, ",") || len(strings.Fields(g)) >= 3
 }
 
+// groupFromTrailingParen reports whether anitogo read the group out of a
+// trailing parenthetical — the only position an alt-title masquerades in.
+func groupFromTrailingParen(raw, g string) bool {
+	return strings.HasSuffix(strings.TrimSpace(raw), "("+g+")")
+}
+
 var (
-	codecGroupRe    = regexp.MustCompile(`(?i)\b(?:[xh][ .]?26[45]|av1)-([A-Za-z0-9]+)\b`)
+	codecGroupRe    = regexp.MustCompile(`(?i)\b(?:[xh][ .]?26[45]|hevc|avc|av1)-([A-Za-z0-9]+)\b`)
 	trailingParenRe = regexp.MustCompile(`\s*\([^()]*\)\s*$`)
 	trailingDashRe  = regexp.MustCompile(`-([A-Za-z0-9]+)$`)
 )
 
-// Tag suffixes a trailing dash split would misread as a group (WEB-DL, Blu-Ray,
-// 10-bit, Multi-Subs).
-var nonGroupSuffix = map[string]bool{
+// Tag tokens a dash split would misread as a group (WEB-DL, Blu-Ray, 10-bit,
+// Multi-Subs, HDR10-Plus, x265-FLAC).
+var nonGroupToken = map[string]bool{
 	"dl": true, "ray": true, "bit": true, "raw": true,
-	"sub": true, "subs": true, "audio": true,
+	"sub": true, "subs": true, "audio": true, "plus": true,
+	"flac": true, "aac": true, "opus": true, "ac3": true, "eac3": true, "dts": true,
+}
+
+// plausibleRecoveredGroup rejects dash-split captures that are tag tokens or
+// digit-led qualifiers (10bit, E-AC-3's "3") rather than group names.
+func plausibleRecoveredGroup(g string) bool {
+	if g == "" || nonGroupToken[strings.ToLower(g)] {
+		return false
+	}
+	c := g[0]
+	return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+}
+
+// codecDashGroup finds the last plausible codec-dash group (H 264-GRP) in the
+// raw title; "" when none.
+func codecDashGroup(raw string) string {
+	ms := codecGroupRe.FindAllStringSubmatch(raw, -1)
+	for i := len(ms) - 1; i >= 0; i-- {
+		if plausibleRecoveredGroup(ms[i][1]) {
+			return ms[i][1]
+		}
+	}
+	return ""
 }
 
 // sceneGroup recovers a scene-style group from the raw title: the codec-dash
 // form is the strongest signal, then a trailing -GROUP once any trailing
 // parenthetical is stripped; "" when neither convinces.
 func sceneGroup(raw string) string {
-	if ms := codecGroupRe.FindAllStringSubmatch(raw, -1); len(ms) > 0 {
-		return ms[len(ms)-1][1]
+	if g := codecDashGroup(raw); g != "" {
+		return g
 	}
 	s := strings.TrimSpace(raw)
 	for {
@@ -131,7 +167,7 @@ func sceneGroup(raw string) string {
 		}
 		s = next
 	}
-	if m := trailingDashRe.FindStringSubmatch(s); m != nil && !nonGroupSuffix[strings.ToLower(m[1])] {
+	if m := trailingDashRe.FindStringSubmatch(s); m != nil && plausibleRecoveredGroup(m[1]) {
 		return m[1]
 	}
 	return ""

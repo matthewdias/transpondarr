@@ -188,6 +188,30 @@ func TestParseGroupRecovery(t *testing.T) {
 		// Bracket groups keep parsing untouched.
 		{title: "[ExampleSubs] Placeholder Saga S2E07 [1080p WEB-DL AAC][MultiSub][5A357DEE]",
 			group: "ExampleSubs"},
+		// HEVC/AVC spellings of the codec-dash form recover too.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL DDP2.0 HEVC-FAKEGRP (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: "FAKEGRP"},
+		// A digit-led codec qualifier is not a group; the real one still recovers.
+		{title: "Phantom Courier S01E02 1080p WEB-DL x265-10bit AAC2.0-FAKEGRP (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: "FAKEGRP"},
+		{title: "Phantom Courier S01E02 1080p WEB-DL x265-10bit (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: ""},
+		// Digit-led and tag-token dash splits (E-AC-3, HDR10-Plus) clear, not report.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi E-AC-3 (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: ""},
+		{title: "Phantom Courier S01E02 2160p NF WEB-DL DV HDR10-Plus (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: ""},
+		// A comma-free short alt-title looks plausible; a disagreeing codec-dash
+		// group is the one signal strong enough to override it.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL H 264-FAKEGRP (Yuurei Haitatsunin)",
+			group: "FAKEGRP"},
+		// Without that signal the plausible-looking alt-title stays (deliberate:
+		// the trailing-dash fallback is too weak to override a plausible group).
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL DDP2.0-FAKEGRP (Yuurei Haitatsunin)",
+			group: "Yuurei Haitatsunin"},
+		// An audio-codec dash split (x265-FLAC) never overrides a bracket group.
+		{title: "[ExampleSubs] Placeholder Saga - 07 [BD 1080p x265-FLAC]",
+			group: "ExampleSubs"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
