@@ -176,6 +176,7 @@ func looksLikePack(e *anitogo.Elements, title string) bool {
 // regex fallbacks below.
 var (
 	webRe      = regexp.MustCompile(`\bweb(?:[-_. ]?dl)?\b`)
+	webDLRe    = regexp.MustCompile(`\bweb[-_. ]?dl\b`)
 	repackRe   = regexp.MustCompile(`\b(?:repack|proper)\b`)
 	av1Re      = regexp.MustCompile(`\bav1\b`)
 	h264Re     = regexp.MustCompile(`\b(?:[xh][ .]?264|avc)\b`)
@@ -193,8 +194,9 @@ func remainderOf(raw string, e *anitogo.Elements) string {
 	rem := foldDelims(raw)
 	strip := []string{strings.TrimSpace(foldDelims(e.AnimeTitle))}
 	// anitogo misfiles unrecognized scene tags (REPACK, x264-GRP) as episode
-	// titles; only a multi-word episode title is trusted as a real name.
-	if t := strings.TrimSpace(foldDelims(e.EpisodeTitle)); strings.Contains(t, " ") {
+	// titles; only a multi-word episode title free of tag tokens is trusted as
+	// a real name — a dual-title release can misfile a whole multi-word tag run.
+	if t := strings.TrimSpace(foldDelims(e.EpisodeTitle)); strings.Contains(t, " ") && !tagRun(t) {
 		strip = append(strip, t)
 	}
 	for _, t := range strip {
@@ -212,6 +214,15 @@ func foldDelims(s string) string {
 		}
 		return r
 	}, strings.ToLower(s))
+}
+
+// tagRun reports whether a folded episode title reads as a misfiled scene tag
+// run. Only tokens no real episode name carries qualify — strict WEB-DL, a
+// codec, a sub-type — never bare "web" ("The Web of Fate" is a real name).
+func tagRun(t string) bool {
+	return webDLRe.MatchString(t) || h264Re.MatchString(t) || h265Re.MatchString(t) ||
+		av1Re.MatchString(t) || hardsubRe.MatchString(t) || softsubRe.MatchString(t) ||
+		multiSubRe.MatchString(t)
 }
 
 func sourceFrom(e *anitogo.Elements, rem string) string {

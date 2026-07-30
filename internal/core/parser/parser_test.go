@@ -180,6 +180,13 @@ func TestParseScoringAxes(t *testing.T) {
 			codec: "h264"},
 		// An episode title containing "Web" must not read as Source=web either.
 		{title: "[SubCorp] Placeholder Saga - 05 - The Web of Fate [1080p]"},
+		// A dual-title scene release with no episode title: anitogo misfiles the
+		// tag run as EpisodeTitle, which must not blank the axes it carries.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi AAC2.0 x265-FAKEGRP (Romaji Title, Multi-Audio, Multi-Subs)",
+			source: "web", codec: "h265", multiSub: true},
+		// The same shape without a codec token: WEB-DL alone marks the tag run.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi AAC2.0-FAKEGRP (Romaji Title, Multi-Audio, Multi-Subs)",
+			source: "web", multiSub: true},
 		// Plain release with no axis markers at all: everything stays zero.
 		{title: "[FakeGroup] Placeholder Saga - 28 (1080p) [ABCD1234].mkv"},
 	}
