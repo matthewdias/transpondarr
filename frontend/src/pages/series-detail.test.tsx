@@ -91,6 +91,36 @@ describe("PinnedGroupChip", () => {
     expect(save()).toBeDisabled();
   });
 
+  // #62: the wait is per-series, and a blank field means "use the global
+  // default" rather than "wait zero hours".
+  it("sends a per-series wait, and omits it when blank", async () => {
+    const sent: unknown[] = [];
+    server.use(
+      http.put("/api/v1/series/7/pinned-group", async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json({ series_id: 7, pinned_group: "ShinyRip" });
+      }),
+    );
+    const user = userEvent.setup();
+    renderChip(detail({ pinned_group: "ShinyRip", pin_delay_hours: 6 }));
+
+    await user.click(screen.getByRole("button", { name: /pin: shinyrip/i }));
+    const wait = screen.getByRole("spinbutton", { name: /wait/i });
+    expect(wait).toHaveValue(6);
+    await user.clear(wait);
+    await user.type(wait, "12");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() =>
+      expect(sent).toEqual([{ group: "ShinyRip", delay_hours: 12 }]),
+    );
+
+    await user.click(screen.getByRole("button", { name: /pin: shinyrip/i }));
+    await user.clear(screen.getByRole("spinbutton", { name: /wait/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1]).toEqual({ group: "ShinyRip" });
+  });
+
   it("shows the current pin and clears it", async () => {
     let sent: unknown;
     server.use(

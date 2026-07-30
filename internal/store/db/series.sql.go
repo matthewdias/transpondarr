@@ -451,17 +451,20 @@ func (q *Queries) SetSeriesMonitored(ctx context.Context, arg SetSeriesMonitored
 }
 
 const setSeriesPinnedGroup = `-- name: SetSeriesPinnedGroup :execrows
-UPDATE series SET pinned_group = ? WHERE id = ?
+UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?
 `
 
 type SetSeriesPinnedGroupParams struct {
-	PinnedGroup sql.NullString `json:"pinned_group"`
-	ID          int64          `json:"id"`
+	PinnedGroup   sql.NullString `json:"pinned_group"`
+	PinDelayHours sql.NullInt64  `json:"pin_delay_hours"`
+	ID            int64          `json:"id"`
 }
 
-// NULL clears the pin; execrows lets the handler 404 an unknown series.
+// NULL clears the pin; execrows lets the handler 404 an unknown series. The
+// delay rides along because it is meaningless without a group to wait for, so
+// PUT-replacing one must replace the other.
 func (q *Queries) SetSeriesPinnedGroup(ctx context.Context, arg SetSeriesPinnedGroupParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, setSeriesPinnedGroup, arg.PinnedGroup, arg.ID)
+	result, err := q.db.ExecContext(ctx, setSeriesPinnedGroup, arg.PinnedGroup, arg.PinDelayHours, arg.ID)
 	if err != nil {
 		return 0, err
 	}

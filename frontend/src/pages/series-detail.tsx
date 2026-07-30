@@ -228,11 +228,15 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [group, setGroup] = useState("");
+  const [delay, setDelay] = useState("");
   const current = detail.pinned_group ?? "";
+  const currentDelay =
+    detail.pin_delay_hours === undefined ? "" : String(detail.pin_delay_hours);
 
   const pin = useMutation({
-    mutationFn: (g: string) => api.setSeriesPinnedGroup(detail.id, g),
-    onSuccess: (_res, g) => {
+    mutationFn: ({ g, d }: { g: string; d?: number }) =>
+      api.setSeriesPinnedGroup(detail.id, g, d),
+    onSuccess: (_res, { g }) => {
       toast.success(g.trim() ? `Pinned “${g.trim()}”` : "Pin cleared");
       queryClient.invalidateQueries({
         queryKey: seriesDetailQuery(detail.id).queryKey,
@@ -253,7 +257,10 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (o) setGroup(current);
+        if (o) {
+          setGroup(current);
+          setDelay(currentDelay);
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -276,30 +283,52 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            pin.mutate(group);
+            pin.mutate({
+              g: group,
+              d: delay === "" ? undefined : Number(delay),
+            });
           }}
         >
-          <Input
-            aria-label="Release group"
-            value={group}
-            onChange={(e) => setGroup(e.target.value)}
-            placeholder="e.g. ShinySubs"
-            maxLength={100}
-          />
+          <div className="space-y-3">
+            <Input
+              aria-label="Release group"
+              value={group}
+              onChange={(e) => setGroup(e.target.value)}
+              placeholder="e.g. ShinySubs"
+              maxLength={100}
+            />
+            <div className="space-y-1">
+              <Input
+                type="number"
+                min={0}
+                aria-label="Wait for this group (hours)"
+                value={delay}
+                onChange={(e) => setDelay(e.target.value)}
+                placeholder="Wait (hours)"
+              />
+              <p className="text-xs text-muted-foreground">
+                How long automatic searches wait for this group after an episode
+                airs. Blank uses the global default.
+              </p>
+            </div>
+          </div>
           <DialogFooter className="mt-4">
             {current && (
               <Button
                 type="button"
                 variant="outline"
                 disabled={pin.isPending}
-                onClick={() => pin.mutate("")}
+                onClick={() => pin.mutate({ g: "" })}
               >
                 Clear
               </Button>
             )}
             <Button
               type="submit"
-              disabled={pin.isPending || group.trim() === current}
+              disabled={
+                pin.isPending ||
+                (group.trim() === current && delay === currentDelay)
+              }
             >
               Save
             </Button>
