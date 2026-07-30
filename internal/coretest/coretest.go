@@ -40,6 +40,10 @@ type FakeIndexer struct {
 	Releases []indexer.Release
 	Err      error
 
+	// ByTerm, when non-nil, keys releases on the exact query term (unlisted terms
+	// get zero results) so a test can exercise the variant-fallback search.
+	ByTerm map[string][]indexer.Release
+
 	Queries []indexer.Query // recorded, in call order
 }
 
@@ -56,6 +60,9 @@ func (f *FakeIndexer) Search(_ context.Context, q indexer.Query) ([]indexer.Rele
 	f.Queries = append(f.Queries, q)
 	if f.Err != nil {
 		return nil, f.Err
+	}
+	if f.ByTerm != nil {
+		return f.ByTerm[q.Term], nil
 	}
 	return f.Releases, nil
 }

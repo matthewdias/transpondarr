@@ -333,8 +333,12 @@ func normalizeVariants(variants []string) []string {
 func normalize(s string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(s) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+		switch {
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
 			b.WriteRune(r)
+		case r == '×':
+			// Releases write "×" as "x"; deleting it breaks containment (#107).
+			b.WriteRune('x')
 		}
 	}
 	return b.String()
