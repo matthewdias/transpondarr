@@ -328,17 +328,14 @@ func normalizeVariants(variants []string) []string {
 	return out
 }
 
-// normalize lowercases and strips everything but letters and digits, so titles
-// that differ only in punctuation/spacing/romanization glyphs compare equal.
+// normalize lowercases and strips everything but ASCII letters and digits, so
+// titles that differ only in punctuation/spacing/romanization glyphs compare
+// equal. foldTitle first, so what SearchTerm finds this can match (#107).
 func normalize(s string) string {
 	var b strings.Builder
-	for _, r := range strings.ToLower(s) {
-		switch {
-		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+	for _, r := range strings.ToLower(foldTitle(s)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
 			b.WriteRune(r)
-		case r == '×':
-			// Releases write "×" as "x"; deleting it breaks containment (#107).
-			b.WriteRune('x')
 		}
 	}
 	return b.String()

@@ -258,7 +258,7 @@ func (h *seriesHandler) matchReleases(ctx context.Context, id int64) (db.Series,
 	// cheap next to reporting nothing.
 	var releases []indexer.Release
 	term := ""
-	for _, t := range decide.SearchTerms(series.Title, variants) {
+	for _, t := range decide.SearchTerms(variants) {
 		if term == "" {
 			term = t
 		}

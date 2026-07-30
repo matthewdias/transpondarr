@@ -80,6 +80,30 @@ func TestSearchFallsBackToVariantOnZeroResults(t *testing.T) {
 	}
 }
 
+// An indexer error during a fallback query surfaces as a 502 immediately — it
+// must not be swallowed into a zero-result response.
+func TestSearchIndexerErrorMidFallback502(t *testing.T) {
+	const english = "Fixture of the Sky Side Story"
+	idx := &coretest.FakeIndexer{
+		ByTerm:    map[string][]indexer.Release{},
+		ErrByTerm: map[string]error{english: errors.New("torznab: upstream timeout")},
+	}
+	provider := variantProvider{meta: metadata.TitleMeta{
+		ProviderID: 42,
+		Titles:     metadata.Titles{Romaji: "Sora・no・Fixture Gaiden", English: english},
+	}}
+	h := newHarnessWithProvider(t, idx, nil, provider)
+	seriesID := seedAnilistSeries(t, h, "Sora・no・Fixture Gaiden", 42, 12)
+
+	var out struct{}
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &out); code != http.StatusBadGateway {
+		t.Fatalf("search status = %d, want 502", code)
+	}
+	if len(idx.Queries) != 2 || idx.Queries[1].Term != english {
+		t.Fatalf("indexer queried with %+v, want the primary term then the failing variant", idx.Queries)
+	}
+}
+
 // variantProvider answers GetTitle with fixed metadata so TitleVariants works.
 type variantProvider struct{ meta metadata.TitleMeta }
 

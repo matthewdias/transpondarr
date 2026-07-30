@@ -18,9 +18,18 @@ func TestSearchTerm(t *testing.T) {
 		{"eighth note to space", "Melody♪Fixture", "Melody Fixture"},
 		{"fullwidth tilde pair to space", "Fixture Encore ～Reprise～", "Fixture Encore Reprise"},
 		{"wave dash pair to space", "Fixture Encore 〜Reprise〜", "Fixture Encore Reprise"},
-		{"vulgar half dropped", "Placeholder½ Saga", "Placeholder Saga"},
 		{"brackets dropped", "Placeholder Saga [TV]", "Placeholder Saga TV"},
 		{"whitespace collapsed", "Placeholder   Saga", "Placeholder Saga"},
+		// The general fold: symbols outside the issue's list need no enumeration.
+		{"white heart to space", "Fixture♡Collection", "Fixture Collection"},
+		{"dagger to space", "Fixture†Requiem", "Fixture Requiem"},
+		{"vulgar half transliterated", "Placeholder½ Saga", "Placeholder 1 2 Saga"},
+		{"fullwidth forms fold to ascii", "Fixture！ Dash （2019）", "Fixture! Dash 2019"},
+		{"latin accents fold", "Fixturémon Adventures", "Fixturemon Adventures"},
+		{"curly apostrophe folds", "Fixture’s Saga", "Fixture's Saga"},
+		{"em dash folds", "Fixture — Encore", "Fixture - Encore"},
+		{"roman numeral and circled digit fold", "Fixture Ⅲ ②", "Fixture III 2"},
+		{"kana voicing marks survive", "レンジャーズ・ソラ", "レンジャーズ ソラ"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -32,7 +41,8 @@ func TestSearchTerm(t *testing.T) {
 }
 
 func TestSearchTermsOrderAndDedupe(t *testing.T) {
-	got := SearchTerms("RANGER×RANGER (2013)", []string{
+	got := SearchTerms([]string{
+		"RANGER×RANGER (2013)",
 		"RANGER×RANGER (2013)",   // stored title repeated in variants
 		"Ranger x Ranger (2013)", // english: sanitizes to a case-insensitive dupe
 		"レンジャー×レンジャー",            // native: distinct, kept as the last resort
