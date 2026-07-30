@@ -134,6 +134,95 @@ func TestParseResolutionNormalization(t *testing.T) {
 	}
 }
 
+// A dual-titled scene release ends in an alt-title parenthetical that anitogo
+// misreads as the release group; the real group is the scene -GROUP suffix.
+func TestParseDualTitleSceneRelease(t *testing.T) {
+	p := Parse("Phantom Courier S01E02 Night Delivery 1080p NF WEB-DL MULTi AAC2.0 H 264-FAKEGRP (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)")
+	if p.Group != "FAKEGRP" {
+		t.Errorf("group = %q, want FAKEGRP", p.Group)
+	}
+	if p.Title != "Phantom Courier" {
+		t.Errorf("title = %q, want Phantom Courier", p.Title)
+	}
+	if p.Season != 1 || p.EpisodeStart != 2 || p.EpisodeEnd != 2 {
+		t.Errorf("season/episode = %d/%d..%d, want 1/2..2", p.Season, p.EpisodeStart, p.EpisodeEnd)
+	}
+	if p.Resolution != "1080p" {
+		t.Errorf("resolution = %q, want 1080p", p.Resolution)
+	}
+	if p.Source != "web" {
+		t.Errorf("source = %q, want web", p.Source)
+	}
+	if p.Codec != "h264" {
+		t.Errorf("codec = %q, want h264", p.Codec)
+	}
+	if !p.MultiSub {
+		t.Error("Multi-Subs should be detected")
+	}
+}
+
+func TestParseGroupRecovery(t *testing.T) {
+	tests := []struct {
+		title string
+		group string
+	}{
+		// Codec-dash is the strongest signal, in every spelling variant.
+		{title: "Phantom Courier S01E02 Night Delivery 1080p NF WEB-DL MULTi AAC2.0 H.264-FAKEGRP (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: "FAKEGRP"},
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi AAC2.0 x265-FAKEGRP (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: "FAKEGRP"},
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi AV1-FAKEGRP (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: "FAKEGRP"},
+		// No codec token: fall back to the trailing -GROUP before the parenthetical.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL DDP2.0-FAKEGRP (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: "FAKEGRP"},
+		// Nothing recoverable: clearing beats reporting the alt-title blob as a group.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi AAC2.0 (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: ""},
+		// A WEB-DL suffix must never be mistaken for a trailing group.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: ""},
+		// A plausible short group in a parenthetical is kept, not overridden.
+		{title: "Placeholder Saga - 05 (1080p) (ExampleSubs)",
+			group: "ExampleSubs"},
+		// Bracket groups keep parsing untouched.
+		{title: "[ExampleSubs] Placeholder Saga S2E07 [1080p WEB-DL AAC][MultiSub][5A357DEE]",
+			group: "ExampleSubs"},
+		// HEVC/AVC spellings of the codec-dash form recover too.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL DDP2.0 HEVC-FAKEGRP (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: "FAKEGRP"},
+		// A digit-led codec qualifier is not a group; the real one still recovers.
+		{title: "Phantom Courier S01E02 1080p WEB-DL x265-10bit AAC2.0-FAKEGRP (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: "FAKEGRP"},
+		{title: "Phantom Courier S01E02 1080p WEB-DL x265-10bit (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: ""},
+		// Digit-led and tag-token dash splits (E-AC-3, HDR10-Plus) clear, not report.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi E-AC-3 (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: ""},
+		{title: "Phantom Courier S01E02 2160p NF WEB-DL DV HDR10-Plus (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
+			group: ""},
+		// A comma-free short alt-title looks plausible; a disagreeing codec-dash
+		// group is the one signal strong enough to override it.
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL H 264-FAKEGRP (Yuurei Haitatsunin)",
+			group: "FAKEGRP"},
+		// Without that signal the plausible-looking alt-title stays (deliberate:
+		// the trailing-dash fallback is too weak to override a plausible group).
+		{title: "Phantom Courier S01E02 1080p NF WEB-DL DDP2.0-FAKEGRP (Yuurei Haitatsunin)",
+			group: "Yuurei Haitatsunin"},
+		// An audio-codec dash split (x265-FLAC) never overrides a bracket group.
+		{title: "[ExampleSubs] Placeholder Saga - 07 [BD 1080p x265-FLAC]",
+			group: "ExampleSubs"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			p := Parse(tt.title)
+			if p.Group != tt.group {
+				t.Errorf("group = %q, want %q", p.Group, tt.group)
+			}
+		})
+	}
+}
+
 func TestParseScoringAxes(t *testing.T) {
 	tests := []struct {
 		title    string
