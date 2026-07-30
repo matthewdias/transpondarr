@@ -88,7 +88,53 @@ func Parse(title string) Parsed {
 	// A release is a batch when it spans an episode range, or when it names a
 	// season/anime but carries no single episode number (a season/complete pack).
 	p.Batch = end > start || (start == 0 && looksLikePack(e, title))
+
+	// Dual-titled scene releases end in an alt-title parenthetical that anitogo
+	// misreads as the group; distrust it and recover the scene -GROUP suffix.
+	if p.Group != "" && implausibleGroup(p.Group) {
+		p.Group = sceneGroup(title)
+	}
 	return p
+}
+
+// implausibleGroup flags anitogo output that reads as an alt-title blob, not a
+// group name — real groups never carry commas or run to three-plus words.
+func implausibleGroup(g string) bool {
+	return strings.Contains(g, ",") || len(strings.Fields(g)) >= 3
+}
+
+var (
+	codecGroupRe    = regexp.MustCompile(`(?i)\b(?:[xh][ .]?26[45]|av1)-([A-Za-z0-9]+)\b`)
+	trailingParenRe = regexp.MustCompile(`\s*\([^()]*\)\s*$`)
+	trailingDashRe  = regexp.MustCompile(`-([A-Za-z0-9]+)$`)
+)
+
+// Tag suffixes a trailing dash split would misread as a group (WEB-DL, Blu-Ray,
+// 10-bit, Multi-Subs).
+var nonGroupSuffix = map[string]bool{
+	"dl": true, "ray": true, "bit": true, "raw": true,
+	"sub": true, "subs": true, "audio": true,
+}
+
+// sceneGroup recovers a scene-style group from the raw title: the codec-dash
+// form is the strongest signal, then a trailing -GROUP once any trailing
+// parenthetical is stripped; "" when neither convinces.
+func sceneGroup(raw string) string {
+	if ms := codecGroupRe.FindAllStringSubmatch(raw, -1); len(ms) > 0 {
+		return ms[len(ms)-1][1]
+	}
+	s := strings.TrimSpace(raw)
+	for {
+		next := trailingParenRe.ReplaceAllString(s, "")
+		if next == s {
+			break
+		}
+		s = next
+	}
+	if m := trailingDashRe.FindStringSubmatch(s); m != nil && !nonGroupSuffix[strings.ToLower(m[1])] {
+		return m[1]
+	}
+	return ""
 }
 
 // episodeRange converts anitogo's episode slice ("01-10" -> ["1","10"]) into a
