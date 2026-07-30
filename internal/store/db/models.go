@@ -70,6 +70,10 @@ type Series struct {
 	QualityProfileID int64          `json:"quality_profile_id"`
 	AiringSyncedAt   sql.NullString `json:"airing_synced_at"`
 	PinnedGroup      sql.NullString `json:"pinned_group"`
+	LastSearchedAt   sql.NullString `json:"last_searched_at"`
+	SearchBackoff    int64          `json:"search_backoff"`
+	NextSearchAt     sql.NullString `json:"next_search_at"`
+	PinDelayHours    sql.NullInt64  `json:"pin_delay_hours"`
 }
 
 type Session struct {
