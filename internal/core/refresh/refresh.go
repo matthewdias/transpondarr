@@ -73,7 +73,9 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 
 // refreshSeries upserts one series' items from a re-fetch, in one transaction.
 // Clearing the airing stamp on growth is what gets the new items air dates: the
-// next airing pass re-pages exactly the series that grew.
+// next airing pass re-pages exactly the series that grew. Resetting the search
+// cadence in the same transaction is the other half of that handshake — a new
+// episode is worth looking for now, whatever backoff had accumulated.
 func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
 	_, items, err := s.provider.GetTitle(ctx, series.AnilistID.Int64)
 	if err != nil {
@@ -103,6 +105,9 @@ func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
 	if inserted > 0 {
 		if err := q.ClearSeriesAiringSyncedAt(ctx, series.ID); err != nil {
 			return fmt.Errorf("clear airing stamp: %w", err)
+		}
+		if err := q.ResetSeriesSearchState(ctx, series.ID); err != nil {
+			return fmt.Errorf("reset search cadence: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {

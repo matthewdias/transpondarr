@@ -369,6 +369,13 @@ func (h *seriesHandler) setMonitored(ctx context.Context, in *setMonitoredInput)
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to update series", err)
 	}
+	// Monitoring a series again asks for it to be looked after now, not once a
+	// backoff accumulated before it was paused has run down.
+	if in.Body.Monitored {
+		if err := h.store.Q.ResetSeriesSearchState(ctx, in.ID); err != nil {
+			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
+		}
+	}
 	out := &setMonitoredOutput{}
 	out.Body.ID = in.ID
 	out.Body.Monitored = in.Body.Monitored

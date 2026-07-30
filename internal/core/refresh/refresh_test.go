@@ -203,6 +203,59 @@ func TestRefreshClearsAiringStampWhenTheSeriesGrows(t *testing.T) {
 	}
 }
 
+// A new episode is worth looking for now, whatever backoff the sweep had
+// accumulated while the series had nothing left to find.
+func TestGrowthResetsSearchCadence(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := newFakeProvider()
+	prov.episodes[100] = 13
+	id := seedSeries(t, st, 100, 12)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET search_backoff = 8, next_search_at = ? WHERE id = ?`,
+		store.FormatTimestamp(time.Now().Add(24*time.Hour)), id); err != nil {
+		t.Fatalf("seed a long backoff: %v", err)
+	}
+
+	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+		t.Fatalf("RefreshOnce: %v", err)
+	}
+
+	var backoff int
+	var next *string
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, id).Scan(&backoff, &next); err != nil {
+		t.Fatalf("read search cadence: %v", err)
+	}
+	if backoff != 0 || next != nil {
+		t.Errorf("cadence = backoff %d, next %v; want it reset so the sweep looks for the new episode", backoff, next)
+	}
+}
+
+// A refresh that inserts nothing must not hand a backed-off series a free retry.
+func TestRefreshKeepsSearchCadenceWhenNothingNew(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := newFakeProvider()
+	prov.episodes[100] = 12
+	id := seedSeries(t, st, 100, 12)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET search_backoff = 8 WHERE id = ?`, id); err != nil {
+		t.Fatalf("seed a long backoff: %v", err)
+	}
+
+	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+		t.Fatalf("RefreshOnce: %v", err)
+	}
+
+	var backoff int
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT search_backoff FROM series WHERE id = ?`, id).Scan(&backoff); err != nil {
+		t.Fatalf("read search cadence: %v", err)
+	}
+	if backoff != 8 {
+		t.Errorf("search_backoff = %d, want the accumulated 8", backoff)
+	}
+}
+
 func TestRefreshKeepsAiringStampWhenNothingNew(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
