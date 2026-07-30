@@ -15,7 +15,6 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
-	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -154,20 +153,18 @@ type seriesGrabsOutput struct {
 // handlers off the same type and share helpers like requireSeries without
 // threading deps through every call.
 type seriesHandler struct {
-	store    *store.Store
-	catalog  *catalog.Service
-	clients  *clients.Registry
-	settings *settings.Service
-	acquire  *acquire.Service
+	store   *store.Store
+	catalog *catalog.Service
+	clients *clients.Registry
+	acquire *acquire.Service
 }
 
 func newSeriesHandler(deps routeDeps) *seriesHandler {
 	return &seriesHandler{
-		store:    deps.store,
-		catalog:  deps.catalog,
-		clients:  deps.clients,
-		settings: deps.settings,
-		acquire:  acquire.New(deps.store, deps.clients, deps.catalog, deps.settings, deps.log),
+		store:   deps.store,
+		catalog: deps.catalog,
+		clients: deps.clients,
+		acquire: acquire.New(deps.store, deps.clients, deps.catalog, deps.settings, deps.log),
 	}
 }
 

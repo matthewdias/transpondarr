@@ -10,6 +10,7 @@ import (
 
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
@@ -46,11 +47,20 @@ func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Disca
 // newService wires an acquire.Service over a temp store and the given fakes.
 func newService(t *testing.T, st *store.Store, idx indexer.Indexer, titles fakeTitles) (*acquire.Service, *clients.Registry) {
 	t.Helper()
+	reg := newRegistry(idx, nil)
+	return acquire.New(st, reg, titles, fakeConfig{}, discardLogger()), reg
+}
+
+// newRegistry holds the fakes acquire reads its clients from (nil = unconfigured).
+func newRegistry(idx indexer.Indexer, dl download.Client) *clients.Registry {
 	reg := clients.New()
 	if idx != nil {
 		reg.SetIndexer(idx)
 	}
-	return acquire.New(st, reg, titles, fakeConfig{}, discardLogger()), reg
+	if dl != nil {
+		reg.SetDownload(dl)
+	}
+	return reg
 }
 
 // seedSeries inserts a monitored series with episodes 1..count and no AniList id.

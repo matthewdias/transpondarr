@@ -6,9 +6,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/decide"
-	"github.com/matthewdias/transpondarr/internal/core/download"
-	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
 type candidateReleaseDTO struct {
@@ -129,17 +128,14 @@ func (h *seriesHandler) searchReleases(ctx context.Context, in *searchSeriesInpu
 }
 
 func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*grabSeriesOutput, error) {
-	dl := h.clients.Download()
-	if dl == nil {
-		return nil, huma.Error503ServiceUnavailable(
-			"no download client configured (set it in Settings, or TRANSPONDARR_QBIT_URL/_USER/_PASSWORD)")
+	if h.clients.Download() == nil {
+		return nil, acquireHTTPError(acquire.ErrNoDownloadClient)
 	}
 
 	m, err := h.acquire.MatchSeries(ctx, in.ID)
 	if err != nil {
 		return nil, acquireHTTPError(err)
 	}
-	items := m.Items
 
 	// Re-run the match and locate the chosen release by URL, so we grab exactly
 	// what the decider says it covers rather than trusting client-supplied item
@@ -158,44 +154,17 @@ func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*
 		return nil, huma.Error422UnprocessableEntity("release does not match any wanted item: " + chosen.Reason)
 	}
 
-	// Hand off to the download client. The category is best-effort decoration.
-	res, err := dl.Add(ctx, download.AddOptions{
-		URL:      in.Body.DownloadURL,
-		Category: h.settings.DownloadCategory(),
-		Paused:   in.Body.Paused,
-	})
+	// Eligibility is reported, never enforced, on a manual grab (PR #57).
+	res, err := h.acquire.Grab(ctx, *chosen, m.Items, in.Body.Paused)
 	if err != nil {
-		return nil, huma.Error502BadGateway("download client add failed", err)
-	}
-
-	// Record a grab per covered wanted item (identity keyed on the info hash).
-	// have stays false — only a successful import marks an item as had.
-	itemID := make(map[int]int64, len(items))
-	for _, it := range items {
-		itemID[it.Number] = it.ID
-	}
-	grabbed := make([]int, 0, len(chosen.Items))
-	for _, n := range chosen.Items {
-		id, ok := itemID[n]
-		if !ok {
-			continue
-		}
-		if _, gerr := h.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
-			WantedItemID: id,
-			InfoHash:     res.Hash,
-			ReleaseTitle: chosen.Release.Title,
-			Status:       "grabbed",
-		}); gerr != nil {
-			return nil, huma.Error500InternalServerError("failed to record grab", gerr)
-		}
-		grabbed = append(grabbed, n)
+		return nil, acquireHTTPError(err)
 	}
 
 	out := &grabSeriesOutput{}
-	out.Body.InfoHash = res.Hash
+	out.Body.InfoHash = res.InfoHash
 	out.Body.Outcome = string(res.Outcome)
 	out.Body.Release = chosen.Release.Title
-	out.Body.Items = grabbed
+	out.Body.Items = res.Items
 	out.Body.IneligibleReason = chosen.IneligibleReason
 	return out, nil
 }
