@@ -95,13 +95,13 @@ func registerSeriesAcquisitionRoutes(api huma.API, deps routeDeps) {
 }
 
 func (h *seriesHandler) searchReleases(ctx context.Context, in *searchSeriesInput) (*searchSeriesOutput, error) {
-	series, _, cands, err := h.matchReleases(ctx, in.ID)
+	series, term, _, cands, err := h.matchReleases(ctx, in.ID)
 	if err != nil {
 		return nil, err
 	}
 	out := &searchSeriesOutput{}
 	out.Body.Series = series.Title
-	out.Body.Term = series.Title
+	out.Body.Term = term
 	out.Body.Results = make([]candidateReleaseDTO, 0, len(cands))
 	for _, c := range cands {
 		parts := make([]scorePartDTO, 0, len(c.ScoreParts))
@@ -137,7 +137,7 @@ func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*
 			"no download client configured (set it in Settings, or TRANSPONDARR_QBIT_URL/_USER/_PASSWORD)")
 	}
 
-	_, items, cands, err := h.matchReleases(ctx, in.ID)
+	_, _, items, cands, err := h.matchReleases(ctx, in.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,23 +202,23 @@ func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*
 }
 
 // matchReleases loads a series and its wanted items, searches the indexer, and
-// returns the ranked match candidates. Errors are already huma status errors, so
-// callers can return them directly.
-func (h *seriesHandler) matchReleases(ctx context.Context, id int64) (db.Series, []domain.WantedItem, []decide.Candidate, error) {
+// returns the ranked match candidates plus the query term that produced them.
+// Errors are already huma status errors, so callers can return them directly.
+func (h *seriesHandler) matchReleases(ctx context.Context, id int64) (db.Series, string, []domain.WantedItem, []decide.Candidate, error) {
 	idx := h.clients.Indexer()
 	if idx == nil {
-		return db.Series{}, nil, nil, huma.Error503ServiceUnavailable(
+		return db.Series{}, "", nil, nil, huma.Error503ServiceUnavailable(
 			"no indexer configured (set TRANSPONDARR_TORZNAB_URL, _APIKEY)")
 	}
 
 	series, err := h.requireSeries(ctx, id)
 	if err != nil {
-		return db.Series{}, nil, nil, err
+		return db.Series{}, "", nil, nil, err
 	}
 
 	rows, err := h.store.Q.ListWantedItems(ctx, series.ID)
 	if err != nil {
-		return db.Series{}, nil, nil, huma.Error500InternalServerError("failed to load wanted items", err)
+		return db.Series{}, "", nil, nil, huma.Error500InternalServerError("failed to load wanted items", err)
 	}
 	items := make([]domain.WantedItem, 0, len(rows))
 	for _, r := range rows {
@@ -242,21 +242,35 @@ func (h *seriesHandler) matchReleases(ctx context.Context, id int64) (db.Series,
 
 	profRow, err := h.store.Q.GetQualityProfile(ctx, series.QualityProfileID)
 	if err != nil {
-		return db.Series{}, nil, nil, huma.Error500InternalServerError("failed to load quality profile", err)
+		return db.Series{}, "", nil, nil, huma.Error500InternalServerError("failed to load quality profile", err)
 	}
 	groupRows, err := h.store.Q.ListProfileGroups(ctx, profRow.ID)
 	if err != nil {
-		return db.Series{}, nil, nil, huma.Error500InternalServerError("failed to load profile groups", err)
+		return db.Series{}, "", nil, nil, huma.Error500InternalServerError("failed to load profile groups", err)
 	}
 	profile, err := profileFromRows(profRow, groupRows)
 	if err != nil {
-		return db.Series{}, nil, nil, huma.Error500InternalServerError("invalid quality profile", err)
+		return db.Series{}, "", nil, nil, huma.Error500InternalServerError("invalid quality profile", err)
 	}
 
-	releases, err := idx.Search(ctx, indexer.Query{Term: series.Title})
-	if err != nil {
-		return db.Series{}, nil, nil, huma.Error502BadGateway("indexer search failed", err)
+	// Sanitized title first, then each variant as a zero-result fallback (#107):
+	// a romaji term can be unsearchable even sanitized, and one extra request is
+	// cheap next to reporting nothing.
+	var releases []indexer.Release
+	term := ""
+	for _, t := range decide.SearchTerms(variants) {
+		if term == "" {
+			term = t
+		}
+		releases, err = idx.Search(ctx, indexer.Query{Term: t})
+		if err != nil {
+			return db.Series{}, "", nil, nil, huma.Error502BadGateway("indexer search failed", err)
+		}
+		if len(releases) > 0 {
+			term = t
+			break
+		}
 	}
-	return series, items, decide.Match(items, variants, releases, profile,
+	return series, term, items, decide.Match(items, variants, releases, profile,
 		decide.MatchOpts{PinnedGroup: series.PinnedGroup.String}), nil
 }

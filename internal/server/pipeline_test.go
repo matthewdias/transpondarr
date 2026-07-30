@@ -45,6 +45,13 @@ type harness struct {
 // a login — leaving the pipeline (not the auth layer) as what the test exercises.
 func newHarness(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownload) *harness {
 	t.Helper()
+	return newHarnessWithProvider(t, idx, dl, testProvider())
+}
+
+// newHarnessWithProvider is newHarness with a real metadata provider double, for
+// tests that need TitleVariants to answer (the stub errors by design).
+func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownload, provider metadata.Provider) *harness {
+	t.Helper()
 	ctx := context.Background()
 	st := coretest.NewStore(t)
 
@@ -71,7 +78,7 @@ func newHarness(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownlo
 	reg.SetLibrary(lib)
 
 	runner := jobs.New(discardLogger())
-	h := server.New(cfg, st, discardLogger(), testProvider(), reg, settingsSvc, authSvc, runner)
+	h := server.New(cfg, st, discardLogger(), provider, reg, settingsSvc, authSvc, runner)
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
 	return &harness{ts: ts, store: st, reg: reg, jobs: runner, idx: idx, dl: dl, lib: lib}

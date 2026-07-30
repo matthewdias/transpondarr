@@ -142,6 +142,44 @@ func TestMatchesAlternateTitleVariant(t *testing.T) {
 	}
 }
 
+// A romaji title joined with U+00D7 must match releases that write it as "x":
+// deleting the sign breaks substring containment (issue #107).
+func TestMultiplicationSignTitleMatchesXRelease(t *testing.T) {
+	rels := []indexer.Release{
+		{Title: "[ExampleSubs] Ranger x Ranger 2013 - 03 [1080p]", Seeders: 100},
+	}
+	got := Match(items(12), []string{"RANGER×RANGER (2013)"}, rels, domain.QualityProfile{})
+	if !got[0].Matched || len(got[0].Items) != 1 || got[0].Items[0] != 3 {
+		t.Fatalf("expected the ×-joined variant to match item 3, got matched=%v items=%v reason=%q",
+			got[0].Matched, got[0].Items, got[0].Reason)
+	}
+}
+
+// A ½-titled series must match releases that write the fraction as digits,
+// mirroring what SearchTerm queries for — search and match share one fold.
+func TestFractionTitleMatchesSplitDigitsRelease(t *testing.T) {
+	rels := []indexer.Release{
+		{Title: "[ExampleSubs] Placeholder 1 2 Saga - 03 [1080p]", Seeders: 100},
+	}
+	got := Match(items(12), []string{"Placeholder½ Saga"}, rels, domain.QualityProfile{})
+	if !got[0].Matched || len(got[0].Items) != 1 || got[0].Items[0] != 3 {
+		t.Fatalf("expected the ½ variant to match item 3, got matched=%v items=%v reason=%q",
+			got[0].Matched, got[0].Items, got[0].Reason)
+	}
+}
+
+// An accented title must match releases that write plain ASCII.
+func TestAccentedTitleMatchesPlainASCIIRelease(t *testing.T) {
+	rels := []indexer.Release{
+		{Title: "[ExampleSubs] Fixturemon Adventures - 03 [1080p]", Seeders: 100},
+	}
+	got := Match(items(12), []string{"Fixturémon Adventures"}, rels, domain.QualityProfile{})
+	if !got[0].Matched || len(got[0].Items) != 1 || got[0].Items[0] != 3 {
+		t.Fatalf("expected the accented variant to match item 3, got matched=%v items=%v reason=%q",
+			got[0].Matched, got[0].Items, got[0].Reason)
+	}
+}
+
 // The season-collision bug: a season-2 release must NOT match a season-1 entry
 // just because the episode numbers line up.
 func TestSeasonTwoReleaseRejectedForSeasonOneEntry(t *testing.T) {
