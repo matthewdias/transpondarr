@@ -82,13 +82,26 @@ func TestBackoffInThePastDoesNotDelay(t *testing.T) {
 // deadline rather than stacking independent backoffs.
 func TestConcurrentCallersShareOneBackoffWindow(t *testing.T) {
 	var mu sync.Mutex
-	var requests int
+	var times []time.Time
+	// Barrier: hold both first attempts until each caller has arrived, so the two
+	// 429s always land in one window. Without it a late-scheduled caller lets the
+	// other absorb both 429s serially, retrying into the second one — which times
+	// at ~2s and never exercises sharing at all.
+	bothArrived := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		mu.Lock()
-		requests++
-		n := requests
+		times = append(times, time.Now())
+		n := len(times)
+		if n == 2 {
+			close(bothArrived)
+		}
 		mu.Unlock()
 		if n <= 2 {
+			select {
+			case <-bothArrived:
+			case <-time.After(5 * time.Second):
+				panic("only one caller reached the server; the barrier never released")
+			}
 			w.Header().Set("Retry-After", "1")
 			w.WriteHeader(http.StatusTooManyRequests)
 			return
@@ -99,7 +112,6 @@ func TestConcurrentCallersShareOneBackoffWindow(t *testing.T) {
 	defer srv.Close()
 
 	c := stubClient(srv.URL)
-	start := time.Now()
 	var wg sync.WaitGroup
 	errs := make([]error, 2)
 	for i := range errs {
@@ -114,10 +126,16 @@ func TestConcurrentCallersShareOneBackoffWindow(t *testing.T) {
 			t.Fatalf("caller %d: %v", i, err)
 		}
 	}
-	// Both callers 429 at ~t0 and share the ~1s deadline; independent backoffs
-	// (the old behaviour) also finish near 1s, so the assertion here is only
-	// that sharing did not stack the waits into ~2s.
-	if elapsed := time.Since(start); elapsed > 1800*time.Millisecond {
-		t.Errorf("two callers took %v, want a single shared ~1s backoff", elapsed)
+	mu.Lock()
+	defer mu.Unlock()
+	if len(times) != 4 {
+		t.Fatalf("server saw %d requests, want 4 (both callers 429 once, then retry once)", len(times))
+	}
+	// Measured from the second 429 rather than from spawn: how long the callers
+	// took to arrive is scheduler noise, and folding it in is what made this test
+	// flaky under a loaded CI runner. Stacked backoffs put the last retry ~2s
+	// after the window opened; one shared deadline puts both retries at ~1s.
+	if spread := times[3].Sub(times[1]); spread > 1800*time.Millisecond {
+		t.Errorf("last retry landed %v after the window opened, want a single shared ~1s backoff", spread)
 	}
 }
