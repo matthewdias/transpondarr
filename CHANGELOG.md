@@ -6,12 +6,71 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-07-29
+
+Quality profiles and airing awareness: releases are now scored against a
+profile instead of ranked by seeders, and Transpondarr now knows when episodes
+air — feeding a calendar, a seasonal discovery page, and a scheduled refresh
+that keeps a releasing series growing on its own.
+
 ### Added
 
+- **Quality profiles drive release selection.** Releases are scored against a
+  profile — ranked release groups (dominant by construction), resolution
+  order, and reward-only preferences over source, subtitle type, codec, and
+  repack/version — instead of ranked by raw seeders. Hard excludes and an
+  optional minimum-score floor let automation answer "nothing yet" rather
+  than grab something unwanted.
+- **Profile management UI and per-series assignment** — create, edit,
+  reorder, and delete profiles under Settings → Quality profiles (deleting a
+  profile in use prompts to migrate its series first), and assign a profile
+  per series.
+- **The Releases tab shows each release's score and its breakdown** — a
+  per-axis tooltip explains the ranking, and a release outside the profile is
+  shown with an amber score and the profile's reason, never hidden.
+- **Profiles inform manual grabs; they gate only automation.** A manual grab
+  always succeeds in one request — no confirm step; when the release falls
+  outside the profile, the response carries `ineligible_reason` and the UI
+  reports it after the fact.
+- **Per-series pinned release group** — "for this show, this group's release
+  is definitive." The pin is an absolute sort tier above profile scoring, so
+  no stack of bonuses can outrank it — but it never bypasses eligibility: a
+  pinned release that trips a hard exclude or the score floor stays refused.
+- **Air dates from AniList** — wanted items now carry when they air, synced
+  in the background off the job runner. Absence is normal, not an error:
+  AniList's schedule coverage thins out before ~2015 and can skip episodes
+  even on modern titles.
+- **Calendar view** — upcoming episodes for monitored series
+  (`GET /api/v1/calendar`), each carrying its acquisition status; monitored
+  series with no schedule are listed as unscheduled instead of silently
+  missing.
+- **Discovery page** — a browse-and-add seasonal chart with format,
+  airing-status, and genre filters, backed by a per-season cache; entries
+  already in the library are marked as tracked.
+- **A releasing series now grows on its own.** A scheduled metadata refresh
+  adds newly-announced episodes as wanted items, and the airing sync creates
+  the items its schedule names — covering long-runners whose total episode
+  count AniList never publishes.
 - **`GET /api/v1/system/jobs` reports background job status** — each job's
   interval, last run, how long it took, its last error, and when it runs next.
   "Did the refresh run, and did it fail?" was previously answerable only by
   reading server logs.
+
+### Fixed
+
+- **Dimension-form resolutions now count.** A release named with `1920x1080`
+  kept the literal dimension string as its resolution, so it scored zero on
+  the resolution axis and slipped past a `1080p` hard exclude; the parser now
+  folds dimension forms to the height form profiles are written in.
+- **Blocking a group in the profile editor no longer yanks the row away from
+  the cursor.** Blocked groups still serialize last on save, but the list no
+  longer re-sorts mid-edit.
+
+### Security
+
+- **Upgraded React Router to v8** to clear GHSA-qwww-vcr4-c8h2, a CSRF bypass
+  in its unstable RSC APIs. The UI's declarative routing was never
+  exploitable, but the only patched release line is 8.x.
 
 ### Internal
 
@@ -21,6 +80,9 @@ All notable changes to this project are documented here. The format is based on
   other job survive), and shutdown drains in-flight runs before the store
   closes. Deliberately not a cron library and not a persistent queue: intervals
   only, nothing durable across restarts.
+- **The importer now runs on the job runner** instead of its own goroutine, so
+  it reports a real last run, duration, and error like every other job, and
+  the entrypoint is down to one background mechanism and one drain.
 - **Session cleanup no longer races the database close on shutdown.** It was
   started as an unawaited goroutine, so a sweep could be mid-`DELETE` when the
   store closed; it now drains with everything else inside the shutdown budget.
@@ -33,6 +95,14 @@ All notable changes to this project are documented here. The format is based on
   fields are written by each job's goroutine and read by the HTTP handler, so a
   missing lock would be invisible without it. The existing suite was already
   race-clean; the whole run costs about a second more.
+- **A fuzz target guards `parser.Parse` against panics.** Release titles come
+  from external indexers through an unmaintained parsing dependency, so
+  "never panics on arbitrary input" is now checked in rather than assumed.
+- **The frontend suite is split into node and happy-dom vitest projects**, so
+  pure-logic suites skip the ~350ms-per-file DOM build.
+- **Local verification is scoped to what changed**, with CI named as the
+  full-suite enforcement point — and the CI gates that stance relies on
+  hardened.
 
 ## [0.2.1] — 2026-07-23
 
@@ -157,7 +227,8 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/matthewdias/transpondarr/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/matthewdias/transpondarr/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/matthewdias/transpondarr/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/matthewdias/transpondarr/releases/tag/v0.1.0
