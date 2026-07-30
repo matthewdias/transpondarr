@@ -11,6 +11,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
@@ -150,13 +151,14 @@ type seriesGrabsOutput struct {
 // seriesHandler owns the dependencies shared by the series endpoints — the
 // read/CRUD handlers here and the acquisition handlers in
 // series_acquisition_routes.go. Bundling them on a receiver lets both files hang
-// handlers off the same type and share helpers like requireSeries and
-// matchReleases without threading deps through every call.
+// handlers off the same type and share helpers like requireSeries without
+// threading deps through every call.
 type seriesHandler struct {
 	store    *store.Store
 	catalog  *catalog.Service
 	clients  *clients.Registry
 	settings *settings.Service
+	acquire  *acquire.Service
 }
 
 func newSeriesHandler(deps routeDeps) *seriesHandler {
@@ -165,6 +167,7 @@ func newSeriesHandler(deps routeDeps) *seriesHandler {
 		catalog:  deps.catalog,
 		clients:  deps.clients,
 		settings: deps.settings,
+		acquire:  acquire.New(deps.store, deps.clients, deps.catalog, deps.settings, deps.log),
 	}
 }
 

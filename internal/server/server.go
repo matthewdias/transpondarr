@@ -52,6 +52,7 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider meta
 	api := humachi.New(r, apiConfig())
 	registerRoutes(api, routeDeps{
 		store:    st,
+		log:      logger,
 		catalog:  svc,
 		browse:   browse.New(st, provider, logger),
 		clients:  reg,
