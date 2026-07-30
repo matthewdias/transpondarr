@@ -1,6 +1,14 @@
-// Package acquire owns the automatic half of the pipeline: search, decide, and
-// grab, shared by the manual HTTP routes and the scheduled sweep so both drive
-// exactly one matcher.
+// Package acquire owns search, decide, and grab, shared by the manual HTTP
+// routes and the scheduled sweep so both drive exactly one matcher.
+//
+// The sweep (#100) searches monitored series with something worth grabbing right
+// now and backs off exponentially when it finds nothing, clamped so a weekly
+// show is still searched at broadcast however many empty passes preceded it.
+// Nothing resets the cadence on the airing side: schedule-created items carry an
+// air date, so the aired-since-last-search reset and that clamp already cover
+// them. A manual grab racing a sweep converges — one grab row per item and the
+// download client's own info-hash dedupe make the exposure no worse than
+// double-clicking Grab.
 package acquire
 
 import (
@@ -9,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/decide"
 	"github.com/matthewdias/transpondarr/internal/core/domain"
@@ -42,9 +51,12 @@ type TitleSource interface {
 }
 
 // Config is the runtime configuration acquire reads (satisfied by
-// *settings.Service).
+// *settings.Service). Every value is read per use, so a live edit applies to the
+// next sweep rather than the next restart.
 type Config interface {
 	DownloadCategory() string
+	AutomationEnabled() bool
+	PinDelayDefault() time.Duration
 }
 
 // Match is one series' search result: the ranked candidates plus the inputs a

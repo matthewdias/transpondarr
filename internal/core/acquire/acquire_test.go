@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
@@ -30,9 +31,12 @@ func (f fakeTitles) TitleVariants(_ context.Context, id int64) ([]string, error)
 	return f.variants[id], nil
 }
 
-// fakeConfig stands in for settings.Service.
+// fakeConfig stands in for settings.Service. Automation is on unless a test
+// turns it off, since the sweep is what most of these exercise.
 type fakeConfig struct {
-	category string
+	category      string
+	automationOff bool
+	pinDelay      time.Duration
 }
 
 func (f fakeConfig) DownloadCategory() string {
@@ -41,6 +45,10 @@ func (f fakeConfig) DownloadCategory() string {
 	}
 	return f.category
 }
+
+func (f fakeConfig) AutomationEnabled() bool { return !f.automationOff }
+
+func (f fakeConfig) PinDelayDefault() time.Duration { return f.pinDelay }
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
