@@ -131,7 +131,7 @@ func run(logger *slog.Logger) error {
 	// and swaps them on a config change. Handlers and the importer read the
 	// current client from the registry each time, so edits take effect live.
 	reg := clients.New()
-	settingsSvc, err := settings.New(ctx, st, cfg, reg)
+	settingsSvc, err := settings.New(ctx, st, cfg, reg, logger)
 	if err != nil {
 		return err
 	}

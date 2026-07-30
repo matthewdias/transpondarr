@@ -60,7 +60,7 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 
 	// settings.New populates the registry from (empty) config, so set the fakes
 	// afterwards to override the nil clients it installs.
-	settingsSvc, err := settings.New(ctx, st, cfg, reg)
+	settingsSvc, err := settings.New(ctx, st, cfg, reg, discardLogger())
 	if err != nil {
 		t.Fatalf("settings.New: %v", err)
 	}

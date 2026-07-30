@@ -13,11 +13,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
@@ -47,6 +50,9 @@ const (
 	keyTorznabAPIKey = "torznab.apikey"
 	keyLibraryDir    = "library.dir"
 	keyLibraryMode   = "library.import_mode"
+
+	keyAutomationEnabled  = "automation.enabled"
+	keyAutomationPinDelay = "automation.pin_delay_hours"
 )
 
 // Defaults for values that must never be empty.
@@ -115,6 +121,11 @@ type state struct {
 	idx IndexerConfig
 	lib LibraryConfig
 
+	// Parsed once at startup: settings are strings at rest, but every read of
+	// these is on a job tick, so the typed form lives here.
+	automationEnabled bool
+	pinDelayDefault   time.Duration
+
 	apiKey string
 
 	dataDir string
@@ -136,7 +147,7 @@ type Service struct {
 
 // New builds the service from the environment baseline, overlays any persisted
 // overrides, and populates the registry with the resulting clients.
-func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients.Registry) (*Service, error) {
+func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients.Registry, log *slog.Logger) (*Service, error) {
 	cfg := &state{
 		apiKey:  base.APIKey,
 		dataDir: base.DataDir,
@@ -165,9 +176,15 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	overlay(m, keyLibraryDir, &cfg.lib.Dir)
 	overlay(m, keyLibraryMode, &cfg.lib.Mode)
 
+	automation, pinDelay := base.AutomationEnabled, base.PinDelayHours
+	overlay(m, keyAutomationEnabled, &automation)
+	overlay(m, keyAutomationPinDelay, &pinDelay)
+
 	cfg.dl.applyDefaults()
 	cfg.idx.applyDefaults()
 	cfg.lib.applyDefaults()
+	cfg.automationEnabled = parseBool(automation, log)
+	cfg.pinDelayDefault = parseHours(pinDelay, log)
 
 	s := &Service{store: st, reg: reg}
 	s.cur.Store(cfg)
@@ -200,6 +217,35 @@ func (s *Service) Snapshot() Snapshot {
 
 // DownloadCategory returns the category applied to grabbed torrents.
 func (s *Service) DownloadCategory() string { return s.cur.Load().dl.Category }
+
+// AutomationEnabled reports whether the scheduled search sweep may grab. It is
+// read per run, so a future toggle (#102) takes effect without a restart.
+func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationEnabled }
+
+// PinDelayDefault is how long the sweep waits for a series' pinned group before
+// taking another group's release, for series that do not override it.
+func (s *Service) PinDelayDefault() time.Duration { return s.cur.Load().pinDelayDefault }
+
+// parseBool and parseHours degrade a bad value to the zero default rather than
+// failing startup: one mistyped setting must not take the daemon down.
+func parseBool(v string, log *slog.Logger) bool {
+	b, err := strconv.ParseBool(strings.TrimSpace(v))
+	if err != nil && strings.TrimSpace(v) != "" {
+		log.Warn("ignoring unparseable automation setting", "key", keyAutomationEnabled, "value", v)
+	}
+	return err == nil && b
+}
+
+func parseHours(v string, log *slog.Logger) time.Duration {
+	h, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil && strings.TrimSpace(v) != "" {
+		log.Warn("ignoring unparseable automation setting", "key", keyAutomationPinDelay, "value", v)
+	}
+	if err != nil || h < 0 {
+		return 0
+	}
+	return time.Duration(h) * time.Hour
+}
 
 // APIKey returns the current API key. The auth middleware reads this on each
 // request so a regenerated key takes effect without a restart.

@@ -33,7 +33,7 @@ func newAuthServer(t *testing.T, cfg *config.Config) (*httptest.Server, *auth.Se
 	st := coretest.NewStore(t)
 	reg := clients.New()
 
-	settingsSvc, err := settings.New(ctx, st, cfg, reg)
+	settingsSvc, err := settings.New(ctx, st, cfg, reg, discardLogger())
 	if err != nil {
 		t.Fatalf("settings.New: %v", err)
 	}
