@@ -100,6 +100,24 @@ describe("GroupCell", () => {
     render(<GroupCell r={release({})} />);
     expect(screen.getByText("—")).toBeInTheDocument();
   });
+
+  // The marker explains a ranking outcome, and an unmatched release has none —
+  // a foreign-title reject still parses a group, so it would otherwise be
+  // marked on a row that has nothing to do with this series.
+  it("withholds the pin from an unmatched release", () => {
+    render(
+      <GroupCell
+        r={release({
+          release_group: "ShinyRip",
+          pinned: true,
+          matched: false,
+          reason: "release is for a different series",
+        })}
+      />,
+    );
+    expect(screen.getByText("ShinyRip")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/pinned/i)).not.toBeInTheDocument();
+  });
 });
 
 describe("ScoreBreakdown", () => {

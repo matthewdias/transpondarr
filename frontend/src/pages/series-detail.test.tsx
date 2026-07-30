@@ -59,6 +59,38 @@ describe("PinnedGroupChip", () => {
     );
   });
 
+  // Saving a value equal to the current pin is a no-op request; the empty-input
+  // case additionally toasted "Pin cleared" when there was nothing to clear.
+  it("disables Save until the value differs from the current pin", async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <PinnedGroupChip detail={detail({})} />
+      </QueryClientProvider>,
+    );
+    const save = () => screen.getByRole("button", { name: /save/i });
+    const input = () => screen.getByRole("textbox", { name: /release group/i });
+
+    await user.click(screen.getByRole("button", { name: /pin group/i }));
+    expect(save()).toBeDisabled();
+    await user.type(input(), "  ");
+    expect(save()).toBeDisabled();
+    await user.type(input(), "ShinyRip");
+    expect(save()).toBeEnabled();
+    await user.keyboard("{Escape}");
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <PinnedGroupChip detail={detail({ pinned_group: "ShinyRip" })} />
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: /pin: shinyrip/i }));
+    expect(save()).toBeDisabled();
+  });
+
   it("shows the current pin and clears it", async () => {
     let sent: unknown;
     server.use(

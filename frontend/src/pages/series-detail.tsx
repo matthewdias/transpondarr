@@ -295,7 +295,10 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
                 Clear
               </Button>
             )}
-            <Button type="submit" disabled={pin.isPending}>
+            <Button
+              type="submit"
+              disabled={pin.isPending || group.trim() === current}
+            >
               Save
             </Button>
           </DialogFooter>

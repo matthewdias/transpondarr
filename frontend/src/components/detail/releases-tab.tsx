@@ -131,7 +131,9 @@ export function GroupCell({ r }: { r: CandidateRelease }) {
   return (
     <span className="inline-flex items-center gap-1.5">
       {r.release_group || "—"}
-      {r.pinned && (
+      {/* Only on a matched row: the marker explains a ranking outcome, and an
+          unmatched release has none. */}
+      {r.pinned && r.matched && (
         <Pin
           aria-label="pinned group"
           className="size-3 text-accent-foreground"
