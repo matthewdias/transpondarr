@@ -188,7 +188,9 @@ function ProfilePicker({ detail }: { detail: SeriesDetail }) {
       <SelectTrigger
         size="sm"
         aria-label="Quality profile"
-        className="h-[26px] gap-1.5 rounded-md border-border bg-panel-2 px-2.5 text-xs font-medium text-muted-foreground shadow-none"
+        // The chip look: data-[size=sm]:h and the dark: variants must be
+        // re-overridden here or the base trigger's win on specificity.
+        className="h-[26px] gap-1.5 rounded-md border-border bg-panel-2 px-2.5 text-xs font-medium text-muted-foreground shadow-none data-[size=sm]:h-[26px] dark:bg-panel-2 dark:hover:bg-panel-2"
       >
         <SelectValue />
       </SelectTrigger>
