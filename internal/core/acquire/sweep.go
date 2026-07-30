@@ -282,8 +282,34 @@ func nullTimestamp(t time.Time) sql.NullString {
 	return sql.NullString{String: store.FormatTimestamp(t), Valid: true}
 }
 
-// pinHold reports how long a candidate must wait for the series' pinned group.
-// Implemented with the delay semantics (#62); see the package doc.
-func (s *Service) pinHold(_ db.Series, _ decide.Candidate, _ map[int]time.Time, _ time.Time) (time.Time, bool) {
+// pinHold reports when a candidate becomes grabbable, and whether it must wait
+// at all (#62). Only another group's release ever waits, and only while the
+// window since the latest covered broadcast is still open — a covered item with
+// no air date makes that window unmeasurable, so the delay does not apply.
+func (s *Service) pinHold(series db.Series, c decide.Candidate, airs map[int]time.Time, now time.Time) (time.Time, bool) {
+	if !series.PinnedGroup.Valid || series.PinnedGroup.String == "" || c.Pinned {
+		return time.Time{}, false
+	}
+	delay := s.cfg.PinDelayDefault()
+	if series.PinDelayHours.Valid {
+		delay = time.Duration(series.PinDelayHours.Int64) * time.Hour
+	}
+	if delay <= 0 {
+		return time.Time{}, false
+	}
+
+	var anchor time.Time
+	for _, n := range c.Items {
+		at, ok := airs[n]
+		if !ok {
+			return time.Time{}, false
+		}
+		if at.After(anchor) {
+			anchor = at
+		}
+	}
+	if until := anchor.Add(delay); until.After(now) {
+		return until, true
+	}
 	return time.Time{}, false
 }
