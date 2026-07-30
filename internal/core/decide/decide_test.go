@@ -460,6 +460,107 @@ func TestScorePartsSumToScore(t *testing.T) {
 	}
 }
 
+// A pinned group is a tier, not points: an eligible pinned release outranks a
+// rank-1 listed group carrying every bonus the other axes can grant.
+func TestPinnedGroupOutranksHigherScoringEligible(t *testing.T) {
+	prof := domain.QualityProfile{
+		Groups:          []string{"TrustedCorp"},
+		ResolutionOrder: []string{"1080p"},
+		PreferredSource: "bd",
+		SubPref:         "softsub",
+		PreferDualAudio: true,
+		CodecPref:       "h265",
+	}
+	rels := []indexer.Release{
+		{Title: "[TrustedCorp] Placeholder Saga - 03 [BD 1080p HEVC][Softsubs][Dual-Audio][REPACK]", Seeders: 900},
+		{Title: "[ShinyRip] Placeholder Saga - 03 [720p]", Seeders: 1},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof, MatchOpts{PinnedGroup: "ShinyRip"})
+	if got[0].Release.ReleaseGroup != "ShinyRip" {
+		t.Fatalf("first = %q, want the pinned ShinyRip over the fully-loaded ranked group", got[0].Release.ReleaseGroup)
+	}
+	if !got[0].Pinned {
+		t.Error("pinned candidate should carry Pinned=true")
+	}
+	if got[1].Pinned {
+		t.Error("non-pinned candidate should carry Pinned=false")
+	}
+}
+
+// A pin never overrides eligibility: pinned + blocked stays ineligible and
+// ranks below every eligible release.
+func TestPinnedBlockedGroupStaysIneligibleAndBelowEligible(t *testing.T) {
+	prof := domain.QualityProfile{BlockedGroups: []string{"BadRipCo"}}
+	rels := []indexer.Release{
+		{Title: "[BadRipCo] Placeholder Saga - 03 [1080p]", Seeders: 999},
+		{Title: "[FineSubs] Placeholder Saga - 03 [1080p]", Seeders: 1},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof, MatchOpts{PinnedGroup: "BadRipCo"})
+	if got[0].Release.ReleaseGroup != "FineSubs" {
+		t.Fatalf("first = %q, want the eligible FineSubs above the pinned-but-blocked release", got[0].Release.ReleaseGroup)
+	}
+	pinned := got[1]
+	if pinned.Eligible {
+		t.Error("pinned blocked-group release should stay ineligible")
+	}
+	if !strings.Contains(pinned.IneligibleReason, "blocked") {
+		t.Errorf("reason = %q, want the block mentioned despite the pin", pinned.IneligibleReason)
+	}
+	if !pinned.Pinned {
+		t.Error("ineligible pinned candidate should still carry Pinned=true for display")
+	}
+}
+
+func TestPinnedBelowMinScoreStaysIneligible(t *testing.T) {
+	prof := domain.QualityProfile{
+		Groups:   []string{"TrustedCorp"},
+		MinScore: 500,
+	}
+	rels := []indexer.Release{
+		{Title: "[UnknownRip] Placeholder Saga - 03 [1080p]", Seeders: 300},
+		{Title: "[TrustedCorp] Placeholder Saga - 03 [1080p]", Seeders: 3},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof, MatchOpts{PinnedGroup: "UnknownRip"})
+	if got[0].Release.ReleaseGroup != "TrustedCorp" {
+		t.Fatalf("first = %q, want the eligible TrustedCorp above the pinned below-floor release", got[0].Release.ReleaseGroup)
+	}
+	if got[1].Eligible {
+		t.Error("pinned release below the floor should stay ineligible")
+	}
+}
+
+func TestPinMatchesCaseInsensitively(t *testing.T) {
+	prof := domain.QualityProfile{Groups: []string{"TrustedCorp"}}
+	rels := []indexer.Release{
+		{Title: "[TrustedCorp] Placeholder Saga - 03 [1080p]", Seeders: 900},
+		{Title: "[ShinyRip] Placeholder Saga - 03 [1080p]", Seeders: 1},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof, MatchOpts{PinnedGroup: "shinyrip"})
+	if got[0].Release.ReleaseGroup != "ShinyRip" {
+		t.Errorf("first = %q, want the pin to match ShinyRip case-insensitively", got[0].Release.ReleaseGroup)
+	}
+}
+
+// Without a pin (no opts, or a zero opts), profile order is untouched.
+func TestNoPinRestoresProfileOrder(t *testing.T) {
+	prof := domain.QualityProfile{Groups: []string{"TrustedCorp"}}
+	rels := []indexer.Release{
+		{Title: "[ShinyRip] Placeholder Saga - 03 [1080p]", Seeders: 900},
+		{Title: "[TrustedCorp] Placeholder Saga - 03 [1080p]", Seeders: 1},
+	}
+	for _, got := range [][]Candidate{
+		Match(items(12), []string{"Placeholder Saga"}, rels, prof),
+		Match(items(12), []string{"Placeholder Saga"}, rels, prof, MatchOpts{}),
+	} {
+		if got[0].Release.ReleaseGroup != "TrustedCorp" {
+			t.Errorf("first = %q, want pure profile order with no pin", got[0].Release.ReleaseGroup)
+		}
+		if got[0].Pinned || got[1].Pinned {
+			t.Error("no candidate should be flagged pinned without a pin")
+		}
+	}
+}
+
 func TestZeroProfileScoresZeroAndEligible(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga - 03 [1080p]", Seeders: 100},

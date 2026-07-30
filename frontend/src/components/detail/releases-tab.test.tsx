@@ -1,7 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { ScoreBreakdown, ScoreCell } from "@/components/detail/releases-tab";
+import {
+  GroupCell,
+  ScoreBreakdown,
+  ScoreCell,
+} from "@/components/detail/releases-tab";
 import { grabToast } from "@/components/detail/grab-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { CandidateRelease, GrabResult } from "@/lib/api";
@@ -17,6 +21,7 @@ function release(overrides: Partial<CandidateRelease>): CandidateRelease {
     reason: "episode matches a wanted item",
     score: 1400,
     eligible: true,
+    pinned: false,
     score_parts: [
       { label: "group TrustedCorp (rank 1)", points: 1000 },
       { label: "resolution 1080p (rank 1)", points: 400 },
@@ -77,6 +82,41 @@ describe("ScoreCell", () => {
     const content = document.querySelector('[data-slot="tooltip-content"]');
     expect(content?.className).toMatch(/bg-popover/);
     expect(content?.className).not.toMatch(/bg-foreground/);
+  });
+});
+
+describe("GroupCell", () => {
+  it("marks only the pinned group with a pin", () => {
+    const { rerender } = render(
+      <GroupCell r={release({ release_group: "ShinyRip", pinned: true })} />,
+    );
+    expect(screen.getByText("ShinyRip")).toBeInTheDocument();
+    expect(screen.getByLabelText(/pinned/i)).toBeInTheDocument();
+    rerender(<GroupCell r={release({ release_group: "TrustedCorp" })} />);
+    expect(screen.queryByLabelText(/pinned/i)).not.toBeInTheDocument();
+  });
+
+  it("falls back to a dash when the group is unknown", () => {
+    render(<GroupCell r={release({})} />);
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  // The marker explains a ranking outcome, and an unmatched release has none —
+  // a foreign-title reject still parses a group, so it would otherwise be
+  // marked on a row that has nothing to do with this series.
+  it("withholds the pin from an unmatched release", () => {
+    render(
+      <GroupCell
+        r={release({
+          release_group: "ShinyRip",
+          pinned: true,
+          matched: false,
+          reason: "release is for a different series",
+        })}
+      />,
+    );
+    expect(screen.getByText("ShinyRip")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/pinned/i)).not.toBeInTheDocument();
   });
 });
 

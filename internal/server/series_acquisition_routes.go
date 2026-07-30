@@ -30,6 +30,7 @@ type candidateReleaseDTO struct {
 	ScoreParts       []scorePartDTO `json:"score_parts,omitempty" doc:"Per-axis contributions summing to score"`
 	Eligible         bool           `json:"eligible"`
 	IneligibleReason string         `json:"ineligible_reason,omitempty" doc:"Why the profile refuses this release; empty when eligible"`
+	Pinned           bool           `json:"pinned" doc:"Release group is the series' pinned group; ranks above profile score when eligible"`
 }
 
 type scorePartDTO struct {
@@ -123,6 +124,7 @@ func (h *seriesHandler) searchReleases(ctx context.Context, in *searchSeriesInpu
 			ScoreParts:       parts,
 			Eligible:         c.Eligible,
 			IneligibleReason: c.IneligibleReason,
+			Pinned:           c.Pinned,
 		})
 	}
 	return out, nil
@@ -255,5 +257,6 @@ func (h *seriesHandler) matchReleases(ctx context.Context, id int64) (db.Series,
 	if err != nil {
 		return db.Series{}, nil, nil, huma.Error502BadGateway("indexer search failed", err)
 	}
-	return series, items, decide.Match(items, variants, releases, profile), nil
+	return series, items, decide.Match(items, variants, releases, profile,
+		decide.MatchOpts{PinnedGroup: series.PinnedGroup.String}), nil
 }

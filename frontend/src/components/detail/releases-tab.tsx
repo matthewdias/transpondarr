@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import { Loader2, Pin, RefreshCw, Search, TriangleAlert } from "lucide-react";
 import { api, ApiError, type CandidateRelease } from "@/lib/api";
 import { grabToast } from "./grab-toast";
 import {
@@ -124,6 +124,22 @@ export function ScoreCell({ r }: { r: CandidateRelease }) {
         <ScoreBreakdown r={r} />
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+export function GroupCell({ r }: { r: CandidateRelease }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {r.release_group || "—"}
+      {/* Only on a matched row: the marker explains a ranking outcome, and an
+          unmatched release has none. */}
+      {r.pinned && r.matched && (
+        <Pin
+          aria-label="pinned group"
+          className="size-3 text-accent-foreground"
+        />
+      )}
+    </span>
   );
 }
 
@@ -287,7 +303,7 @@ export function ReleasesTab({
                         </span>
                       </TableCell>
                       <TableCell className="hidden text-muted-foreground md:table-cell">
-                        {r.release_group || "—"}
+                        <GroupCell r={r} />
                       </TableCell>
                       <TableCell className="hidden text-muted-foreground sm:table-cell">
                         {quality(r)}
@@ -347,7 +363,7 @@ export function ReleasesTab({
                 {selected.title}
               </p>
               <dl className="mb-5 grid grid-cols-2 gap-x-4 gap-y-3.5">
-                <Fact k="Group" v={selected.release_group || "—"} />
+                <Fact k="Group" v={<GroupCell r={selected} />} />
                 <Fact k="Quality" v={quality(selected)} />
                 <Fact k="Size" v={formatBytes(selected.size)} />
                 <Fact k="Seeders" v={String(selected.seeders)} />
@@ -399,7 +415,7 @@ export function ReleasesTab({
   );
 }
 
-function Fact({ k, v }: { k: string; v: string }) {
+function Fact({ k, v }: { k: string; v: ReactNode }) {
   return (
     <div>
       <dt className="text-[11px] uppercase tracking-wide text-faint">{k}</dt>

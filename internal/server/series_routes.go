@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -85,6 +86,7 @@ type seriesDetailReadDTO struct {
 	CoverURL         string          `json:"cover_url,omitempty"`
 	Monitored        bool            `json:"monitored"`
 	QualityProfileID int64           `json:"quality_profile_id"`
+	PinnedGroup      string          `json:"pinned_group,omitempty" doc:"Release group pinned above profile scoring; absent when none"`
 	Items            []detailItemDTO `json:"items"`
 }
 
@@ -107,6 +109,20 @@ type setMonitoredOutput struct {
 	Body struct {
 		ID        int64 `json:"id"`
 		Monitored bool  `json:"monitored"`
+	}
+}
+
+type setPinnedGroupInput struct {
+	ID   int64 `path:"id" doc:"Series id"`
+	Body struct {
+		Group string `json:"group" maxLength:"100" doc:"Release group to pin above profile scoring; empty clears the pin"`
+	}
+}
+
+type setPinnedGroupOutput struct {
+	Body struct {
+		SeriesID    int64  `json:"series_id"`
+		PinnedGroup string `json:"pinned_group,omitempty"`
 	}
 }
 
@@ -206,6 +222,14 @@ func registerSeriesRoutes(api huma.API, deps routeDeps) {
 	}, h.setMonitored)
 
 	huma.Register(api, huma.Operation{
+		OperationID: "set-series-pinned-group",
+		Method:      http.MethodPut,
+		Path:        "/api/v1/series/{id}/pinned-group",
+		Summary:     "Pin a release group for a series (an absolute tier above profile scoring)",
+		Tags:        []string{"series"},
+	}, h.setPinnedGroup)
+
+	huma.Register(api, huma.Operation{
 		OperationID: "list-series-grabs",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/series/{id}/grabs",
@@ -296,6 +320,7 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 		Format:           series.Format,
 		Monitored:        series.Monitored == 1,
 		QualityProfileID: series.QualityProfileID,
+		PinnedGroup:      series.PinnedGroup.String,
 		Items:            make([]detailItemDTO, 0, len(rows)),
 	}
 	if series.AnilistID.Valid {
@@ -347,6 +372,24 @@ func (h *seriesHandler) setMonitored(ctx context.Context, in *setMonitoredInput)
 	out := &setMonitoredOutput{}
 	out.Body.ID = in.ID
 	out.Body.Monitored = in.Body.Monitored
+	return out, nil
+}
+
+func (h *seriesHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupInput) (*setPinnedGroupOutput, error) {
+	group := strings.TrimSpace(in.Body.Group)
+	rows, err := h.store.Q.SetSeriesPinnedGroup(ctx, db.SetSeriesPinnedGroupParams{
+		PinnedGroup: sql.NullString{String: group, Valid: group != ""},
+		ID:          in.ID,
+	})
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to update series", err)
+	}
+	if rows == 0 {
+		return nil, huma.Error404NotFound("series not found")
+	}
+	out := &setPinnedGroupOutput{}
+	out.Body.SeriesID = in.ID
+	out.Body.PinnedGroup = group
 	return out, nil
 }
 

@@ -33,6 +33,10 @@ RETURNING *;
 -- name: SetSeriesMonitored :exec
 UPDATE series SET monitored = ? WHERE id = ?;
 
+-- name: SetSeriesPinnedGroup :execrows
+-- NULL clears the pin; execrows lets the handler 404 an unknown series.
+UPDATE series SET pinned_group = ? WHERE id = ?;
+
 -- name: ListSeriesDueAiringSync :many
 -- Monitored series whose broadcast schedule has never been synced or has gone
 -- stale. A finished title's aired times are immutable, so it waits on the long
