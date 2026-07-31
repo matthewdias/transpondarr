@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/config"
-	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/download/qbittorrent"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
@@ -247,11 +247,11 @@ func parseHours(v string, log *slog.Logger) time.Duration {
 	}
 	// Clamped, not multiplied raw: an hour count past the duration ceiling wraps
 	// int64 and turns the longest possible wait into none.
-	if h > acquire.MaxPinDelayHours {
+	if h > domain.MaxPinDelayHours {
 		log.Warn("clamping automation setting to its maximum",
-			"key", keyAutomationPinDelay, "value", v, "max_hours", acquire.MaxPinDelayHours)
+			"key", keyAutomationPinDelay, "value", v, "max_hours", domain.MaxPinDelayHours)
 	}
-	return acquire.PinDelay(int64(h))
+	return domain.PinDelay(int64(h))
 }
 
 // APIKey returns the current API key. The auth middleware reads this on each

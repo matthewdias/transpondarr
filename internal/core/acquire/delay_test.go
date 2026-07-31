@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/matthewdias/transpondarr/internal/core/acquire"
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/store"
 )
@@ -109,27 +109,7 @@ func TestSweepClampsAnAbsurdPinDelay(t *testing.T) {
 		t.Fatalf("grabbed %v, want nothing — an overlong delay must clamp, not wrap to none", got)
 	}
 	wantNextSearchNear(t, readSearchState(t, h.st, id).nextSearchAt,
-		aired.Add(acquire.MaxPinDelayHours*time.Hour))
-}
-
-func TestPinDelayClampsBothEnds(t *testing.T) {
-	cases := []struct {
-		hours int64
-		want  time.Duration
-	}{
-		{-1, 0},
-		{0, 0},
-		{6, 6 * time.Hour},
-		{acquire.MaxPinDelayHours, acquire.MaxPinDelayHours * time.Hour},
-		{acquire.MaxPinDelayHours + 1, acquire.MaxPinDelayHours * time.Hour},
-		{3000000, acquire.MaxPinDelayHours * time.Hour},   // wraps negative unclamped
-		{999999999, acquire.MaxPinDelayHours * time.Hour}, // wraps positive-but-wrong
-	}
-	for _, c := range cases {
-		if got := acquire.PinDelay(c.hours); got != c.want {
-			t.Errorf("PinDelay(%d) = %v, want %v", c.hours, got, c.want)
-		}
-	}
+		aired.Add(domain.MaxPinDelayHours*time.Hour))
 }
 
 // A per-series delay overrides the global default in both directions.

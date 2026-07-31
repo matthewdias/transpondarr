@@ -32,24 +32,6 @@ const (
 	backoffCap  = 24 * time.Hour
 )
 
-// MaxPinDelayHours bounds the pinned-group wait at a year. The bound is not
-// taste: time.Duration tops out near 2.6e6 hours, so an unclamped multiply wraps
-// int64 and a large wait silently becomes no wait at all.
-const MaxPinDelayHours = 24 * 365
-
-// PinDelay converts a stored or configured hour count into a duration, clamping
-// both ends so no caller can produce a wrapped or negative wait.
-func PinDelay(hours int64) time.Duration {
-	switch {
-	case hours <= 0:
-		return 0
-	case hours > MaxPinDelayHours:
-		return MaxPinDelayHours * time.Hour
-	default:
-		return time.Duration(hours) * time.Hour
-	}
-}
-
 // backoffDelay is the wait after n consecutive empty searches.
 func backoffDelay(n int) time.Duration {
 	if n < 1 {
@@ -109,13 +91,11 @@ func (s *Service) SweepOnce(ctx context.Context) error {
 }
 
 // sweepSeries searches one series and grabs every eligible release covering
-// items nothing else in this pass already took. A failure leaves the cadence
-// untouched, so the series is retried on the next tick rather than backed off
-// for a fault that was never its own.
+// items nothing else in this pass already took.
 func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series db.Series, now time.Time) error {
 	sweep, err := s.loadSweepItems(ctx, series.ID, now)
 	if err != nil {
-		return err
+		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
 
 	// Items not worth grabbing are handed to the matcher as Have: decide already
@@ -131,14 +111,40 @@ func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series d
 
 	m, err := s.match(ctx, idx, series, items)
 	if err != nil {
-		return err
+		// An indexer outage is the one fault a series is not charged for: every due
+		// series shares it, so backing them all off idles the library on one hiccup.
+		if errors.Is(err, ErrIndexerSearch) {
+			return err
+		}
+		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
 
 	grabbed, held, err := s.grabPass(ctx, series, m, sweep, now)
-	if err != nil {
-		return err
+	// A pass that landed something is progress even if it ended badly, and its
+	// successful grabs settle those items, so it records the ordinary cadence.
+	if err != nil && grabbed == 0 {
+		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
-	return s.writeSearchState(ctx, series, sweep, now, grabbed, held)
+	return errors.Join(err, s.writeSearchState(ctx, series, sweep, now, grabbed, held))
+}
+
+// backOffAfterFailure makes a failed pass yield its slot. The due query is a
+// small LIMIT ordered by next_search_at, so a series that keeps failing without
+// this holds the head of the queue and starves every healthy series behind it.
+// last_searched_at deliberately stays put: nothing was searched, and moving it
+// would hide an already-aired episode from airedSince.
+func (s *Service) backOffAfterFailure(ctx context.Context, series db.Series, now time.Time) error {
+	if ctx.Err() != nil {
+		return nil
+	}
+	backoff := series.SearchBackoff + 1
+	return s.setSearchState(ctx, db.SetSeriesSearchStateParams{
+		ID:             series.ID,
+		LastSearchedAt: series.LastSearchedAt,
+		SearchBackoff:  backoff,
+		NextSearchAt:   nullTimestamp(now.Add(backoffDelay(int(backoff)))),
+		SearchEpoch:    series.SearchEpoch,
+	})
 }
 
 // grabPass walks the ranked candidates once, taking every eligible release whose
@@ -172,7 +178,7 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 		}
 		if _, err := s.Grab(ctx, c, m.Items, false); err != nil {
 			if !errors.Is(err, ErrDownloadAdd) {
-				return 0, time.Time{}, err
+				return grabbed, time.Time{}, err
 			}
 			// A dead download URL is this release's problem, not the series'.
 			// The items stay unclaimed so the next-ranked release covering them is
@@ -183,7 +189,7 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			s.log.Warn("sweep could not add a release; trying the next candidate",
 				"series", series.ID, "release", c.Release.Title, "err", err)
 			if failed >= maxAddFailures {
-				return 0, time.Time{}, fmt.Errorf("%d consecutive add failures: %w", failed, err)
+				return grabbed, time.Time{}, fmt.Errorf("%d refused adds: %w", failed, err)
 			}
 			continue
 		}
@@ -215,13 +221,29 @@ func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep 
 		next = earliest(now.Add(backoffDelay(int(backoff))), nextAiring(sweep, now))
 	}
 
-	return s.store.Q.SetSeriesSearchState(ctx, db.SetSeriesSearchStateParams{
+	return s.setSearchState(ctx, db.SetSeriesSearchStateParams{
 		ID:             series.ID,
 		LastSearchedAt: sql.NullString{String: store.FormatTimestamp(now), Valid: true},
 		SearchBackoff:  backoff,
 		NextSearchAt:   nullTimestamp(next),
 		SearchEpoch:    series.SearchEpoch,
 	})
+}
+
+// setSearchState applies a cadence write and reports a lost epoch guard rather
+// than swallowing it: zero rows means a reset landed mid-sweep and deliberately
+// won, or the series is gone. Neither is an error, but both explain a backoff
+// that silently did not stick.
+func (s *Service) setSearchState(ctx context.Context, p db.SetSeriesSearchStateParams) error {
+	rows, err := s.store.Q.SetSeriesSearchState(ctx, p)
+	if err != nil {
+		return fmt.Errorf("write search cadence for series %d: %w", p.ID, err)
+	}
+	if rows == 0 {
+		s.log.Debug("search cadence write skipped; the series was reset or removed mid-sweep",
+			"series", p.ID, "epoch", p.SearchEpoch)
+	}
+	return nil
 }
 
 // loadSweepItems reads every wanted item with the grab state that decides
@@ -332,7 +354,7 @@ func (s *Service) pinHold(series db.Series, c decide.Candidate, airs map[int]tim
 	}
 	delay := s.cfg.PinDelayDefault()
 	if series.PinDelayHours.Valid {
-		delay = PinDelay(series.PinDelayHours.Int64)
+		delay = domain.PinDelay(series.PinDelayHours.Int64)
 	}
 	if delay <= 0 {
 		return time.Time{}, false

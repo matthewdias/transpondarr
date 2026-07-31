@@ -1,8 +1,6 @@
 package server
 
 import (
-	"log/slog"
-
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
@@ -23,7 +21,6 @@ import (
 // share one service.
 type routeDeps struct {
 	store    *store.Store
-	log      *slog.Logger
 	catalog  *catalog.Service
 	browse   *browse.Service
 	clients  *clients.Registry

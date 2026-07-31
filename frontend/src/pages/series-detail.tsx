@@ -293,10 +293,10 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            pin.mutate({
-              g: group,
-              d: delay === "" ? undefined : Number(delay),
-            });
+            // A cleared group takes its wait with it, so the disabled field's
+            // leftover value must not ride along to be silently dropped.
+            const blank = group.trim() === "" || delay === "";
+            pin.mutate({ g: group, d: blank ? undefined : Number(delay) });
           }}
         >
           <div className="space-y-3">

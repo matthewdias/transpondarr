@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/config"
-	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -100,7 +100,7 @@ func TestAutomationNegativePinDelayDegradesToZero(t *testing.T) {
 // duration, which every caller reads as "no delay at all".
 func TestAutomationOverlongPinDelayClamps(t *testing.T) {
 	svc := newServiceWith(t, &config.Config{PinDelayHours: "3000000"}, nil)
-	want := acquire.MaxPinDelayHours * time.Hour
+	want := domain.MaxPinDelayHours * time.Hour
 	if got := svc.PinDelayDefault(); got != want {
 		t.Errorf("pin delay = %v, want the %v ceiling", got, want)
 	}

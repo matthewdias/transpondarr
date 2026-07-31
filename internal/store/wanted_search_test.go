@@ -186,14 +186,20 @@ func TestSetSeriesSearchStateGuardsOnReadEpoch(t *testing.T) {
 		t.Fatalf("interleave a reset: %v", err)
 	}
 
-	if err := st.Q.SetSeriesSearchState(ctx, db.SetSeriesSearchStateParams{
+	// Zero rows is how the caller learns its write lost, rather than assuming it
+	// landed.
+	rows, err := st.Q.SetSeriesSearchState(ctx, db.SetSeriesSearchStateParams{
 		ID:             id,
 		LastSearchedAt: sql.NullString{String: FormatTimestamp(now), Valid: true},
 		SearchBackoff:  3,
 		NextSearchAt:   sql.NullString{String: FormatTimestamp(now.Add(4 * time.Hour)), Valid: true},
 		SearchEpoch:    epoch,
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("set search state: %v", err)
+	}
+	if rows != 0 {
+		t.Errorf("rows affected = %d, want 0 — the stale write must report that it lost", rows)
 	}
 
 	backoff, next := readCadence(t, st, id)
@@ -203,14 +209,18 @@ func TestSetSeriesSearchStateGuardsOnReadEpoch(t *testing.T) {
 	}
 
 	// With the current epoch, the same write lands.
-	if err := st.Q.SetSeriesSearchState(ctx, db.SetSeriesSearchStateParams{
+	rows, err = st.Q.SetSeriesSearchState(ctx, db.SetSeriesSearchStateParams{
 		ID:             id,
 		LastSearchedAt: sql.NullString{String: FormatTimestamp(now), Valid: true},
 		SearchBackoff:  3,
 		NextSearchAt:   sql.NullString{String: FormatTimestamp(now.Add(4 * time.Hour)), Valid: true},
 		SearchEpoch:    readEpoch(t, st, id),
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("set search state (matching guard): %v", err)
+	}
+	if rows != 1 {
+		t.Errorf("rows affected = %d, want 1 once the guard matches", rows)
 	}
 	if backoff, _ := readCadence(t, st, id); backoff != 3 {
 		t.Errorf("search_backoff = %d, want 3 once the guard matches", backoff)

@@ -145,7 +145,7 @@ func (q *Queries) ResetSeriesSearchState(ctx context.Context, id int64) error {
 	return err
 }
 
-const setSeriesSearchState = `-- name: SetSeriesSearchState :exec
+const setSeriesSearchState = `-- name: SetSeriesSearchState :execrows
 UPDATE series
 SET last_searched_at = ?, search_backoff = ?, next_search_at = ?
 WHERE id = ? AND search_epoch = ?
@@ -160,16 +160,20 @@ type SetSeriesSearchStateParams struct {
 }
 
 // Guarded on the epoch read at selection: a reset that landed mid-sweep (the
-// series grew, or was re-monitored) must win over the backoff computed against
-// the stale state. Guarding on next_search_at could not do that -- a reset
-// writes NULL, which is also what a due series usually already held.
-func (q *Queries) SetSeriesSearchState(ctx context.Context, arg SetSeriesSearchStateParams) error {
-	_, err := q.db.ExecContext(ctx, setSeriesSearchState,
+// series grew, was re-monitored, or was repinned) must win over the backoff
+// computed against the stale state. Guarding on next_search_at could not do
+// that -- a reset writes NULL, which is also what a due series usually already
+// held. execrows is what lets the caller see that its write lost.
+func (q *Queries) SetSeriesSearchState(ctx context.Context, arg SetSeriesSearchStateParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setSeriesSearchState,
 		arg.LastSearchedAt,
 		arg.SearchBackoff,
 		arg.NextSearchAt,
 		arg.ID,
 		arg.SearchEpoch,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

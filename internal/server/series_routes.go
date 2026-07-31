@@ -409,6 +409,12 @@ func (h *seriesHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupIn
 	if rows == 0 {
 		return nil, huma.Error404NotFound("series not found")
 	}
+	// A held series' next_search_at was computed from the pin that just changed,
+	// so without this a shortened wait or a new group does nothing until the old
+	// window closes.
+	if err := h.store.Q.ResetSeriesSearchState(ctx, in.ID); err != nil {
+		return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
+	}
 	out := &setPinnedGroupOutput{}
 	out.Body.SeriesID = in.ID
 	out.Body.PinnedGroup = group

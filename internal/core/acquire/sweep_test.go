@@ -405,16 +405,83 @@ func TestSweepStopsAfterRepeatedAddFailures(t *testing.T) {
 	h.dl.Err = errors.New("connection refused")
 	id := seedSweep(t, h.st, "Placeholder Saga", true, items...)
 
+	before := time.Now()
 	if err := h.svc.SweepOnce(context.Background()); err == nil {
 		t.Fatal("SweepOnce returned nil, want the client failure surfaced")
 	}
 	if len(h.dl.Adds) > 3 {
 		t.Errorf("attempted %d adds against a failing client, want at most 3", len(h.dl.Adds))
 	}
-	// No cadence write: the series is retried next tick, not backed off for an
-	// outage that was never its own.
-	if readSearchState(t, h.st, id).lastSearched.Valid {
+	// The failure is series-local, so it must still yield its slot: leaving the
+	// cadence due would keep this series at the head of every pass forever.
+	state := readSearchState(t, h.st, id)
+	if state.backoff != 1 {
+		t.Errorf("backoff = %d, want 1 — a failed pass must still give up its slot", state.backoff)
+	}
+	wantNextSearchNear(t, state.nextSearchAt, before.Add(time.Hour))
+	// last_searched_at stays put: nothing was successfully searched, and moving it
+	// would hide an episode that aired before the failure from airedSince.
+	if state.lastSearched.Valid {
 		t.Error("last_searched_at was written despite the pass failing")
+	}
+}
+
+// An indexer outage is the one failure a series is not charged for: every due
+// series shares it, so backing them all off would idle the whole library on one
+// upstream hiccup.
+func TestSweepIndexerFailureLeavesTheCadenceUntouched(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	h := newSweep(t, nil, fakeConfig{})
+	h.idx.Err = errors.New("torznab: upstream timeout")
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+
+	if err := h.svc.SweepOnce(context.Background()); err == nil {
+		t.Fatal("SweepOnce returned nil, want the indexer failure surfaced")
+	}
+	state := readSearchState(t, h.st, id)
+	if state.backoff != 0 || state.nextSearchAt.Valid || state.lastSearched.Valid {
+		t.Errorf("cadence = %+v, want it untouched after an indexer outage", state)
+	}
+}
+
+// The starvation the backoff-on-failure exists to prevent: the due query is a
+// small LIMIT ordered by next_search_at, so series that fail without yielding
+// their slot hold the head of the queue and nothing else is ever searched.
+func TestSweepFailingSeriesDoNotStarveHealthyOnes(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	var releases []indexer.Release
+	fail := map[string]error{}
+	// Enough failing series to fill the 5-series pass, each with enough dead
+	// releases to trip maxAddFailures.
+	for i := range 5 {
+		title := fmt.Sprintf("Broken Saga %d", i)
+		for n := 1; n <= 4; n++ {
+			r := episodeRelease(title, n)
+			r.DownloadURL = fmt.Sprintf("magnet:?xt=urn:btih:broken%d%02d", i, n)
+			releases = append(releases, r)
+			fail[r.DownloadURL] = errors.New("qbit: refused")
+		}
+	}
+	healthy := episodeRelease("Healthy Saga", 1)
+	healthy.DownloadURL = "magnet:?xt=urn:btih:healthy01"
+	releases = append(releases, healthy)
+
+	h := newSweep(t, releases, fakeConfig{})
+	h.dl.FailURLs = fail
+	for i := range 5 {
+		seedSweep(t, h.st, fmt.Sprintf("Broken Saga %d", i), true,
+			sweepItem{number: 1, airsAt: &past}, sweepItem{number: 2, airsAt: &past},
+			sweepItem{number: 3, airsAt: &past}, sweepItem{number: 4, airsAt: &past})
+	}
+	healthyID := seedSweep(t, h.st, "Healthy Saga", true, sweepItem{number: 1, airsAt: &past})
+
+	// One pass fills entirely with the broken series; the second must reach past
+	// them now that a failed pass backs off.
+	for range 2 {
+		_ = h.svc.SweepOnce(context.Background())
+	}
+	if got := grabbedItemNumbers(t, h.st, healthyID); len(got) != 1 || got[0] != 1 {
+		t.Fatalf("healthy series grabs = %v, want [1] — it was starved by the failing ones", got)
 	}
 }
 

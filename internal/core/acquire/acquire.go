@@ -10,6 +10,11 @@
 // download client's own info-hash dedupe make the exposure no worse than
 // double-clicking Grab.
 //
+// A failed pass backs off like an empty one. Only an indexer outage is free,
+// because every due series shares it; anything series-local must still yield its
+// slot, or a handful of permanently failing series hold the head of the bounded
+// due queue and nothing else is ever searched.
+//
 // Throughput is deliberately small — seriesPerPass series per tick — because a
 // pass costs one indexer search per series and the indexer is the scarce,
 // rate-limited resource. The backoff keeps the steady-state due set well under

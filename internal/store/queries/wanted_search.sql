@@ -31,11 +31,12 @@ LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ?
 ORDER BY w.number;
 
--- name: SetSeriesSearchState :exec
+-- name: SetSeriesSearchState :execrows
 -- Guarded on the epoch read at selection: a reset that landed mid-sweep (the
--- series grew, or was re-monitored) must win over the backoff computed against
--- the stale state. Guarding on next_search_at could not do that -- a reset
--- writes NULL, which is also what a due series usually already held.
+-- series grew, was re-monitored, or was repinned) must win over the backoff
+-- computed against the stale state. Guarding on next_search_at could not do
+-- that -- a reset writes NULL, which is also what a due series usually already
+-- held. execrows is what lets the caller see that its write lost.
 UPDATE series
 SET last_searched_at = ?, search_backoff = ?, next_search_at = ?
 WHERE id = ? AND search_epoch = ?;

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/matthewdias/transpondarr/internal/core/acquire"
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 )
 
 func TestPinnedGroupAssignmentRoundTrip(t *testing.T) {
@@ -115,14 +115,14 @@ func TestSetPinnedGroupRejectsAnOutOfRangeDelay(t *testing.T) {
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
 	path := fmt.Sprintf("/api/v1/series/%d/pinned-group", seriesID)
 
-	for _, hours := range []int{-1, acquire.MaxPinDelayHours + 1, 3000000} {
+	for _, hours := range []int{-1, domain.MaxPinDelayHours + 1, 3000000} {
 		body := map[string]any{"group": "ShinyRip", "delay_hours": hours}
 		if code := do(t, h, "PUT", path, body, nil); code != http.StatusUnprocessableEntity {
 			t.Errorf("delay_hours %d status = %d, want 422", hours, code)
 		}
 	}
 	// The ceiling itself is a legal value.
-	body := map[string]any{"group": "ShinyRip", "delay_hours": acquire.MaxPinDelayHours}
+	body := map[string]any{"group": "ShinyRip", "delay_hours": domain.MaxPinDelayHours}
 	if code := do(t, h, "PUT", path, body, nil); code != http.StatusOK {
 		t.Errorf("delay_hours at the ceiling status = %d, want 200", code)
 	}

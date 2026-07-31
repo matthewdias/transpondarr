@@ -172,6 +172,27 @@ describe("PinnedGroupChip", () => {
     expect(screen.getByText(/how many hours/i)).toBeVisible();
   });
 
+  // Clearing the group leaves the disabled field's value in state, and the
+  // server would drop it — so sending it puts a number on the wire that means
+  // nothing and misreads as a wait that was set.
+  it("omits the wait when the group is cleared", async () => {
+    const sent: unknown[] = [];
+    server.use(
+      http.put("/api/v1/series/7/pinned-group", async ({ request }) => {
+        sent.push(await request.json());
+        return HttpResponse.json({ series_id: 7, pinned_group: "" });
+      }),
+    );
+    const user = userEvent.setup();
+    renderChip(detail({ pinned_group: "ShinyRip", pin_delay_hours: 6 }));
+
+    await user.click(screen.getByRole("button", { name: /pin: shinyrip/i }));
+    await user.clear(screen.getByRole("textbox", { name: /release group/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => expect(sent).toEqual([{ group: "" }]));
+  });
+
   // The server drops a delay sent without a group (it is PUT-replace: no group,
   // nothing to wait for), so the field must not accept input that goes nowhere.
   it("disables the wait field while there is no group", async () => {
