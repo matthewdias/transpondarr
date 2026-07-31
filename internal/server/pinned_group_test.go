@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 )
 
 func TestPinnedGroupAssignmentRoundTrip(t *testing.T) {
@@ -103,6 +105,26 @@ func TestSetPinnedGroupStoresDelayAndPutReplaces(t *testing.T) {
 	}
 	if detail.PinnedGroup != "" || detail.PinDelayHours != nil {
 		t.Errorf("after clearing: group %q delay %v, want both gone", detail.PinnedGroup, detail.PinDelayHours)
+	}
+}
+
+// A delay past the duration ceiling wraps int64 downstream and silently becomes
+// no delay, so the bound is enforced at the edge rather than papered over later.
+func TestSetPinnedGroupRejectsAnOutOfRangeDelay(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
+	path := fmt.Sprintf("/api/v1/series/%d/pinned-group", seriesID)
+
+	for _, hours := range []int{-1, acquire.MaxPinDelayHours + 1, 3000000} {
+		body := map[string]any{"group": "ShinyRip", "delay_hours": hours}
+		if code := do(t, h, "PUT", path, body, nil); code != http.StatusUnprocessableEntity {
+			t.Errorf("delay_hours %d status = %d, want 422", hours, code)
+		}
+	}
+	// The ceiling itself is a legal value.
+	body := map[string]any{"group": "ShinyRip", "delay_hours": acquire.MaxPinDelayHours}
+	if code := do(t, h, "PUT", path, body, nil); code != http.StatusOK {
+		t.Errorf("delay_hours at the ceiling status = %d, want 200", code)
 	}
 }
 

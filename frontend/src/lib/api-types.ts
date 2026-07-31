@@ -1012,7 +1012,7 @@ export interface components {
             readonly $schema?: string;
             /**
              * Format: int64
-             * @description Hours the scheduled sweep waits for this group before taking another; omit to use the global default
+             * @description Hours the scheduled sweep waits for this group before taking another (max 8760); omit to use the global default
              */
             delay_hours?: number;
             /** @description Release group to pin above profile scoring; empty clears the pin */

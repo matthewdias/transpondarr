@@ -116,8 +116,10 @@ type setMonitoredOutput struct {
 type setPinnedGroupInput struct {
 	ID   int64 `path:"id" doc:"Series id"`
 	Body struct {
-		Group      string `json:"group" maxLength:"100" doc:"Release group to pin above profile scoring; empty clears the pin"`
-		DelayHours *int   `json:"delay_hours,omitempty" minimum:"0" doc:"Hours the scheduled sweep waits for this group before taking another; omit to use the global default"`
+		Group string `json:"group" maxLength:"100" doc:"Release group to pin above profile scoring; empty clears the pin"`
+		// maximum mirrors acquire.MaxPinDelayHours, which a struct tag cannot
+		// reference: past it the duration multiply wraps and the wait vanishes.
+		DelayHours *int `json:"delay_hours,omitempty" minimum:"0" maximum:"8760" doc:"Hours the scheduled sweep waits for this group before taking another (max 8760); omit to use the global default"`
 	}
 }
 
@@ -166,7 +168,7 @@ func newSeriesHandler(deps routeDeps) *seriesHandler {
 		store:   deps.store,
 		catalog: deps.catalog,
 		clients: deps.clients,
-		acquire: acquire.New(deps.store, deps.clients, deps.catalog, deps.settings, deps.log),
+		acquire: deps.acquire,
 	}
 }
 

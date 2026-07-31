@@ -74,6 +74,7 @@ type Series struct {
 	SearchBackoff    int64          `json:"search_backoff"`
 	NextSearchAt     sql.NullString `json:"next_search_at"`
 	PinDelayHours    sql.NullInt64  `json:"pin_delay_hours"`
+	SearchEpoch      int64          `json:"search_epoch"`
 }
 
 type Session struct {

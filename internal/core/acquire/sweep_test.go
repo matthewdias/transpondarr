@@ -3,6 +3,7 @@ package acquire_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -339,6 +340,81 @@ func TestSweepGrabsMultipleReleasesInOnePass(t *testing.T) {
 	}
 	if len(h.idx.Queries) != 1 {
 		t.Errorf("indexer queried %d times for one series, want 1", len(h.idx.Queries))
+	}
+}
+
+// A dead download URL is one release's problem. It must not cost the rest of the
+// series its pass, and it must not skip the cadence write — that would re-search
+// the same series every tick forever.
+func TestSweepContinuesPastAFailedAdd(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	dead := episodeRelease("Placeholder Saga", 3)
+	h := newSweep(t, []indexer.Release{dead, episodeRelease("Placeholder Saga", 4)}, fakeConfig{})
+	h.dl.FailURLs = map[string]error{dead.DownloadURL: errors.New("404 fetching .torrent")}
+	id := seedSweep(t, h.st, "Placeholder Saga", true,
+		sweepItem{number: 3, airsAt: &past},
+		sweepItem{number: 4, airsAt: &past})
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v — one bad release must not fail the pass", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 4 {
+		t.Errorf("grabbed items = %v, want [4] — the healthy release still lands", got)
+	}
+	if !readSearchState(t, h.st, id).lastSearched.Valid {
+		t.Error("last_searched_at is NULL: the pass did not record that it ran")
+	}
+}
+
+// Items under a failed add stay unclaimed, so the next-ranked release covering
+// the same episode is still tried in the same pass.
+func TestSweepFallsBackToTheNextCandidateForTheSameItem(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	best := episodeRelease("Placeholder Saga", 3)
+	best.Seeders = 500 // ranks first, and its URL is dead
+	alt := episodeRelease("Placeholder Saga", 3)
+	alt.Title = "[OtherSubs] Placeholder Saga - 03 [1080p]"
+	alt.DownloadURL = "magnet:?xt=urn:btih:alt03"
+
+	h := newSweep(t, []indexer.Release{best, alt}, fakeConfig{})
+	h.dl.FailURLs = map[string]error{best.DownloadURL: errors.New("404 fetching .torrent")}
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
+		t.Fatalf("grabbed items = %v, want [3] from the fallback release", got)
+	}
+	if got := h.dl.Adds[len(h.dl.Adds)-1].URL; got != alt.DownloadURL {
+		t.Errorf("last add URL = %q, want the runner-up %q", got, alt.DownloadURL)
+	}
+}
+
+// Repeated add failures mean the client is unwell, not that every release is
+// dead: the series gives up rather than walking the whole candidate list.
+func TestSweepStopsAfterRepeatedAddFailures(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	var releases []indexer.Release
+	items := []sweepItem{}
+	for n := 3; n <= 10; n++ {
+		releases = append(releases, episodeRelease("Placeholder Saga", n))
+		items = append(items, sweepItem{number: n, airsAt: &past})
+	}
+	h := newSweep(t, releases, fakeConfig{})
+	h.dl.Err = errors.New("connection refused")
+	id := seedSweep(t, h.st, "Placeholder Saga", true, items...)
+
+	if err := h.svc.SweepOnce(context.Background()); err == nil {
+		t.Fatal("SweepOnce returned nil, want the client failure surfaced")
+	}
+	if len(h.dl.Adds) > 3 {
+		t.Errorf("attempted %d adds against a failing client, want at most 3", len(h.dl.Adds))
+	}
+	// No cadence write: the series is retried next tick, not backed off for an
+	// outage that was never its own.
+	if readSearchState(t, h.st, id).lastSearched.Valid {
+		t.Error("last_searched_at was written despite the pass failing")
 	}
 }
 

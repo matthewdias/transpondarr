@@ -22,11 +22,33 @@ const seriesPerPass = 5
 // statusFailed is the one settled grab status that leaves an item wanted again.
 const statusFailed = "failed"
 
+// maxAddFailures ends a series' pass once the download client has refused this
+// many releases: past a couple, the client is unwell rather than the releases.
+const maxAddFailures = 3
+
 // Empty-handed passes back off from an hour, doubling to a daily floor.
 const (
 	backoffBase = time.Hour
 	backoffCap  = 24 * time.Hour
 )
+
+// MaxPinDelayHours bounds the pinned-group wait at a year. The bound is not
+// taste: time.Duration tops out near 2.6e6 hours, so an unclamped multiply wraps
+// int64 and a large wait silently becomes no wait at all.
+const MaxPinDelayHours = 24 * 365
+
+// PinDelay converts a stored or configured hour count into a duration, clamping
+// both ends so no caller can produce a wrapped or negative wait.
+func PinDelay(hours int64) time.Duration {
+	switch {
+	case hours <= 0:
+		return 0
+	case hours > MaxPinDelayHours:
+		return MaxPinDelayHours * time.Hour
+	default:
+		return time.Duration(hours) * time.Hour
+	}
+}
 
 // backoffDelay is the wait after n consecutive empty searches.
 func backoffDelay(n int) time.Duration {
@@ -50,9 +72,10 @@ type sweepItem struct {
 }
 
 // SweepOnce searches every series due one and grabs what it can, and is what the
-// job runner calls. Both the kill switch and the clients are read per run, so
-// enabling automation or configuring an integration takes effect on the next
-// tick without a restart. One series' failure never costs the rest their pass.
+// job runner calls. The clients are read per run, so configuring an integration
+// takes effect on the next tick without a restart; the kill switch is read per
+// run too, but nothing writes it yet (#102), so changing it still needs one.
+// One series' failure never costs the rest their pass.
 func (s *Service) SweepOnce(ctx context.Context) error {
 	if !s.cfg.AutomationEnabled() {
 		return nil
@@ -130,7 +153,7 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 	}
 
 	covered := make(map[int]bool, len(sweep))
-	var grabbed int
+	var grabbed, failed int
 	var held time.Time
 	for _, c := range m.Candidates {
 		// Eligibility is enforcement here, unlike a manual grab (PR #57).
@@ -141,11 +164,28 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			if held.IsZero() || until.Before(held) {
 				held = until
 			}
+			// Marking the whole release covered holds items whose own window has
+			// long closed, when a batch's anchor is its newest episode. Deliberate:
+			// taking an old episode separately and the batch later is worse.
 			markCovered(covered, c.Items)
 			continue
 		}
 		if _, err := s.Grab(ctx, c, m.Items, false); err != nil {
-			return 0, time.Time{}, err
+			if !errors.Is(err, ErrDownloadAdd) {
+				return 0, time.Time{}, err
+			}
+			// A dead download URL is this release's problem, not the series'.
+			// The items stay unclaimed so the next-ranked release covering them is
+			// still tried; only a client that keeps refusing ends the pass. This
+			// fallback is same-pass only — nothing is persisted, so the next sweep
+			// re-derives the same ranking. That needs a blocklist (#118).
+			failed++
+			s.log.Warn("sweep could not add a release; trying the next candidate",
+				"series", series.ID, "release", c.Release.Title, "err", err)
+			if failed >= maxAddFailures {
+				return 0, time.Time{}, fmt.Errorf("%d consecutive add failures: %w", failed, err)
+			}
+			continue
 		}
 		s.log.Info("sweep grabbed a release", "series", series.ID, "release", c.Release.Title, "items", c.Items)
 		markCovered(covered, c.Items)
@@ -180,7 +220,7 @@ func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep 
 		LastSearchedAt: sql.NullString{String: store.FormatTimestamp(now), Valid: true},
 		SearchBackoff:  backoff,
 		NextSearchAt:   nullTimestamp(next),
-		NextSearchAt_2: series.NextSearchAt,
+		SearchEpoch:    series.SearchEpoch,
 	})
 }
 
@@ -292,7 +332,7 @@ func (s *Service) pinHold(series db.Series, c decide.Candidate, airs map[int]tim
 	}
 	delay := s.cfg.PinDelayDefault()
 	if series.PinDelayHours.Valid {
-		delay = time.Duration(series.PinDelayHours.Int64) * time.Hour
+		delay = PinDelay(series.PinDelayHours.Int64)
 	}
 	if delay <= 0 {
 		return time.Time{}, false

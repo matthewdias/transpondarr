@@ -32,13 +32,17 @@ WHERE w.series_id = ?
 ORDER BY w.number;
 
 -- name: SetSeriesSearchState :exec
--- Guarded on the value read at selection: a reset that landed mid-sweep (the
+-- Guarded on the epoch read at selection: a reset that landed mid-sweep (the
 -- series grew, or was re-monitored) must win over the backoff computed against
--- the stale state.
+-- the stale state. Guarding on next_search_at could not do that -- a reset
+-- writes NULL, which is also what a due series usually already held.
 UPDATE series
 SET last_searched_at = ?, search_backoff = ?, next_search_at = ?
-WHERE id = ? AND next_search_at IS ?;
+WHERE id = ? AND search_epoch = ?;
 
 -- name: ResetSeriesSearchState :exec
 -- Puts a series back at the front of the queue: due now, no accumulated backoff.
-UPDATE series SET search_backoff = 0, next_search_at = NULL WHERE id = ?;
+-- Bumping the epoch is what makes an in-flight sweep's write lose.
+UPDATE series
+SET search_backoff = 0, next_search_at = NULL, search_epoch = search_epoch + 1
+WHERE id = ?;

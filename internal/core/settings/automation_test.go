@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/config"
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -92,5 +93,15 @@ func TestAutomationNegativePinDelayDegradesToZero(t *testing.T) {
 	svc := newServiceWith(t, &config.Config{PinDelayHours: "-3"}, nil)
 	if got := svc.PinDelayDefault(); got != 0 {
 		t.Errorf("pin delay = %v, want 0", got)
+	}
+}
+
+// Multiplied out raw, an hour count this size wraps int64 into a negative
+// duration, which every caller reads as "no delay at all".
+func TestAutomationOverlongPinDelayClamps(t *testing.T) {
+	svc := newServiceWith(t, &config.Config{PinDelayHours: "3000000"}, nil)
+	want := acquire.MaxPinDelayHours * time.Hour
+	if got := svc.PinDelayDefault(); got != want {
+		t.Errorf("pin delay = %v, want the %v ceiling", got, want)
 	}
 }

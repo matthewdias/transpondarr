@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -229,9 +229,19 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
   const [open, setOpen] = useState(false);
   const [group, setGroup] = useState("");
   const [delay, setDelay] = useState("");
+  const groupId = useId();
+  const delayId = useId();
+  const delayHintId = useId();
   const current = detail.pinned_group ?? "";
   const currentDelay =
     detail.pin_delay_hours === undefined ? "" : String(detail.pin_delay_hours);
+  // An explicit 0 is a real setting ("do not wait"), not the absent default.
+  const delaySuffix =
+    detail.pin_delay_hours === undefined
+      ? ""
+      : detail.pin_delay_hours === 0
+        ? " · no wait"
+        : ` · ${detail.pin_delay_hours}h`;
 
   const pin = useMutation({
     mutationFn: ({ g, d }: { g: string; d?: number }) =>
@@ -269,7 +279,7 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-accent-foreground"
         >
           <Pin className="size-3" aria-hidden />
-          {current ? `Pin: ${current}` : "Pin group"}
+          {current ? `Pin: ${current}${delaySuffix}` : "Pin group"}
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
@@ -290,25 +300,45 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
           }}
         >
           <div className="space-y-3">
-            <Input
-              aria-label="Release group"
-              value={group}
-              onChange={(e) => setGroup(e.target.value)}
-              placeholder="e.g. ShinySubs"
-              maxLength={100}
-            />
             <div className="space-y-1">
+              <label
+                htmlFor={groupId}
+                className="block text-xs font-medium text-muted-foreground"
+              >
+                Release group
+              </label>
               <Input
+                id={groupId}
+                value={group}
+                onChange={(e) => setGroup(e.target.value)}
+                placeholder="e.g. ShinySubs"
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-1">
+              <label
+                htmlFor={delayId}
+                className="block text-xs font-medium text-muted-foreground"
+              >
+                Wait for this group (hours)
+              </label>
+              <Input
+                id={delayId}
+                aria-describedby={delayHintId}
                 type="number"
                 min={0}
-                aria-label="Wait for this group (hours)"
+                max={8760}
+                step={1}
+                // The server drops a delay with no group to wait for, so the
+                // field must not take input the save would silently discard.
+                disabled={group.trim() === ""}
                 value={delay}
                 onChange={(e) => setDelay(e.target.value)}
-                placeholder="Wait (hours)"
+                placeholder="Global default"
               />
-              <p className="text-xs text-muted-foreground">
-                How long automatic searches wait for this group after an episode
-                airs. Blank uses the global default.
+              <p id={delayHintId} className="text-xs text-muted-foreground">
+                How many hours automatic searches wait for this group after an
+                episode airs. Blank uses the global default; 0 never waits.
               </p>
             </div>
           </div>

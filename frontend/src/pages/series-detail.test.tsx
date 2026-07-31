@@ -121,6 +121,77 @@ describe("PinnedGroupChip", () => {
     expect(sent[1]).toEqual({ group: "ShinyRip" });
   });
 
+  // The wait is only legible if you can see it without opening the dialog, and
+  // an explicit 0 ("take anyone's release now") must not read as the default.
+  it("shows the configured wait on the chip", () => {
+    const { rerender } = renderChip(
+      detail({ pinned_group: "ShinyRip", pin_delay_hours: 6 }),
+    );
+    expect(
+      screen.getByRole("button", { name: /pin: shinyrip · 6h/i }),
+    ).toBeInTheDocument();
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    rerender(
+      <QueryClientProvider client={client}>
+        <PinnedGroupChip
+          detail={detail({ pinned_group: "ShinyRip", pin_delay_hours: 0 })}
+        />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: /pin: shinyrip · no wait/i }),
+    ).toBeInTheDocument();
+
+    // No override: the global default applies and the chip must not invent it.
+    rerender(
+      <QueryClientProvider client={client}>
+        <PinnedGroupChip detail={detail({ pinned_group: "ShinyRip" })} />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.getByRole("button", { name: /^pin: shinyrip$/i }),
+    ).toBeInTheDocument();
+  });
+
+  // A placeholder disappears the moment you type, so the unit has to live in a
+  // label that stays on screen.
+  it("names the wait field's unit in a persistent label", async () => {
+    const user = userEvent.setup();
+    renderChip(detail({ pinned_group: "ShinyRip", pin_delay_hours: 6 }));
+
+    await user.click(screen.getByRole("button", { name: /pin: shinyrip/i }));
+    expect(
+      screen.getByRole("spinbutton", { name: /wait.*hours/i }),
+    ).toBeInTheDocument();
+    // The label anchors the field; the hint repeats the unit so the sentence
+    // explaining blank and 0 reads without glancing back up.
+    expect(screen.getByText(/wait for this group \(hours\)/i)).toBeVisible();
+    expect(screen.getByText(/how many hours/i)).toBeVisible();
+  });
+
+  // The server drops a delay sent without a group (it is PUT-replace: no group,
+  // nothing to wait for), so the field must not accept input that goes nowhere.
+  it("disables the wait field while there is no group", async () => {
+    const user = userEvent.setup();
+    renderChip(detail({ pinned_group: "ShinyRip", pin_delay_hours: 6 }));
+
+    await user.click(screen.getByRole("button", { name: /pin: shinyrip/i }));
+    const wait = () => screen.getByRole("spinbutton", { name: /wait/i });
+    expect(wait()).toBeEnabled();
+
+    await user.clear(screen.getByRole("textbox", { name: /release group/i }));
+    expect(wait()).toBeDisabled();
+
+    await user.type(
+      screen.getByRole("textbox", { name: /release group/i }),
+      "OtherGroup",
+    );
+    expect(wait()).toBeEnabled();
+  });
+
   it("shows the current pin and clears it", async () => {
     let sent: unknown;
     server.use(

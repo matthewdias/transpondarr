@@ -5,6 +5,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
@@ -17,7 +18,9 @@ import (
 // routeDeps bundles what the handlers need. The clients registry supplies the
 // live download/indexer clients (either may be nil when unconfigured; handlers
 // report that as 503); settings backs the runtime-config endpoints; jobs backs
-// the job-status endpoint and is nil on the spec-dump path.
+// the job-status endpoint and is nil on the spec-dump path. acquire is built
+// once here rather than per handler group, so the manual routes and the sweep
+// share one service.
 type routeDeps struct {
 	store    *store.Store
 	log      *slog.Logger
@@ -27,6 +30,7 @@ type routeDeps struct {
 	settings *settings.Service
 	auth     *auth.Service
 	jobs     *jobs.Runner
+	acquire  *acquire.Service
 }
 
 // registerRoutes wires every Huma endpoint. Handlers are grouped by resource in

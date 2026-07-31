@@ -170,16 +170,20 @@ func TestListSeriesDueWantedSearchOrdersNeverSearchedFirstAndLimits(t *testing.T
 
 // The write is guarded on the value read at selection so a concurrent reset — a
 // series that just grew, or was re-monitored — wins over a stale backoff.
-func TestSetSeriesSearchStateGuardsOnReadValue(t *testing.T) {
+// The guard has to survive the case that motivated it: a due series carries
+// next_search_at NULL, and a reset writes NULL too, so the column alone cannot
+// tell "nobody touched this" from "a reset landed while I searched".
+func TestSetSeriesSearchStateGuardsOnReadEpoch(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 	id := seedSearchSeries(t, st, "guarded", 1)
 	now := time.Now()
 
-	// Read state: never searched (next_search_at NULL). A reset lands first.
-	if _, err := st.DB.ExecContext(ctx, `UPDATE series SET next_search_at = ? WHERE id = ?`,
-		FormatTimestamp(now.Add(time.Hour)), id); err != nil {
-		t.Fatalf("interleave a concurrent write: %v", err)
+	epoch := readEpoch(t, st, id) // read at selection: never searched, NULL, epoch 0
+
+	// A reset lands mid-sweep. next_search_at is NULL before and after.
+	if err := st.Q.ResetSeriesSearchState(ctx, id); err != nil {
+		t.Fatalf("interleave a reset: %v", err)
 	}
 
 	if err := st.Q.SetSeriesSearchState(ctx, db.SetSeriesSearchStateParams{
@@ -187,37 +191,51 @@ func TestSetSeriesSearchStateGuardsOnReadValue(t *testing.T) {
 		LastSearchedAt: sql.NullString{String: FormatTimestamp(now), Valid: true},
 		SearchBackoff:  3,
 		NextSearchAt:   sql.NullString{String: FormatTimestamp(now.Add(4 * time.Hour)), Valid: true},
-		NextSearchAt_2: sql.NullString{}, // the NULL read at selection
+		SearchEpoch:    epoch,
 	}); err != nil {
 		t.Fatalf("set search state: %v", err)
 	}
 
-	var backoff int64
-	if err := st.DB.QueryRowContext(ctx, `SELECT search_backoff FROM series WHERE id = ?`, id).
-		Scan(&backoff); err != nil {
-		t.Fatalf("read back: %v", err)
-	}
-	if backoff != 0 {
-		t.Errorf("search_backoff = %d, want 0 — the guarded write clobbered a concurrent reset", backoff)
+	backoff, next := readCadence(t, st, id)
+	if backoff != 0 || next.Valid {
+		t.Errorf("backoff = %d, next_search_at = %+v; want 0 and NULL — the stale write clobbered a concurrent reset",
+			backoff, next)
 	}
 
-	// Unguarded (the read value still matches), the same write lands.
+	// With the current epoch, the same write lands.
 	if err := st.Q.SetSeriesSearchState(ctx, db.SetSeriesSearchStateParams{
 		ID:             id,
 		LastSearchedAt: sql.NullString{String: FormatTimestamp(now), Valid: true},
 		SearchBackoff:  3,
 		NextSearchAt:   sql.NullString{String: FormatTimestamp(now.Add(4 * time.Hour)), Valid: true},
-		NextSearchAt_2: sql.NullString{String: FormatTimestamp(now.Add(time.Hour)), Valid: true},
+		SearchEpoch:    readEpoch(t, st, id),
 	}); err != nil {
 		t.Fatalf("set search state (matching guard): %v", err)
 	}
-	if err := st.DB.QueryRowContext(ctx, `SELECT search_backoff FROM series WHERE id = ?`, id).
-		Scan(&backoff); err != nil {
-		t.Fatalf("read back: %v", err)
-	}
-	if backoff != 3 {
+	if backoff, _ := readCadence(t, st, id); backoff != 3 {
 		t.Errorf("search_backoff = %d, want 3 once the guard matches", backoff)
 	}
+}
+
+func readEpoch(t *testing.T, st *Store, id int64) int64 {
+	t.Helper()
+	var epoch int64
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT search_epoch FROM series WHERE id = ?`, id).Scan(&epoch); err != nil {
+		t.Fatalf("read search_epoch: %v", err)
+	}
+	return epoch
+}
+
+func readCadence(t *testing.T, st *Store, id int64) (int64, sql.NullString) {
+	t.Helper()
+	var backoff int64
+	var next sql.NullString
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, id).Scan(&backoff, &next); err != nil {
+		t.Fatalf("read cadence: %v", err)
+	}
+	return backoff, next
 }
 
 // A reset clears the cadence outright, which is what refresh growth and a
@@ -232,18 +250,18 @@ func TestResetSeriesSearchState(t *testing.T) {
 		FormatTimestamp(time.Now().Add(24*time.Hour)), id); err != nil {
 		t.Fatalf("seed backoff: %v", err)
 	}
+	before := readEpoch(t, st, id)
 	if err := st.Q.ResetSeriesSearchState(ctx, id); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
 
-	var backoff int64
-	var next sql.NullString
-	if err := st.DB.QueryRowContext(ctx,
-		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, id).Scan(&backoff, &next); err != nil {
-		t.Fatalf("read back: %v", err)
-	}
+	backoff, next := readCadence(t, st, id)
 	if backoff != 0 || next.Valid {
 		t.Errorf("after reset backoff = %d, next_search_at = %+v, want 0 and NULL", backoff, next)
+	}
+	// The bump is what an in-flight sweep's guard trips over.
+	if got := readEpoch(t, st, id); got != before+1 {
+		t.Errorf("search_epoch = %d, want %d", got, before+1)
 	}
 }
 

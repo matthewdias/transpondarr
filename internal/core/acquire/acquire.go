@@ -10,6 +10,17 @@
 // download client's own info-hash dedupe make the exposure no worse than
 // double-clicking Grab.
 //
+// Throughput is deliberately small — seriesPerPass series per tick — because a
+// pass costs one indexer search per series and the indexer is the scarce,
+// rate-limited resource. The backoff keeps the steady-state due set well under
+// that, but demand is correlated: anime airs in weekly blocks, and the clamp
+// puts every title from one block back on the queue at nearly the same moment.
+// A large library can therefore take a few passes to drain the evening its shows
+// air, which most-overdue-first ordering makes fair rather than fast. If that
+// ever needs tuning, shorten the interval before widening the pass: the ratio is
+// what sets throughput, and smaller more frequent passes smooth burst latency
+// without raising peak load on the indexer as much.
+//
 // A series with a pinned group can make the sweep wait a while before settling
 // for another group (#62). The window is measured from broadcast, so an item
 // with no air date is not delayed at all: there is no interval to wait out, a
@@ -59,8 +70,10 @@ type TitleSource interface {
 }
 
 // Config is the runtime configuration acquire reads (satisfied by
-// *settings.Service). Every value is read per use, so a live edit applies to the
-// next sweep rather than the next restart.
+// *settings.Service). Every value is read per use, so a value that has a writer
+// applies to the next sweep rather than the next restart — true today of the
+// download category. The automation values have no writer until the Settings
+// toggle (#102) lands, so for now they are whatever startup parsed.
 type Config interface {
 	DownloadCategory() string
 	AutomationEnabled() bool
@@ -85,8 +98,13 @@ type Service struct {
 	log     *slog.Logger
 }
 
-// New builds the service.
+// New builds the service. A nil logger is tolerated so a caller that only needs
+// the service to exist (the OpenAPI spec dump builds its routes with empty deps)
+// cannot turn a missing logger into a panic inside a sweep.
 func New(st *store.Store, clients ClientSource, titles TitleSource, cfg Config, log *slog.Logger) *Service {
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
 	return &Service{store: st, clients: clients, titles: titles, cfg: cfg, log: log}
 }
 

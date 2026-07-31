@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/store"
 )
@@ -89,6 +90,45 @@ func TestSweepDelayIsInapplicableWithoutAnAirDate(t *testing.T) {
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
 		t.Fatalf("grabbed items = %v, want [3] — no broadcast time, no window", got)
+	}
+}
+
+// An hour count past the duration ceiling wraps int64 when multiplied out, and
+// 3000000h wraps *negative*, which reads as <= 0 and disables the wait outright:
+// the longest wait a user can ask for silently becomes none. Clamped, it holds.
+func TestSweepClampsAnAbsurdPinDelay(t *testing.T) {
+	aired := time.Now().Add(-time.Hour)
+	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	pinSeries(t, h.st, id, "OtherSubs", 3000000)
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
+		t.Fatalf("grabbed %v, want nothing — an overlong delay must clamp, not wrap to none", got)
+	}
+	wantNextSearchNear(t, readSearchState(t, h.st, id).nextSearchAt,
+		aired.Add(acquire.MaxPinDelayHours*time.Hour))
+}
+
+func TestPinDelayClampsBothEnds(t *testing.T) {
+	cases := []struct {
+		hours int64
+		want  time.Duration
+	}{
+		{-1, 0},
+		{0, 0},
+		{6, 6 * time.Hour},
+		{acquire.MaxPinDelayHours, acquire.MaxPinDelayHours * time.Hour},
+		{acquire.MaxPinDelayHours + 1, acquire.MaxPinDelayHours * time.Hour},
+		{3000000, acquire.MaxPinDelayHours * time.Hour},   // wraps negative unclamped
+		{999999999, acquire.MaxPinDelayHours * time.Hour}, // wraps positive-but-wrong
+	}
+	for _, c := range cases {
+		if got := acquire.PinDelay(c.hours); got != c.want {
+			t.Errorf("PinDelay(%d) = %v, want %v", c.hours, got, c.want)
+		}
 	}
 }
 

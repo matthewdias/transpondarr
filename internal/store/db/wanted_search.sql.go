@@ -11,7 +11,7 @@ import (
 )
 
 const listSeriesDueWantedSearch = `-- name: ListSeriesDueWantedSearch :many
-SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours
+SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
 FROM series s
 WHERE s.monitored = 1
   AND (s.next_search_at IS NULL OR s.next_search_at <= ?)
@@ -64,6 +64,7 @@ func (q *Queries) ListSeriesDueWantedSearch(ctx context.Context, arg ListSeriesD
 			&i.SearchBackoff,
 			&i.NextSearchAt,
 			&i.PinDelayHours,
+			&i.SearchEpoch,
 		); err != nil {
 			return nil, err
 		}
@@ -132,10 +133,13 @@ func (q *Queries) ListWantedItemsWithGrabState(ctx context.Context, seriesID int
 }
 
 const resetSeriesSearchState = `-- name: ResetSeriesSearchState :exec
-UPDATE series SET search_backoff = 0, next_search_at = NULL WHERE id = ?
+UPDATE series
+SET search_backoff = 0, next_search_at = NULL, search_epoch = search_epoch + 1
+WHERE id = ?
 `
 
 // Puts a series back at the front of the queue: due now, no accumulated backoff.
+// Bumping the epoch is what makes an in-flight sweep's write lose.
 func (q *Queries) ResetSeriesSearchState(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, resetSeriesSearchState, id)
 	return err
@@ -144,7 +148,7 @@ func (q *Queries) ResetSeriesSearchState(ctx context.Context, id int64) error {
 const setSeriesSearchState = `-- name: SetSeriesSearchState :exec
 UPDATE series
 SET last_searched_at = ?, search_backoff = ?, next_search_at = ?
-WHERE id = ? AND next_search_at IS ?
+WHERE id = ? AND search_epoch = ?
 `
 
 type SetSeriesSearchStateParams struct {
@@ -152,19 +156,20 @@ type SetSeriesSearchStateParams struct {
 	SearchBackoff  int64          `json:"search_backoff"`
 	NextSearchAt   sql.NullString `json:"next_search_at"`
 	ID             int64          `json:"id"`
-	NextSearchAt_2 sql.NullString `json:"next_search_at_2"`
+	SearchEpoch    int64          `json:"search_epoch"`
 }
 
-// Guarded on the value read at selection: a reset that landed mid-sweep (the
+// Guarded on the epoch read at selection: a reset that landed mid-sweep (the
 // series grew, or was re-monitored) must win over the backoff computed against
-// the stale state.
+// the stale state. Guarding on next_search_at could not do that -- a reset
+// writes NULL, which is also what a due series usually already held.
 func (q *Queries) SetSeriesSearchState(ctx context.Context, arg SetSeriesSearchStateParams) error {
 	_, err := q.db.ExecContext(ctx, setSeriesSearchState,
 		arg.LastSearchedAt,
 		arg.SearchBackoff,
 		arg.NextSearchAt,
 		arg.ID,
-		arg.NextSearchAt_2,
+		arg.SearchEpoch,
 	)
 	return err
 }

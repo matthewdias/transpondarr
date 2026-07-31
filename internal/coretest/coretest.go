@@ -82,6 +82,10 @@ type FakeDownload struct {
 	Result  download.AddResult
 	Err     error
 
+	// FailURLs fails only the listed download URLs, so a test can model one dead
+	// release among healthy ones rather than a client that is down entirely.
+	FailURLs map[string]error
+
 	// Statuses is what Status returns (importer-facing). It is not filtered by
 	// requested hash, which is enough for the pipeline tests.
 	Statuses  []download.Status
@@ -103,6 +107,9 @@ func (f *FakeDownload) Test(context.Context) error { return nil }
 
 func (f *FakeDownload) Add(_ context.Context, opts download.AddOptions) (download.AddResult, error) {
 	f.Adds = append(f.Adds, opts)
+	if err, ok := f.FailURLs[opts.URL]; ok {
+		return download.AddResult{}, err
+	}
 	if f.Err != nil {
 		return download.AddResult{}, f.Err
 	}
