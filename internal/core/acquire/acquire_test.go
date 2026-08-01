@@ -56,7 +56,7 @@ func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Disca
 func newService(t *testing.T, st *store.Store, idx indexer.Indexer, titles fakeTitles) (*acquire.Service, *clients.Registry) {
 	t.Helper()
 	reg := newRegistry(idx, nil)
-	return acquire.New(st, reg, titles, fakeConfig{}, discardLogger()), reg
+	return acquire.New(st, reg, titles, fakeConfig{}, discardLogger(), nil), reg
 }
 
 // newRegistry holds the fakes acquire reads its clients from (nil = unconfigured).

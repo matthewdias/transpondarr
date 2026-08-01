@@ -133,12 +133,31 @@ func grabbedItemNumbers(t *testing.T, st *store.Store, seriesID int64) []int {
 	return out
 }
 
+// recorded is one call the sweep made to the blocklist.
+type recorded struct {
+	seriesID     int64
+	infoHash     string
+	releaseTitle string
+	reason       string
+}
+
+type fakeRecorder struct {
+	calls []recorded
+	err   error
+}
+
+func (f *fakeRecorder) Record(_ context.Context, seriesID int64, infoHash, releaseTitle, reason string) error {
+	f.calls = append(f.calls, recorded{seriesID, infoHash, releaseTitle, reason})
+	return f.err
+}
+
 // sweepHarness bundles what a sweep test asserts against.
 type sweepHarness struct {
 	svc *acquire.Service
 	st  *store.Store
 	idx *coretest.FakeIndexer
 	dl  *coretest.FakeDownload
+	rec *fakeRecorder
 }
 
 func newSweep(t *testing.T, releases []indexer.Release, cfg fakeConfig) *sweepHarness {
@@ -146,10 +165,11 @@ func newSweep(t *testing.T, releases []indexer.Release, cfg fakeConfig) *sweepHa
 	st := coretest.NewStore(t)
 	idx := &coretest.FakeIndexer{Releases: releases}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "swept", Outcome: download.AddSuccess}}
+	rec := &fakeRecorder{}
 	reg := newRegistry(idx, dl)
 	return &sweepHarness{
-		svc: acquire.New(st, reg, fakeTitles{}, cfg, discardLogger()),
-		st:  st, idx: idx, dl: dl,
+		svc: acquire.New(st, reg, fakeTitles{}, cfg, discardLogger(), rec),
+		st:  st, idx: idx, dl: dl, rec: rec,
 	}
 }
 
@@ -218,7 +238,7 @@ func TestSweepNoOpsWithoutIndexerOrDownloadClient(t *testing.T) {
 			if tc.withDL {
 				reg.SetDownload(dl)
 			}
-			svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger())
+			svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
 			id := seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
 			if err := svc.SweepOnce(context.Background()); err != nil {

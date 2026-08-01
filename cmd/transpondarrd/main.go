@@ -178,6 +178,10 @@ func run(logger *slog.Logger) error {
 		RunAtStart: true,
 		Run:        browse.New(st, provider, logger).RefreshOnce,
 	})
+	// One blocklist for the whole daemon: the sweep and the importer are the two
+	// paths that record a failed release, and they must not each hold their own.
+	blocklistSvc := blocklist.New(st, logger)
+
 	// Always registered; it no-ops when automation is off or either client is
 	// unconfigured, both read per run — so flipping the Settings toggle or
 	// configuring an integration takes effect without a restart.
@@ -187,7 +191,7 @@ func run(logger *slog.Logger) error {
 		Name:       "wanted-search",
 		Interval:   wantedSearchInterval,
 		RunAtStart: true,
-		Run: acquire.New(st, reg, catalog.NewService(st, provider), settingsSvc, logger).
+		Run: acquire.New(st, reg, catalog.NewService(st, provider), settingsSvc, logger, blocklistSvc).
 			SweepOnce,
 	})
 	// The import scan always runs; each scan it reads the current download client
@@ -197,13 +201,13 @@ func run(logger *slog.Logger) error {
 		Name:       "import-scan",
 		Interval:   importPollInterval,
 		RunAtStart: true,
-		Run:        importer.New(st, reg, logger, blocklist.New(st, logger)).ScanOnce,
+		Run:        importer.New(st, reg, logger, blocklistSvc).ScanOnce,
 	})
 	jobsDone := runner.Start(ctx)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner),
+		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner, blocklistSvc),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

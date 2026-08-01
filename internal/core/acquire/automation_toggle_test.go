@@ -35,7 +35,7 @@ func TestSweepObeysLiveAutomationToggle(t *testing.T) {
 	reg.SetIndexer(idx)
 	reg.SetDownload(dl)
 
-	svc := acquire.New(st, reg, fakeTitles{}, cfg, discardLogger())
+	svc := acquire.New(st, reg, fakeTitles{}, cfg, discardLogger(), nil)
 	past := time.Now().Add(-2 * time.Hour)
 	id := seedSweep(t, st, "Placeholder Saga", true,
 		sweepItem{number: 3, airsAt: &past}, sweepItem{number: 5, airsAt: &past})

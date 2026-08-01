@@ -2,6 +2,7 @@ package acquire
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/matthewdias/transpondarr/internal/core/decide"
@@ -19,6 +20,29 @@ type GrabResult struct {
 	InfoHash string
 	Outcome  download.AddOutcome
 	Items    []int
+}
+
+// AutoGrab is Grab on automation's behalf: it additionally remembers a release
+// the client could not resolve, closing the one failure path #118 could not
+// reach — a refused add writes no grab row, so nothing downstream ever sees it
+// and the same dead URL is re-ranked first every pass (#120). Eligibility stays
+// with the caller, which has the coverage and hold rules the sweep needs;
+// enforcement is the caller's, remembering is this.
+//
+// Only the release's own faults are remembered. A client that is unreachable or
+// refusing everything says nothing about which release was asked for, and
+// blocklisting on that would poison a healthy candidate pool.
+func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem) (GrabResult, error) {
+	res, err := s.Grab(ctx, cand, items, false)
+	if err == nil || !errors.Is(err, download.ErrBadRelease) || s.blocklist == nil {
+		return res, err
+	}
+	if rerr := s.blocklist.Record(ctx, seriesID, cand.Release.InfoHash, cand.Release.Title,
+		"the download URL could not be fetched or parsed"); rerr != nil {
+		s.log.Error("acquire: record blocklist entry for a refused add",
+			"series", seriesID, "release", cand.Release.Title, "err", rerr)
+	}
+	return res, err
 }
 
 // Grab hands a candidate to the download client and records a grab per covered

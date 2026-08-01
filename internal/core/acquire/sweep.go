@@ -176,14 +176,14 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			markCovered(covered, c.Items)
 			continue
 		}
-		if _, err := s.Grab(ctx, c, m.Items, false); err != nil {
+		if _, err := s.AutoGrab(ctx, series.ID, c, m.Items); err != nil {
 			if !errors.Is(err, ErrDownloadAdd) {
 				return grabbed, time.Time{}, err
 			}
 			// A dead download URL is this release's problem, not the series': the
 			// items stay unclaimed so the next-ranked release is still tried, and
-			// only a client that keeps refusing ends the pass. Same-pass only —
-			// a refused add writes no grab row, so #118's blocklist never sees it.
+			// only a client that keeps refusing ends the pass. AutoGrab has already
+			// remembered it if the release itself was at fault (#120).
 			failed++
 			s.log.Warn("sweep could not add a release; trying the next candidate",
 				"series", series.ID, "release", c.Release.Title, "err", err)

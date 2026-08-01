@@ -13,6 +13,7 @@ import (
 
 	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
+	"github.com/matthewdias/transpondarr/internal/core/blocklist"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
@@ -41,7 +42,7 @@ func newAuthServer(t *testing.T, cfg *config.Config) (*httptest.Server, *auth.Se
 	if err != nil {
 		t.Fatalf("auth.New: %v", err)
 	}
-	ts := httptest.NewServer(server.New(cfg, st, discardLogger(), testProvider(), reg, settingsSvc, authSvc, jobs.New(discardLogger())))
+	ts := httptest.NewServer(server.New(cfg, st, discardLogger(), testProvider(), reg, settingsSvc, authSvc, jobs.New(discardLogger()), blocklist.New(st, discardLogger())))
 	t.Cleanup(ts.Close)
 	return ts, authSvc
 }

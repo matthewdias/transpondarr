@@ -68,7 +68,7 @@ func TestGrabAddsWithConfiguredCategory(t *testing.T) {
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hash5", Outcome: download.AddSuccess}}
 	st := coretest.NewStore(t)
 	reg := newRegistry(idx, dl)
-	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{category: "anime"}, discardLogger())
+	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{category: "anime"}, discardLogger(), nil)
 	id := seedSeries(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
@@ -92,7 +92,7 @@ func TestGrabDownloadAddFailureRecordsNothing(t *testing.T) {
 	dl := &coretest.FakeDownload{Err: errors.New("qbit: connection refused")}
 	st := coretest.NewStore(t)
 	reg := newRegistry(idx, dl)
-	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger())
+	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
 	id := seedSeries(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)

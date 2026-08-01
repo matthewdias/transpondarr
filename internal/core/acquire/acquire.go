@@ -51,6 +51,14 @@ type TitleSource interface {
 	TitleVariants(ctx context.Context, providerID int64) ([]string, error)
 }
 
+// Recorder remembers a release automation could not use, so it is not re-ranked
+// first on the next pass. Narrow on purpose, mirroring the importer's, and
+// satisfied by *blocklist.Service — which must be the same instance the importer
+// holds, since it is the one place the two failure paths meet.
+type Recorder interface {
+	Record(ctx context.Context, seriesID int64, infoHash, releaseTitle, reason string) error
+}
+
 // Config is the runtime configuration acquire reads (satisfied by
 // *settings.Service). Every value is read per use, so a Settings edit applies to
 // the next sweep rather than the next restart.
@@ -71,21 +79,23 @@ type Match struct {
 
 // Service runs search/decide/grab against the store and the live clients.
 type Service struct {
-	store   *store.Store
-	clients ClientSource
-	titles  TitleSource
-	cfg     Config
-	log     *slog.Logger
+	store     *store.Store
+	clients   ClientSource
+	titles    TitleSource
+	cfg       Config
+	log       *slog.Logger
+	blocklist Recorder
 }
 
 // New builds the service. A nil logger is tolerated so a caller that only needs
 // the service to exist (the OpenAPI spec dump builds its routes with empty deps)
-// cannot turn a missing logger into a panic inside a sweep.
-func New(st *store.Store, clients ClientSource, titles TitleSource, cfg Config, log *slog.Logger) *Service {
+// cannot turn a missing logger into a panic inside a sweep; a nil recorder just
+// means nothing is remembered.
+func New(st *store.Store, clients ClientSource, titles TitleSource, cfg Config, log *slog.Logger, blocklist Recorder) *Service {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Service{store: st, clients: clients, titles: titles, cfg: cfg, log: log}
+	return &Service{store: st, clients: clients, titles: titles, cfg: cfg, log: log, blocklist: blocklist}
 }
 
 // MatchSeries loads a series with every wanted item and matches indexer releases
