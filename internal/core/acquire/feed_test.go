@@ -2,8 +2,11 @@ package acquire_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,20 +16,45 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
+	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// levelRecorder counts records per level, so a test can assert that a supported
-// configuration stayed off the error channel.
+// levelRecorder counts records per level and keeps their messages, so a test can
+// assert that a supported configuration stayed off the error channel — and that
+// a genuine warning was actually emitted.
 type levelRecorder struct {
 	slog.Handler
-	counts map[slog.Level]int
+	mu       sync.Mutex
+	counts   map[slog.Level]int
+	messages []string
 }
 
 func (r *levelRecorder) Enabled(context.Context, slog.Level) bool { return true }
 
 func (r *levelRecorder) Handle(_ context.Context, rec slog.Record) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.counts[rec.Level]++
+	r.messages = append(r.messages, rec.Message)
 	return nil
+}
+
+// logged reports whether any record's message contains want.
+func (r *levelRecorder) logged(want string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, m := range r.messages {
+		if strings.Contains(m, want) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *levelRecorder) count(l slog.Level) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.counts[l]
 }
 
 // feedEntry wraps a synthetic release with the feed metadata a Torznab item
@@ -76,8 +104,6 @@ func newFeedPollWith(t *testing.T, idx indexer.Indexer, cfg fakeConfig) *feedHar
 		st:  st, dl: dl, log: rec,
 	}
 }
-
-var _ = newRegistry // keep the sweep helper referenced from one place
 
 // The headline behaviour of #101: a release for an aired, wanted item is grabbed
 // on the poll, and no per-series search is issued to find it.
@@ -260,10 +286,10 @@ func TestFeedPollWithoutTheCapabilityIsAQuietNoOp(t *testing.T) {
 	if len(h.dl.Adds) != 0 || len(idx.Queries) != 0 {
 		t.Errorf("poll acted without a feed: %d adds, %d searches", len(h.dl.Adds), len(idx.Queries))
 	}
-	if n := h.log.counts[slog.LevelError]; n != 0 {
+	if n := h.log.count(slog.LevelError); n != 0 {
 		t.Errorf("logged %d error records; a missing capability is not a failure", n)
 	}
-	if n := h.log.counts[slog.LevelWarn]; n != 0 {
+	if n := h.log.count(slog.LevelWarn); n != 0 {
 		t.Errorf("logged %d warnings; a missing capability is not a failure", n)
 	}
 
@@ -309,5 +335,118 @@ func TestFeedPollNoOpsWithoutADownloadClient(t *testing.T) {
 	}
 	if feed.Polls != 0 {
 		t.Errorf("Recent called %d times without a download client, want 0", feed.Polls)
+	}
+}
+
+// A failed feed fetch is an indexer fault, reported as one — and it must not
+// advance the mark, or the page it never saw would be skipped forever.
+func TestFeedPollReportsAFetchFailureAndKeepsTheMark(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	h := newFeedPoll(t, []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 3, time.Now()),
+	}, fakeConfig{})
+	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+	h.feed.FeedErr = errors.New("prowlarr: 502 bad gateway")
+
+	ctx := context.Background()
+	err := h.svc.PollFeedOnce(ctx)
+	if !errors.Is(err, acquire.ErrIndexerSearch) {
+		t.Fatalf("err = %v, want it to wrap ErrIndexerSearch", err)
+	}
+	if len(h.dl.Adds) != 0 {
+		t.Errorf("a failed fetch grabbed %+v", h.dl.Adds)
+	}
+
+	// The mark never moved, so the page is still new once the indexer recovers.
+	h.feed.FeedErr = nil
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("recovered PollFeedOnce: %v", err)
+	}
+	if len(h.dl.Adds) != 1 {
+		t.Errorf("download Add called %d times after recovery, want 1", len(h.dl.Adds))
+	}
+}
+
+// Recognising nothing on a page means the mark scrolled off it: the feed moved
+// further than one page between polls, and the sweep owns the gap.
+func TestFeedPollWarnsWhenTheMarkScrolledOff(t *testing.T) {
+	h := newFeedPoll(t, []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 1, time.Now().Add(-time.Hour)),
+	}, fakeConfig{})
+	ctx := context.Background()
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("first PollFeedOnce: %v", err)
+	}
+	if h.log.logged("moved more than one page") {
+		t.Error("warned on the first poll, when there was no mark to scroll off")
+	}
+
+	// A wholly different page: nothing on it is recognised.
+	h.feed.Entries = []indexer.FeedEntry{feedEntry("Placeholder Saga", 9, time.Now())}
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if !h.log.logged("moved more than one page") {
+		t.Error("no gap warning when the whole page was unrecognised")
+	}
+}
+
+// A mark that will not decode costs one re-processed page, never a dead feed —
+// the failure mode Sonarr's equivalent field actually has.
+func TestFeedPollToleratesACorruptMark(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	h := newFeedPoll(t, []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 3, time.Now()),
+	}, fakeConfig{})
+	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+	ctx := context.Background()
+	if err := h.st.Q.UpsertSetting(ctx, db.UpsertSettingParams{
+		Key: "feed.seen." + h.feed.Name(), Value: "{not json",
+	}); err != nil {
+		t.Fatalf("seed a corrupt mark: %v", err)
+	}
+
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if len(h.dl.Adds) != 1 {
+		t.Errorf("download Add called %d times, want 1 — a bad mark reads as a new page", len(h.dl.Adds))
+	}
+	if !h.log.logged("feed mark unreadable") {
+		t.Error("a corrupt mark was swallowed without a warning")
+	}
+	if n := h.log.count(slog.LevelError); n != 0 {
+		t.Errorf("logged %d error records; a corrupt mark is recoverable", n)
+	}
+}
+
+// An indexer that transiently serves an older page must not rewind the window:
+// everything published since would be re-processed on the poll after.
+func TestFeedPollDoesNotRewindOnAnOlderPage(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	newer := feedEntry("Placeholder Saga", 3, time.Now())
+	older := feedEntry("Placeholder Saga", 4, time.Now().Add(-6*time.Hour))
+
+	h := newFeedPoll(t, []indexer.FeedEntry{newer}, fakeConfig{})
+	ctx := context.Background()
+	if err := h.svc.PollFeedOnce(ctx); err != nil { // sees the newer page, no series yet
+		t.Fatalf("first PollFeedOnce: %v", err)
+	}
+
+	h.feed.Entries = []indexer.FeedEntry{older} // a stale page from the indexer
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+
+	// Now the series exists and the indexer serves the original page again. The
+	// newer entry was already seen, so it must not be taken a second time.
+	seedSweep(t, h.st, "Placeholder Saga", true,
+		sweepItem{number: 3, airsAt: &past}, sweepItem{number: 4, airsAt: &past})
+	h.feed.Entries = []indexer.FeedEntry{newer}
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("third PollFeedOnce: %v", err)
+	}
+	if len(h.dl.Adds) != 0 {
+		t.Errorf("the older page rewound the window: re-grabbed %+v", h.dl.Adds)
 	}
 }

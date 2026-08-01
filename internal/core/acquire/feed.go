@@ -77,7 +77,7 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 	}
 	// The whole point of the mark: a quiet feed costs one request and nothing else.
 	if len(fresh) == 0 {
-		return s.saveFeedMark(ctx, idx.Name(), nextFeedMark(entries))
+		return s.saveFeedMark(ctx, idx.Name(), advanceFeedMark(mark, nextFeedMark(entries)))
 	}
 
 	releases := make([]indexer.Release, 0, len(fresh))
@@ -88,7 +88,7 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 	// re-processing the page would not fix whatever broke.
 	return errors.Join(
 		s.pollSeries(ctx, releases),
-		s.saveFeedMark(ctx, idx.Name(), nextFeedMark(entries)),
+		s.saveFeedMark(ctx, idx.Name(), advanceFeedMark(mark, nextFeedMark(entries))),
 	)
 }
 
@@ -186,6 +186,21 @@ func nextFeedMark(entries []indexer.FeedEntry) feedMark {
 		mark.IDs = mark.IDs[:maxFeedMarkIDs]
 	}
 	return mark
+}
+
+// advanceFeedMark keeps the furthest point the poll has reached. An indexer that
+// transiently serves an older page must not rewind the window, which would
+// re-process everything published since — so the older page's ids are remembered
+// alongside the mark rather than replacing it.
+func advanceFeedMark(prev, next feedMark) feedMark {
+	if prev.Latest.IsZero() || !next.Latest.Before(prev.Latest) {
+		return next
+	}
+	merged := feedMark{Latest: prev.Latest, IDs: append(append([]string{}, next.IDs...), prev.IDs...)}
+	if len(merged.IDs) > maxFeedMarkIDs {
+		merged.IDs = merged.IDs[:maxFeedMarkIDs]
+	}
+	return merged
 }
 
 func (s *Service) loadFeedMark(ctx context.Context, indexerName string) (feedMark, error) {

@@ -320,6 +320,10 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 
 // batchItems is what a pack covers: its explicit range, or every item still
 // wanted when it names no numbers at all, which is what a season pack holds.
+// Unlike the single-episode path it has no "exceeds this entry's range" guard, so
+// an absolute-numbered 01-48 pack claims a 12-item entry's items 1-12 — right for
+// a first season, a guess otherwise. Only a manual grab can reach it while packs
+// are ineligible; #126 must add the guard before it lifts that.
 func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {
 	start, end := p.EpisodeStart, p.EpisodeEnd
 	if start == 0 {

@@ -9,7 +9,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -212,25 +211,23 @@ func parseEntries(body []byte, indexerName string) ([]indexer.FeedEntry, error) 
 	return entries, nil
 }
 
-// pubDateLayouts covers what indexers actually emit. RFC1123 without an offset
-// is the awkward one: Go rejects the named zone, so namedZoneRe strips it and
-// the value is read as UTC, which is what a Torznab feed means by GMT/UTC.
+// pubDateLayouts covers what indexers actually emit. The MST verb in the RFC1123
+// and RFC822 layouts accepts a named zone — including one Go has no offset for,
+// which it reads as UTC — so GMT/UTC/PDT forms all parse here without help.
 var pubDateLayouts = []string{
 	time.RFC1123Z, time.RFC1123, time.RFC822Z, time.RFC822, time.RFC3339,
 }
 
-var namedZoneRe = regexp.MustCompile(`\s+[A-Z]{2,4}$`)
-
+// parsePubDate reports false rather than guessing for a shape it does not know;
+// the caller's seen set dedupes without a timestamp.
 func parsePubDate(s string) (time.Time, bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return time.Time{}, false
 	}
-	for _, attempt := range []string{s, namedZoneRe.ReplaceAllString(s, "")} {
-		for _, layout := range pubDateLayouts {
-			if t, err := time.Parse(layout, attempt); err == nil {
-				return t.UTC(), true
-			}
+	for _, layout := range pubDateLayouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.UTC(), true
 		}
 	}
 	return time.Time{}, false

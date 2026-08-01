@@ -281,15 +281,17 @@ func TestParseEntriesToleratesMissingFeedMetadata(t *testing.T) {
 	}
 }
 
-// pubDate is RFC822/1123 in practice, but indexers vary the timezone spelling
-// and drop seconds. Sonarr needs a regex to strip named zones for the same
-// reason; a handful of stdlib layouts covers it here.
+// pubDate is RFC822/1123 in practice, but indexers vary the timezone spelling.
+// The MST verb accepts a named zone, including one Go has no offset for, so no
+// pre-processing is needed — PDT is here to pin that, since a zone Go cannot
+// resolve reads as UTC rather than failing.
 func TestParsePubDate(t *testing.T) {
 	want := time.Date(2026, 8, 1, 12, 30, 0, 0, time.UTC)
 	for _, raw := range []string{
 		"Sat, 01 Aug 2026 12:30:00 +0000",
 		"Sat, 01 Aug 2026 12:30:00 GMT",
 		"Sat, 01 Aug 2026 12:30:00 UTC",
+		"Sat, 01 Aug 2026 12:30:00 PDT",
 		"01 Aug 26 12:30 +0000",
 		"2026-08-01T12:30:00Z",
 	} {
