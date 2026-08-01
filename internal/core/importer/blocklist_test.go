@@ -14,6 +14,7 @@ import (
 // recorded is one call the importer made to the blocklist.
 type recorded struct {
 	seriesID     int64
+	itemIDs      []int64
 	infoHash     string
 	releaseTitle string
 	reason       string
@@ -22,16 +23,20 @@ type recorded struct {
 // noRecorder is the recorder for tests about anything other than blocklisting.
 type noRecorder struct{}
 
-func (noRecorder) Record(context.Context, int64, string, string, string) error { return nil }
+func (noRecorder) Record(context.Context, int64, []int64, string, string, string) (bool, error) {
+	return true, nil
+}
 
 type fakeRecorder struct {
 	calls []recorded
 	err   error
+	// suppress models the breaker: the record is refused, not failed.
+	suppress bool
 }
 
-func (f *fakeRecorder) Record(_ context.Context, seriesID int64, infoHash, releaseTitle, reason string) error {
-	f.calls = append(f.calls, recorded{seriesID, infoHash, releaseTitle, reason})
-	return f.err
+func (f *fakeRecorder) Record(_ context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
+	f.calls = append(f.calls, recorded{seriesID, itemIDs, infoHash, releaseTitle, reason})
+	return !f.suppress, f.err
 }
 
 // backdateSearchState puts a series behind an accumulated backoff, so a test can
@@ -89,6 +94,34 @@ func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 	// A failure is new information: retry promptly with the next-best release.
 	if backoff, hasNext := readSearchBackoff(t, st, seriesID); backoff != 0 || hasNext {
 		t.Errorf("search state = backoff %d, next set %v; want the series reset", backoff, hasNext)
+	}
+}
+
+// Re-fronting the search queue is justified by the failure being news about
+// this release. Once the breaker judges it news about the environment instead,
+// the reset would only tighten a retry loop around the same fault (#120) -- but
+// the item must still be freed, or a fault would strand every grab it touched.
+func TestSuppressedRecordLeavesTheSearchQueueAlone(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, seriesID := seedGrab(t, st, "abc")
+	backdateSearchState(t, st, seriesID)
+	rec := &fakeRecorder{suppress: true}
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
+	}}
+
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	if grabByHash(t, st, "abc").Status != "failed" {
+		t.Error("grab not failed: the breaker suppresses the memory, not the lifecycle")
+	}
+	backoff, hasNext := readSearchBackoff(t, st, seriesID)
+	if backoff == 0 || !hasNext {
+		t.Errorf("search state = backoff %d, next set %v; want the backdated cadence left as it was",
+			backoff, hasNext)
 	}
 }
 

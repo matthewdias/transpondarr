@@ -51,7 +51,7 @@ func TestRecordEscalatesExpiry(t *testing.T) {
 
 	record := func() db.ReleaseBlocklist {
 		t.Helper()
-		if err := svc.Record(ctx, series.ID, "abcd1234", title, "download failed in the client"); err != nil {
+		if _, err := svc.Record(ctx, series.ID, nil, "abcd1234", title, "download failed in the client"); err != nil {
 			t.Fatalf("record: %v", err)
 		}
 		all, err := svc.List(ctx, series.ID)
@@ -105,7 +105,7 @@ func assertBlockedFor(t *testing.T, e db.ReleaseBlocklist, want time.Duration) {
 func TestRecordStoresTheNormalizedTitle(t *testing.T) {
 	svc, _, series := newService(t)
 	ctx := context.Background()
-	if err := svc.Record(ctx, series.ID, "", "[SynthSubs]  Placeholder Saga - 03  ", "failed"); err != nil {
+	if _, err := svc.Record(ctx, series.ID, nil, "", "[SynthSubs]  Placeholder Saga - 03  ", "failed"); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 	all, err := svc.List(ctx, series.ID)
@@ -124,10 +124,10 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 	svc, st, series := newService(t)
 	ctx := context.Background()
 
-	if err := svc.Record(ctx, series.ID, "h1", "[SynthSubs] Placeholder Saga - 01", "failed"); err != nil {
+	if _, err := svc.Record(ctx, series.ID, nil, "h1", "[SynthSubs] Placeholder Saga - 01", "failed"); err != nil {
 		t.Fatalf("record live: %v", err)
 	}
-	if err := svc.Record(ctx, series.ID, "h2", "[SynthSubs] Placeholder Saga - 02", "failed"); err != nil {
+	if _, err := svc.Record(ctx, series.ID, nil, "h2", "[SynthSubs] Placeholder Saga - 02", "failed"); err != nil {
 		t.Fatalf("record expired: %v", err)
 	}
 	// Expire the second entry behind the service's back; only time can do this.
@@ -198,7 +198,7 @@ func TestClearExpiredAndClearSeries(t *testing.T) {
 		{series.ID, "forever", "[SynthSubs] Placeholder Saga - 03"},
 		{other.ID, "elsewhere", "[SynthSubs] Another Placeholder - 01"},
 	} {
-		if err := svc.Record(ctx, e.seriesID, e.hash, e.title, "failed"); err != nil {
+		if _, err := svc.Record(ctx, e.seriesID, nil, e.hash, e.title, "failed"); err != nil {
 			t.Fatalf("record %s: %v", e.hash, err)
 		}
 	}

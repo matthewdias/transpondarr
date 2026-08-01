@@ -46,10 +46,14 @@ func blockDuration(failures int) time.Duration {
 	}
 }
 
-// Service records and reads blocklist entries.
+// Service records and reads blocklist entries. One instance serves the whole
+// daemon: the breaker's view of client health is only right if every failure
+// path passes through it.
 type Service struct {
-	store *store.Store
-	log   *slog.Logger
+	store   *store.Store
+	log     *slog.Logger
+	now     func() time.Time
+	breaker breaker
 }
 
 // New builds the service. A nil logger is tolerated, as elsewhere in core.
@@ -57,38 +61,59 @@ func New(st *store.Store, log *slog.Logger) *Service {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Service{store: st, log: log}
+	return &Service{store: st, log: log, now: time.Now}
 }
 
-// Record blocks a release for this series, escalating if it has failed before.
-func (s *Service) Record(ctx context.Context, seriesID int64, infoHash, releaseTitle, reason string) error {
+// Record blocks a release for this series, escalating if it has failed before,
+// and reports whether it recorded anything. itemIDs are the wanted items the
+// release covered — the breaker's evidence, and the reason a caller passes them
+// even though the entry is per series.
+//
+// A false return is the breaker: too many distinct items have failed too
+// recently for this to be the release's fault, so nothing is written. A caller
+// must also skip whatever it would do to act on a fresh failure — the evidence
+// that justified it is what the breaker just rejected.
+func (s *Service) Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
 	normalized := decide.NormalizeReleaseTitle(releaseTitle)
 	if normalized == "" {
-		return fmt.Errorf("blocklist: refusing to record an empty release title for series %d", seriesID)
+		return false, fmt.Errorf("blocklist: refusing to record an empty release title for series %d", seriesID)
 	}
+	now := s.now()
+	if !s.breaker.observe(itemIDs, now) {
+		st := s.breaker.state(now)
+		s.log.Warn("blocklist: too many items failing at once to blame the releases; not remembering this one",
+			"series", seriesID, "release", releaseTitle, "items_failed", st.Items, "window", st.Window)
+		return false, nil
+	}
+
 	entry, err := s.store.Q.UpsertBlocklistEntry(ctx, db.UpsertBlocklistEntryParams{
 		SeriesID:        seriesID,
 		InfoHash:        infoHash,
 		ReleaseTitle:    releaseTitle,
 		NormalizedTitle: normalized,
 		Reason:          reason,
-		BlockedUntil:    expiry(blockDuration(1), time.Now()),
+		BlockedUntil:    expiry(blockDuration(1), now),
 	})
 	if err != nil {
-		return fmt.Errorf("record blocklist entry for series %d: %w", seriesID, err)
+		return false, fmt.Errorf("record blocklist entry for series %d: %w", seriesID, err)
 	}
 	// The upsert reports the resulting count only after writing, so a repeat
 	// failure needs a second write to move up the ladder; a first one is already
 	// at firstBlock.
 	if entry.Failures <= 1 {
-		return nil
+		return true, nil
 	}
 	if err := s.store.Q.SetBlocklistExpiry(ctx, db.SetBlocklistExpiryParams{
-		BlockedUntil: expiry(blockDuration(int(entry.Failures)), time.Now()), ID: entry.ID,
+		BlockedUntil: expiry(blockDuration(int(entry.Failures)), now), ID: entry.ID,
 	}); err != nil {
-		return fmt.Errorf("set blocklist expiry for entry %d: %w", entry.ID, err)
+		return true, fmt.Errorf("set blocklist expiry for entry %d: %w", entry.ID, err)
 	}
-	return nil
+	return true, nil
+}
+
+// BreakerState reports whether failure memory is currently being suppressed.
+func (s *Service) BreakerState() BreakerState {
+	return s.breaker.state(s.now())
 }
 
 // Active lists the entries blocking a release right now.
@@ -127,6 +152,29 @@ func (s *Service) ClearSeries(ctx context.Context, seriesID int64) (int64, error
 		return 0, fmt.Errorf("clear blocklist for series %d: %w", seriesID, err)
 	}
 	return rows, nil
+}
+
+// ClearAll forgets every remembered release across the library and closes the
+// breaker: this is the recovery action for an environmental fault, which does
+// not respect series boundaries, and the operator who fixed the fault should
+// not then have to wait out a window.
+func (s *Service) ClearAll(ctx context.Context) (int64, error) {
+	rows, err := s.store.Q.DeleteAllBlocklist(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("clear the blocklist: %w", err)
+	}
+	s.breaker.reset()
+	return rows, nil
+}
+
+// Summary counts what is being skipped right now, and across how many series.
+func (s *Service) Summary(ctx context.Context) (db.CountActiveBlocklistRow, error) {
+	row, err := s.store.Q.CountActiveBlocklist(ctx,
+		sql.NullString{String: store.FormatTimestamp(s.now()), Valid: true})
+	if err != nil {
+		return db.CountActiveBlocklistRow{}, fmt.Errorf("count the blocklist: %w", err)
+	}
+	return row, nil
 }
 
 // ClearExpired forgets only the lapsed entries, leaving what still blocks. It

@@ -37,12 +37,29 @@ func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Cand
 	if err == nil || !errors.Is(err, download.ErrBadRelease) || s.blocklist == nil {
 		return res, err
 	}
-	if rerr := s.blocklist.Record(ctx, seriesID, cand.Release.InfoHash, cand.Release.Title,
+	if _, rerr := s.blocklist.Record(ctx, seriesID, coveredItemIDs(cand, items),
+		cand.Release.InfoHash, cand.Release.Title,
 		"the download URL could not be fetched or parsed"); rerr != nil {
 		s.log.Error("acquire: record blocklist entry for a refused add",
 			"series", seriesID, "release", cand.Release.Title, "err", rerr)
 	}
 	return res, err
+}
+
+// coveredItemIDs is the failure's breadth, which is what the blocklist's breaker
+// weighs: a release covering three episodes is three items failing, not one.
+func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
+	byNumber := make(map[int]int64, len(items))
+	for _, it := range items {
+		byNumber[it.Number] = it.ID
+	}
+	ids := make([]int64, 0, len(cand.Items))
+	for _, n := range cand.Items {
+		if id, ok := byNumber[n]; ok {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 // Grab hands a candidate to the download client and records a grab per covered

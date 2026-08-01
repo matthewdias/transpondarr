@@ -10,6 +10,40 @@ import (
 	"database/sql"
 )
 
+const countActiveBlocklist = `-- name: CountActiveBlocklist :one
+SELECT COUNT(*) AS entries, COUNT(DISTINCT series_id) AS series
+FROM release_blocklist
+WHERE blocked_until IS NULL OR blocked_until > ?
+`
+
+type CountActiveBlocklistRow struct {
+	Entries int64 `json:"entries"`
+	Series  int64 `json:"series"`
+}
+
+// The failure-memory summary: how much is currently being skipped, and how far
+// it has spread. A NULL blocked_until is permanent.
+func (q *Queries) CountActiveBlocklist(ctx context.Context, blockedUntil sql.NullString) (CountActiveBlocklistRow, error) {
+	row := q.db.QueryRowContext(ctx, countActiveBlocklist, blockedUntil)
+	var i CountActiveBlocklistRow
+	err := row.Scan(&i.Entries, &i.Series)
+	return i, err
+}
+
+const deleteAllBlocklist = `-- name: DeleteAllBlocklist :execrows
+DELETE FROM release_blocklist
+`
+
+// Library-wide clear: an environmental fault does not respect series
+// boundaries, so neither does recovery from one.
+func (q *Queries) DeleteAllBlocklist(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteAllBlocklist)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteBlocklistBySeries = `-- name: DeleteBlocklistBySeries :execrows
 DELETE FROM release_blocklist
 WHERE series_id = ?

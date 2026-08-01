@@ -225,6 +225,59 @@ func TestClearSeriesBlocklistInBulk(t *testing.T) {
 	}
 }
 
+// The incident affordance: a fault does not respect series boundaries, so
+// neither the summary an operator reads nor the clear they reach for is scoped
+// to one.
+func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	first := seedSeries(t, h.store, "Placeholder Saga", 3)
+	second := seedSeries(t, h.store, "Unrelated Show", 1)
+
+	seedBlocklistEntry(t, h.store, first, "[TopSubs] Placeholder Saga - 03 [1080p]",
+		sql.NullString{String: store.FormatTimestamp(time.Now().Add(24 * time.Hour)), Valid: true})
+	seedBlocklistEntry(t, h.store, first, "[OldSubs] Placeholder Saga - 02 [1080p]",
+		sql.NullString{String: store.FormatTimestamp(time.Now().Add(-time.Hour)), Valid: true})
+	seedBlocklistEntry(t, h.store, second, "[DeadSubs] Unrelated Show - 01 [1080p]", sql.NullString{})
+
+	var summary struct {
+		Blocked int `json:"blocked"`
+		Series  int `json:"series"`
+		Breaker struct {
+			Open      bool `json:"open"`
+			Items     int  `json:"items"`
+			Threshold int  `json:"threshold"`
+		} `json:"breaker"`
+	}
+	if code := h.get(t, "/api/v1/blocklist", &summary); code != http.StatusOK {
+		t.Fatalf("summary status = %d, want 200", code)
+	}
+	if summary.Blocked != 2 || summary.Series != 2 {
+		t.Errorf("summary = %+v, want the 2 still-blocking entries across 2 series", summary)
+	}
+	if summary.Breaker.Open || summary.Breaker.Threshold == 0 {
+		t.Errorf("breaker = %+v, want closed with its threshold reported", summary.Breaker)
+	}
+
+	var cleared struct {
+		Cleared int `json:"cleared"`
+	}
+	if code := do(t, h, http.MethodDelete, "/api/v1/blocklist", nil, &cleared); code != http.StatusOK {
+		t.Fatalf("clear status = %d, want 200", code)
+	}
+	if cleared.Cleared != 3 {
+		t.Errorf("cleared = %d, want all 3 entries including the expired one", cleared.Cleared)
+	}
+	for _, id := range []int64{first, second} {
+		var after blocklistJSON
+		if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", id), &after); code != http.StatusOK {
+			t.Fatalf("re-list status = %d, want 200", code)
+		}
+		if len(after.Entries) != 0 {
+			t.Errorf("series %d still has %d entries after a library-wide clear", id, len(after.Entries))
+		}
+	}
+}
+
 func TestBulkClearOfUnknownSeriesIs404(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	if code := do(t, h, http.MethodDelete, "/api/v1/series/9999/blocklist", nil, nil); code != http.StatusNotFound {

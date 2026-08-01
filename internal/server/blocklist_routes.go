@@ -54,6 +54,25 @@ type clearedOutput struct {
 	}
 }
 
+// breakerDTO reports whether failure memory is being suppressed right now.
+// Open means too many distinct items failed inside the window for the releases
+// to be the cause, so the fault is environmental and nothing is being recorded.
+type breakerDTO struct {
+	Open      bool   `json:"open"`
+	Items     int    `json:"items" doc:"Distinct wanted items that failed inside the window"`
+	Threshold int    `json:"threshold" doc:"How many distinct items opens the breaker"`
+	WindowMin int    `json:"window_minutes"`
+	Since     string `json:"since,omitempty" format:"date-time" doc:"When the breaker opened; absent while closed"`
+}
+
+type blocklistSummaryOutput struct {
+	Body struct {
+		Blocked int        `json:"blocked" doc:"Releases being skipped right now"`
+		Series  int        `json:"series" doc:"How many series they span"`
+		Breaker breakerDTO `json:"breaker"`
+	}
+}
+
 // blocklistHandler owns the per-series blocklist endpoints. Separate from grab
 // history because the two outlive each other.
 type blocklistHandler struct {
@@ -63,6 +82,22 @@ type blocklistHandler struct {
 
 func registerBlocklistRoutes(api huma.API, deps routeDeps) {
 	h := &blocklistHandler{store: deps.store, blocklist: deps.blocklist}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-blocklist-summary",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/blocklist",
+		Summary:     "How much of the library is being skipped, and whether memory is suppressed",
+		Tags:        []string{"system"},
+	}, h.summary)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "clear-blocklist",
+		Method:      http.MethodDelete,
+		Path:        "/api/v1/blocklist",
+		Summary:     "Forget every remembered release across the library",
+		Tags:        []string{"system"},
+	}, h.clearAll)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-series-blocklist",
@@ -119,6 +154,41 @@ func (h *blocklistHandler) list(ctx context.Context, in *seriesBlocklistInput) (
 			CreatedAt:    e.CreatedAt,
 		})
 	}
+	return out, nil
+}
+
+func (h *blocklistHandler) summary(ctx context.Context, _ *struct{}) (*blocklistSummaryOutput, error) {
+	counts, err := h.blocklist.Summary(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to summarize the blocklist", err)
+	}
+	b := h.blocklist.BreakerState()
+
+	out := &blocklistSummaryOutput{}
+	out.Body.Blocked = int(counts.Entries)
+	out.Body.Series = int(counts.Series)
+	out.Body.Breaker = breakerDTO{
+		Open:      b.Open,
+		Items:     b.Items,
+		Threshold: b.Threshold,
+		WindowMin: int(b.Window.Minutes()),
+	}
+	if !b.Since.IsZero() {
+		out.Body.Breaker.Since = b.Since.UTC().Format(time.RFC3339)
+	}
+	return out, nil
+}
+
+// clearAll is the recovery action for an environmental fault: it forgets the
+// whole library's memory and closes the breaker, so the next tick starts clean
+// instead of waiting the window out.
+func (h *blocklistHandler) clearAll(ctx context.Context, _ *struct{}) (*clearedOutput, error) {
+	n, err := h.blocklist.ClearAll(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to clear the blocklist", err)
+	}
+	out := &clearedOutput{}
+	out.Body.Cleared = n
 	return out, nil
 }
 

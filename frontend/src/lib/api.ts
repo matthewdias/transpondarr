@@ -110,6 +110,7 @@ export type UnscheduledSeries = Schemas["UnscheduledSeriesDTO"];
 export type Calendar = Schemas["CalendarOutputBody"];
 export type GrabEvent = Schemas["GrabEventDTO"];
 export type BlocklistEntry = Schemas["BlocklistEntryDTO"];
+export type BlocklistSummary = Schemas["BlocklistSummaryOutputBody"];
 export type GrabResult = Schemas["GrabSeriesOutputBody"];
 export type DownloadSettings = Schemas["DownloadSettingsDTO"];
 export type IndexerSettings = Schemas["IndexerSettingsDTO"];
@@ -282,6 +283,15 @@ export const api = {
       })
       .then(unwrap)
       .then((r) => r.entries),
+
+  blocklistSummary: (signal?: AbortSignal) =>
+    client.GET("/api/v1/blocklist", { signal }).then(unwrap),
+
+  clearBlocklist: () =>
+    client
+      .DELETE("/api/v1/blocklist", {})
+      .then(unwrap)
+      .then((r) => r.cleared),
 
   clearSeriesBlocklist: (id: number, expiredOnly = false) =>
     client

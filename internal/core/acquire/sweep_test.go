@@ -136,6 +136,7 @@ func grabbedItemNumbers(t *testing.T, st *store.Store, seriesID int64) []int {
 // recorded is one call the sweep made to the blocklist.
 type recorded struct {
 	seriesID     int64
+	itemIDs      []int64
 	infoHash     string
 	releaseTitle string
 	reason       string
@@ -144,11 +145,13 @@ type recorded struct {
 type fakeRecorder struct {
 	calls []recorded
 	err   error
+	// suppress models the breaker: the record is refused, not failed.
+	suppress bool
 }
 
-func (f *fakeRecorder) Record(_ context.Context, seriesID int64, infoHash, releaseTitle, reason string) error {
-	f.calls = append(f.calls, recorded{seriesID, infoHash, releaseTitle, reason})
-	return f.err
+func (f *fakeRecorder) Record(_ context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
+	f.calls = append(f.calls, recorded{seriesID, itemIDs, infoHash, releaseTitle, reason})
+	return !f.suppress, f.err
 }
 
 // sweepHarness bundles what a sweep test asserts against.

@@ -4,6 +4,24 @@
  */
 
 export interface paths {
+    "/api/v1/blocklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** How much of the library is being skipped, and whether memory is suppressed */
+        get: operations["get-blocklist-summary"];
+        put?: never;
+        post?: never;
+        /** Forget every remembered release across the library */
+        delete: operations["clear-blocklist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/browse/season": {
         parameters: {
             query?: never;
@@ -562,6 +580,45 @@ export interface components {
             infohash?: string;
             reason: string;
             release_title: string;
+        };
+        BlocklistSummaryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/BlocklistSummaryOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Releases being skipped right now
+             */
+            blocked: number;
+            breaker: components["schemas"]["BreakerDTO"];
+            /**
+             * Format: int64
+             * @description How many series they span
+             */
+            series: number;
+        };
+        BreakerDTO: {
+            /**
+             * Format: int64
+             * @description Distinct wanted items that failed inside the window
+             */
+            items: number;
+            open: boolean;
+            /**
+             * Format: date-time
+             * @description When the breaker opened; absent while closed
+             */
+            since?: string;
+            /**
+             * Format: int64
+             * @description How many distinct items opens the breaker
+             */
+            threshold: number;
+            /** Format: int64 */
+            window_minutes: number;
         };
         BrowseSeasonOutputBody: {
             /**
@@ -1201,6 +1258,64 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "get-blocklist-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlocklistSummaryOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "clear-blocklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearedOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "browse-season": {
         parameters: {
             query?: {

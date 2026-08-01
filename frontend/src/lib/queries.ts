@@ -97,6 +97,15 @@ export const jobsQuery = () =>
     refetchInterval: JOBS_POLL_MS,
   });
 
+// Polls alongside the job table: the breaker opens and closes on its own, so a
+// Settings page left open should show the fault arriving, not a stale snapshot.
+export const blocklistSummaryQuery = () =>
+  queryOptions({
+    queryKey: ["blocklist-summary"],
+    queryFn: ({ signal }) => api.blocklistSummary(signal),
+    refetchInterval: JOBS_POLL_MS,
+  });
+
 export const profilesQuery = () =>
   queryOptions({
     queryKey: ["profiles"],

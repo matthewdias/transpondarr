@@ -39,6 +39,15 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	if got.reason == "" {
 		t.Error("recorded no reason; the Releases tab shows it as the ineligible reason")
 	}
+	// The covered items are the breaker's evidence of breadth, so a refused add
+	// has to report which ones it was for.
+	items, err := h.st.Q.ListWantedItems(context.Background(), id)
+	if err != nil {
+		t.Fatalf("list items: %v", err)
+	}
+	if len(got.itemIDs) != 1 || got.itemIDs[0] != items[0].ID {
+		t.Errorf("recorded item ids = %v, want the covered item %d", got.itemIDs, items[0].ID)
+	}
 }
 
 // A client that is down refuses every release, so remembering its refusals

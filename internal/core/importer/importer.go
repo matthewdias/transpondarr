@@ -53,8 +53,10 @@ type ClientSource interface {
 
 // Recorder remembers a release that failed, so the sweep stops re-deriving it
 // (#118). Narrow on purpose: the importer needs no more of blocklist.Service.
+// It reports whether it recorded — false means too many distinct items are
+// failing at once for the release to be the cause (#120).
 type Recorder interface {
-	Record(ctx context.Context, seriesID int64, infoHash, releaseTitle, reason string) error
+	Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }
 
 // Importer scans the download client for completed grabs and imports them. It
@@ -176,8 +178,17 @@ func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, rea
 	if im.blocklist == nil {
 		return
 	}
-	if err := im.blocklist.Record(ctx, g.SeriesID, g.InfoHash, g.ReleaseTitle, reason); err != nil {
+	recorded, err := im.blocklist.Record(ctx, g.SeriesID, []int64{g.WantedItemID},
+		g.InfoHash, g.ReleaseTitle, reason)
+	if err != nil {
 		im.log.Error("importer: record blocklist entry", "release", g.ReleaseTitle, "err", err)
+		return
+	}
+	// The reset below is justified by the failure being new information about this
+	// release. A suppressed record means the breaker judged it evidence about the
+	// environment instead, so re-fronting the series would only tighten a loop
+	// around the same fault.
+	if !recorded {
 		return
 	}
 	// A failure is new information, so the series is searched again promptly with
