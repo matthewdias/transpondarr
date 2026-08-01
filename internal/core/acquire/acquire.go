@@ -52,11 +52,8 @@ type TitleSource interface {
 }
 
 // Recorder remembers a release automation could not use, so it is not re-ranked
-// first on the next pass. Narrow on purpose, mirroring the importer's, and
-// satisfied by *blocklist.Service — which must be the same instance the importer
-// holds, since it is the one place the two failure paths meet.
-// It reports whether it recorded — false means too many distinct items are
-// failing at once for the release to be the cause (#120).
+// first next pass. Satisfied by *blocklist.Service, which must be the instance
+// the importer holds: false means its breaker refused to blame the release.
 type Recorder interface {
 	Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }

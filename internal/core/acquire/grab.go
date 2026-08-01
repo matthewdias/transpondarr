@@ -22,16 +22,10 @@ type GrabResult struct {
 	Items    []int
 }
 
-// AutoGrab is Grab on automation's behalf: it additionally remembers a release
-// the client could not resolve, closing the one failure path #118 could not
-// reach — a refused add writes no grab row, so nothing downstream ever sees it
-// and the same dead URL is re-ranked first every pass (#120). Eligibility stays
-// with the caller, which has the coverage and hold rules the sweep needs;
-// enforcement is the caller's, remembering is this.
-//
-// Only the release's own faults are remembered. A client that is unreachable or
-// refusing everything says nothing about which release was asked for, and
-// blocklisting on that would poison a healthy candidate pool.
+// AutoGrab is Grab on automation's behalf: it also remembers a release the client
+// could not resolve, the one failure path #118 could not reach since a refused
+// add writes no grab row (#120). Only the release's own faults — a sick client
+// says nothing about which release was asked for. Eligibility stays with the caller.
 func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem) (GrabResult, error) {
 	res, err := s.Grab(ctx, cand, items, false)
 	if err == nil || !errors.Is(err, download.ErrBadRelease) || s.blocklist == nil {
@@ -46,8 +40,8 @@ func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Cand
 	return res, err
 }
 
-// coveredItemIDs is the failure's breadth, which is what the blocklist's breaker
-// weighs: a release covering three episodes is three items failing, not one.
+// coveredItemIDs resolves a candidate's item numbers to ids, the form the
+// blocklist takes a failure's breadth in.
 func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
 	byNumber := make(map[int]int64, len(items))
 	for _, it := range items {

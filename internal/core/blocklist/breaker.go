@@ -5,22 +5,8 @@ import (
 	"time"
 )
 
-// The breaker's shape. The unit is a *release*, credited with one wanted item
-// each, and the count is how many distinct items those credits land on. Both
-// halves are load-bearing, because both faults it must ignore are one release
-// or one item repeating:
-//
-//   - one item working through its candidate pool is many releases crediting the
-//     same item, so the count stays at one however fast it churns;
-//   - one dead release is one credit however many episodes it covers, whether it
-//     arrives as a batch grab or as the grab row per item the importer fails
-//     separately.
-//
-// Only a fault failing different releases across different items — a full disk,
-// a client reaping torrents — moves the count. The threshold is deliberately
-// low: a false trip costs one round of forgetting, since the release is retried
-// next pass and remembered then, while a miss costs a whole candidate pool at
-// 24h apiece.
+// How many items the window's releases must credit between them to open the
+// breaker, and how long a failure counts for. See the package doc for the unit.
 const (
 	breakerWindow = 15 * time.Minute
 	breakerItems  = 5
@@ -42,18 +28,15 @@ type releaseRef struct {
 	normalized string
 }
 
-// failure is one release's most recent failure, credited to the lowest item it
-// has been seen covering. Lowest rather than latest so a batch delivered item by
-// item, in whatever order, still collapses to a single credit.
+// failure is one release's latest failure, credited to the lowest item it has
+// covered — lowest, so a batch delivered item by item still collapses to one.
 type failure struct {
 	item int64
 	at   time.Time
 }
 
-// breaker decides whether a failure is evidence about the release or about the
-// environment. It is in-memory on purpose: the grabs table cannot carry the
-// history (a re-grab overwrites the row), and a restart losing the window is
-// harmless — a fault that is still present re-proves itself within one window.
+// breaker weighs whether a failure is about the release or the environment. In
+// memory because a re-grab overwrites the grab row, the only durable record.
 type breaker struct {
 	mu     sync.Mutex
 	failed map[releaseRef]failure
@@ -66,8 +49,8 @@ func (b *breaker) observe(ref releaseRef, itemIDs []int64, now time.Time) bool {
 	defer b.mu.Unlock()
 
 	b.prune(now)
-	// Nothing to attribute the failure to is no evidence of breadth, so it neither
-	// counts nor is judged by a count it could not have contributed to.
+	// No item to attribute it to is no evidence of breadth, so it neither counts
+	// nor is judged by a count it could not have joined.
 	if len(itemIDs) == 0 {
 		return b.since.IsZero()
 	}
@@ -104,8 +87,7 @@ func (b *breaker) state(now time.Time) BreakerState {
 	}
 }
 
-// reset forgets the window, so clearing the blocklist after fixing the fault
-// does not also mean waiting one out.
+// reset forgets the window, so clearing the blocklist need not also wait one out.
 func (b *breaker) reset() {
 	b.mu.Lock()
 	defer b.mu.Unlock()

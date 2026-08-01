@@ -54,9 +54,8 @@ type clearedOutput struct {
 	}
 }
 
-// breakerDTO reports whether failure memory is being suppressed right now.
-// Open means too many distinct items failed inside the window for the releases
-// to be the cause, so the fault is environmental and nothing is being recorded.
+// breakerDTO reports whether failure memory is suppressed right now; open means
+// too many items failed inside the window for the releases to be the cause.
 type breakerDTO struct {
 	Open      bool   `json:"open"`
 	Items     int    `json:"items" doc:"Distinct wanted items that failed inside the window, counting one item per release so a batch cannot inflate it"`
@@ -180,8 +179,7 @@ func (h *blocklistHandler) summary(ctx context.Context, _ *struct{}) (*blocklist
 }
 
 // clearAll is the recovery action for an environmental fault: it forgets the
-// whole library's memory and closes the breaker, so the next tick starts clean
-// instead of waiting the window out.
+// library's memory and closes the breaker, so the next tick starts clean.
 func (h *blocklistHandler) clearAll(ctx context.Context, _ *struct{}) (*clearedOutput, error) {
 	n, err := h.blocklist.ClearAll(ctx)
 	if err != nil {

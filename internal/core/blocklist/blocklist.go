@@ -8,6 +8,14 @@
 // rule removing torrents) as often as release-specific ones, and those fail many
 // grabs at once; only a repeat failure of the same release separates a dead
 // release from a bad day.
+//
+// A breaker draws the other half of that line (#120). Its unit of evidence is a
+// release, credited with one wanted item, so neither one item churning through
+// its candidates nor one release spanning a season reads as breadth; only
+// different releases failing across different items — a full disk, a client
+// reaping torrents — suppresses recording. The threshold is low on purpose: a
+// false trip forgets one round and the release is remembered on its next, while
+// a miss blocks a whole candidate pool for a day.
 package blocklist
 
 import (
@@ -46,9 +54,8 @@ func blockDuration(failures int) time.Duration {
 	}
 }
 
-// Service records and reads blocklist entries. One instance serves the whole
-// daemon: the breaker's view of client health is only right if every failure
-// path passes through it.
+// Service records and reads blocklist entries. One instance serves the daemon:
+// the breaker only sees client health if every failure path passes through it.
 type Service struct {
 	store   *store.Store
 	log     *slog.Logger
@@ -64,21 +71,11 @@ func New(st *store.Store, log *slog.Logger) *Service {
 	return &Service{store: st, log: log, now: time.Now}
 }
 
-// Record blocks a release for this series, escalating if it has failed before,
-// and reports whether it recorded anything. itemIDs are the wanted items the
-// release covered — the breaker's evidence, and the reason a caller passes them
-// even though the entry is per series.
-//
-// A false return is the breaker: too many distinct items have failed too
-// recently for this to be the release's fault, so nothing is written. A caller
-// must also skip whatever it would do to act on a fresh failure — the evidence
-// that justified it is what the breaker just rejected.
-//
-// The two results are independent, and a caller should honour both: a true with
-// an error means the entry was written but its expiry may still be the first
-// rung rather than the one the ladder owed it. Acting on the failure is then
-// still correct; only the block is shorter than it should be, and the next
-// failure re-derives it.
+// Record blocks a release for this series, escalating if it has failed before.
+// itemIDs are the items it covered, which the breaker weighs. False reports the
+// breaker refusing to blame the release, so a caller must skip whatever else a
+// fresh failure would trigger; a true with an error wrote the entry but may have
+// left the first rung's expiry.
 func (s *Service) Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
 	normalized := decide.NormalizeReleaseTitle(releaseTitle)
 	if normalized == "" {
@@ -151,10 +148,9 @@ func (s *Service) Clear(ctx context.Context, seriesID, entryID int64) error {
 	return nil
 }
 
-// ClearSeries forgets every remembered release for one series, and reports how
-// many it forgot. Every user-initiated clear discards failure counts, the
-// single-entry Clear included: unblocking says the block was wrong, and a wrong
-// block's place on the ladder is wrong with it.
+// ClearSeries forgets every remembered release for one series. Every
+// user-initiated clear discards failure counts, single-entry Clear included: a
+// wrong block's place on the ladder is wrong with it.
 func (s *Service) ClearSeries(ctx context.Context, seriesID int64) (int64, error) {
 	rows, err := s.store.Q.DeleteBlocklistBySeries(ctx, seriesID)
 	if err != nil {
@@ -163,10 +159,8 @@ func (s *Service) ClearSeries(ctx context.Context, seriesID int64) (int64, error
 	return rows, nil
 }
 
-// ClearAll forgets every remembered release across the library and closes the
-// breaker: this is the recovery action for an environmental fault, which does
-// not respect series boundaries, and the operator who fixed the fault should
-// not then have to wait out a window.
+// ClearAll forgets the library's memory and closes the breaker: an environmental
+// fault does not respect series boundaries, and neither should recovery from one.
 func (s *Service) ClearAll(ctx context.Context) (int64, error) {
 	rows, err := s.store.Q.DeleteAllBlocklist(ctx)
 	if err != nil {
@@ -186,10 +180,9 @@ func (s *Service) Summary(ctx context.Context) (db.CountActiveBlocklistRow, erro
 	return row, nil
 }
 
-// ClearExpired forgets only the lapsed entries, leaving what still blocks. It
-// discards their failure counts, so a release cleared this way starts the
-// escalation ladder over — which is the point: the counts that survive an
-// environmental fault are the ones worth discarding.
+// ClearExpired forgets only the lapsed entries, discarding their failure counts
+// — the point, since the counts an environmental fault leaves behind are the
+// ones worth dropping.
 func (s *Service) ClearExpired(ctx context.Context, seriesID int64) (int64, error) {
 	rows, err := s.store.Q.DeleteExpiredBlocklistBySeries(ctx, db.DeleteExpiredBlocklistBySeriesParams{
 		SeriesID:     seriesID,

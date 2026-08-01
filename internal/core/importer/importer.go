@@ -52,9 +52,8 @@ type ClientSource interface {
 }
 
 // Recorder remembers a release that failed, so the sweep stops re-deriving it
-// (#118). Narrow on purpose: the importer needs no more of blocklist.Service.
-// It reports whether it recorded — false means too many distinct items are
-// failing at once for the release to be the cause (#120).
+// (#118). Narrow on purpose; false means its breaker refused to blame the
+// release (#120).
 type Recorder interface {
 	Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }
@@ -147,18 +146,15 @@ type failedGrab struct {
 	reason       string
 }
 
-// remember records one blocklist entry per failed *release*, not per failed row.
-// A batch is one grab row per covered episode, so recording each separately made
-// a single incident walk the whole escalation ladder — 24h, 7d, permanent — and
-// blocklist a healthy three-episode release forever on one client hiccup (#124).
-// It is also what keeps a call boundary equal to a release boundary on this
-// path, matching the sweep's.
+// remember records one entry per failed release, not per failed row: a batch is
+// a row per episode, and recording each walked the whole ladder in one incident
+// — 24h, 7d, permanent — on a release that had failed once (#124).
 func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 	if im.blocklist == nil || len(failed) == 0 {
 		return
 	}
-	// Grab rows carry the hash we derived at grab time; the title is the fallback
-	// the blocklist itself falls back to when an indexer omits the hash.
+	// Keyed like the blocklist: the hash we derived at grab time, or the title
+	// when an indexer omitted one.
 	type release struct {
 		seriesID int64
 		ident    string
@@ -195,10 +191,8 @@ func (im *Importer) record(ctx context.Context, f failedGrab, itemIDs []int64) {
 		im.log.Error("importer: record blocklist entry", "release", f.releaseTitle, "err", err)
 		return
 	}
-	// The reset below is justified by the failure being new information about this
-	// release. A suppressed record means the breaker judged it evidence about the
-	// environment instead, so re-fronting the series would only tighten a loop
-	// around the same fault.
+	// A suppressed record means the breaker blamed the environment, and
+	// re-fronting the series would only tighten a loop around the same fault.
 	if !recorded {
 		return
 	}

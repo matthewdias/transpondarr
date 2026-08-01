@@ -10,11 +10,9 @@ import (
 	"errors"
 )
 
-// ErrBadRelease marks an Add failure the release itself caused — a magnet or
-// metainfo that will not parse, or a torrent URL the host answered by refusing.
-// An adapter must not use it for its own connectivity or for a client that
-// rejected the add: those say nothing about which release was asked for, and a
-// caller remembering them would blocklist healthy releases (#120).
+// ErrBadRelease marks an Add failure the release caused, not the adapter's own
+// connectivity or a client rejecting the add — a caller remembers these, so
+// mismarking would blocklist healthy releases (#120).
 var ErrBadRelease = errors.New("download: release could not be resolved")
 
 type AddOutcome string

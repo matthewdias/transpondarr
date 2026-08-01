@@ -40,8 +40,7 @@ func init() {
 // backs the runtime-config endpoints; auth backs forms login + sessions; runner
 // backs the job-status endpoint. provider is passed in rather than built here so
 // the daemon's background jobs share one — and so share its rate limiter; the
-// blocklist likewise, since the importer and the sweep must write failure memory
-// through one instance.
+// blocklist likewise, so its breaker sees every failure path.
 func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider metadata.Provider, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner, blocklistSvc *blocklist.Service) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.RequestID)
