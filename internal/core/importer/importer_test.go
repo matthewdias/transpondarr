@@ -133,7 +133,7 @@ func TestImportsCompletedGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
 	target := &coretest.FakeLibrary{}
-	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger())
+	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{})
 
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -174,7 +174,7 @@ func TestFinishesInFlightImportAfterCancel(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
 
-	_ = New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(ctx)
+	_ = New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(ctx)
 
 	if g := grabByHash(t, st, "abc"); g.Status != "imported" {
 		t.Errorf("status = %q, want imported: the file was already placed when the cancel arrived", g.Status)
@@ -209,7 +209,7 @@ func TestStopsScanMidwayOnCancel(t *testing.T) {
 	target := &cancelOnPlace{cancel: cancel}
 	dl := &coretest.FakeDownload{Statuses: statuses}
 
-	err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(ctx)
+	err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(ctx)
 
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("ScanOnce() = %v, want context.Canceled: a mid-scan cancel must surface, not read as a clean scan", err)
@@ -237,7 +237,7 @@ func TestDoesNotScanAfterCancel(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	_ = New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(ctx)
+	_ = New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(ctx)
 
 	if len(target.Placed) != 0 {
 		t.Error("ScanOnce placed a file on an already-cancelled context")
@@ -253,7 +253,7 @@ func TestScanOnceReturnsStatusError(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
 	dl := &coretest.FakeDownload{StatusErr: errors.New("client unreachable")}
-	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger())
+	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{})
 
 	err := im.ScanOnce(context.Background())
 
@@ -270,7 +270,7 @@ func TestScanOnceReturnsListGrabsError(t *testing.T) {
 		t.Fatalf("close store: %v", err)
 	}
 	dl := &coretest.FakeDownload{}
-	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger())
+	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{})
 
 	err := im.ScanOnce(context.Background())
 
@@ -286,7 +286,7 @@ func TestSkipsIncompleteGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -314,7 +314,7 @@ func TestImportsFolderWrappedEpisode(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -348,7 +348,7 @@ func TestDefersMultiEpisodeDirectory(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -372,7 +372,7 @@ func TestDoesNotReexamineDeferredGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -394,7 +394,7 @@ func TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 
 	dl := &coretest.FakeDownload{} // client reports nothing at all
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -411,7 +411,7 @@ func TestWatchesDeferredGrabOnFirstAbsence(t *testing.T) {
 
 	dl := &coretest.FakeDownload{}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -431,7 +431,7 @@ func TestFailsErroredGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -454,7 +454,7 @@ func TestWatchesGrabOnFirstAbsenceFromClient(t *testing.T) {
 		{Hash: "zzz", State: download.StateComplete, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -479,7 +479,7 @@ func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 
 	dl := &coretest.FakeDownload{} // client reports nothing at all
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -503,7 +503,7 @@ func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 		{Hash: "zzz", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -533,7 +533,7 @@ func TestReappearingHashClearsMissingSince(t *testing.T) {
 		{Hash: "abc", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -556,7 +556,7 @@ func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: filepath.Join(t.TempDir(), "does-not-exist.mkv")},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -585,7 +585,7 @@ func TestRecordsLastErrorWhenPlaceFails(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
 	target := &coretest.FakeLibrary{DestErr: errors.New("mkdir /library: permission denied")}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -611,7 +611,7 @@ func TestClearsLastErrorOnSuccessfulImport(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 

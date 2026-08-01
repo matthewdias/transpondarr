@@ -51,18 +51,25 @@ type ClientSource interface {
 	Library() library.Target
 }
 
+// Recorder remembers a release that failed, so the sweep stops re-deriving it
+// (#118). Narrow on purpose: the importer needs no more of blocklist.Service.
+type Recorder interface {
+	Record(ctx context.Context, seriesID int64, infoHash, releaseTitle, reason string) error
+}
+
 // Importer scans the download client for completed grabs and imports them. It
 // runs as a job on the runner, which owns the polling interval.
 type Importer struct {
-	store   *store.Store
-	clients ClientSource
-	log     *slog.Logger
+	store     *store.Store
+	clients   ClientSource
+	log       *slog.Logger
+	blocklist Recorder
 }
 
 // New builds an Importer. The download client and library target are read from
 // src each scan, so either being unconfigured (nil) simply skips that scan.
-func New(st *store.Store, src ClientSource, log *slog.Logger) *Importer {
-	return &Importer{store: st, clients: src, log: log}
+func New(st *store.Store, src ClientSource, log *slog.Logger, blocklist Recorder) *Importer {
+	return &Importer{store: st, clients: src, log: log, blocklist: blocklist}
 }
 
 // ScanOnce imports every outstanding grab whose torrent has completed. It reads
@@ -110,7 +117,7 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 		case download.StateError:
 			// Failing frees the item back to wanted, with the failure kept in history.
 			im.log.Warn("importer: download failed in client", "release", g.ReleaseTitle, "hash", g.InfoHash)
-			im.setStatus(ctx, g.ID, statusFailed)
+			im.failGrab(ctx, g, "the download client reported an error")
 		case download.StateComplete:
 			if g.Status == statusDeferred {
 				continue // already examined; the same bytes won't resolve differently
@@ -159,7 +166,27 @@ func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatus
 
 	im.log.Warn("importer: download gone from client; failing grab",
 		"release", g.ReleaseTitle, "hash", g.InfoHash, "missing_for", now.Sub(since).Round(time.Second))
+	im.failGrab(ctx, g, "the download vanished from the client")
+}
+
+// failGrab settles a grab as failed and remembers the release, so the next sweep
+// ranks past it instead of re-deriving the same doomed choice (#118). The status
+// write comes first and is never conditional on the blocklist write: a grab left
+// in "grabbed" would never free its item.
+func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, reason string) {
 	im.setStatus(ctx, g.ID, statusFailed)
+	if im.blocklist == nil {
+		return
+	}
+	if err := im.blocklist.Record(ctx, g.SeriesID, g.InfoHash, g.ReleaseTitle, reason); err != nil {
+		im.log.Error("importer: record blocklist entry", "release", g.ReleaseTitle, "err", err)
+		return
+	}
+	// A failure is new information, so the series is searched again promptly with
+	// the next-best release rather than sitting behind accumulated backoff.
+	if err := im.store.Q.ResetSeriesSearchState(ctx, g.SeriesID); err != nil {
+		im.log.Error("importer: reset series search state", "series", g.SeriesID, "err", err)
+	}
 }
 
 func (im *Importer) setMissingSince(ctx context.Context, id int64, v sql.NullString) {
