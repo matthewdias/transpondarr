@@ -79,6 +79,67 @@ func (q *Queries) ListSeriesDueWantedSearch(ctx context.Context, arg ListSeriesD
 	return items, nil
 }
 
+const listSeriesWithWantedItems = `-- name: ListSeriesWithWantedItems :many
+SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
+FROM series s
+WHERE s.monitored = 1
+  AND EXISTS (
+      SELECT 1
+      FROM wanted_items w
+      LEFT JOIN grabs g ON g.wanted_item_id = w.id
+      WHERE w.series_id = s.id
+        AND w.have = 0
+        AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+        AND (w.airs_at IS NULL OR w.airs_at <= ?)
+  )
+ORDER BY s.id
+`
+
+// Monitored series with something worth grabbing right now, ignoring search
+// cadence. The feed poll issues no indexer request per series -- one request
+// answers for every series at once -- so the budget the sweep's LIMIT protects
+// does not apply here. The wanted predicate is deliberately the sweep's,
+// character for character, so both entry points agree on what is grabbable.
+// NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
+// rune offsets and silently truncates the emitted SQL on a multi-byte character.
+func (q *Queries) ListSeriesWithWantedItems(ctx context.Context, airsAt sql.NullString) ([]Series, error) {
+	rows, err := q.db.QueryContext(ctx, listSeriesWithWantedItems, airsAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Series{}
+	for rows.Next() {
+		var i Series
+		if err := rows.Scan(
+			&i.ID,
+			&i.AnilistID,
+			&i.Title,
+			&i.Format,
+			&i.Monitored,
+			&i.CreatedAt,
+			&i.QualityProfileID,
+			&i.AiringSyncedAt,
+			&i.PinnedGroup,
+			&i.LastSearchedAt,
+			&i.SearchBackoff,
+			&i.NextSearchAt,
+			&i.PinDelayHours,
+			&i.SearchEpoch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWantedItemsWithGrabState = `-- name: ListWantedItemsWithGrabState :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, g.status AS grab_status
 FROM wanted_items w

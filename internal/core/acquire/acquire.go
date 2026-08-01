@@ -1,14 +1,33 @@
 // Package acquire owns search, decide, and grab, shared by the manual HTTP
-// routes and the scheduled sweep so both drive exactly one matcher.
+// routes, the scheduled sweep and the feed poll so all three drive exactly one
+// matcher.
 //
-// The sweep (#100) searches monitored series with something worth grabbing right
-// now and backs off exponentially when it finds nothing, clamped so a weekly
-// show is still searched at broadcast however many empty passes preceded it.
-// Nothing resets the cadence on the airing side: schedule-created items carry an
-// air date, so the aired-since-last-search reset and that clamp already cover
-// them. A manual grab racing a sweep converges — one grab row per item and the
-// download client's own info-hash dedupe make the exposure no worse than
-// double-clicking Grab.
+// The two automatic entry points divide by what they can see. The feed poll
+// (#101) owns releases published while we are watching: one request lists an
+// indexer's newest releases, so it is flat in library size and cheap enough to
+// run on a short tick. The sweep (#100) owns what already existed before we
+// looked — back-catalog, anything that scrolled off the feed page, a series
+// added after an entry was seen — and owns everything when no feed is
+// configured, at one search per series.
+//
+// Cadence follows that division: with a feed configured the sweep stands down
+// from the airing window and sleeps on its backoff. Grab scope deliberately does
+// not. A sweep search that turns up a current release still takes it, because
+// the feed's dedupe is one-shot — an entry seen before its series or item
+// existed never comes around again, and the sweep is the only thing that rescues
+// it.
+//
+// Two automatic grabs never take the same item, by two mechanisms rather than
+// one. An in-process claim over wanted-item ids stops them overlapping, and a
+// re-read of grab state under that claim stops the later one acting on a list it
+// loaded before the other had finished — the gap the claim alone leaves, since a
+// pass reads its items, goes out on the network for seconds, and grabs after.
+//
+// A manual grab is outside both, deliberately: it takes its claim
+// unconditionally and never re-checks, because explicit user intent is never
+// refused (PR #57). So a manual grab racing automation, or another manual grab,
+// still duplicates exactly as double-clicking Grab always has — and converges on
+// the download client's info-hash dedupe.
 package acquire
 
 import (
@@ -84,6 +103,7 @@ type Service struct {
 	cfg       Config
 	log       *slog.Logger
 	blocklist Recorder
+	claims    *claims
 }
 
 // New builds the service. A nil logger is tolerated so a caller that only needs
@@ -94,7 +114,8 @@ func New(st *store.Store, clients ClientSource, titles TitleSource, cfg Config, 
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Service{store: st, clients: clients, titles: titles, cfg: cfg, log: log, blocklist: blocklist}
+	return &Service{store: st, clients: clients, titles: titles, cfg: cfg, log: log,
+		blocklist: blocklist, claims: newClaims()}
 }
 
 // MatchSeries loads a series with every wanted item and matches indexer releases
@@ -140,40 +161,59 @@ func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []domain.
 // grabbing — the sweep passes a grab-state-filtered list — while reusing one
 // matcher.
 func (s *Service) match(ctx context.Context, idx indexer.Indexer, series db.Series, items []domain.WantedItem) (Match, error) {
-	// Title variants (romaji/english/native) let the matcher accept releases that
-	// use a different one of the series' names. Best-effort: fall back to the
-	// stored title if the metadata lookup fails.
-	variants := []string{series.Title}
-	if series.AnilistID.Valid {
-		if v, verr := s.titles.TitleVariants(ctx, series.AnilistID.Int64); verr == nil {
-			variants = append(variants, v...)
-		}
-	}
-
-	profile, err := s.profile(ctx, series)
+	variants := s.variants(ctx, series)
+	releases, term, err := s.search(ctx, idx, variants)
 	if err != nil {
 		return Match{}, err
 	}
+	return s.evaluate(ctx, series, items, variants, term, releases)
+}
 
-	// Sanitized title first, then each variant as a zero-result fallback (#107):
-	// a romaji term can be unsearchable even sanitized, and one extra request is
-	// cheap next to reporting nothing.
+// variants are the names the matcher will accept for a series (romaji/english/
+// native), so a release using a different one of them still matches.
+// Best-effort: fall back to the stored title if the metadata lookup fails.
+func (s *Service) variants(ctx context.Context, series db.Series) []string {
+	variants := []string{series.Title}
+	if series.AnilistID.Valid {
+		if v, err := s.titles.TitleVariants(ctx, series.AnilistID.Int64); err == nil {
+			variants = append(variants, v...)
+		}
+	}
+	return variants
+}
+
+// search asks the indexer for one series, reporting the term that answered.
+// Sanitized title first, then each variant as a zero-result fallback (#107): a
+// romaji term can be unsearchable even sanitized, and one extra request is cheap
+// next to reporting nothing.
+func (s *Service) search(ctx context.Context, idx indexer.Indexer, variants []string) ([]indexer.Release, string, error) {
 	var releases []indexer.Release
 	term := ""
 	for _, t := range decide.SearchTerms(variants) {
 		if term == "" {
 			term = t
 		}
+		var err error
 		releases, err = idx.Search(ctx, indexer.Query{Term: t})
 		if err != nil {
-			return Match{}, fmt.Errorf("%w: %w", ErrIndexerSearch, err)
+			return nil, "", fmt.Errorf("%w: %w", ErrIndexerSearch, err)
 		}
 		if len(releases) > 0 {
 			term = t
 			break
 		}
 	}
+	return releases, term, nil
+}
 
+// evaluate ranks already-fetched releases against a series. It is split from the
+// search so the feed poll (#101) drives exactly this decision layer — profile,
+// blocklist, eligibility — over one page it fetched once for every series.
+func (s *Service) evaluate(ctx context.Context, series db.Series, items []domain.WantedItem, variants []string, term string, releases []indexer.Release) (Match, error) {
+	profile, err := s.profile(ctx, series)
+	if err != nil {
+		return Match{}, err
+	}
 	blocked, err := s.blocked(ctx, series.ID)
 	if err != nil {
 		return Match{}, err

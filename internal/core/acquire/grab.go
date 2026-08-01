@@ -22,22 +22,66 @@ type GrabResult struct {
 	Items    []int
 }
 
+// errItemsTaken means these items are no longer this pass's to grab. Only
+// automation ever sees it, and only as "skip this candidate".
+var errItemsTaken = errors.New("acquire: items taken by another grab")
+
 // AutoGrab is Grab on automation's behalf: it also remembers a release the client
 // could not resolve, the one failure path #118 could not reach since a refused
 // add writes no grab row (#120). Only the release's own faults — a sick client
 // says nothing about which release was asked for. Eligibility stays with the caller.
+//
+// The claim alone would not be enough. A caller reads its item list, spends
+// seconds out on the network, and grabs afterwards, so the other entry point can
+// take an item and release its claim entirely within that gap — leaving a stale
+// read that passes TryAcquire. Re-reading grab state under the claim is what
+// closes it, and it is race-free precisely because the claim serializes writers:
+// any automation grab that committed did so before releasing, and so before this
+// one acquired.
 func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem) (GrabResult, error) {
+	ids := coveredItemIDs(cand, items)
+	if !s.claims.TryAcquire(ids) {
+		return GrabResult{}, fmt.Errorf("%w: a grab is in flight", errItemsTaken)
+	}
+	defer s.claims.Release(ids)
+
+	if settled, err := s.anySettled(ctx, seriesID, ids); err != nil {
+		return GrabResult{}, err
+	} else if settled {
+		return GrabResult{}, fmt.Errorf("%w: settled since the pass read them", errItemsTaken)
+	}
+
 	res, err := s.Grab(ctx, cand, items, false)
 	if err == nil || !errors.Is(err, download.ErrBadRelease) || s.blocklist == nil {
 		return res, err
 	}
-	if _, rerr := s.blocklist.Record(ctx, seriesID, coveredItemIDs(cand, items),
+	if _, rerr := s.blocklist.Record(ctx, seriesID, ids,
 		cand.Release.InfoHash, cand.Release.Title,
 		"the download URL could not be fetched or parsed"); rerr != nil {
 		s.log.Error("acquire: record blocklist entry for a refused add",
 			"series", seriesID, "release", cand.Release.Title, "err", rerr)
 	}
 	return res, err
+}
+
+// anySettled reports whether any of ids already carries a settled grab. Settled
+// is every status but failed, matching what loadSweepItems calls ungrabbable —
+// one definition, so a re-check cannot disagree with the read it is guarding.
+func (s *Service) anySettled(ctx context.Context, seriesID int64, ids []int64) (bool, error) {
+	grabs, err := s.store.Q.ListGrabsBySeries(ctx, seriesID)
+	if err != nil {
+		return false, fmt.Errorf("re-read grab state for series %d: %w", seriesID, err)
+	}
+	wanted := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		wanted[id] = true
+	}
+	for _, g := range grabs {
+		if wanted[g.WantedItemID] && g.Status != statusFailed {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // coveredItemIDs resolves a candidate's item numbers to ids, the form the
@@ -59,12 +103,17 @@ func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
 // Grab hands a candidate to the download client and records a grab per covered
 // item. It never consults eligibility: a manual grab is explicit user intent and
 // must not be refused (PR #57), so enforcement belongs to the sweep, which
-// checks Eligible before calling.
+// checks Eligible before calling. It takes an unconditional claim for the same
+// reason — the claim exists to make automation yield to a grab in flight, never
+// to gate one.
 func (s *Service) Grab(ctx context.Context, cand decide.Candidate, items []domain.WantedItem, paused bool) (GrabResult, error) {
 	dl := s.clients.Download()
 	if dl == nil {
 		return GrabResult{}, ErrNoDownloadClient
 	}
+	ids := coveredItemIDs(cand, items)
+	s.claims.Acquire(ids)
+	defer s.claims.Release(ids)
 
 	// Outside the transaction: the client is a remote side effect that cannot be
 	// rolled back, and holding a write tx across it would serialize on the network.

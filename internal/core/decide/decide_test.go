@@ -52,42 +52,77 @@ func TestMatchSingleEpisode(t *testing.T) {
 	}
 }
 
-// v0.1.0 recognises batch ranges but refuses them (no per-file batch import yet),
-// so they are surfaced unmatched with an explanatory reason rather than recorded
-// as a grab that would silently never import.
-func TestBatchRangeRefused(t *testing.T) {
+// A batch range matches the items it covers but is refused by eligibility, not
+// by matching (#125): automation skips it because the importer can only defer
+// it, while a human still sees exactly which episodes it holds.
+func TestBatchRangeMatchesButIsIneligible(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[Batchers] Placeholder Saga S1 (01-06) [1080p][Batch]", Seeders: 50},
 	}
 	got := Match(items(12), []string{"Placeholder Saga"}, rels, domain.QualityProfile{})
 	c := got[0]
-	if c.Matched {
-		t.Fatalf("batch should not match in v0.1.0, items %v", c.Items)
+	if !c.Matched {
+		t.Fatalf("batch should match its range, reason: %s", c.Reason)
 	}
-	if c.Items != nil {
-		t.Errorf("refused batch should carry no items, got %v", c.Items)
+	if fmt.Sprint(c.Items) != fmt.Sprint([]int{1, 2, 3, 4, 5, 6}) {
+		t.Errorf("items = %v, want [1 2 3 4 5 6]", c.Items)
 	}
-	if !strings.Contains(c.Reason, "batch") {
-		t.Errorf("expected a batch reason, got %q", c.Reason)
+	if c.Eligible {
+		t.Error("batch must not be eligible: automation cannot import it")
+	}
+	if !strings.Contains(c.IneligibleReason, "batch") {
+		t.Errorf("expected a batch ineligible reason, got %q", c.IneligibleReason)
 	}
 }
 
-// A season/complete pack is likewise refused (but still title-parsed/enriched).
-func TestSeasonPackRefused(t *testing.T) {
+// A season/complete pack names no episode numbers, so it covers everything still
+// wanted — and is likewise ineligible (but still title-parsed/enriched).
+func TestSeasonPackMatchesEveryWantedItemButIsIneligible(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[DualCorp] Placeholder Saga (S01) [BD 1080p][Dual-Audio] (Batch)", Seeders: 10},
 	}
 	got := Match(items(3), []string{"Placeholder Saga"}, rels, domain.QualityProfile{})
 	c := got[0]
-	if c.Matched {
-		t.Fatalf("season pack should not match in v0.1.0, items %v", c.Items)
+	if !c.Matched {
+		t.Fatalf("season pack should match, reason: %s", c.Reason)
 	}
-	if !strings.Contains(c.Reason, "batch") && !strings.Contains(c.Reason, "pack") {
-		t.Errorf("expected a batch/pack reason, got %q", c.Reason)
+	if fmt.Sprint(c.Items) != fmt.Sprint([]int{1, 2, 3}) {
+		t.Errorf("items = %v, want [1 2 3]", c.Items)
 	}
-	// Enrichment still happens before the refusal.
+	if c.Eligible {
+		t.Error("season pack must not be eligible")
+	}
 	if !c.Release.DualAudio {
 		t.Error("dual-audio not enriched onto release")
+	}
+}
+
+// A pack whose range covers nothing still wanted stays unmatched, so it is not
+// offered as coverage it cannot provide.
+func TestBatchCoveringNothingWantedIsUnmatched(t *testing.T) {
+	its := items(6)
+	for i := range its {
+		its[i].Have = true
+	}
+	rels := []indexer.Release{
+		{Title: "[Batchers] Placeholder Saga S1 (01-06) [1080p][Batch]", Seeders: 50},
+	}
+	got := Match(its, []string{"Placeholder Saga"}, rels, domain.QualityProfile{})
+	if c := got[0]; c.Matched {
+		t.Errorf("batch covering only had items should not match, items %v", c.Items)
+	}
+}
+
+// An eligible single always outranks a pack covering the same episode, so the
+// sweep's first-served walk can never take the pack instead.
+func TestSingleOutranksBatchCoveringIt(t *testing.T) {
+	rels := []indexer.Release{
+		{Title: "[Batchers] Placeholder Saga S1 (01-06) [1080p][Batch]", Seeders: 900},
+		{Title: "[ExampleSubs] Placeholder Saga S1E03 [1080p]", Seeders: 1},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, domain.QualityProfile{})
+	if !got[0].Eligible || got[0].Parsed.Batch {
+		t.Fatalf("the single should rank first, got %q (eligible=%v)", got[0].Release.Title, got[0].Eligible)
 	}
 }
 

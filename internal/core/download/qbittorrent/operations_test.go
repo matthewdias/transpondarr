@@ -90,6 +90,63 @@ func TestAddAlreadyExists(t *testing.T) {
 	}
 }
 
+// Duplicate detection is check-then-act, so two concurrent adds of one hash both
+// pass the empty check and one loses at the client. Re-checking after a failed
+// add turns that loser back into convergence rather than an error the caller
+// would answer by grabbing a different release for the same item.
+func TestAddConvergesWhenAFailedAddWasADuplicate(t *testing.T) {
+	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
+	var added bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "test"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/info":
+			// Empty until the racing add lands, present on the post-failure recheck.
+			if added {
+				_, _ = w.Write([]byte(`[{"hash":"` + hash + `","state":"downloading"}]`))
+				return
+			}
+			_, _ = w.Write([]byte("[]"))
+		case "/api/v2/torrents/add":
+			added = true
+			w.WriteHeader(http.StatusConflict)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	res, err := New(srv.URL, "u", "p").Add(context.Background(),
+		download.AddOptions{URL: "magnet:?xt=urn:btih:" + hash})
+	if err != nil {
+		t.Fatalf("Add: %v, want convergence on the duplicate", err)
+	}
+	if res.Outcome != download.AddAlreadyExists {
+		t.Errorf("outcome = %v, want already-exists", res.Outcome)
+	}
+	if res.Hash != hash {
+		t.Errorf("hash = %q, want %q", res.Hash, hash)
+	}
+}
+
+// A genuine add failure must still surface: the recheck only converges when the
+// hash actually turned up, never by swallowing the error.
+func TestAddSurfacesAFailureThatWasNotADuplicate(t *testing.T) {
+	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
+	srv := qbitStub(t, http.StatusInternalServerError)
+
+	_, err := New(srv.URL, "u", "p").Add(context.Background(),
+		download.AddOptions{URL: "magnet:?xt=urn:btih:" + hash})
+	if err == nil {
+		t.Fatal("expected the original add error when the hash is still absent")
+	}
+	if !strings.Contains(err.Error(), "add") {
+		t.Errorf("error = %v, want the original add error", err)
+	}
+}
+
 // qbitStub answers the endpoints Add probes, so a test only has to say how the
 // add itself behaves.
 func qbitStub(t *testing.T, addStatus int) *httptest.Server {

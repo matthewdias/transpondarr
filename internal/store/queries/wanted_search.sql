@@ -22,6 +22,28 @@ WHERE s.monitored = 1
 ORDER BY s.next_search_at IS NOT NULL, s.next_search_at
 LIMIT ?;
 
+-- name: ListSeriesWithWantedItems :many
+-- Monitored series with something worth grabbing right now, ignoring search
+-- cadence. The feed poll issues no indexer request per series -- one request
+-- answers for every series at once -- so the budget the sweep's LIMIT protects
+-- does not apply here. The wanted predicate is deliberately the sweep's,
+-- character for character, so both entry points agree on what is grabbable.
+-- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
+-- rune offsets and silently truncates the emitted SQL on a multi-byte character.
+SELECT s.*
+FROM series s
+WHERE s.monitored = 1
+  AND EXISTS (
+      SELECT 1
+      FROM wanted_items w
+      LEFT JOIN grabs g ON g.wanted_item_id = w.id
+      WHERE w.series_id = s.id
+        AND w.have = 0
+        AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+        AND (w.airs_at IS NULL OR w.airs_at <= ?)
+  )
+ORDER BY s.id;
+
 -- name: ListWantedItemsWithGrabState :many
 -- One grab per item (UNIQUE) keeps the join 1:1, so the sweep can tell an
 -- in-flight episode from a wanted one in a single query per series.

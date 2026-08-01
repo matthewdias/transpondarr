@@ -78,12 +78,16 @@ func (s *Service) SweepOnce(ctx context.Context) error {
 		return fmt.Errorf("list series due a wanted search: %w", err)
 	}
 
+	// Read once per pass, from the indexer this run resolved, so a Settings edit
+	// that adds or removes a feed applies on the next tick.
+	_, hasFeed := idx.(indexer.RecentFeed)
+
 	var errs []error
 	for _, series := range due {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := s.sweepSeries(ctx, idx, series, now); err != nil {
+		if err := s.sweepSeries(ctx, idx, series, now, hasFeed); err != nil {
 			errs = append(errs, fmt.Errorf("series %d: %w", series.ID, err))
 		}
 	}
@@ -92,24 +96,13 @@ func (s *Service) SweepOnce(ctx context.Context) error {
 
 // sweepSeries searches one series and grabs every eligible release covering
 // items nothing else in this pass already took.
-func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series db.Series, now time.Time) error {
+func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series db.Series, now time.Time, hasFeed bool) error {
 	sweep, err := s.loadSweepItems(ctx, series.ID, now)
 	if err != nil {
 		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
 
-	// Items not worth grabbing are handed to the matcher as Have: decide already
-	// excludes had items from the wanted set while maxItem still spans them, so
-	// in-flight suppression falls out of the existing matcher and a batch covering
-	// an in-flight episode still matches the rest.
-	items := make([]domain.WantedItem, 0, len(sweep))
-	for _, it := range sweep {
-		items = append(items, domain.WantedItem{
-			ID: it.id, Kind: it.kind, Number: it.number, Have: !it.grabbable,
-		})
-	}
-
-	m, err := s.match(ctx, idx, series, items)
+	m, err := s.match(ctx, idx, series, grabbableItems(sweep))
 	if err != nil {
 		// An indexer outage is the one fault a series is not charged for: every due
 		// series shares it, so backing them all off idles the library on one hiccup.
@@ -119,13 +112,13 @@ func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series d
 		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
 
-	grabbed, held, err := s.grabPass(ctx, series, m, sweep, now)
+	grabbed, held, err := s.grabPass(ctx, series, m, sweep, now, "sweep")
 	// A pass that landed something is progress even if it ended badly, and its
 	// successful grabs settle those items, so it records the ordinary cadence.
 	if err != nil && grabbed == 0 {
 		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
-	return errors.Join(err, s.writeSearchState(ctx, series, sweep, now, grabbed, held))
+	return errors.Join(err, s.writeSearchState(ctx, series, sweep, now, grabbed, held, hasFeed))
 }
 
 // backOffAfterFailure makes a failed pass yield its slot. The due query is a
@@ -147,10 +140,26 @@ func (s *Service) backOffAfterFailure(ctx context.Context, series db.Series, now
 	})
 }
 
+// grabbableItems is the item list the matcher gets. Items not worth grabbing are
+// handed over as Have: decide already excludes had items from the wanted set
+// while maxItem still spans them, so in-flight suppression falls out of the
+// existing matcher and a batch covering an in-flight episode still matches the rest.
+func grabbableItems(sweep []sweepItem) []domain.WantedItem {
+	items := make([]domain.WantedItem, 0, len(sweep))
+	for _, it := range sweep {
+		items = append(items, domain.WantedItem{
+			ID: it.id, Kind: it.kind, Number: it.number, Have: !it.grabbable,
+		})
+	}
+	return items
+}
+
 // grabPass walks the ranked candidates once, taking every eligible release whose
 // items are still unspoken for. It returns how many releases were grabbed and
 // the earliest moment a held release becomes grabbable (zero when none is held).
-func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time) (int, time.Time, error) {
+// source names the entry point that drove it — the sweep or the feed poll — so a
+// log line says which of the two acted.
+func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source string) (int, time.Time, error) {
 	airs := make(map[int]time.Time, len(sweep))
 	for _, it := range sweep {
 		if !it.airsAt.IsZero() {
@@ -177,6 +186,12 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			continue
 		}
 		if _, err := s.AutoGrab(ctx, series.ID, c, m.Items); err != nil {
+			// Another grab has these items — in flight, or settled since this pass read
+			// them. Leave them uncovered either way: an in-flight holder may still
+			// fail, and a later pass must be free to retry them.
+			if errors.Is(err, errItemsTaken) {
+				continue
+			}
 			if !errors.Is(err, ErrDownloadAdd) {
 				return grabbed, time.Time{}, err
 			}
@@ -185,14 +200,15 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			// only a client that keeps refusing ends the pass. AutoGrab has already
 			// remembered it if the release itself was at fault (#120).
 			failed++
-			s.log.Warn("sweep could not add a release; trying the next candidate",
-				"series", series.ID, "release", c.Release.Title, "err", err)
+			s.log.Warn("could not add a release; trying the next candidate",
+				"source", source, "series", series.ID, "release", c.Release.Title, "err", err)
 			if failed >= maxAddFailures {
 				return grabbed, time.Time{}, fmt.Errorf("%d refused adds: %w", failed, err)
 			}
 			continue
 		}
-		s.log.Info("sweep grabbed a release", "series", series.ID, "release", c.Release.Title, "items", c.Items)
+		s.log.Info("grabbed a release",
+			"source", source, "series", series.ID, "release", c.Release.Title, "items", c.Items)
 		markCovered(covered, c.Items)
 		grabbed++
 	}
@@ -201,7 +217,20 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 
 // writeSearchState records what the pass found. The write is guarded on the
 // cadence read at selection, so a reset that landed mid-sweep wins.
-func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep []sweepItem, now time.Time, grabbed int, held time.Time) error {
+//
+// The airing-aimed parts of the cadence — the aired-since reset and the
+// next-broadcast clamp — exist only for the feedless world. They are #100's
+// answer to "a weekly show must be searched at air time", written when the sweep
+// was the only mechanism; with a feed they aim the sweep at precisely the
+// windows the feed already covers, for one search per series. A series whose
+// broadcast the feed then misses is still reached: its stale next_search_at plus
+// the due query's EXISTS make it due, and the backoff ladder caps at a day.
+func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep []sweepItem, now time.Time, grabbed int, held time.Time, hasFeed bool) error {
+	upcoming := nextAiring(sweep, now)
+	if hasFeed {
+		upcoming = time.Time{}
+	}
+
 	backoff := series.SearchBackoff
 	var next time.Time
 	switch {
@@ -209,15 +238,17 @@ func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep 
 		// Something landed, so more may be waiting: due again next tick.
 		backoff = 0
 	case !held.IsZero():
-		// A held item is never backed off past its own window.
+		// A held item is never backed off past its own window. The pin delay stays
+		// the sweep's business either way: the release already exists, so no feed
+		// poll will produce it sooner.
 		backoff = 0
-		next = earliest(held, nextAiring(sweep, now))
+		next = earliest(held, upcoming)
 	default:
-		if airedSince(sweep, series.LastSearchedAt, now) {
+		if !hasFeed && airedSince(sweep, series.LastSearchedAt, now) {
 			backoff = 0
 		}
 		backoff++
-		next = earliest(now.Add(backoffDelay(int(backoff))), nextAiring(sweep, now))
+		next = earliest(now.Add(backoffDelay(int(backoff))), upcoming)
 	}
 
 	return s.setSearchState(ctx, db.SetSeriesSearchStateParams{

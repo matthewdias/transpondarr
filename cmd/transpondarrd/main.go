@@ -67,6 +67,12 @@ const seasonRefreshInterval = 15 * time.Minute
 // an idle tick rather than an indexer stampede after a restart loop.
 const wantedSearchInterval = 15 * time.Minute
 
+// feedPollInterval matches the sweep's tick but does far more with it: one
+// request covers every series at once, where a sweep pass searches five and then
+// backs each off for an hour or more. 15 minutes is also the floor indexers ask
+// for — Sonarr's RSS sync defaults here and refuses to go below 10.
+const feedPollInterval = 15 * time.Minute
+
 func main() {
 	// `transpondarrd openapi` prints the OpenAPI spec to stdout and exits — used by
 	// the frontend's type generation (`make gen-api`), no server or DB required.
@@ -182,17 +188,28 @@ func run(logger *slog.Logger) error {
 	// paths that record a failed release, and they must not each hold their own.
 	blocklistSvc := blocklist.New(st, logger)
 
-	// Always registered; it no-ops when automation is off or either client is
-	// unconfigured, both read per run — so flipping the Settings toggle or
-	// configuring an integration takes effect without a restart.
-	// A second stateless catalog wrapper over the same shared provider keeps the
-	// AniList rate-limit budget single.
+	// One acquire service for both entry points, so they share the one matcher and
+	// the one blocklist. A second stateless catalog wrapper over the same shared
+	// provider keeps the AniList rate-limit budget single.
+	acquireSvc := acquire.New(st, reg, catalog.NewService(st, provider), settingsSvc, logger, blocklistSvc)
+
+	// Both are always registered; each no-ops when automation is off or either
+	// client is unconfigured, all read per run — so flipping the Settings toggle or
+	// configuring an integration takes effect without a restart. The feed poll is
+	// the hot path and the sweep is the safety net: the feed catches anything
+	// published between passes for one request, and the sweep covers what scrolled
+	// off it, plus every indexer with no feed at all.
 	runner.Add(jobs.Job{
 		Name:       "wanted-search",
 		Interval:   wantedSearchInterval,
 		RunAtStart: true,
-		Run: acquire.New(st, reg, catalog.NewService(st, provider), settingsSvc, logger, blocklistSvc).
-			SweepOnce,
+		Run:        acquireSvc.SweepOnce,
+	})
+	runner.Add(jobs.Job{
+		Name:       "feed-poll",
+		Interval:   feedPollInterval,
+		RunAtStart: true,
+		Run:        acquireSvc.PollFeedOnce,
 	})
 	// The import scan always runs; each scan it reads the current download client
 	// and library from the registry and no-ops when either is unconfigured — so
@@ -207,7 +224,7 @@ func run(logger *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner, blocklistSvc),
+		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner, blocklistSvc, acquireSvc),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

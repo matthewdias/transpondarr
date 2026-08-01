@@ -171,6 +171,49 @@ Behaviour changes are test-driven. Work red → green → refactor:
   filtered, never deleted — the row carries the failure count the ladder reads.
   An *import* failure deliberately records nothing: it stays `grabbed` and
   retries, because its causes are path-mapping gaps rather than bad releases.
+- **A batch is matched but never eligible (#125).** `decide` maps a season pack
+  to the items it covers and then refuses it in `ineligibleReason`, rather than
+  refusing it at matching. Two things follow. Automation skips it through the
+  same gate as every other rule — one guard for the sweep and the feed poll, not
+  a check in either loop — because the importer can only *defer* a true
+  multi-episode payload and deferred is settled, so a grabbed pack parks its
+  season instead of failing it back to wanted. And a human still sees which
+  episodes it holds and can take it (PR #57), which the old unmatched refusal
+  blocked in the UI. The policy is "never automatically", not "last resort":
+  grabbing a pack unattended downloads a season only to park it. #126's per-file
+  import is what lifts this — and once it does, a pack becomes automation's
+  *preferred* choice for a back-catalog add, one grab instead of N.
+- **Two entry points, one decision layer (#101).** The `feed-poll` job and the
+  `wanted-search` sweep both build a `Match` through `Service.evaluate` and act
+  on it through `grabPass`, so profile floor, blocklist, pinned-group delay and
+  the batch guard are written once. The feed is only a cheaper *trigger*: it
+  inverts the sweep's lookup (a release title needing a series, rather than a
+  series needing releases), which is why it is series × entry — deliberately
+  unoptimised, since a page is ~100 entries and the due query already drops any
+  series with nothing wanted. It writes no search cadence: nothing was searched,
+  and a grab settles its item, so the sweep's `EXISTS` drops the series anyway.
+  They divide by what they can see: the feed owns releases published while we
+  watch, the sweep owns what already existed and everything when no feed is
+  configured. **Cadence follows that division; grab scope deliberately does
+  not** — a sweep search that turns up a current release still takes it, because
+  the feed's dedupe is one-shot and an entry seen before its series or item
+  existed never comes around again. Concretely, `writeSearchState` drops the
+  aired-since reset and the next-broadcast clamp when a feed exists (both are
+  #100's answer to "search a weekly show at air time", which the feed now owns);
+  the pin-delay hold stays either way, since that release already exists.
+  **Concurrent grabs are serialized by an in-process claim over wanted-item ids**
+  (`claims.go`). The two jobs are phase-locked — same interval, both
+  `RunAtStart`, the runner anchors both to startup — and both read grab state
+  before either writes, so without it a just-aired episode gets two adds and, if
+  they picked different releases, an orphan torrent no grab row references.
+  Automation `TryAcquire`s and yields; a manual grab `Acquire`s and never does.
+  `indexer.RecentFeed` is a type assertion, not a wider `Indexer` — a source
+  without one degrades to sweep-only, which is a supported configuration and logs
+  at debug. The high-water mark lives in `settings` under `feed.seen.<indexer>`:
+  newest `pubDate` plus the ids sharing it, which is Sonarr's
+  `LastRssSyncReleaseInfo` shape. Two entry ids matter — the GUID is unreliable
+  across Torznab implementations (Sonarr keys on the download URL for exactly
+  that reason), and a feed publishing no dates dedupes on ids alone.
 - **Periodic work goes on the job runner (`internal/core/jobs`), not a bare
   `go`.** Register by name with an interval in `main.go`; the runner owns panic
   containment, the "log failures only when `ctx.Err() == nil`" rule, and the
@@ -287,9 +330,16 @@ Concretely, in `internal/core/decide`:
   series carrying *unfilled* items, not library size: the due query's `EXISTS`
   drops a series as soon as nothing is wanted, so a complete library is free and a
   satisfied one leaves the queue instead of taking a second slot. To raise
-  throughput, shorten the interval rather than widen the pass — the ratio sets
-  throughput, the width sets peak burst, and a pass issues its searches
-  back-to-back with no pacing.
+  **back-catalog drain rate**, shorten the interval rather than widen the pass —
+  the ratio sets throughput, the width sets peak burst, and a pass issues its
+  searches back-to-back with no pacing. That is now the only thing the ratio
+  buys: acquisition latency for a current release belongs to the feed.
+- **The recent feed inverts that cost, which is why it is the hot path.** One
+  request covers every series, so `feed-poll` is flat in library size while the
+  sweep is linear in due series. That is what makes the sweep affordable as a
+  safety net rather than the mechanism. Don't shorten `feedPollInterval` below
+  15 minutes: indexers ask for it, and Sonarr — which sets the community's
+  expectation here — defaults to 15 and refuses below 10.
 - **Identification**: v1 relies on identity-by-construction (we chose the release);
   hash/AniDB identification and pre-existing-library import are deliberately
   out of v1's design.

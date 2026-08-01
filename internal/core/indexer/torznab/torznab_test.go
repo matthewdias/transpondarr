@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 )
@@ -20,6 +21,7 @@ const sampleFeed = `<?xml version="1.0" encoding="UTF-8"?>
     <item>
       <title>[ExampleSubs] Placeholder Saga - 01 (1080p)</title>
       <guid>abc123</guid>
+      <pubDate>Sat, 01 Aug 2026 12:30:00 +0000</pubDate>
       <link>http://prowlarr:9696/download/aaa.torrent</link>
       <size>1500000000</size>
       <enclosure url="http://prowlarr:9696/download/aaa.torrent" length="1500000000" type="application/x-bittorrent"/>
@@ -223,6 +225,87 @@ func TestSearchHTTP(t *testing.T) {
 	}
 	if len(got) != 2 {
 		t.Fatalf("got %d releases, want 2", len(got))
+	}
+}
+
+// The recent feed is a search with no term (#101), which is what Sonarr's own
+// RSS sync issues. Everything else about the request is unchanged.
+func TestRecentHTTPUsesAnEmptyTerm(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("t") != "search" || q.Get("q") != "" {
+			t.Errorf("unexpected query: %s", r.URL.RawQuery)
+		}
+		w.Header().Set("Content-Type", "application/rss+xml")
+		_, _ = w.Write([]byte(sampleFeed))
+	}))
+	defer srv.Close()
+
+	got, err := New("prowlarr", srv.URL, "k").Recent(context.Background())
+	if err != nil {
+		t.Fatalf("Recent: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2", len(got))
+	}
+	if got[0].GUID != "abc123" {
+		t.Errorf("guid = %q, want abc123", got[0].GUID)
+	}
+	if got[0].Release.Title != "[ExampleSubs] Placeholder Saga - 01 (1080p)" {
+		t.Errorf("release not carried through: %q", got[0].Release.Title)
+	}
+	if got[0].Published.IsZero() {
+		t.Error("published not parsed from pubDate")
+	}
+}
+
+// A feed that omits pubDate or guid is a supported shape, not an error: the
+// caller falls back to other identity and to the seen set.
+func TestParseEntriesToleratesMissingFeedMetadata(t *testing.T) {
+	const feed = `<rss><channel><item>
+      <title>[ExampleSubs] Placeholder Saga - 05 (1080p)</title>
+      <link>magnet:?xt=urn:btih:abc</link>
+    </item></channel></rss>`
+	got, err := parseEntries([]byte(feed), "t")
+	if err != nil {
+		t.Fatalf("parseEntries: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d entries, want 1", len(got))
+	}
+	if got[0].GUID != "" || !got[0].Published.IsZero() {
+		t.Errorf("expected zero feed metadata, got guid=%q published=%v", got[0].GUID, got[0].Published)
+	}
+	if got[0].Release.DownloadURL != "magnet:?xt=urn:btih:abc" {
+		t.Errorf("release not parsed: %+v", got[0].Release)
+	}
+}
+
+// pubDate is RFC822/1123 in practice, but indexers vary the timezone spelling.
+// The MST verb accepts a named zone, including one Go has no offset for, so no
+// pre-processing is needed — PDT is here to pin that, since a zone Go cannot
+// resolve reads as UTC rather than failing.
+func TestParsePubDate(t *testing.T) {
+	want := time.Date(2026, 8, 1, 12, 30, 0, 0, time.UTC)
+	for _, raw := range []string{
+		"Sat, 01 Aug 2026 12:30:00 +0000",
+		"Sat, 01 Aug 2026 12:30:00 GMT",
+		"Sat, 01 Aug 2026 12:30:00 UTC",
+		"Sat, 01 Aug 2026 12:30:00 PDT",
+		"01 Aug 26 12:30 +0000",
+		"2026-08-01T12:30:00Z",
+	} {
+		got, ok := parsePubDate(raw)
+		if !ok {
+			t.Errorf("parsePubDate(%q) failed", raw)
+			continue
+		}
+		if !got.Equal(want) {
+			t.Errorf("parsePubDate(%q) = %s, want %s", raw, got, want)
+		}
+	}
+	if _, ok := parsePubDate("not a date"); ok {
+		t.Error("parsePubDate accepted nonsense")
 	}
 }
 

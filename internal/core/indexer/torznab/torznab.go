@@ -44,10 +44,32 @@ func New(name, baseURL, apiKey string) *Indexer {
 
 func (i *Indexer) Name() string { return i.name }
 
-var _ indexer.Indexer = (*Indexer)(nil)
+var (
+	_ indexer.Indexer    = (*Indexer)(nil)
+	_ indexer.RecentFeed = (*Indexer)(nil)
+)
 
 // Search runs a free-text Torznab search and maps the feed to releases.
 func (i *Indexer) Search(ctx context.Context, q indexer.Query) ([]indexer.Release, error) {
+	body, err := i.fetch(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	return parseFeed(body, i.name)
+}
+
+// Recent lists the newest releases across the endpoint: a search with no term,
+// which is the Torznab recent feed and what Sonarr's RSS sync issues too.
+func (i *Indexer) Recent(ctx context.Context) ([]indexer.FeedEntry, error) {
+	body, err := i.fetch(ctx, indexer.Query{})
+	if err != nil {
+		return nil, err
+	}
+	return parseEntries(body, i.name)
+}
+
+// fetch runs one Torznab request and returns the raw feed body.
+func (i *Indexer) fetch(ctx context.Context, q indexer.Query) ([]byte, error) {
 	reqURL, err := i.searchURL(q)
 	if err != nil {
 		return nil, err
@@ -72,7 +94,7 @@ func (i *Indexer) Search(ctx context.Context, q indexer.Query) ([]indexer.Releas
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("torznab: status %d: %s", resp.StatusCode, snippet(body))
 	}
-	return parseFeed(body, i.name)
+	return body, nil
 }
 
 // searchURL builds the t=search request URL, preserving any query parameters
@@ -118,6 +140,8 @@ type rss struct {
 type item struct {
 	Title     string    `xml:"title"`
 	Link      string    `xml:"link"`
+	GUID      string    `xml:"guid"`
+	PubDate   string    `xml:"pubDate"`
 	Size      int64     `xml:"size"`
 	Enclosure enclosure `xml:"enclosure"`
 	// Attrs matches <torznab:attr>; the unqualified tag matches the local name
@@ -146,7 +170,21 @@ type torznabError struct {
 
 // --- parsing ----------------------------------------------------------------
 
+// parseFeed is parseEntries projected to releases, for the search path that has
+// no use for a GUID or a publish time.
 func parseFeed(body []byte, indexerName string) ([]indexer.Release, error) {
+	entries, err := parseEntries(body, indexerName)
+	if err != nil {
+		return nil, err
+	}
+	releases := make([]indexer.Release, 0, len(entries))
+	for _, e := range entries {
+		releases = append(releases, e.Release)
+	}
+	return releases, nil
+}
+
+func parseEntries(body []byte, indexerName string) ([]indexer.FeedEntry, error) {
 	if apiErr, ok := decodeError(body); ok {
 		desc := apiErr.Description
 		if desc == "" {
@@ -160,11 +198,39 @@ func parseFeed(body []byte, indexerName string) ([]indexer.Release, error) {
 		return nil, fmt.Errorf("torznab: parse feed: %w", err)
 	}
 
-	releases := make([]indexer.Release, 0, len(feed.Channel.Items))
+	entries := make([]indexer.FeedEntry, 0, len(feed.Channel.Items))
 	for _, it := range feed.Channel.Items {
-		releases = append(releases, it.toRelease(indexerName))
+		e := indexer.FeedEntry{Release: it.toRelease(indexerName), GUID: strings.TrimSpace(it.GUID)}
+		// An unparseable or absent pubDate is a supported shape, not an error: the
+		// caller's seen set already dedupes without it.
+		if at, ok := parsePubDate(it.PubDate); ok {
+			e.Published = at
+		}
+		entries = append(entries, e)
 	}
-	return releases, nil
+	return entries, nil
+}
+
+// pubDateLayouts covers what indexers actually emit. The MST verb in the RFC1123
+// and RFC822 layouts accepts a named zone — including one Go has no offset for,
+// which it reads as UTC — so GMT/UTC/PDT forms all parse here without help.
+var pubDateLayouts = []string{
+	time.RFC1123Z, time.RFC1123, time.RFC822Z, time.RFC822, time.RFC3339,
+}
+
+// parsePubDate reports false rather than guessing for a shape it does not know;
+// the caller's seen set dedupes without a timestamp.
+func parsePubDate(s string) (time.Time, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return time.Time{}, false
+	}
+	for _, layout := range pubDateLayouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t.UTC(), true
+		}
+	}
+	return time.Time{}, false
 }
 
 // decodeError reports whether body is a Torznab <error> document.

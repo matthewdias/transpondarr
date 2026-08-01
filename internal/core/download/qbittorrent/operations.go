@@ -37,6 +37,13 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 		_, err = c.qb.AddTorrentFromMemoryCtx(ctx, content, addOptions(opts))
 	}
 	if err != nil {
+		// The duplicate check above is check-then-act, so a concurrent add of the
+		// same hash can land between it and here and this one loses. Re-check before
+		// reporting failure: converging is right, and the alternative is a caller
+		// that answers by grabbing a different release for the same item.
+		if existing, rerr := c.Status(ctx, hash); rerr == nil && len(existing) > 0 {
+			return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
+		}
 		return download.AddResult{}, fmt.Errorf("qbittorrent: add: %w", err)
 	}
 	return download.AddResult{Hash: hash, Outcome: download.AddSuccess}, nil

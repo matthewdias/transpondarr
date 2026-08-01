@@ -218,6 +218,13 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 	if r := blocked.reason(rel); r != "" {
 		return r
 	}
+	// Automation must not volunteer for a state it cannot finish (#125): the
+	// importer can only defer a true multi-episode payload, and deferred is
+	// settled, so a grabbed pack parks its items instead of failing them back to
+	// wanted. Lifting this is what #126's per-file batch import unlocks.
+	if p.Batch {
+		return "batch / season pack — automatic import cannot split it yet"
+	}
 	if indexFold(profile.BlockedGroups, p.Group) >= 0 {
 		return fmt.Sprintf("group %s is blocked by the profile", p.Group)
 	}
@@ -278,13 +285,15 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 		return c
 	}
 
-	// Batch / season packs are recognised but deliberately not grabbable in v0.1.0:
-	// the importer cannot yet split a multi-file download into per-episode library
-	// files, so matching one would record a grab that silently never imports. Refuse
-	// it with a clear reason until per-file batch import lands. Single files (below)
-	// still match normally.
+	// A pack matches what it covers; refusing it is eligibility's job (#125), so a
+	// human can see which episodes it holds and grab it deliberately.
 	if p.Batch {
-		c.Reason = "batch / season pack — not supported yet (v0.1.0 imports single episodes only)"
+		if covered := batchItems(p, itemSet, maxItem); len(covered) > 0 {
+			c.Matched, c.Items = true, covered
+			c.Reason = "batch / season pack covers wanted items"
+			return c
+		}
+		c.Reason = "batch / season pack covers nothing still wanted"
 		return c
 	}
 
@@ -307,6 +316,26 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 
 	c.Reason = "no episode number found"
 	return c
+}
+
+// batchItems is what a pack covers: its explicit range, or every item still
+// wanted when it names no numbers at all, which is what a season pack holds.
+// Unlike the single-episode path it has no "exceeds this entry's range" guard, so
+// an absolute-numbered 01-48 pack claims a 12-item entry's items 1-12 — right for
+// a first season, a guess otherwise. Only a manual grab can reach it while packs
+// are ineligible; #126 must add the guard before it lifts that.
+func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {
+	start, end := p.EpisodeStart, p.EpisodeEnd
+	if start == 0 {
+		start, end = 1, maxItem
+	}
+	var out []int
+	for n := start; n <= end; n++ {
+		if itemSet[n] {
+			out = append(out, n)
+		}
+	}
+	return out
 }
 
 // titleBelongs reports whether a parsed release title matches one of the series'
