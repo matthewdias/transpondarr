@@ -46,6 +46,15 @@ describe("HistoryRow", () => {
   });
 });
 
+// created_at is emitted raw, in SQLite's bare-UTC form, while blocked_until goes
+// through the server's RFC 3339 conversion. The fixture mirrors that asymmetry.
+const sqliteTime = (at: number) =>
+  new Date(at).toISOString().replace("T", " ").slice(0, 19);
+
+// A minute of slack, so a countdown assertion cannot straddle an hour boundary.
+const futureISO = (ms: number) =>
+  new Date(Date.now() + ms + 60_000).toISOString();
+
 const blocklistEntry = (
   over: Partial<BlocklistEntry> = {},
 ): BlocklistEntry => ({
@@ -55,7 +64,7 @@ const blocklistEntry = (
   failures: 1,
   active: true,
   blocked_until: new Date(Date.now() + 3600_000).toISOString(),
-  created_at: new Date().toISOString(),
+  created_at: sqliteTime(Date.now()),
   ...over,
 });
 
@@ -64,13 +73,19 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-function renderTab(events: GrabEvent[], entries: BlocklistEntry[]) {
+function renderTab(
+  events: GrabEvent[],
+  entries: BlocklistEntry[],
+  blocklistFails = false,
+) {
   server.use(
     http.get("/api/v1/series/7/grabs", () =>
       HttpResponse.json({ series: "Example Show", events }),
     ),
     http.get("/api/v1/series/7/blocklist", () =>
-      HttpResponse.json({ series: "Example Show", entries }),
+      blocklistFails
+        ? new HttpResponse(null, { status: 500 })
+        : HttpResponse.json({ series: "Example Show", entries }),
     ),
   );
   const client = new QueryClient({
@@ -98,6 +113,77 @@ describe("HistoryTab blocked releases", () => {
   it("says when a release is blocked permanently", async () => {
     renderTab([], [blocklistEntry({ blocked_until: undefined, failures: 3 })]);
     expect(await screen.findByText(/blocked permanently/i)).toBeInTheDocument();
+  });
+
+  // Expired entries are history, not enforcement, so they must not pad the list
+  // a user reads to see what is currently being skipped.
+  it("collapses expired blocks when something is still blocked", async () => {
+    renderTab(
+      [],
+      [
+        blocklistEntry({
+          id: 1,
+          release_title: "[Live] Example Show - 03.mkv",
+        }),
+        blocklistEntry({
+          id: 2,
+          release_title: "[Lapsed] Example Show - 02.mkv",
+          active: false,
+          blocked_until: new Date(Date.now() - 3600_000).toISOString(),
+        }),
+      ],
+    );
+
+    expect(
+      await screen.findByText("[Live] Example Show - 03.mkv"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("[Lapsed] Example Show - 02.mkv"),
+    ).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: /1 expired block/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.setup().click(toggle);
+    expect(
+      await screen.findByText("[Lapsed] Example Show - 02.mkv"),
+    ).toBeInTheDocument();
+  });
+
+  // With nothing else in the section to read, a collapsed disclosure would be a
+  // dead end, so the expired list opens on its own.
+  it("says when a block has expired rather than showing it as active", async () => {
+    renderTab(
+      [],
+      [
+        blocklistEntry({
+          active: false,
+          failures: 2,
+          blocked_until: new Date(Date.now() - 3600_000).toISOString(),
+        }),
+      ],
+    );
+    expect(await screen.findByText(/block expired/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 failures/)).toBeInTheDocument();
+    expect(screen.queryByText(/^unblocks/i)).not.toBeInTheDocument();
+  });
+
+  // The near-term expiry is a countdown, so the label has to read as a sentence
+  // with it: "Unblocks in 20h", never "Blocked until in 20h".
+  it("phrases a live block as a countdown that reads as English", async () => {
+    renderTab(
+      [],
+      [blocklistEntry({ blocked_until: futureISO(20 * 3600_000) })],
+    );
+    expect(await screen.findByText("Unblocks in 20h")).toBeInTheDocument();
+  });
+
+  // A failed blocklist fetch must say so, not silently render an unblocked series.
+  it("reports a blocklist that could not be loaded", async () => {
+    renderTab([event({})], [], true);
+    expect(
+      await screen.findByText(/load blocked releases/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Downloading/)).toBeInTheDocument();
   });
 
   it("omits the section when nothing is blocked", async () => {

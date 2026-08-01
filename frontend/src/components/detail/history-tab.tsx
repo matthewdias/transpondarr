@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
   Check,
+  ChevronDown,
+  ChevronRight,
   CircleX,
   Download,
   FolderClock,
@@ -9,10 +11,11 @@ import {
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ApiError, api, type BlocklistEntry, type GrabEvent } from "@/lib/api";
 import { blocklistQuery, grabsQuery } from "@/lib/queries";
-import { airDate, timeAgo } from "@/lib/format";
+import { countdownOrDate, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -131,9 +134,8 @@ export function HistoryTab({
   );
 }
 
-// Blocklist entries outlive grab rows — a re-grab overwrites the failed event —
-// so they are their own section rather than rows merged into the feed, and the
-// feed's empty state must not swallow them.
+// Blocklist entries outlive grab rows, so this is its own section and the feed's
+// empty state must not swallow it.
 export function BlockedReleases({
   seriesId,
   active,
@@ -141,25 +143,103 @@ export function BlockedReleases({
   seriesId: number;
   active: boolean;
 }) {
-  const { data: entries } = useQuery({
+  const {
+    data: entries,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     ...blocklistQuery(seriesId),
     enabled: active,
   });
+  // null until the user decides, so the default can depend on data the first
+  // render does not have yet.
+  const [showExpired, setShowExpired] = useState<boolean | null>(null);
+
+  if (isError) {
+    return (
+      <section>
+        <h3 className="mb-2 text-sm font-semibold">Blocked releases</h3>
+        <div className="flex items-center gap-3 rounded-lg border border-dashed bg-card px-3.5 py-3">
+          <TriangleAlert className="size-4 shrink-0 text-dl" />
+          <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
+            Couldn’t load blocked releases.{" "}
+            {error instanceof ApiError ? error.message : String(error)}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="size-4" /> Try again
+          </Button>
+        </div>
+      </section>
+    );
+  }
   if (!entries || entries.length === 0) return null;
+
+  const blocking = entries.filter((e) => e.active);
+  const expired = entries.filter((e) => !e.active);
+  // Expanded by default only when there is nothing else in the section to read.
+  const expandExpired = showExpired ?? blocking.length === 0;
 
   return (
     <section>
       <h3 className="mb-2 text-sm font-semibold">Blocked releases</h3>
-      <p className="mb-3 text-[13px] text-muted-foreground">
-        Releases that failed and are skipped when ranking. Each repeat failure
-        blocks for longer; the third blocks permanently.
-      </p>
-      <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
-        {entries.map((e) => (
-          <BlockedRow key={e.id} seriesId={seriesId} entry={e} />
-        ))}
-      </ItemGroup>
+      {blocking.length > 0 && (
+        <>
+          <p className="mb-3 text-[13px] text-muted-foreground">
+            Releases that failed and are skipped when ranking. Each repeat
+            failure blocks for longer; the third blocks permanently.
+          </p>
+          <BlockedList seriesId={seriesId} entries={blocking} />
+        </>
+      )}
+      {expired.length > 0 && (
+        <>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "text-muted-foreground",
+              blocking.length > 0 && "mt-2",
+            )}
+            aria-expanded={expandExpired}
+            onClick={() => setShowExpired(!expandExpired)}
+          >
+            {expandExpired ? (
+              <ChevronDown className="size-4" />
+            ) : (
+              <ChevronRight className="size-4" />
+            )}
+            {expired.length} expired {expired.length === 1 ? "block" : "blocks"}
+          </Button>
+          {expandExpired && (
+            <div className="mt-2">
+              <p className="mb-3 text-[13px] text-muted-foreground">
+                No longer skipped when ranking. Kept as history — a re-grab
+                overwrites the failed grab row, and the failure count still
+                escalates if the release fails again.
+              </p>
+              <BlockedList seriesId={seriesId} entries={expired} />
+            </div>
+          )}
+        </>
+      )}
     </section>
+  );
+}
+
+function BlockedList({
+  seriesId,
+  entries,
+}: {
+  seriesId: number;
+  entries: BlocklistEntry[];
+}) {
+  return (
+    <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
+      {entries.map((e) => (
+        <BlockedRow key={e.id} seriesId={seriesId} entry={e} />
+      ))}
+    </ItemGroup>
   );
 }
 
@@ -226,10 +306,12 @@ function BlockedRow({
   );
 }
 
+// "Unblocks", not "Blocked until": the near-term form is a countdown ("in 20h"),
+// which only reads as English after a verb.
 function blockWindow(entry: BlocklistEntry): string {
   if (!entry.blocked_until) return "Blocked permanently";
   if (!entry.active) return `Block expired ${timeAgo(entry.blocked_until)}`;
-  return `Blocked until ${airDate(entry.blocked_until)}`;
+  return `Unblocks ${countdownOrDate(entry.blocked_until)}`;
 }
 
 export function HistoryRow({ event }: { event: GrabEvent }) {

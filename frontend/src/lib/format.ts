@@ -38,17 +38,24 @@ function absoluteDate(at: number, locale?: string): string {
   });
 }
 
-/**
- * Broadcast time for an episode row: a countdown while it is within a week of
- * airing, an absolute date otherwise. AniList publishes no schedule for many
- * older titles, so an absent date renders as a placeholder rather than an error.
- */
-export function airDate(input: string | undefined, locale?: string): string {
+/** A future instant: a countdown while within a week, an absolute date beyond. */
+export function countdownOrDate(
+  input: string | undefined,
+  locale?: string,
+): string {
   if (!input) return "—";
   const at = parseTimestamp(input);
   if (Number.isNaN(at)) return "—";
   const secs = (at - Date.now()) / 1000;
   return countdown(secs) ?? absoluteDate(at, locale);
+}
+
+/**
+ * Broadcast time for an episode row. AniList publishes no schedule for many
+ * older titles, so an absent date renders as a placeholder rather than an error.
+ */
+export function airDate(input: string | undefined, locale?: string): string {
+  return countdownOrDate(input, locale);
 }
 
 /**
