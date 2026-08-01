@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { ListChecks } from "lucide-react";
 import { type JobStatus } from "@/lib/api";
-import { timeAgo } from "@/lib/format";
-import { jobsQuery } from "@/lib/queries";
+import { countdownOrDate, parseTimestamp, timeAgo } from "@/lib/format";
+import { JOBS_POLL_MS, jobsQuery } from "@/lib/queries";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionShell } from "../section-shell";
 
@@ -24,6 +24,30 @@ function jobDuration(ms: number): string {
   return `${Number(ms.toFixed(3))} ms`;
 }
 
+// Two polls, because the snapshot on screen is already up to one poll old:
+// import-scan runs every 15s, so without this every render would find its next
+// run in the past and call a perfectly healthy runner overdue.
+const OVERDUE_GRACE_MS = 2 * JOBS_POLL_MS;
+
+/**
+ * A next run well past due means the runner stopped scheduling — the failure
+ * this card exists to catch, and one a relative last run cannot show without
+ * the interval. Not while the job is running, though: the runner publishes
+ * nextRun before a run starts, so a job outlasting its own interval is working
+ * rather than late.
+ */
+function jobNextRun(j: JobStatus): { text: string; overdue: boolean } {
+  if (!j.next_run) return { text: "—", overdue: false };
+  const at = parseTimestamp(j.next_run);
+  if (Number.isNaN(at)) return { text: "—", overdue: false };
+  if (at > Date.now())
+    return { text: countdownOrDate(j.next_run), overdue: false };
+  if (j.running || Date.now() - at < OVERDUE_GRACE_MS) {
+    return { text: "—", overdue: false };
+  }
+  return { text: "overdue", overdue: true };
+}
+
 export function JobsTable({ jobs }: { jobs: JobStatus[] }) {
   if (jobs.length === 0) {
     return (
@@ -36,6 +60,7 @@ export function JobsTable({ jobs }: { jobs: JobStatus[] }) {
     <ul className="divide-y">
       {jobs.map((j) => {
         const label = jobLabel(j.name);
+        const next = jobNextRun(j);
         return (
           <li
             key={j.name}
@@ -52,12 +77,20 @@ export function JobsTable({ jobs }: { jobs: JobStatus[] }) {
                 )}
               </span>
               <span className="flex flex-none items-baseline gap-2 font-mono text-xs text-muted-foreground">
-                <span>{j.last_run ? timeAgo(j.last_run) : "Never"}</span>
-                {j.last_run && (
-                  <span className="text-faint">
-                    {jobDuration(j.last_duration_ms)}
-                  </span>
-                )}
+                <span
+                  title={
+                    j.last_run
+                      ? `Last run took ${jobDuration(j.last_duration_ms)}`
+                      : undefined
+                  }
+                >
+                  {j.last_run ? timeAgo(j.last_run) : "Never"}
+                </span>
+                <span
+                  className={next.overdue ? "text-destructive" : "text-faint"}
+                >
+                  {next.text}
+                </span>
               </span>
             </div>
             {j.last_error && (
