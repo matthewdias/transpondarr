@@ -51,10 +51,10 @@ func (c *Client) resolveAdd(ctx context.Context, opts download.AddOptions) (hash
 		return "", "", nil, fmt.Errorf("qbittorrent: add requires URL or Content")
 	case opts.Content == nil && strings.HasPrefix(opts.URL, "magnet:"):
 		hash, err = download.InfoHashFromMagnet(opts.URL)
-		return hash, opts.URL, nil, err
+		return hash, opts.URL, nil, badRelease(err)
 	case opts.Content != nil:
 		hash, err = download.InfoHashFromMeta(opts.Content)
-		return hash, "", opts.Content, err
+		return hash, "", opts.Content, badRelease(err)
 	default:
 		// An http(s) URL. Fetch it ourselves so we can hash the metainfo for a
 		// deterministic ID; the fetch also transparently handles a redirect to a
@@ -65,11 +65,20 @@ func (c *Client) resolveAdd(ctx context.Context, opts download.AddOptions) (hash
 		}
 		if mag != "" {
 			hash, err = download.InfoHashFromMagnet(mag)
-			return hash, mag, nil, err
+			return hash, mag, nil, badRelease(err)
 		}
 		hash, err = download.InfoHashFromMeta(data)
-		return hash, "", data, err
+		return hash, "", data, badRelease(err)
 	}
+}
+
+// badRelease attributes a failure to the release rather than to us, which is
+// what decides whether the caller remembers it (#120).
+func badRelease(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%w: %w", download.ErrBadRelease, err)
 }
 
 // addOptions maps AddOptions to qBittorrent's add form fields.
@@ -97,7 +106,7 @@ func addOptions(opts download.AddOptions) map[string]string {
 func (c *Client) fetchTorrent(ctx context.Context, rawURL string) (content []byte, magnet string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("qbittorrent: fetch torrent: %w", err)
+		return nil, "", badRelease(fmt.Errorf("qbittorrent: fetch torrent: %w", err))
 	}
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -124,7 +133,9 @@ func (c *Client) fetchTorrent(ctx context.Context, rawURL string) (content []byt
 		return nil, magnet, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("qbittorrent: fetch torrent %s: %s", rawURL, resp.Status)
+		// The host answered and refused this URL. A transport error above is left
+		// unattributed: it is as likely to be our network as the release's host.
+		return nil, "", badRelease(fmt.Errorf("qbittorrent: fetch torrent %s: %s", rawURL, resp.Status))
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20)) // 32 MiB cap
 	if err != nil {

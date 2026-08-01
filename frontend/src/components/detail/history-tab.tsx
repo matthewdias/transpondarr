@@ -15,7 +15,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ApiError, api, type BlocklistEntry, type GrabEvent } from "@/lib/api";
 import { blocklistQuery, grabsQuery } from "@/lib/queries";
-import { countdownOrDate, timeAgo } from "@/lib/format";
+import { countdownOrDate, plural, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -155,6 +155,7 @@ export function BlockedReleases({
   // null until the user decides, so the default can depend on data the first
   // render does not have yet.
   const [showExpired, setShowExpired] = useState<boolean | null>(null);
+  const clear = useClearBlocklist(seriesId);
 
   if (isError) {
     return (
@@ -182,7 +183,19 @@ export function BlockedReleases({
 
   return (
     <section>
-      <h3 className="mb-2 text-sm font-semibold">Blocked releases</h3>
+      <div className="mb-2 flex items-center justify-between gap-4">
+        <h3 className="text-sm font-semibold">Blocked releases</h3>
+        {blocking.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={clear.isPending}
+            onClick={() => clear.mutate(false)}
+          >
+            Unblock all
+          </Button>
+        )}
+      </div>
       {blocking.length > 0 && (
         <>
           <p className="mb-3 text-[13px] text-muted-foreground">
@@ -209,7 +222,7 @@ export function BlockedReleases({
             ) : (
               <ChevronRight className="size-4" />
             )}
-            {expired.length} expired {expired.length === 1 ? "block" : "blocks"}
+            {plural(expired.length, "expired block")}
           </Button>
           {expandExpired && (
             <div className="mt-2">
@@ -219,12 +232,44 @@ export function BlockedReleases({
                 escalates if the release fails again.
               </p>
               <BlockedList seriesId={seriesId} entries={expired} />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 text-muted-foreground"
+                disabled={clear.isPending}
+                onClick={() => clear.mutate(true)}
+              >
+                Forget expired
+              </Button>
             </div>
           )}
         </>
       )}
     </section>
   );
+}
+
+// Bulk unblock. An environmental fault blocks a whole candidate pool at once,
+// and clearing that one entry at a time is the problem, not the recovery.
+function useClearBlocklist(seriesId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (expiredOnly: boolean) =>
+      api.clearSeriesBlocklist(seriesId, expiredOnly),
+    onSuccess: (cleared) => {
+      toast.success(`${plural(cleared, "release")} unblocked`);
+      queryClient.invalidateQueries({
+        queryKey: blocklistQuery(seriesId).queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: grabsQuery(seriesId).queryKey,
+      });
+    },
+    onError: (e) =>
+      toast.error("Could not unblock the releases", {
+        description: e instanceof Error ? e.message : String(e),
+      }),
+  });
 }
 
 function BlockedList({

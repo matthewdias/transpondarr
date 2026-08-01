@@ -11,6 +11,7 @@ import { GeneralSection } from "./sections/general";
 import { ProfilesSection } from "./sections/profiles";
 import { AutomationSection } from "./sections/automation";
 import { JobsSection } from "./sections/jobs";
+import { FailureMemorySection } from "./sections/failure-memory";
 
 export function SettingsPage() {
   const { data, isLoading, isError, error } = useQuery(settingsQuery());
@@ -33,6 +34,7 @@ export function SettingsPage() {
             <LibrarySection settings={data} />
             <ProfilesSection />
             <AutomationSection settings={data} />
+            <FailureMemorySection />
             <JobsSection />
             <AuthSection settings={data} />
             <ApiKeySection settings={data} />

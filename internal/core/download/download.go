@@ -5,7 +5,15 @@
 // about client-specific IDs. Add derives that hash locally.
 package download
 
-import "context"
+import (
+	"context"
+	"errors"
+)
+
+// ErrBadRelease marks an Add failure the release caused, not the adapter's own
+// connectivity or a client rejecting the add — a caller remembers these, so
+// mismarking would blocklist healthy releases (#120).
+var ErrBadRelease = errors.New("download: release could not be resolved")
 
 type AddOutcome string
 

@@ -10,6 +10,54 @@ import (
 	"database/sql"
 )
 
+const countActiveBlocklist = `-- name: CountActiveBlocklist :one
+SELECT COUNT(*) AS entries, COUNT(DISTINCT series_id) AS series
+FROM release_blocklist
+WHERE blocked_until IS NULL OR blocked_until > ?
+`
+
+type CountActiveBlocklistRow struct {
+	Entries int64 `json:"entries"`
+	Series  int64 `json:"series"`
+}
+
+// The failure-memory summary: how much is currently being skipped, and how far
+// it has spread. A NULL blocked_until is permanent.
+func (q *Queries) CountActiveBlocklist(ctx context.Context, blockedUntil sql.NullString) (CountActiveBlocklistRow, error) {
+	row := q.db.QueryRowContext(ctx, countActiveBlocklist, blockedUntil)
+	var i CountActiveBlocklistRow
+	err := row.Scan(&i.Entries, &i.Series)
+	return i, err
+}
+
+const deleteAllBlocklist = `-- name: DeleteAllBlocklist :execrows
+DELETE FROM release_blocklist
+`
+
+// Library-wide clear: an environmental fault does not respect series
+// boundaries, so neither does recovery from one.
+func (q *Queries) DeleteAllBlocklist(ctx context.Context) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteAllBlocklist)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteBlocklistBySeries = `-- name: DeleteBlocklistBySeries :execrows
+DELETE FROM release_blocklist
+WHERE series_id = ?
+`
+
+// Bulk unblock for one series. Scoped like the single-entry delete.
+func (q *Queries) DeleteBlocklistBySeries(ctx context.Context, seriesID int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteBlocklistBySeries, seriesID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteBlocklistEntry = `-- name: DeleteBlocklistEntry :execrows
 DELETE FROM release_blocklist
 WHERE id = ? AND series_id = ?
@@ -23,6 +71,25 @@ type DeleteBlocklistEntryParams struct {
 // Scoped to the series so an unblock cannot reach another series' entry.
 func (q *Queries) DeleteBlocklistEntry(ctx context.Context, arg DeleteBlocklistEntryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteBlocklistEntry, arg.ID, arg.SeriesID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteExpiredBlocklistBySeries = `-- name: DeleteExpiredBlocklistBySeries :execrows
+DELETE FROM release_blocklist
+WHERE series_id = ? AND blocked_until IS NOT NULL AND blocked_until <= ?
+`
+
+type DeleteExpiredBlocklistBySeriesParams struct {
+	SeriesID     int64          `json:"series_id"`
+	BlockedUntil sql.NullString `json:"blocked_until"`
+}
+
+// A permanent entry (NULL blocked_until) is never expired, so it survives this.
+func (q *Queries) DeleteExpiredBlocklistBySeries(ctx context.Context, arg DeleteExpiredBlocklistBySeriesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteExpiredBlocklistBySeries, arg.SeriesID, arg.BlockedUntil)
 	if err != nil {
 		return 0, err
 	}

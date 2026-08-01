@@ -52,9 +52,10 @@ type ClientSource interface {
 }
 
 // Recorder remembers a release that failed, so the sweep stops re-deriving it
-// (#118). Narrow on purpose: the importer needs no more of blocklist.Service.
+// (#118). Narrow on purpose; false means its breaker refused to blame the
+// release (#120).
 type Recorder interface {
-	Record(ctx context.Context, seriesID int64, infoHash, releaseTitle, reason string) error
+	Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }
 
 // Importer scans the download client for completed grabs and imports them. It
@@ -100,13 +101,17 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 	}
 
 	now := time.Now().UTC()
+	var failed []failedGrab
 	for _, g := range grabs {
 		if ctx.Err() != nil {
-			return ctx.Err() // shutting down; the rest is retryable next run
+			// Settled rows are not retryable next run, so what this scan already
+			// failed is remembered before the shutdown completes.
+			im.remember(context.WithoutCancel(ctx), failed)
+			return ctx.Err() // the rest is retryable next run
 		}
 		st, ok := byHash[strings.ToLower(g.InfoHash)]
 		if !ok {
-			im.reconcileMissing(ctx, g, now)
+			failed = append(failed, im.reconcileMissing(ctx, g, now)...)
 			continue
 		}
 		if g.MissingSince.Valid {
@@ -117,7 +122,7 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 		case download.StateError:
 			// Failing frees the item back to wanted, with the failure kept in history.
 			im.log.Warn("importer: download failed in client", "release", g.ReleaseTitle, "hash", g.InfoHash)
-			im.failGrab(ctx, g, "the download client reported an error")
+			failed = append(failed, im.failGrab(ctx, g, "the download client reported an error"))
 		case download.StateComplete:
 			if g.Status == statusDeferred {
 				continue // already examined; the same bytes won't resolve differently
@@ -127,7 +132,75 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 			continue // still downloading / stalled / paused
 		}
 	}
+	im.remember(ctx, failed)
 	return nil
+}
+
+// failedGrab is one row this scan settled as failed, held until the scan can
+// group them by the release they came from.
+type failedGrab struct {
+	seriesID     int64
+	itemID       int64
+	infoHash     string
+	releaseTitle string
+	reason       string
+}
+
+// remember records one entry per failed release, not per failed row: a batch is
+// a row per episode, and recording each walked the whole ladder in one incident
+// — 24h, 7d, permanent — on a release that had failed once (#124).
+func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
+	if im.blocklist == nil || len(failed) == 0 {
+		return
+	}
+	// Keyed like the blocklist: the hash we derived at grab time, or the title
+	// when an indexer omitted one.
+	type release struct {
+		seriesID int64
+		ident    string
+	}
+	order := make([]release, 0, len(failed))
+	byRelease := make(map[release][]failedGrab, len(failed))
+	for _, f := range failed {
+		ident := strings.ToLower(f.infoHash)
+		if ident == "" {
+			ident = f.releaseTitle
+		}
+		key := release{seriesID: f.seriesID, ident: ident}
+		if _, seen := byRelease[key]; !seen {
+			order = append(order, key)
+		}
+		byRelease[key] = append(byRelease[key], f)
+	}
+
+	for _, key := range order {
+		rows := byRelease[key]
+		items := make([]int64, 0, len(rows))
+		for _, r := range rows {
+			items = append(items, r.itemID)
+		}
+		im.record(ctx, rows[0], items)
+	}
+}
+
+// record writes one release's failure memory and, unless the breaker refused it,
+// puts the series back at the front of the search queue.
+func (im *Importer) record(ctx context.Context, f failedGrab, itemIDs []int64) {
+	recorded, err := im.blocklist.Record(ctx, f.seriesID, itemIDs, f.infoHash, f.releaseTitle, f.reason)
+	if err != nil {
+		im.log.Error("importer: record blocklist entry", "release", f.releaseTitle, "err", err)
+		return
+	}
+	// A suppressed record means the breaker blamed the environment, and
+	// re-fronting the series would only tighten a loop around the same fault.
+	if !recorded {
+		return
+	}
+	// A failure is new information, so the series is searched again promptly with
+	// the next-best release rather than sitting behind accumulated backoff.
+	if err := im.store.Q.ResetSeriesSearchState(ctx, f.seriesID); err != nil {
+		im.log.Error("importer: reset series search state", "series", f.seriesID, "err", err)
+	}
 }
 
 // openGrabs returns the grabs still worth scanning: downloading, plus deferred
@@ -145,12 +218,13 @@ func (im *Importer) openGrabs(ctx context.Context) ([]db.ListGrabsByStatusRow, e
 }
 
 // reconcileMissing fails a grab whose torrent the client has stopped reporting
-// for longer than missingGracePeriod; a single absence is only recorded.
-func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatusRow, now time.Time) {
+// for longer than missingGracePeriod; a single absence is only recorded. It
+// returns what it failed, empty when the grab is only being watched.
+func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatusRow, now time.Time) []failedGrab {
 	if !g.MissingSince.Valid {
 		im.log.Info("importer: download not reported by client; watching", "release", g.ReleaseTitle, "hash", g.InfoHash)
 		im.setMissingSince(ctx, g.ID, sql.NullString{String: store.FormatTimestamp(now), Valid: true})
-		return
+		return nil
 	}
 
 	since, err := store.ParseTimestamp(g.MissingSince.String)
@@ -158,32 +232,28 @@ func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatus
 		// A value we cannot parse must not fail the grab, so wait another full period.
 		im.log.Warn("importer: missing_since could not be parsed; setting it to now", "hash", g.InfoHash, "value", g.MissingSince.String, "err", err)
 		im.setMissingSince(ctx, g.ID, sql.NullString{String: store.FormatTimestamp(now), Valid: true})
-		return
+		return nil
 	}
 	if now.Sub(since) < missingGracePeriod {
-		return
+		return nil
 	}
 
 	im.log.Warn("importer: download gone from client; failing grab",
 		"release", g.ReleaseTitle, "hash", g.InfoHash, "missing_for", now.Sub(since).Round(time.Second))
-	im.failGrab(ctx, g, "the download vanished from the client")
+	return []failedGrab{im.failGrab(ctx, g, "the download vanished from the client")}
 }
 
-// failGrab settles a grab as failed, then remembers the release (#118). That
-// order is load-bearing: a grab left in "grabbed" would never free its item.
-func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, reason string) {
+// failGrab settles one grab as failed and reports it for the scan to remember
+// (#118). Settling before recording is load-bearing: a grab left in "grabbed"
+// would never free its item.
+func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, reason string) failedGrab {
 	im.setStatus(ctx, g.ID, statusFailed)
-	if im.blocklist == nil {
-		return
-	}
-	if err := im.blocklist.Record(ctx, g.SeriesID, g.InfoHash, g.ReleaseTitle, reason); err != nil {
-		im.log.Error("importer: record blocklist entry", "release", g.ReleaseTitle, "err", err)
-		return
-	}
-	// A failure is new information, so the series is searched again promptly with
-	// the next-best release rather than sitting behind accumulated backoff.
-	if err := im.store.Q.ResetSeriesSearchState(ctx, g.SeriesID); err != nil {
-		im.log.Error("importer: reset series search state", "series", g.SeriesID, "err", err)
+	return failedGrab{
+		seriesID:     g.SeriesID,
+		itemID:       g.WantedItemID,
+		infoHash:     g.InfoHash,
+		releaseTitle: g.ReleaseTitle,
+		reason:       reason,
 	}
 }
 

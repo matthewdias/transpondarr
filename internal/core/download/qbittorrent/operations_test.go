@@ -2,6 +2,7 @@ package qbittorrent
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -86,6 +87,73 @@ func TestAddAlreadyExists(t *testing.T) {
 	}
 	if addCalled {
 		t.Error("add endpoint should not be called when the torrent already exists")
+	}
+}
+
+// qbitStub answers the endpoints Add probes, so a test only has to say how the
+// add itself behaves.
+func qbitStub(t *testing.T, addStatus int) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "test"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/info":
+			_, _ = w.Write([]byte("[]"))
+		case "/api/v2/torrents/add":
+			w.WriteHeader(addStatus)
+			_, _ = w.Write([]byte("Ok."))
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// Only what the release itself is responsible for is reported as ErrBadRelease:
+// the caller remembers those and must not remember a sick client's refusals,
+// which say nothing about which release was asked for (#120).
+func TestAddClassifiesReleaseFaultsSeparatelyFromClientFaults(t *testing.T) {
+	torrentSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/gone.torrent":
+			http.Error(w, "no such torrent", http.StatusNotFound)
+		case "/junk.torrent":
+			_, _ = w.Write([]byte("this is not bencoded metainfo"))
+		default:
+			http.Error(w, "unexpected", http.StatusTeapot)
+		}
+	}))
+	defer torrentSrv.Close()
+
+	cases := []struct {
+		name       string
+		url        string
+		addStatus  int
+		badRelease bool
+	}{
+		{"unparseable magnet", "magnet:?xt=urn:btih:not-a-hash", http.StatusOK, true},
+		{"torrent url 404s", torrentSrv.URL + "/gone.torrent", http.StatusOK, true},
+		{"torrent url serves junk", torrentSrv.URL + "/junk.torrent", http.StatusOK, true},
+		{
+			"client refuses the add",
+			"magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056",
+			http.StatusInternalServerError, false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			qb := New(qbitStub(t, c.addStatus).URL, "u", "p")
+			_, err := qb.Add(context.Background(), download.AddOptions{URL: c.url})
+			if err == nil {
+				t.Fatal("Add succeeded, want an error")
+			}
+			if got := errors.Is(err, download.ErrBadRelease); got != c.badRelease {
+				t.Errorf("errors.Is(%v, ErrBadRelease) = %v, want %v", err, got, c.badRelease)
+			}
+		})
 	}
 }
 

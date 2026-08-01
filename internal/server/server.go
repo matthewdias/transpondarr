@@ -39,8 +39,9 @@ func init() {
 // download/indexer/library clients (any may be nil when unconfigured); settings
 // backs the runtime-config endpoints; auth backs forms login + sessions; runner
 // backs the job-status endpoint. provider is passed in rather than built here so
-// the daemon's background jobs share one — and so share its rate limiter.
-func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider metadata.Provider, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner) http.Handler {
+// the daemon's background jobs share one — and so share its rate limiter; the
+// blocklist likewise, so its breaker sees every failure path.
+func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider metadata.Provider, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner, blocklistSvc *blocklist.Service) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -60,8 +61,8 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider meta
 		settings:  settingsSvc,
 		auth:      authSvc,
 		jobs:      runner,
-		acquire:   acquire.New(st, reg, svc, settingsSvc, logger),
-		blocklist: blocklist.New(st, logger),
+		acquire:   acquire.New(st, reg, svc, settingsSvc, logger, blocklistSvc),
+		blocklist: blocklistSvc,
 	})
 
 	r.NotFound(spaHandler())

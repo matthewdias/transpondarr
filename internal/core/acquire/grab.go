@@ -2,6 +2,7 @@ package acquire
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/matthewdias/transpondarr/internal/core/decide"
@@ -19,6 +20,40 @@ type GrabResult struct {
 	InfoHash string
 	Outcome  download.AddOutcome
 	Items    []int
+}
+
+// AutoGrab is Grab on automation's behalf: it also remembers a release the client
+// could not resolve, the one failure path #118 could not reach since a refused
+// add writes no grab row (#120). Only the release's own faults — a sick client
+// says nothing about which release was asked for. Eligibility stays with the caller.
+func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem) (GrabResult, error) {
+	res, err := s.Grab(ctx, cand, items, false)
+	if err == nil || !errors.Is(err, download.ErrBadRelease) || s.blocklist == nil {
+		return res, err
+	}
+	if _, rerr := s.blocklist.Record(ctx, seriesID, coveredItemIDs(cand, items),
+		cand.Release.InfoHash, cand.Release.Title,
+		"the download URL could not be fetched or parsed"); rerr != nil {
+		s.log.Error("acquire: record blocklist entry for a refused add",
+			"series", seriesID, "release", cand.Release.Title, "err", rerr)
+	}
+	return res, err
+}
+
+// coveredItemIDs resolves a candidate's item numbers to ids, the form the
+// blocklist takes a failure's breadth in.
+func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
+	byNumber := make(map[int]int64, len(items))
+	for _, it := range items {
+		byNumber[it.Number] = it.ID
+	}
+	ids := make([]int64, 0, len(cand.Items))
+	for _, n := range cand.Items {
+		if id, ok := byNumber[n]; ok {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 // Grab hands a candidate to the download client and records a grab per covered
