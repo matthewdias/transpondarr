@@ -84,6 +84,7 @@ type Service struct {
 	cfg       Config
 	log       *slog.Logger
 	blocklist Recorder
+	claims    *claims
 }
 
 // New builds the service. A nil logger is tolerated so a caller that only needs
@@ -94,7 +95,8 @@ func New(st *store.Store, clients ClientSource, titles TitleSource, cfg Config, 
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Service{store: st, clients: clients, titles: titles, cfg: cfg, log: log, blocklist: blocklist}
+	return &Service{store: st, clients: clients, titles: titles, cfg: cfg, log: log,
+		blocklist: blocklist, claims: newClaims()}
 }
 
 // MatchSeries loads a series with every wanted item and matches indexer releases

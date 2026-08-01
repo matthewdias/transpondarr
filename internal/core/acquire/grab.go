@@ -22,16 +22,29 @@ type GrabResult struct {
 	Items    []int
 }
 
+// errItemsClaimed means another grab already has these items in flight. Only
+// automation ever sees it, and only as "skip this candidate".
+var errItemsClaimed = errors.New("acquire: items already claimed by a grab in flight")
+
 // AutoGrab is Grab on automation's behalf: it also remembers a release the client
 // could not resolve, the one failure path #118 could not reach since a refused
 // add writes no grab row (#120). Only the release's own faults — a sick client
 // says nothing about which release was asked for. Eligibility stays with the caller.
+//
+// It claims the covered items for the whole read→add→write window, so the sweep
+// and the feed poll cannot both hand the same item to the download client.
 func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem) (GrabResult, error) {
+	ids := coveredItemIDs(cand, items)
+	if !s.claims.TryAcquire(ids) {
+		return GrabResult{}, errItemsClaimed
+	}
+	defer s.claims.Release(ids)
+
 	res, err := s.Grab(ctx, cand, items, false)
 	if err == nil || !errors.Is(err, download.ErrBadRelease) || s.blocklist == nil {
 		return res, err
 	}
-	if _, rerr := s.blocklist.Record(ctx, seriesID, coveredItemIDs(cand, items),
+	if _, rerr := s.blocklist.Record(ctx, seriesID, ids,
 		cand.Release.InfoHash, cand.Release.Title,
 		"the download URL could not be fetched or parsed"); rerr != nil {
 		s.log.Error("acquire: record blocklist entry for a refused add",
@@ -59,12 +72,17 @@ func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
 // Grab hands a candidate to the download client and records a grab per covered
 // item. It never consults eligibility: a manual grab is explicit user intent and
 // must not be refused (PR #57), so enforcement belongs to the sweep, which
-// checks Eligible before calling.
+// checks Eligible before calling. It takes an unconditional claim for the same
+// reason — the claim exists to make automation yield to a grab in flight, never
+// to gate one.
 func (s *Service) Grab(ctx context.Context, cand decide.Candidate, items []domain.WantedItem, paused bool) (GrabResult, error) {
 	dl := s.clients.Download()
 	if dl == nil {
 		return GrabResult{}, ErrNoDownloadClient
 	}
+	ids := coveredItemIDs(cand, items)
+	s.claims.Acquire(ids)
+	defer s.claims.Release(ids)
 
 	// Outside the transaction: the client is a remote side effect that cannot be
 	// rolled back, and holding a write tx across it would serialize on the network.

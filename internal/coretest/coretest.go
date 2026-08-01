@@ -10,6 +10,7 @@ package coretest
 import (
 	"context"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/core/download"
@@ -112,6 +113,14 @@ type FakeDownload struct {
 	Statuses  []download.Status
 	StatusErr error
 
+	// AddHook runs at the top of every Add. A test can block in it to hold one
+	// grab inside the client while another grab runs.
+	AddHook func(download.AddOptions)
+
+	// mu guards Adds: with the claim registry under test, two grabs can reach the
+	// client at once, and an unguarded slice would report that as a data race
+	// rather than as the assertion failure it is.
+	mu   sync.Mutex
 	Adds []download.AddOptions // recorded, in call order
 }
 
@@ -127,7 +136,12 @@ func (f *FakeDownload) Name() string {
 func (f *FakeDownload) Test(context.Context) error { return nil }
 
 func (f *FakeDownload) Add(_ context.Context, opts download.AddOptions) (download.AddResult, error) {
+	if f.AddHook != nil {
+		f.AddHook(opts)
+	}
+	f.mu.Lock()
 	f.Adds = append(f.Adds, opts)
+	f.mu.Unlock()
 	if err, ok := f.FailURLs[opts.URL]; ok {
 		return download.AddResult{}, err
 	}
@@ -135,6 +149,13 @@ func (f *FakeDownload) Add(_ context.Context, opts download.AddOptions) (downloa
 		return download.AddResult{}, f.Err
 	}
 	return f.Result, nil
+}
+
+// AddCount is the race-safe read of len(Adds), for tests that add concurrently.
+func (f *FakeDownload) AddCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.Adds)
 }
 
 func (f *FakeDownload) Status(_ context.Context, _ ...string) ([]download.Status, error) {

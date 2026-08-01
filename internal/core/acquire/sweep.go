@@ -182,6 +182,11 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			continue
 		}
 		if _, err := s.AutoGrab(ctx, series.ID, c, m.Items); err != nil {
+			// Another grab holds these items. Leave them unclaimed and uncovered: the
+			// holder may still fail, and a later pass must be free to retry them.
+			if errors.Is(err, errItemsClaimed) {
+				continue
+			}
 			if !errors.Is(err, ErrDownloadAdd) {
 				return grabbed, time.Time{}, err
 			}
