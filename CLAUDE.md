@@ -213,6 +213,12 @@ Behaviour changes are test-driven. Work red → green → refactor:
   automatic choices; a manual grab is explicit user intent. Don't reintroduce a
   gate on manual paths (decided in PR #57).
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
+- **`decide.Match`'s `items` is the numbering basis, not just the candidate set.**
+  `maxItem` spans every item passed (had or not) and drives absolute-numbering
+  detection, so narrowing the slice to scope a search silently misreports every
+  release outside that range. Scope with `Have` instead — which in this call
+  means "not a candidate", not library state: the sweep sets it for in-flight and
+  unaired items too (#97 tracks splitting the two, #105 the scoped search).
 - **Route handlers: group by resource; use a receiver when it earns its keep.**
   Each resource gets a `*_routes.go` file with a `register<Resource>Routes(api,
 deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest.
