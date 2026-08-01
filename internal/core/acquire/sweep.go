@@ -78,12 +78,16 @@ func (s *Service) SweepOnce(ctx context.Context) error {
 		return fmt.Errorf("list series due a wanted search: %w", err)
 	}
 
+	// Read once per pass, from the indexer this run resolved, so a Settings edit
+	// that adds or removes a feed applies on the next tick.
+	_, hasFeed := idx.(indexer.RecentFeed)
+
 	var errs []error
 	for _, series := range due {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := s.sweepSeries(ctx, idx, series, now); err != nil {
+		if err := s.sweepSeries(ctx, idx, series, now, hasFeed); err != nil {
 			errs = append(errs, fmt.Errorf("series %d: %w", series.ID, err))
 		}
 	}
@@ -92,7 +96,7 @@ func (s *Service) SweepOnce(ctx context.Context) error {
 
 // sweepSeries searches one series and grabs every eligible release covering
 // items nothing else in this pass already took.
-func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series db.Series, now time.Time) error {
+func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series db.Series, now time.Time, hasFeed bool) error {
 	sweep, err := s.loadSweepItems(ctx, series.ID, now)
 	if err != nil {
 		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
@@ -114,7 +118,7 @@ func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series d
 	if err != nil && grabbed == 0 {
 		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
-	return errors.Join(err, s.writeSearchState(ctx, series, sweep, now, grabbed, held))
+	return errors.Join(err, s.writeSearchState(ctx, series, sweep, now, grabbed, held, hasFeed))
 }
 
 // backOffAfterFailure makes a failed pass yield its slot. The due query is a
@@ -212,7 +216,20 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 
 // writeSearchState records what the pass found. The write is guarded on the
 // cadence read at selection, so a reset that landed mid-sweep wins.
-func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep []sweepItem, now time.Time, grabbed int, held time.Time) error {
+//
+// The airing-aimed parts of the cadence — the aired-since reset and the
+// next-broadcast clamp — exist only for the feedless world. They are #100's
+// answer to "a weekly show must be searched at air time", written when the sweep
+// was the only mechanism; with a feed they aim the sweep at precisely the
+// windows the feed already covers, for one search per series. A series whose
+// broadcast the feed then misses is still reached: its stale next_search_at plus
+// the due query's EXISTS make it due, and the backoff ladder caps at a day.
+func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep []sweepItem, now time.Time, grabbed int, held time.Time, hasFeed bool) error {
+	upcoming := nextAiring(sweep, now)
+	if hasFeed {
+		upcoming = time.Time{}
+	}
+
 	backoff := series.SearchBackoff
 	var next time.Time
 	switch {
@@ -220,15 +237,17 @@ func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep 
 		// Something landed, so more may be waiting: due again next tick.
 		backoff = 0
 	case !held.IsZero():
-		// A held item is never backed off past its own window.
+		// A held item is never backed off past its own window. The pin delay stays
+		// the sweep's business either way: the release already exists, so no feed
+		// poll will produce it sooner.
 		backoff = 0
-		next = earliest(held, nextAiring(sweep, now))
+		next = earliest(held, upcoming)
 	default:
-		if airedSince(sweep, series.LastSearchedAt, now) {
+		if !hasFeed && airedSince(sweep, series.LastSearchedAt, now) {
 			backoff = 0
 		}
 		backoff++
-		next = earliest(now.Add(backoffDelay(int(backoff))), nextAiring(sweep, now))
+		next = earliest(now.Add(backoffDelay(int(backoff))), upcoming)
 	}
 
 	return s.setSearchState(ctx, db.SetSeriesSearchStateParams{
