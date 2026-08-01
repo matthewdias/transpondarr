@@ -183,6 +183,22 @@ Behaviour changes are test-driven. Work red → green → refactor:
   grabbing a pack unattended downloads a season only to park it. #126's per-file
   import is what lifts this — and once it does, a pack becomes automation's
   *preferred* choice for a back-catalog add, one grab instead of N.
+- **Two entry points, one decision layer (#101).** The `feed-poll` job and the
+  `wanted-search` sweep both build a `Match` through `Service.evaluate` and act
+  on it through `grabPass`, so profile floor, blocklist, pinned-group delay and
+  the batch guard are written once. The feed is only a cheaper *trigger*: it
+  inverts the sweep's lookup (a release title needing a series, rather than a
+  series needing releases), which is why it is series × entry — deliberately
+  unoptimised, since a page is ~100 entries and the due query already drops any
+  series with nothing wanted. It writes no search cadence: nothing was searched,
+  and a grab settles its item, so the sweep's `EXISTS` drops the series anyway.
+  `indexer.RecentFeed` is a type assertion, not a wider `Indexer` — a source
+  without one degrades to sweep-only, which is a supported configuration and logs
+  at debug. The high-water mark lives in `settings` under `feed.seen.<indexer>`:
+  newest `pubDate` plus the ids sharing it, which is Sonarr's
+  `LastRssSyncReleaseInfo` shape. Two entry ids matter — the GUID is unreliable
+  across Torznab implementations (Sonarr keys on the download URL for exactly
+  that reason), and a feed publishing no dates dedupes on ids alone.
 - **Periodic work goes on the job runner (`internal/core/jobs`), not a bare
   `go`.** Register by name with an interval in `main.go`; the runner owns panic
   containment, the "log failures only when `ctx.Err() == nil`" rule, and the
@@ -302,6 +318,12 @@ Concretely, in `internal/core/decide`:
   throughput, shorten the interval rather than widen the pass — the ratio sets
   throughput, the width sets peak burst, and a pass issues its searches
   back-to-back with no pacing.
+- **The recent feed inverts that cost, which is why it is the hot path.** One
+  request covers every series, so `feed-poll` is flat in library size while the
+  sweep is linear in due series. That is what makes the sweep affordable as a
+  safety net rather than the mechanism. Don't shorten `feedPollInterval` below
+  15 minutes: indexers ask for it, and Sonarr — which sets the community's
+  expectation here — defaults to 15 and refuses below 10.
 - **Identification**: v1 relies on identity-by-construction (we chose the release);
   hash/AniDB identification and pre-existing-library import are deliberately
   out of v1's design.

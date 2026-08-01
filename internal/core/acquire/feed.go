@@ -1,0 +1,221 @@
+package acquire
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/matthewdias/transpondarr/internal/core/decide"
+	"github.com/matthewdias/transpondarr/internal/core/indexer"
+	"github.com/matthewdias/transpondarr/internal/store"
+	"github.com/matthewdias/transpondarr/internal/store/db"
+)
+
+// maxFeedMarkIDs bounds what one mark remembers. A page is ~100 entries, so this
+// only ever trips on a feed that publishes no dates at all and pages far deeper.
+const maxFeedMarkIDs = 500
+
+// feedMark is what a poll remembers about the last one: the newest publish time
+// it saw and the entries carrying it. Sonarr stores the same pair per indexer
+// (LastRssSyncReleaseInfo) — the timestamp answers "how far did we get", and the
+// ids settle the ties it cannot, since a batch of releases shares a second.
+type feedMark struct {
+	Latest time.Time `json:"latest,omitempty"`
+	IDs    []string  `json:"ids,omitempty"`
+}
+
+// feedMarkKey namespaces the mark by indexer name. There is one Torznab endpoint
+// today, but a second source must not inherit the first's seen set (#128).
+func feedMarkKey(indexerName string) string { return "feed.seen." + indexerName }
+
+// PollFeedOnce takes the indexer's newest releases and grabs what any monitored
+// series wants, and is what the job runner calls. It is only a cheaper trigger
+// than the sweep: eligibility is the sweep's, because both drive grabPass over a
+// Match built the same way. The clients and the kill switch are read per run, so
+// a Settings edit takes effect on the next tick.
+//
+// An indexer with no recent feed is a supported configuration, not a failure:
+// the scheduled sweep already covers those series, just less promptly.
+func (s *Service) PollFeedOnce(ctx context.Context) error {
+	if !s.cfg.AutomationEnabled() {
+		return nil
+	}
+	idx := s.clients.Indexer()
+	if idx == nil || s.clients.Download() == nil {
+		return nil
+	}
+	feed, ok := idx.(indexer.RecentFeed)
+	if !ok {
+		s.log.Debug("indexer publishes no recent feed; the scheduled sweep covers it",
+			"indexer", idx.Name())
+		return nil
+	}
+
+	entries, err := feed.Recent(ctx)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrIndexerSearch, err)
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+
+	mark, err := s.loadFeedMark(ctx, idx.Name())
+	if err != nil {
+		return err
+	}
+	fresh := unseenEntries(entries, mark)
+	// Recognising nothing means the mark scrolled off the page: the feed moved
+	// further than one page between polls, so whatever fell through is the sweep's
+	// to find. Sonarr warns on the same condition for the same reason.
+	if !mark.Latest.IsZero() && len(fresh) == len(entries) {
+		s.log.Warn("the recent feed moved more than one page between polls; the sweep covers the gap",
+			"indexer", idx.Name(), "since", mark.Latest, "poll_shorter_than", len(entries))
+	}
+	// The whole point of the mark: a quiet feed costs one request and nothing else.
+	if len(fresh) == 0 {
+		return s.saveFeedMark(ctx, idx.Name(), nextFeedMark(entries))
+	}
+
+	releases := make([]indexer.Release, 0, len(fresh))
+	for _, e := range fresh {
+		releases = append(releases, e.Release)
+	}
+	// The mark advances even when a series failed: those entries were seen, and
+	// re-processing the page would not fix whatever broke.
+	return errors.Join(
+		s.pollSeries(ctx, releases),
+		s.saveFeedMark(ctx, idx.Name(), nextFeedMark(entries)),
+	)
+}
+
+// pollSeries matches one already-fetched page against every series with
+// something wanted. This is the inverse of the sweep's lookup, so it is series ×
+// entry rather than one search per series — deliberately unoptimised, because a
+// page is ~100 entries and the due query already drops any series with nothing
+// left to grab. One series' failure never costs the rest their pass.
+func (s *Service) pollSeries(ctx context.Context, releases []indexer.Release) error {
+	now := time.Now()
+	due, err := s.store.Q.ListSeriesWithWantedItems(ctx,
+		sql.NullString{String: store.FormatTimestamp(now), Valid: true})
+	if err != nil {
+		return fmt.Errorf("list series with wanted items: %w", err)
+	}
+
+	var errs []error
+	for _, series := range due {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err := s.pollOneSeries(ctx, series, releases, now); err != nil {
+			errs = append(errs, fmt.Errorf("series %d: %w", series.ID, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// pollOneSeries runs the shared decision path over the feed page. It writes no
+// search cadence: nothing was searched, and a grab settles its item, so the
+// sweep's due query drops the series on its own.
+func (s *Service) pollOneSeries(ctx context.Context, series db.Series, releases []indexer.Release, now time.Time) error {
+	sweep, err := s.loadSweepItems(ctx, series.ID, now)
+	if err != nil {
+		return err
+	}
+	m, err := s.evaluate(ctx, series, grabbableItems(sweep), s.variants(ctx, series), "", releases)
+	if err != nil {
+		return err
+	}
+	_, _, err = s.grabPass(ctx, series, m, sweep, now, "feed")
+	return err
+}
+
+// feedEntryID is an entry's identity for deduping: its GUID, or the fields a feed
+// publishing none still carries. Sonarr keys the same check on the download URL
+// rather than the GUID, because Torznab GUIDs are not dependable across
+// implementations.
+func feedEntryID(e indexer.FeedEntry) string {
+	for _, v := range []string{e.GUID, e.Release.InfoHash, e.Release.DownloadURL} {
+		if t := strings.TrimSpace(v); t != "" {
+			return t
+		}
+	}
+	return decide.NormalizeReleaseTitle(e.Release.Title)
+}
+
+// unseenEntries narrows a page to what the last poll did not already process. An
+// entry older than the mark is skipped even when its id is unfamiliar, which is
+// what stops a truncated id set from re-processing history.
+func unseenEntries(entries []indexer.FeedEntry, mark feedMark) []indexer.FeedEntry {
+	seen := make(map[string]bool, len(mark.IDs))
+	for _, id := range mark.IDs {
+		seen[id] = true
+	}
+	out := make([]indexer.FeedEntry, 0, len(entries))
+	for _, e := range entries {
+		if seen[feedEntryID(e)] {
+			continue
+		}
+		if !mark.Latest.IsZero() && !e.Published.IsZero() && e.Published.Before(mark.Latest) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+// nextFeedMark is the newest publish time on the page plus the ids that need
+// remembering: the entries sharing that instant, and any the feed dated not at
+// all, for which the id set is the only dedupe available.
+func nextFeedMark(entries []indexer.FeedEntry) feedMark {
+	var mark feedMark
+	for _, e := range entries {
+		if e.Published.After(mark.Latest) {
+			mark.Latest = e.Published
+		}
+	}
+	for _, e := range entries {
+		if e.Published.IsZero() || e.Published.Equal(mark.Latest) {
+			mark.IDs = append(mark.IDs, feedEntryID(e))
+		}
+	}
+	if len(mark.IDs) > maxFeedMarkIDs {
+		mark.IDs = mark.IDs[:maxFeedMarkIDs]
+	}
+	return mark
+}
+
+func (s *Service) loadFeedMark(ctx context.Context, indexerName string) (feedMark, error) {
+	v, err := s.store.Q.GetSetting(ctx, feedMarkKey(indexerName))
+	if errors.Is(err, sql.ErrNoRows) {
+		return feedMark{}, nil
+	}
+	if err != nil {
+		return feedMark{}, fmt.Errorf("read feed mark for %s: %w", indexerName, err)
+	}
+	var mark feedMark
+	if err := json.Unmarshal([]byte(v), &mark); err != nil {
+		// One re-processed page, not a dead feed — Sonarr's equivalent field stops
+		// RSS sync working entirely when its JSON goes bad.
+		s.log.Warn("feed mark unreadable; treating the next page as new",
+			"indexer", indexerName, "err", err)
+		return feedMark{}, nil
+	}
+	return mark, nil
+}
+
+func (s *Service) saveFeedMark(ctx context.Context, indexerName string, mark feedMark) error {
+	blob, err := json.Marshal(mark)
+	if err != nil {
+		return fmt.Errorf("encode feed mark for %s: %w", indexerName, err)
+	}
+	if err := s.store.Q.UpsertSetting(ctx, db.UpsertSettingParams{
+		Key: feedMarkKey(indexerName), Value: string(blob),
+	}); err != nil {
+		return fmt.Errorf("persist feed mark for %s: %w", indexerName, err)
+	}
+	return nil
+}

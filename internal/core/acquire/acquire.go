@@ -140,40 +140,59 @@ func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []domain.
 // grabbing — the sweep passes a grab-state-filtered list — while reusing one
 // matcher.
 func (s *Service) match(ctx context.Context, idx indexer.Indexer, series db.Series, items []domain.WantedItem) (Match, error) {
-	// Title variants (romaji/english/native) let the matcher accept releases that
-	// use a different one of the series' names. Best-effort: fall back to the
-	// stored title if the metadata lookup fails.
-	variants := []string{series.Title}
-	if series.AnilistID.Valid {
-		if v, verr := s.titles.TitleVariants(ctx, series.AnilistID.Int64); verr == nil {
-			variants = append(variants, v...)
-		}
-	}
-
-	profile, err := s.profile(ctx, series)
+	variants := s.variants(ctx, series)
+	releases, term, err := s.search(ctx, idx, variants)
 	if err != nil {
 		return Match{}, err
 	}
+	return s.evaluate(ctx, series, items, variants, term, releases)
+}
 
-	// Sanitized title first, then each variant as a zero-result fallback (#107):
-	// a romaji term can be unsearchable even sanitized, and one extra request is
-	// cheap next to reporting nothing.
+// variants are the names the matcher will accept for a series (romaji/english/
+// native), so a release using a different one of them still matches.
+// Best-effort: fall back to the stored title if the metadata lookup fails.
+func (s *Service) variants(ctx context.Context, series db.Series) []string {
+	variants := []string{series.Title}
+	if series.AnilistID.Valid {
+		if v, err := s.titles.TitleVariants(ctx, series.AnilistID.Int64); err == nil {
+			variants = append(variants, v...)
+		}
+	}
+	return variants
+}
+
+// search asks the indexer for one series, reporting the term that answered.
+// Sanitized title first, then each variant as a zero-result fallback (#107): a
+// romaji term can be unsearchable even sanitized, and one extra request is cheap
+// next to reporting nothing.
+func (s *Service) search(ctx context.Context, idx indexer.Indexer, variants []string) ([]indexer.Release, string, error) {
 	var releases []indexer.Release
 	term := ""
 	for _, t := range decide.SearchTerms(variants) {
 		if term == "" {
 			term = t
 		}
+		var err error
 		releases, err = idx.Search(ctx, indexer.Query{Term: t})
 		if err != nil {
-			return Match{}, fmt.Errorf("%w: %w", ErrIndexerSearch, err)
+			return nil, "", fmt.Errorf("%w: %w", ErrIndexerSearch, err)
 		}
 		if len(releases) > 0 {
 			term = t
 			break
 		}
 	}
+	return releases, term, nil
+}
 
+// evaluate ranks already-fetched releases against a series. It is split from the
+// search so the feed poll (#101) drives exactly this decision layer — profile,
+// blocklist, eligibility — over one page it fetched once for every series.
+func (s *Service) evaluate(ctx context.Context, series db.Series, items []domain.WantedItem, variants []string, term string, releases []indexer.Release) (Match, error) {
+	profile, err := s.profile(ctx, series)
+	if err != nil {
+		return Match{}, err
+	}
 	blocked, err := s.blocked(ctx, series.ID)
 	if err != nil {
 		return Match{}, err

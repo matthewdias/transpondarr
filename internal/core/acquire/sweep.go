@@ -98,18 +98,7 @@ func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series d
 		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
 
-	// Items not worth grabbing are handed to the matcher as Have: decide already
-	// excludes had items from the wanted set while maxItem still spans them, so
-	// in-flight suppression falls out of the existing matcher and a batch covering
-	// an in-flight episode still matches the rest.
-	items := make([]domain.WantedItem, 0, len(sweep))
-	for _, it := range sweep {
-		items = append(items, domain.WantedItem{
-			ID: it.id, Kind: it.kind, Number: it.number, Have: !it.grabbable,
-		})
-	}
-
-	m, err := s.match(ctx, idx, series, items)
+	m, err := s.match(ctx, idx, series, grabbableItems(sweep))
 	if err != nil {
 		// An indexer outage is the one fault a series is not charged for: every due
 		// series shares it, so backing them all off idles the library on one hiccup.
@@ -119,7 +108,7 @@ func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series d
 		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
 
-	grabbed, held, err := s.grabPass(ctx, series, m, sweep, now)
+	grabbed, held, err := s.grabPass(ctx, series, m, sweep, now, "sweep")
 	// A pass that landed something is progress even if it ended badly, and its
 	// successful grabs settle those items, so it records the ordinary cadence.
 	if err != nil && grabbed == 0 {
@@ -147,10 +136,26 @@ func (s *Service) backOffAfterFailure(ctx context.Context, series db.Series, now
 	})
 }
 
+// grabbableItems is the item list the matcher gets. Items not worth grabbing are
+// handed over as Have: decide already excludes had items from the wanted set
+// while maxItem still spans them, so in-flight suppression falls out of the
+// existing matcher and a batch covering an in-flight episode still matches the rest.
+func grabbableItems(sweep []sweepItem) []domain.WantedItem {
+	items := make([]domain.WantedItem, 0, len(sweep))
+	for _, it := range sweep {
+		items = append(items, domain.WantedItem{
+			ID: it.id, Kind: it.kind, Number: it.number, Have: !it.grabbable,
+		})
+	}
+	return items
+}
+
 // grabPass walks the ranked candidates once, taking every eligible release whose
 // items are still unspoken for. It returns how many releases were grabbed and
 // the earliest moment a held release becomes grabbable (zero when none is held).
-func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time) (int, time.Time, error) {
+// source names the entry point that drove it — the sweep or the feed poll — so a
+// log line says which of the two acted.
+func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source string) (int, time.Time, error) {
 	airs := make(map[int]time.Time, len(sweep))
 	for _, it := range sweep {
 		if !it.airsAt.IsZero() {
@@ -185,14 +190,15 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			// only a client that keeps refusing ends the pass. AutoGrab has already
 			// remembered it if the release itself was at fault (#120).
 			failed++
-			s.log.Warn("sweep could not add a release; trying the next candidate",
-				"series", series.ID, "release", c.Release.Title, "err", err)
+			s.log.Warn("could not add a release; trying the next candidate",
+				"source", source, "series", series.ID, "release", c.Release.Title, "err", err)
 			if failed >= maxAddFailures {
 				return grabbed, time.Time{}, fmt.Errorf("%d refused adds: %w", failed, err)
 			}
 			continue
 		}
-		s.log.Info("sweep grabbed a release", "series", series.ID, "release", c.Release.Title, "items", c.Items)
+		s.log.Info("grabbed a release",
+			"source", source, "series", series.ID, "release", c.Release.Title, "items", c.Items)
 		markCovered(covered, c.Items)
 		grabbed++
 	}

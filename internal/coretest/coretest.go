@@ -72,6 +72,27 @@ func (f *FakeIndexer) Search(_ context.Context, q indexer.Query) ([]indexer.Rele
 	return f.Releases, nil
 }
 
+// FakeFeed is a FakeIndexer that also publishes a recent feed. The plain
+// FakeIndexer deliberately does not implement indexer.RecentFeed: that is what
+// keeps the degrade-to-sweep-only path testable.
+type FakeFeed struct {
+	FakeIndexer
+	Entries []indexer.FeedEntry
+	FeedErr error
+
+	Polls int // Recent call count, so a test can assert a quiet poll costs nothing
+}
+
+var _ indexer.RecentFeed = (*FakeFeed)(nil)
+
+func (f *FakeFeed) Recent(context.Context) ([]indexer.FeedEntry, error) {
+	f.Polls++
+	if f.FeedErr != nil {
+		return nil, f.FeedErr
+	}
+	return f.Entries, nil
+}
+
 // --- fake download client ---------------------------------------------------
 
 // FakeDownload records Add calls and returns canned results, so a test can drive

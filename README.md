@@ -82,8 +82,8 @@ are simply disabled — the server still starts.
 | `TRANSPONDARR_TORZNAB_NAME`                | `torznab`                 | Display name for the indexer.                                                                             |
 | `TRANSPONDARR_LIBRARY_DIR`                 | —                         | Library root for imports; unset ⇒ import disabled.                                                        |
 | `TRANSPONDARR_IMPORT_MODE`                 | `auto`                    | `auto` (hardlink, copy across filesystems) \| `hardlink` \| `copy`.                                       |
-| `TRANSPONDARR_AUTOMATION_ENABLED`          | `false`                   | Let the scheduled sweep search and grab unattended.                                                       |
-| `TRANSPONDARR_PIN_DELAY_HOURS`             | `0`                       | Hours the sweep waits for a series' pinned group before taking another; per-series overrides in the UI.    |
+| `TRANSPONDARR_AUTOMATION_ENABLED`          | `false`                   | Let the feed poll and the scheduled sweep grab unattended.                                                |
+| `TRANSPONDARR_PIN_DELAY_HOURS`             | `0`                       | Hours automation waits for a series' pinned group before taking another; per-series overrides in the UI.  |
 | `PUID` / `PGID`                            | `1000` / `1000`           | Docker only: the uid:gid the container drops to after fixing `/config` ownership on start.                |
 
 > **Auth & reverse proxies.** The `local` auth mode skips login only for requests
