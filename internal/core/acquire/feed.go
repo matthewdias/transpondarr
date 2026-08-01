@@ -69,10 +69,12 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 	}
 	fresh := unseenEntries(entries, mark)
 	// Recognising nothing means the mark scrolled off the page: the feed moved
-	// further than one page between polls, so whatever fell through is the sweep's
-	// to find. Sonarr warns on the same condition for the same reason.
+	// further than one page between polls. Sonarr warns on the same condition. The
+	// sweep is the only thing that will find what fell through, and with a feed
+	// configured it no longer aims at the airing window — so recovery is its
+	// backoff, up to a day, rather than the next tick (#140).
 	if !mark.Latest.IsZero() && len(fresh) == len(entries) {
-		s.log.Warn("the recent feed moved more than one page between polls; the sweep covers the gap",
+		s.log.Warn("the recent feed moved more than one page between polls; anything missed waits for the sweep's backoff",
 			"indexer", idx.Name(), "since", mark.Latest, "poll_shorter_than", len(entries))
 	}
 	// The whole point of the mark: a quiet feed costs one request and nothing else.

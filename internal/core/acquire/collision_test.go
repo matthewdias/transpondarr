@@ -130,3 +130,53 @@ func TestClaimIsReleasedWhenAnAddFails(t *testing.T) {
 		t.Errorf("grabbed items = %v, want [3] from the second candidate", got)
 	}
 }
+
+// The sequential interleaving the claim alone does not close: the sweep reads
+// its item list, spends seconds out on the network, and by the time it grabs,
+// the poll has already taken the item and released its claim. Nothing in the
+// claim stops the sweep acting on that stale read — only re-checking does.
+//
+// The two pick different releases here (the feed page and a title search return
+// different candidate sets), which is what makes the duplicate an orphaned
+// torrent rather than a benign convergence: UpsertGrab is keyed on
+// wanted_item_id, so the second write leaves the first torrent referenced by
+// nothing.
+func TestSweepDoesNotRegrabAnItemThePollTookMidSearch(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	fromFeed := episodeRelease("Placeholder Saga", 3)
+	fromFeed.DownloadURL = "magnet:?xt=urn:btih:fromfeed"
+	fromSearch := episodeRelease("Placeholder Saga", 3)
+	fromSearch.DownloadURL = "magnet:?xt=urn:btih:fromsearch"
+
+	h := newFeedPoll(t, []indexer.FeedEntry{
+		{Release: fromFeed, GUID: "guid-feed", Published: time.Now()},
+	}, fakeConfig{})
+	// The search side answers with a different release for the same episode.
+	h.feed.Releases = []indexer.Release{fromSearch}
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+
+	ctx := context.Background()
+	// The poll lands while the sweep is out on its search, after the sweep has
+	// already read item 3 as grabbable.
+	var once sync.Once
+	h.feed.SearchHook = func(indexer.Query) {
+		once.Do(func() {
+			if err := h.svc.PollFeedOnce(ctx); err != nil {
+				t.Errorf("PollFeedOnce: %v", err)
+			}
+		})
+	}
+
+	if err := h.svc.SweepOnce(ctx); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+	if n := h.dl.AddCount(); n != 1 {
+		t.Fatalf("download Add called %d times, want 1 — the sweep acted on a stale read", n)
+	}
+	if got := h.dl.Adds[0].URL; got != fromFeed.DownloadURL {
+		t.Errorf("added %q, want the release the poll took (%q)", got, fromFeed.DownloadURL)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
+		t.Errorf("grabbed items = %v, want [3]", got)
+	}
+}

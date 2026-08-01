@@ -17,10 +17,17 @@
 // existed never comes around again, and the sweep is the only thing that rescues
 // it.
 //
-// Concurrent grabs are serialized by an in-process claim over wanted-item ids.
-// Automation yields to anything already in flight; a manual grab never does
-// (PR #57), so two manual grabs still race exactly as double-clicking Grab
-// always has, and converge on the download client's info-hash dedupe.
+// Two automatic grabs never take the same item, by two mechanisms rather than
+// one. An in-process claim over wanted-item ids stops them overlapping, and a
+// re-read of grab state under that claim stops the later one acting on a list it
+// loaded before the other had finished — the gap the claim alone leaves, since a
+// pass reads its items, goes out on the network for seconds, and grabs after.
+//
+// A manual grab is outside both, deliberately: it takes its claim
+// unconditionally and never re-checks, because explicit user intent is never
+// refused (PR #57). So a manual grab racing automation, or another manual grab,
+// still duplicates exactly as double-clicking Grab always has — and converges on
+// the download client's info-hash dedupe.
 package acquire
 
 import (

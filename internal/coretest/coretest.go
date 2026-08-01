@@ -47,6 +47,10 @@ type FakeIndexer struct {
 	// ErrByTerm fails only the listed terms, for errors mid-fallback.
 	ErrByTerm map[string]error
 
+	// SearchHook runs at the top of every Search. A test can drive another actor
+	// from it to model work landing while a pass is out on the network.
+	SearchHook func(indexer.Query)
+
 	Queries []indexer.Query // recorded, in call order
 }
 
@@ -60,6 +64,9 @@ func (f *FakeIndexer) Name() string {
 }
 
 func (f *FakeIndexer) Search(_ context.Context, q indexer.Query) ([]indexer.Release, error) {
+	if f.SearchHook != nil {
+		f.SearchHook(q)
+	}
 	f.Queries = append(f.Queries, q)
 	if f.Err != nil {
 		return nil, f.Err
