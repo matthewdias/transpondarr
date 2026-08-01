@@ -52,17 +52,22 @@ type WantedItem struct {
 // multiply wraps int64 and a large wait silently becomes no wait at all.
 const MaxPinDelayHours = 24 * 365
 
-// PinDelay converts a stored or configured hour count into a duration, clamping
-// both ends so no caller can produce a wrapped or negative wait.
-func PinDelay(hours int64) time.Duration {
+// ClampPinDelayHours bounds a pinned-group hour count to [0, MaxPinDelayHours].
+func ClampPinDelayHours(hours int64) int64 {
 	switch {
 	case hours <= 0:
 		return 0
 	case hours > MaxPinDelayHours:
-		return MaxPinDelayHours * time.Hour
+		return MaxPinDelayHours
 	default:
-		return time.Duration(hours) * time.Hour
+		return hours
 	}
+}
+
+// PinDelay converts a stored or configured hour count into a duration, clamping
+// both ends so no caller can produce a wrapped or negative wait.
+func PinDelay(hours int64) time.Duration {
+	return time.Duration(ClampPinDelayHours(hours)) * time.Hour
 }
 
 // QualityProfile is what a user wants a release to be. Release group is the

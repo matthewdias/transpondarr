@@ -131,9 +131,10 @@ type state struct {
 	lib LibraryConfig
 
 	// Parsed once at startup: settings are strings at rest, but every read of
-	// these is on a job tick, so the typed form lives here.
+	// these is on a job tick, so the typed form lives here. Hours, not a
+	// duration: the stored unit is what Snapshot reports, so nothing truncates.
 	automationEnabled bool
-	pinDelayDefault   time.Duration
+	pinDelayHours     int
 
 	apiKey string
 
@@ -193,7 +194,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	cfg.idx.applyDefaults()
 	cfg.lib.applyDefaults()
 	cfg.automationEnabled = parseBool(automation, log)
-	cfg.pinDelayDefault = parseHours(pinDelay, log)
+	cfg.pinDelayHours = parseHours(pinDelay, log)
 
 	s := &Service{store: st, reg: reg}
 	s.cur.Store(cfg)
@@ -217,7 +218,7 @@ func (s *Service) Snapshot() Snapshot {
 		Download:   c.dl,
 		Indexer:    c.idx,
 		Library:    c.lib,
-		Automation: AutomationConfig{Enabled: c.automationEnabled, PinDelayHours: int(c.pinDelayDefault / time.Hour)},
+		Automation: AutomationConfig{Enabled: c.automationEnabled, PinDelayHours: c.pinDelayHours},
 		APIKey:     c.apiKey,
 		DataDir:    c.dataDir,
 		DBPath:     c.dbPath,
@@ -234,7 +235,9 @@ func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationEnabl
 
 // PinDelayDefault is how long the sweep waits for a series' pinned group before
 // taking another group's release, for series that do not override it.
-func (s *Service) PinDelayDefault() time.Duration { return s.cur.Load().pinDelayDefault }
+func (s *Service) PinDelayDefault() time.Duration {
+	return domain.PinDelay(int64(s.cur.Load().pinDelayHours))
+}
 
 // parseBool and parseHours degrade a bad value to the zero default rather than
 // failing startup: one mistyped setting must not take the daemon down.
@@ -246,7 +249,7 @@ func parseBool(v string, log *slog.Logger) bool {
 	return err == nil && b
 }
 
-func parseHours(v string, log *slog.Logger) time.Duration {
+func parseHours(v string, log *slog.Logger) int {
 	h, err := strconv.Atoi(strings.TrimSpace(v))
 	if err != nil && strings.TrimSpace(v) != "" {
 		log.Warn("ignoring unparseable automation setting", "key", keyAutomationPinDelay, "value", v)
@@ -254,13 +257,13 @@ func parseHours(v string, log *slog.Logger) time.Duration {
 	if err != nil {
 		return 0
 	}
-	// Clamped, not multiplied raw: an hour count past the duration ceiling wraps
-	// int64 and turns the longest possible wait into none.
+	// Clamped, not stored raw: an hour count past the duration ceiling wraps
+	// int64 when multiplied out and turns the longest possible wait into none.
 	if h > domain.MaxPinDelayHours {
 		log.Warn("clamping automation setting to its maximum",
 			"key", keyAutomationPinDelay, "value", v, "max_hours", domain.MaxPinDelayHours)
 	}
-	return domain.PinDelay(int64(h))
+	return int(domain.ClampPinDelayHours(int64(h)))
 }
 
 // APIKey returns the current API key. The auth middleware reads this on each
@@ -379,17 +382,17 @@ func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) err
 	s.updateMu.Lock()
 	defer s.updateMu.Unlock()
 
-	delay := domain.PinDelay(int64(in.PinDelayHours))
+	hours := int(domain.ClampPinDelayHours(int64(in.PinDelayHours)))
 	if err := s.persist(ctx, map[string]string{
 		keyAutomationEnabled:  strconv.FormatBool(in.Enabled),
-		keyAutomationPinDelay: strconv.Itoa(int(delay / time.Hour)),
+		keyAutomationPinDelay: strconv.Itoa(hours),
 	}); err != nil {
 		return err
 	}
 
 	next := *s.cur.Load()
 	next.automationEnabled = in.Enabled
-	next.pinDelayDefault = delay
+	next.pinDelayHours = hours
 	s.cur.Store(&next)
 	return nil
 }
