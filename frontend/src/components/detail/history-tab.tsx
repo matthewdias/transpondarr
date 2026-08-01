@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Ban,
   Check,
   CircleX,
   Download,
@@ -8,9 +9,10 @@ import {
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
-import { ApiError, type GrabEvent } from "@/lib/api";
-import { grabsQuery } from "@/lib/queries";
-import { timeAgo } from "@/lib/format";
+import { toast } from "sonner";
+import { ApiError, api, type BlocklistEntry, type GrabEvent } from "@/lib/api";
+import { blocklistQuery, grabsQuery } from "@/lib/queries";
+import { airDate, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -108,24 +110,126 @@ export function HistoryTab({
     );
   }
 
-  if (!events || events.length === 0) {
-    return (
-      <div className="flex flex-col items-center rounded-lg border border-dashed bg-card py-16 text-center">
-        <History className="mb-3 size-7 text-faint" />
-        <p className="text-sm text-muted-foreground">
-          No grab or import history yet. Grab a release from the Releases tab.
-        </p>
-      </div>
-    );
-  }
+  return (
+    <div className="space-y-6">
+      {!events || events.length === 0 ? (
+        <div className="flex flex-col items-center rounded-lg border border-dashed bg-card py-16 text-center">
+          <History className="mb-3 size-7 text-faint" />
+          <p className="text-sm text-muted-foreground">
+            No grab or import history yet. Grab a release from the Releases tab.
+          </p>
+        </div>
+      ) : (
+        <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
+          {events.map((e) => (
+            <HistoryRow key={e.id} event={e} />
+          ))}
+        </ItemGroup>
+      )}
+      <BlockedReleases seriesId={seriesId} active={active} />
+    </div>
+  );
+}
+
+// Blocklist entries outlive grab rows — a re-grab overwrites the failed event —
+// so they are their own section rather than rows merged into the feed, and the
+// feed's empty state must not swallow them.
+export function BlockedReleases({
+  seriesId,
+  active,
+}: {
+  seriesId: number;
+  active: boolean;
+}) {
+  const { data: entries } = useQuery({
+    ...blocklistQuery(seriesId),
+    enabled: active,
+  });
+  if (!entries || entries.length === 0) return null;
 
   return (
-    <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
-      {events.map((e) => (
-        <HistoryRow key={e.id} event={e} />
-      ))}
-    </ItemGroup>
+    <section>
+      <h3 className="mb-2 text-sm font-semibold">Blocked releases</h3>
+      <p className="mb-3 text-[13px] text-muted-foreground">
+        Releases that failed and are skipped when ranking. Each repeat failure
+        blocks for longer; the third blocks permanently.
+      </p>
+      <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
+        {entries.map((e) => (
+          <BlockedRow key={e.id} seriesId={seriesId} entry={e} />
+        ))}
+      </ItemGroup>
+    </section>
   );
+}
+
+function BlockedRow({
+  seriesId,
+  entry,
+}: {
+  seriesId: number;
+  entry: BlocklistEntry;
+}) {
+  const queryClient = useQueryClient();
+  const unblock = useMutation({
+    mutationFn: () => api.clearBlocklistEntry(seriesId, entry.id),
+    onSuccess: () => {
+      toast.success("Release unblocked");
+      queryClient.invalidateQueries({
+        queryKey: blocklistQuery(seriesId).queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: grabsQuery(seriesId).queryKey,
+      });
+    },
+    onError: (e) =>
+      toast.error("Could not unblock the release", {
+        description: e instanceof Error ? e.message : String(e),
+      }),
+  });
+
+  return (
+    <Item className="gap-3">
+      <ItemMedia>
+        <span
+          className={cn(
+            "grid size-8 place-items-center rounded-lg",
+            entry.active
+              ? "bg-destructive/15 text-destructive"
+              : "bg-panel-2 text-muted-foreground",
+          )}
+        >
+          <Ban className="size-4" />
+        </span>
+      </ItemMedia>
+      <ItemContent className="min-w-0 gap-0.5">
+        <div className="line-clamp-1 font-mono text-[12px]">
+          {entry.release_title}
+        </div>
+        <div className="text-[12px] text-muted-foreground">
+          {entry.reason}
+          {entry.failures > 1 && ` · ${entry.failures} failures`}
+        </div>
+        <div className="text-[12px] text-faint">{blockWindow(entry)}</div>
+      </ItemContent>
+      <ItemActions>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={unblock.isPending}
+          onClick={() => unblock.mutate()}
+        >
+          Unblock
+        </Button>
+      </ItemActions>
+    </Item>
+  );
+}
+
+function blockWindow(entry: BlocklistEntry): string {
+  if (!entry.blocked_until) return "Blocked permanently";
+  if (!entry.active) return `Block expired ${timeAgo(entry.blocked_until)}`;
+  return `Blocked until ${airDate(entry.blocked_until)}`;
 }
 
 export function HistoryRow({ event }: { event: GrabEvent }) {
