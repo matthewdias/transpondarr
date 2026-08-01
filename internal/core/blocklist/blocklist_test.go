@@ -2,6 +2,7 @@ package blocklist
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -152,7 +153,7 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 		t.Errorf("active after clear = %d entries, want 0", len(got))
 	}
 	// Clear is scoped: a cleared entry that is gone reports ErrNotFound.
-	if err := svc.Clear(ctx, series.ID, active[0].ID); err != ErrNotFound {
+	if err := svc.Clear(ctx, series.ID, active[0].ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("clear of a missing entry = %v, want ErrNotFound", err)
 	}
 }

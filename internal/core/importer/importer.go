@@ -169,10 +169,8 @@ func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatus
 	im.failGrab(ctx, g, "the download vanished from the client")
 }
 
-// failGrab settles a grab as failed and remembers the release, so the next sweep
-// ranks past it instead of re-deriving the same doomed choice (#118). The status
-// write comes first and is never conditional on the blocklist write: a grab left
-// in "grabbed" would never free its item.
+// failGrab settles a grab as failed, then remembers the release (#118). That
+// order is load-bearing: a grab left in "grabbed" would never free its item.
 func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, reason string) {
 	im.setStatus(ctx, g.ID, statusFailed)
 	if im.blocklist == nil {

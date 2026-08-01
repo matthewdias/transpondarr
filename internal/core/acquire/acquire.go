@@ -181,10 +181,8 @@ func (s *Service) match(ctx context.Context, idx indexer.Indexer, series db.Seri
 	}, nil
 }
 
-// blocked loads the series' active release blocklist (#118). Read straight off
-// the store rather than through blocklist.Service: this is one query, and going
-// direct keeps acquire from depending on the package that records the entries.
-// The stored title is already normalized, so nothing is re-normalized here.
+// blocked loads the series' active release blocklist. Read off the store rather
+// than blocklist.Service so acquire need not depend on the package that writes it.
 func (s *Service) blocked(ctx context.Context, seriesID int64) (decide.BlockedSet, error) {
 	rows, err := s.store.Q.ListActiveBlocklist(ctx, db.ListActiveBlocklistParams{
 		SeriesID:     seriesID,

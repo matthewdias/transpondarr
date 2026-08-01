@@ -46,8 +46,7 @@ type MatchOpts struct {
 }
 
 // BlockedSet is the series' active release blocklist as plain data, so decide
-// stays pure. Keys map to the reason shown for the block; a release matches on
-// either axis because Torznab feeds often publish no infohash (#118).
+// stays pure. A release matches on either axis: Torznab often omits the infohash.
 type BlockedSet struct {
 	Hashes map[string]string // lowercased info hash -> reason
 	Titles map[string]string // normalized release title -> reason
@@ -55,6 +54,9 @@ type BlockedSet struct {
 
 // reason reports why this release is blocked, if it is.
 func (b BlockedSet) reason(rel indexer.Release) string {
+	if len(b.Hashes) == 0 && len(b.Titles) == 0 {
+		return "" // the common path: no per-release normalizing for an unblocked series
+	}
 	if h := strings.ToLower(strings.TrimSpace(rel.InfoHash)); h != "" {
 		if r, ok := b.Hashes[h]; ok {
 			return r
@@ -68,10 +70,8 @@ func (b BlockedSet) reason(rel indexer.Release) string {
 	return ""
 }
 
-// NormalizeReleaseTitle is the identity a blocklist entry is stored and matched
-// under: lowercased with whitespace collapsed. Deliberately far gentler than
-// normalize, which strips everything but letters and digits — that would fold
-// two genuinely different releases of one episode into one entry.
+// NormalizeReleaseTitle is a blocklist entry's identity. Gentler than normalize,
+// which would fold two different releases of one episode into one entry.
 func NormalizeReleaseTitle(s string) string {
 	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
 }

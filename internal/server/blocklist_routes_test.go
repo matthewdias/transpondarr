@@ -5,10 +5,14 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/decide"
+	"github.com/matthewdias/transpondarr/internal/core/download"
+	"github.com/matthewdias/transpondarr/internal/core/indexer"
+	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -98,10 +102,70 @@ func TestListAndClearSeriesBlocklist(t *testing.T) {
 		t.Errorf("second delete = %d, want 404", code)
 	}
 
+	// Assert the status: an error body decodes into blocklistJSON as zero entries,
+	// which would misreport a broken endpoint as an over-eager delete.
 	var after blocklistJSON
-	h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), &after)
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), &after); code != http.StatusOK {
+		t.Fatalf("re-list status = %d, want 200", code)
+	}
 	if len(after.Entries) != 2 {
 		t.Errorf("entries after unblock = %d, want 2", len(after.Entries))
+	}
+}
+
+// The visibility win the blocklist buys by reusing ineligible_reason: the
+// Releases tab says why a release was passed over, and a manual grab of it still
+// succeeds (PR #57) rather than being refused.
+func TestBlocklistedReleaseSurfacesAsIneligibleButStillGrabs(t *testing.T) {
+	const url = "magnet:?xt=urn:btih:blocked"
+	const title = "[TopSubs] Placeholder Saga - 03 [1080p]"
+	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
+		{Title: title, DownloadURL: url, Seeders: 500},
+	}}
+	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashZ", Outcome: download.AddSuccess}}
+	h := newHarness(t, idx, dl)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	seedBlocklistEntry(t, h.store, seriesID, title,
+		sql.NullString{String: store.FormatTimestamp(time.Now().Add(24 * time.Hour)), Valid: true})
+
+	var searchOut struct {
+		Results []struct {
+			Matched          bool   `json:"matched"`
+			Eligible         bool   `json:"eligible"`
+			IneligibleReason string `json:"ineligible_reason"`
+		} `json:"results"`
+	}
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &searchOut); code != http.StatusOK {
+		t.Fatalf("search status = %d, want 200", code)
+	}
+	if len(searchOut.Results) != 1 {
+		t.Fatalf("results = %+v, want the blocklisted release listed, not hidden", searchOut.Results)
+	}
+	got := searchOut.Results[0]
+	// Blocking is eligibility, not matching: the release still maps to its item.
+	if !got.Matched || got.Eligible {
+		t.Errorf("matched = %v, eligible = %v; want matched but ineligible", got.Matched, got.Eligible)
+	}
+	if !strings.Contains(got.IneligibleReason, "release previously failed") {
+		t.Errorf("ineligible_reason = %q, want the blocklist reason", got.IneligibleReason)
+	}
+	if !strings.Contains(got.IneligibleReason, "the download client reported an error") {
+		t.Errorf("ineligible_reason = %q, want the recorded failure carried through", got.IneligibleReason)
+	}
+
+	var grabOut struct {
+		IneligibleReason string `json:"ineligible_reason"`
+	}
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+		map[string]any{"download_url": url}, &grabOut)
+	if code != http.StatusCreated {
+		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)
+	}
+	if !strings.Contains(grabOut.IneligibleReason, "release previously failed") {
+		t.Errorf("ineligible_reason = %q, want the blocklist reason reported on the 201", grabOut.IneligibleReason)
+	}
+	if len(dl.Adds) != 1 {
+		t.Errorf("download Add called %d times, want 1", len(dl.Adds))
 	}
 }
 

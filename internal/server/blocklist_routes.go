@@ -43,9 +43,8 @@ type clearBlocklistEntryInput struct {
 	EntryID int64 `path:"entryId" doc:"Blocklist entry id"`
 }
 
-// blocklistHandler owns the per-series blocklist endpoints. A separate group
-// from the grab history: the two outlive each other, so they are different data
-// rather than one list.
+// blocklistHandler owns the per-series blocklist endpoints. Separate from grab
+// history because the two outlive each other.
 type blocklistHandler struct {
 	store     *store.Store
 	blocklist *blocklist.Service
@@ -115,9 +114,8 @@ func (h *blocklistHandler) clear(ctx context.Context, in *clearBlocklistEntryInp
 	return nil, nil
 }
 
-// blocklistEntryActive reports whether a stored entry blocks right now. A NULL
-// expiry is permanent; an unparseable one reads as still blocking, so a bad
-// value cannot silently reopen the loop the entry exists to close.
+// blocklistEntryActive reports whether a stored entry blocks right now. NULL is
+// permanent; an unparseable expiry blocks rather than silently reopening the loop.
 func blocklistEntryActive(e db.ReleaseBlocklist, now time.Time) bool {
 	if !e.BlockedUntil.Valid {
 		return true

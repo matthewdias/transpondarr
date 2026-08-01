@@ -34,12 +34,6 @@ FROM release_blocklist
 WHERE series_id = ?
 ORDER BY updated_at DESC;
 
--- name: GetBlocklistEntry :one
-SELECT *
-FROM release_blocklist
-WHERE id = ?
-LIMIT 1;
-
 -- name: DeleteBlocklistEntry :execrows
 -- Scoped to the series so an unblock cannot reach another series' entry.
 DELETE FROM release_blocklist

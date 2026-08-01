@@ -61,8 +61,6 @@ func New(st *store.Store, log *slog.Logger) *Service {
 }
 
 // Record blocks a release for this series, escalating if it has failed before.
-// The expiry is computed from the resulting failure count, so the write is one
-// round trip and two concurrent records cannot both read "1".
 func (s *Service) Record(ctx context.Context, seriesID int64, infoHash, releaseTitle, reason string) error {
 	normalized := decide.NormalizeReleaseTitle(releaseTitle)
 	if normalized == "" {
@@ -79,14 +77,14 @@ func (s *Service) Record(ctx context.Context, seriesID int64, infoHash, releaseT
 	if err != nil {
 		return fmt.Errorf("record blocklist entry for series %d: %w", seriesID, err)
 	}
-	// The upsert cannot know the resulting count before it writes, so the ladder
-	// is applied in a second write once the row reports what it became.
-	want := expiry(blockDuration(int(entry.Failures)), time.Now())
-	if want == entry.BlockedUntil {
+	// The upsert reports the resulting count only after writing, so a repeat
+	// failure needs a second write to move up the ladder; a first one is already
+	// at firstBlock.
+	if entry.Failures <= 1 {
 		return nil
 	}
 	if err := s.store.Q.SetBlocklistExpiry(ctx, db.SetBlocklistExpiryParams{
-		BlockedUntil: want, ID: entry.ID,
+		BlockedUntil: expiry(blockDuration(int(entry.Failures)), time.Now()), ID: entry.ID,
 	}); err != nil {
 		return fmt.Errorf("set blocklist expiry for entry %d: %w", entry.ID, err)
 	}

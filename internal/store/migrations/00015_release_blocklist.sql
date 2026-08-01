@@ -18,11 +18,10 @@ CREATE TABLE release_blocklist (
 );
 
 -- Torznab often omits the infohash, so the normalized title is the identity that
--- always exists; the hash index serves the match-on-either lookup.
+-- always exists. Hash matching runs in Go over the series' loaded rows, so it
+-- needs no index of its own.
 CREATE UNIQUE INDEX idx_release_blocklist_title ON release_blocklist(series_id, normalized_title);
-CREATE INDEX idx_release_blocklist_hash ON release_blocklist(series_id, info_hash);
 
 -- +goose Down
-DROP INDEX idx_release_blocklist_hash;
 DROP INDEX idx_release_blocklist_title;
 DROP TABLE release_blocklist;

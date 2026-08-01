@@ -134,6 +134,35 @@ func TestBlocklistWriteFailureStillFailsTheGrab(t *testing.T) {
 	}
 }
 
+// A deferred batch is a settled status that is not a release failure: the bytes
+// arrived fine and nothing could pick one file from them. Only failGrab records,
+// so this holds by construction — pinned here because a later refactor that
+// routed deferral through failGrab would blocklist every batch.
+func TestDeferredBatchDoesNotRecordBlocklistEntry(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	rec := &fakeRecorder{}
+	dir := writeTree(t,
+		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
+	)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	if got := grabByHash(t, st, "abc").Status; got != "import_deferred" {
+		t.Fatalf("status = %q, want import_deferred", got)
+	}
+	if len(rec.calls) != 0 {
+		t.Errorf("recorded %+v, want nothing for a deferred batch", rec.calls)
+	}
+}
+
 // An import that merely could not be placed stays grabbed and retries, so it
 // must not blocklist a release for what is usually a path-mapping gap.
 func TestUnplaceableImportDoesNotRecordBlocklistEntry(t *testing.T) {

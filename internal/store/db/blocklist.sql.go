@@ -29,31 +29,6 @@ func (q *Queries) DeleteBlocklistEntry(ctx context.Context, arg DeleteBlocklistE
 	return result.RowsAffected()
 }
 
-const getBlocklistEntry = `-- name: GetBlocklistEntry :one
-SELECT id, series_id, info_hash, release_title, normalized_title, reason, failures, blocked_until, created_at, updated_at
-FROM release_blocklist
-WHERE id = ?
-LIMIT 1
-`
-
-func (q *Queries) GetBlocklistEntry(ctx context.Context, id int64) (ReleaseBlocklist, error) {
-	row := q.db.QueryRowContext(ctx, getBlocklistEntry, id)
-	var i ReleaseBlocklist
-	err := row.Scan(
-		&i.ID,
-		&i.SeriesID,
-		&i.InfoHash,
-		&i.ReleaseTitle,
-		&i.NormalizedTitle,
-		&i.Reason,
-		&i.Failures,
-		&i.BlockedUntil,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const listActiveBlocklist = `-- name: ListActiveBlocklist :many
 SELECT id, series_id, info_hash, release_title, normalized_title, reason, failures, blocked_until, created_at, updated_at
 FROM release_blocklist
