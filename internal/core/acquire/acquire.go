@@ -1,14 +1,26 @@
 // Package acquire owns search, decide, and grab, shared by the manual HTTP
-// routes and the scheduled sweep so both drive exactly one matcher.
+// routes, the scheduled sweep and the feed poll so all three drive exactly one
+// matcher.
 //
-// The sweep (#100) searches monitored series with something worth grabbing right
-// now and backs off exponentially when it finds nothing, clamped so a weekly
-// show is still searched at broadcast however many empty passes preceded it.
-// Nothing resets the cadence on the airing side: schedule-created items carry an
-// air date, so the aired-since-last-search reset and that clamp already cover
-// them. A manual grab racing a sweep converges — one grab row per item and the
-// download client's own info-hash dedupe make the exposure no worse than
-// double-clicking Grab.
+// The two automatic entry points divide by what they can see. The feed poll
+// (#101) owns releases published while we are watching: one request lists an
+// indexer's newest releases, so it is flat in library size and cheap enough to
+// run on a short tick. The sweep (#100) owns what already existed before we
+// looked — back-catalog, anything that scrolled off the feed page, a series
+// added after an entry was seen — and owns everything when no feed is
+// configured, at one search per series.
+//
+// Cadence follows that division: with a feed configured the sweep stands down
+// from the airing window and sleeps on its backoff. Grab scope deliberately does
+// not. A sweep search that turns up a current release still takes it, because
+// the feed's dedupe is one-shot — an entry seen before its series or item
+// existed never comes around again, and the sweep is the only thing that rescues
+// it.
+//
+// Concurrent grabs are serialized by an in-process claim over wanted-item ids.
+// Automation yields to anything already in flight; a manual grab never does
+// (PR #57), so two manual grabs still race exactly as double-clicking Grab
+// always has, and converge on the download client's info-hash dedupe.
 package acquire
 
 import (

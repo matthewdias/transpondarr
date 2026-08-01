@@ -192,6 +192,21 @@ Behaviour changes are test-driven. Work red → green → refactor:
   unoptimised, since a page is ~100 entries and the due query already drops any
   series with nothing wanted. It writes no search cadence: nothing was searched,
   and a grab settles its item, so the sweep's `EXISTS` drops the series anyway.
+  They divide by what they can see: the feed owns releases published while we
+  watch, the sweep owns what already existed and everything when no feed is
+  configured. **Cadence follows that division; grab scope deliberately does
+  not** — a sweep search that turns up a current release still takes it, because
+  the feed's dedupe is one-shot and an entry seen before its series or item
+  existed never comes around again. Concretely, `writeSearchState` drops the
+  aired-since reset and the next-broadcast clamp when a feed exists (both are
+  #100's answer to "search a weekly show at air time", which the feed now owns);
+  the pin-delay hold stays either way, since that release already exists.
+  **Concurrent grabs are serialized by an in-process claim over wanted-item ids**
+  (`claims.go`). The two jobs are phase-locked — same interval, both
+  `RunAtStart`, the runner anchors both to startup — and both read grab state
+  before either writes, so without it a just-aired episode gets two adds and, if
+  they picked different releases, an orphan torrent no grab row references.
+  Automation `TryAcquire`s and yields; a manual grab `Acquire`s and never does.
   `indexer.RecentFeed` is a type assertion, not a wider `Indexer` — a source
   without one degrades to sweep-only, which is a supported configuration and logs
   at debug. The high-water mark lives in `settings` under `feed.seen.<indexer>`:
@@ -315,9 +330,10 @@ Concretely, in `internal/core/decide`:
   series carrying *unfilled* items, not library size: the due query's `EXISTS`
   drops a series as soon as nothing is wanted, so a complete library is free and a
   satisfied one leaves the queue instead of taking a second slot. To raise
-  throughput, shorten the interval rather than widen the pass — the ratio sets
-  throughput, the width sets peak burst, and a pass issues its searches
-  back-to-back with no pacing.
+  **back-catalog drain rate**, shorten the interval rather than widen the pass —
+  the ratio sets throughput, the width sets peak burst, and a pass issues its
+  searches back-to-back with no pacing. That is now the only thing the ratio
+  buys: acquisition latency for a current release belongs to the feed.
 - **The recent feed inverts that cost, which is why it is the hot path.** One
   request covers every series, so `feed-poll` is flat in library size while the
   sweep is linear in due series. That is what makes the sweep affordable as a
