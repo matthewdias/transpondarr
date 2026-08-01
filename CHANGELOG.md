@@ -6,6 +6,113 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-08-01
+
+Monitoring and scheduled search: the release where the monitored flag starts
+doing real work. Add a series, touch nothing, and episodes arrive — searched on
+a broadcast-aware cadence, graded against your quality profile, grabbed,
+imported, and remembered when they fail. Automation ships **off by default**;
+enable it under Settings → Automation.
+
+### Added
+
+- **Scheduled search sweep.** A `wanted-search` job periodically searches
+  monitored series with outstanding wanted items once their episodes have aired
+  (an unknown air date counts as searchable — absence is normal, not an error),
+  runs the same match-and-score path as manual search, and grabs only a fully
+  eligible release: matched, clear of excludes, over the profile floor. No
+  eligible candidate means grab nothing — "nothing yet" is a correct outcome.
+  Empty passes back off exponentially from an hour toward a day, clamped so a
+  weekly show is still searched at broadcast however many empty passes came
+  before; a new episode airing resets the clock, and integration edits in
+  Settings apply on the next pass without a restart.
+- **Recent-feed polling.** The sweep costs one indexer query per series, so its
+  interval must be long; the Torznab recent feed inverts that — one request
+  returns the newest releases across the endpoint, matched against everything
+  wanted at once. The feed is the hot path, polled on a short interval, and the
+  sweep becomes the safety net. A new release for a wanted, aired episode is
+  grabbed on the next poll, not the next sweep. An indexer without a feed
+  degrades to sweep-only as a supported configuration, and a quiet poll costs
+  one request.
+- **A pinned group can now mean "wait for," not just "win when present."** The
+  sweep holds another group's release for a delay window measured from the
+  episode's broadcast, so the pinned group's slower release gets its chance
+  before automation settles. Global default plus a per-series override; a
+  manual grab is never held.
+- **Automation controls.** A global auto-search toggle and the default pin
+  delay, persisted and editable live in Settings → Automation — flipping the
+  switch takes effect at the next tick, off or on, without a restart. Off
+  until you enable it, deliberately: an install that has never configured an
+  indexer must not start grabbing on its own. A monitored series page says so
+  when automation is globally off, since monitored now means "will be grabbed
+  automatically," not just "appears on the calendar."
+- **Failure memory: a release that fails is not chosen again.** The sweep's
+  determinism made its own bug — a failed download reverted its item to wanted,
+  the next pass re-derived the same ranking, and the same release won forever.
+  Failed releases are now blocklisted per series with an escalating expiry
+  (24 hours, then 7 days, then permanent): repeat failure of the *same* release
+  is the only signal separating a dead release from a bad day, so first
+  failures stay recoverable while a proven-dead release converges to permanent.
+  Identity is info hash *and* normalized title, because Torznab feeds often
+  omit the hash. Automation degrades to the next-best eligible release;
+  blocked releases appear in the series History tab with the reason, an
+  unblock, and bulk clear actions — and a *manual* grab is never refused and
+  never leaves a block behind.
+- **An environmental-fault breaker guards the failure memory itself.** A full
+  disk or a client reaping torrents fails a *different* release every pass —
+  the escalation ladder never triggers, and the candidate pool drains into the
+  blocklist one entry at a time. Failures across distinct items library-wide
+  now trip a breaker that suppresses *recording* (never grabbing) until the
+  window passes; Settings says so in words, and clearing the library blocklist
+  also closes the breaker so a fixed fault doesn't wait out its window.
+  Refused adds are remembered too, when the client can attribute the failure
+  to the release itself — an unreachable client blocklists nothing.
+- **Background jobs status in Settings.** Each runner job's last run, duration,
+  and last error (styled as one), refreshed live — "did automation actually
+  run, and did it fail?" no longer requires reading server logs.
+- **Season packs are matched honestly, and automation declines them.** Packs
+  previously surfaced as unmatched with a reason; they now match their items
+  and are declined by *automation* with an explicit ineligible reason instead —
+  the importer can only defer a multi-episode payload, and unattended grabbing
+  must not volunteer for a state it cannot finish. A manual grab of a pack
+  still succeeds, landing in the deferred flow as before. Per-file batch
+  import is tracked for a later release.
+
+### Fixed
+
+- **Search terms with unicode punctuation found nothing.** AniList titles carry
+  typography that never appears in release names (`×`, `☆`, `・`), so a
+  HUNTER×HUNTER-class title searched verbatim died before matching ever ran —
+  and unattended search would have inherited the silence. Queries are now
+  sanitized (`×` → `x`, separators to spaces), zero results fall back to the
+  English then native title variants, and matching transliterates instead of
+  deleting, so the romaji variant matches real releases on its own.
+- **Dual-titled scene releases misparsed the alternate title as the release
+  group.** The trailing `(Romaji Title, Multi-Audio, Multi-Subs)` parenthetical
+  became the group, so group ranking, blocking, and pinning silently never
+  applied to a whole common release family. An implausible group is now
+  distrusted and the real scene group recovered from the codec-dash pattern.
+  The same family's no-episode-title variant also lost its source and codec to
+  a misfiled tag run; both now survive.
+- **Saving any Settings section no longer blanks the Authentication card.** The
+  section writers returned a settings body without the auth block and the UI
+  cached it whole; all writers now share one complete response.
+
+### Internal
+
+- **Search, decide, and grab moved into one core package** (`internal/core/
+  acquire`), shared by the manual routes, the sweep, and the feed poll — one
+  matcher, one eligibility path, three entry points. Recording a grab is now a
+  single transaction per release, so a multi-episode grab can no longer be
+  half-recorded by a mid-write failure.
+- **Per-series search cadence lives in the store** (last searched, backoff,
+  next due) with an epoch guard so a reset landing mid-sweep — a series
+  growing, or being re-monitored — beats the sweep's stale write.
+- **The recent-feed capability is a type assertion, not a wider interface**,
+  per the repo's optional-capability rule: an indexer that lacks it is a
+  supported configuration, and decorators forward it only when the inner
+  source really has one.
+
 ## [0.3.0] — 2026-07-29
 
 Quality profiles and airing awareness: releases are now scored against a
@@ -227,7 +334,8 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/matthewdias/transpondarr/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/matthewdias/transpondarr/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/matthewdias/transpondarr/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/matthewdias/transpondarr/compare/v0.1.0...v0.2.0
