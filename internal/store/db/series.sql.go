@@ -24,7 +24,7 @@ func (q *Queries) ClearSeriesAiringSyncedAt(ctx context.Context, id int64) error
 const createSeries = `-- name: CreateSeries :one
 INSERT INTO series (anilist_id, title, format, monitored)
 VALUES (?, ?, ?, ?)
-RETURNING id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group
+RETURNING id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
 `
 
 type CreateSeriesParams struct {
@@ -52,12 +52,17 @@ func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Ser
 		&i.QualityProfileID,
 		&i.AiringSyncedAt,
 		&i.PinnedGroup,
+		&i.LastSearchedAt,
+		&i.SearchBackoff,
+		&i.NextSearchAt,
+		&i.PinDelayHours,
+		&i.SearchEpoch,
 	)
 	return i, err
 }
 
 const getSeries = `-- name: GetSeries :one
-SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group
+SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
 FROM series
 WHERE id = ?
 LIMIT 1
@@ -76,12 +81,17 @@ func (q *Queries) GetSeries(ctx context.Context, id int64) (Series, error) {
 		&i.QualityProfileID,
 		&i.AiringSyncedAt,
 		&i.PinnedGroup,
+		&i.LastSearchedAt,
+		&i.SearchBackoff,
+		&i.NextSearchAt,
+		&i.PinDelayHours,
+		&i.SearchEpoch,
 	)
 	return i, err
 }
 
 const getSeriesByAnilistID = `-- name: GetSeriesByAnilistID :one
-SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group
+SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
 FROM series
 WHERE anilist_id = ?
 LIMIT 1
@@ -100,12 +110,17 @@ func (q *Queries) GetSeriesByAnilistID(ctx context.Context, anilistID sql.NullIn
 		&i.QualityProfileID,
 		&i.AiringSyncedAt,
 		&i.PinnedGroup,
+		&i.LastSearchedAt,
+		&i.SearchBackoff,
+		&i.NextSearchAt,
+		&i.PinDelayHours,
+		&i.SearchEpoch,
 	)
 	return i, err
 }
 
 const listSeries = `-- name: ListSeries :many
-SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group
+SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
 FROM series
 ORDER BY title
 `
@@ -129,6 +144,11 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 			&i.QualityProfileID,
 			&i.AiringSyncedAt,
 			&i.PinnedGroup,
+			&i.LastSearchedAt,
+			&i.SearchBackoff,
+			&i.NextSearchAt,
+			&i.PinDelayHours,
+			&i.SearchEpoch,
 		); err != nil {
 			return nil, err
 		}
@@ -144,7 +164,7 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 }
 
 const listSeriesDueAiringSync = `-- name: ListSeriesDueAiringSync :many
-SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group
+SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = 'anilist' AND m.provider_id = s.anilist_id
 WHERE s.monitored = 1
@@ -192,6 +212,11 @@ func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDue
 			&i.QualityProfileID,
 			&i.AiringSyncedAt,
 			&i.PinnedGroup,
+			&i.LastSearchedAt,
+			&i.SearchBackoff,
+			&i.NextSearchAt,
+			&i.PinDelayHours,
+			&i.SearchEpoch,
 		); err != nil {
 			return nil, err
 		}
@@ -207,7 +232,7 @@ func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDue
 }
 
 const listSeriesDueMetadataRefresh = `-- name: ListSeriesDueMetadataRefresh :many
-SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group
+SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = 'anilist' AND m.provider_id = s.anilist_id
 WHERE s.monitored = 1
@@ -253,6 +278,11 @@ func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeri
 			&i.QualityProfileID,
 			&i.AiringSyncedAt,
 			&i.PinnedGroup,
+			&i.LastSearchedAt,
+			&i.SearchBackoff,
+			&i.NextSearchAt,
+			&i.PinDelayHours,
+			&i.SearchEpoch,
 		); err != nil {
 			return nil, err
 		}
@@ -269,7 +299,7 @@ func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeri
 
 const listSeriesWithProgress = `-- name: ListSeriesWithProgress :many
 SELECT
-    s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group,
+    s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch,
     COUNT(w.id)                            AS total_items,
     CAST(COALESCE(SUM(w.have), 0) AS INTEGER) AS have_items
 FROM series s
@@ -288,6 +318,11 @@ type ListSeriesWithProgressRow struct {
 	QualityProfileID int64          `json:"quality_profile_id"`
 	AiringSyncedAt   sql.NullString `json:"airing_synced_at"`
 	PinnedGroup      sql.NullString `json:"pinned_group"`
+	LastSearchedAt   sql.NullString `json:"last_searched_at"`
+	SearchBackoff    int64          `json:"search_backoff"`
+	NextSearchAt     sql.NullString `json:"next_search_at"`
+	PinDelayHours    sql.NullInt64  `json:"pin_delay_hours"`
+	SearchEpoch      int64          `json:"search_epoch"`
 	TotalItems       int64          `json:"total_items"`
 	HaveItems        int64          `json:"have_items"`
 }
@@ -311,6 +346,11 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 			&i.QualityProfileID,
 			&i.AiringSyncedAt,
 			&i.PinnedGroup,
+			&i.LastSearchedAt,
+			&i.SearchBackoff,
+			&i.NextSearchAt,
+			&i.PinDelayHours,
+			&i.SearchEpoch,
 			&i.TotalItems,
 			&i.HaveItems,
 		); err != nil {
@@ -419,17 +459,20 @@ func (q *Queries) SetSeriesMonitored(ctx context.Context, arg SetSeriesMonitored
 }
 
 const setSeriesPinnedGroup = `-- name: SetSeriesPinnedGroup :execrows
-UPDATE series SET pinned_group = ? WHERE id = ?
+UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?
 `
 
 type SetSeriesPinnedGroupParams struct {
-	PinnedGroup sql.NullString `json:"pinned_group"`
-	ID          int64          `json:"id"`
+	PinnedGroup   sql.NullString `json:"pinned_group"`
+	PinDelayHours sql.NullInt64  `json:"pin_delay_hours"`
+	ID            int64          `json:"id"`
 }
 
-// NULL clears the pin; execrows lets the handler 404 an unknown series.
+// NULL clears the pin; execrows lets the handler 404 an unknown series. The
+// delay rides along because it is meaningless without a group to wait for, so
+// PUT-replacing one must replace the other.
 func (q *Queries) SetSeriesPinnedGroup(ctx context.Context, arg SetSeriesPinnedGroupParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, setSeriesPinnedGroup, arg.PinnedGroup, arg.ID)
+	result, err := q.db.ExecContext(ctx, setSeriesPinnedGroup, arg.PinnedGroup, arg.PinDelayHours, arg.ID)
 	if err != nil {
 		return 0, err
 	}

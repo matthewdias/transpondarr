@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/matthewdias/transpondarr/internal/config"
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
@@ -58,6 +59,7 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider meta
 		settings: settingsSvc,
 		auth:     authSvc,
 		jobs:     runner,
+		acquire:  acquire.New(st, reg, svc, settingsSvc, logger),
 	})
 
 	r.NotFound(spaHandler())

@@ -34,8 +34,10 @@ RETURNING *;
 UPDATE series SET monitored = ? WHERE id = ?;
 
 -- name: SetSeriesPinnedGroup :execrows
--- NULL clears the pin; execrows lets the handler 404 an unknown series.
-UPDATE series SET pinned_group = ? WHERE id = ?;
+-- NULL clears the pin; execrows lets the handler 404 an unknown series. The
+-- delay rides along because it is meaningless without a group to wait for, so
+-- PUT-replacing one must replace the other.
+UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?;
 
 -- name: ListSeriesDueAiringSync :many
 -- Monitored series whose broadcast schedule has never been synced or has gone

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -228,11 +228,25 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [group, setGroup] = useState("");
+  const [delay, setDelay] = useState("");
+  const groupId = useId();
+  const delayId = useId();
+  const delayHintId = useId();
   const current = detail.pinned_group ?? "";
+  const currentDelay =
+    detail.pin_delay_hours === undefined ? "" : String(detail.pin_delay_hours);
+  // An explicit 0 is a real setting ("do not wait"), not the absent default.
+  const delaySuffix =
+    detail.pin_delay_hours === undefined
+      ? ""
+      : detail.pin_delay_hours === 0
+        ? " · no wait"
+        : ` · ${detail.pin_delay_hours}h`;
 
   const pin = useMutation({
-    mutationFn: (g: string) => api.setSeriesPinnedGroup(detail.id, g),
-    onSuccess: (_res, g) => {
+    mutationFn: ({ g, d }: { g: string; d?: number }) =>
+      api.setSeriesPinnedGroup(detail.id, g, d),
+    onSuccess: (_res, { g }) => {
       toast.success(g.trim() ? `Pinned “${g.trim()}”` : "Pin cleared");
       queryClient.invalidateQueries({
         queryKey: seriesDetailQuery(detail.id).queryKey,
@@ -253,7 +267,10 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
-        if (o) setGroup(current);
+        if (o) {
+          setGroup(current);
+          setDelay(currentDelay);
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -262,7 +279,7 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-accent-foreground"
         >
           <Pin className="size-3" aria-hidden />
-          {current ? `Pin: ${current}` : "Pin group"}
+          {current ? `Pin: ${current}${delaySuffix}` : "Pin group"}
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
@@ -276,30 +293,72 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            pin.mutate(group);
+            // A cleared group takes its wait with it, so the disabled field's
+            // leftover value must not ride along to be silently dropped.
+            const blank = group.trim() === "" || delay === "";
+            pin.mutate({ g: group, d: blank ? undefined : Number(delay) });
           }}
         >
-          <Input
-            aria-label="Release group"
-            value={group}
-            onChange={(e) => setGroup(e.target.value)}
-            placeholder="e.g. ShinySubs"
-            maxLength={100}
-          />
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <label
+                htmlFor={groupId}
+                className="block text-xs font-medium text-muted-foreground"
+              >
+                Release group
+              </label>
+              <Input
+                id={groupId}
+                value={group}
+                onChange={(e) => setGroup(e.target.value)}
+                placeholder="e.g. ShinySubs"
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-1">
+              <label
+                htmlFor={delayId}
+                className="block text-xs font-medium text-muted-foreground"
+              >
+                Wait for this group (hours)
+              </label>
+              <Input
+                id={delayId}
+                aria-describedby={delayHintId}
+                type="number"
+                min={0}
+                max={8760}
+                step={1}
+                // The server drops a delay with no group to wait for, so the
+                // field must not take input the save would silently discard.
+                disabled={group.trim() === ""}
+                value={delay}
+                onChange={(e) => setDelay(e.target.value)}
+                placeholder="Global default"
+              />
+              <p id={delayHintId} className="text-xs text-muted-foreground">
+                How many hours automatic searches wait for this group after an
+                episode airs. Blank uses the global default; 0 never waits.
+              </p>
+            </div>
+          </div>
           <DialogFooter className="mt-4">
             {current && (
               <Button
                 type="button"
                 variant="outline"
                 disabled={pin.isPending}
-                onClick={() => pin.mutate("")}
+                onClick={() => pin.mutate({ g: "" })}
               >
                 Clear
               </Button>
             )}
             <Button
               type="submit"
-              disabled={pin.isPending || group.trim() === current}
+              disabled={
+                pin.isPending ||
+                (group.trim() === current && delay === currentDelay)
+              }
             >
               Save
             </Button>

@@ -959,6 +959,11 @@ export interface components {
             items: components["schemas"]["DetailItemDTO"][];
             monitored: boolean;
             native?: string;
+            /**
+             * Format: int64
+             * @description Per-series override of how long the sweep waits for the pinned group; absent means the global default
+             */
+            pin_delay_hours?: number;
             /** @description Release group pinned above profile scoring; absent when none */
             pinned_group?: string;
             /** Format: int64 */
@@ -1005,6 +1010,11 @@ export interface components {
              * @example https://example.com/schemas/SetPinnedGroupInputBody.json
              */
             readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Hours the scheduled sweep waits for this group before taking another (max 8760); omit to use the global default
+             */
+            delay_hours?: number;
             /** @description Release group to pin above profile scoring; empty clears the pin */
             group: string;
         };

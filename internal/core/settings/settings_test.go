@@ -2,6 +2,8 @@ package settings
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"path/filepath"
 	"testing"
 
@@ -18,7 +20,7 @@ func newTestService(t *testing.T) (*Service, *clients.Registry, *store.Store) {
 	}
 	t.Cleanup(func() { _ = st.DB.Close() })
 	reg := clients.New()
-	svc, err := New(context.Background(), st, &config.Config{}, reg)
+	svc, err := New(context.Background(), st, &config.Config{}, reg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}

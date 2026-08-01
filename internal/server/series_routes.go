@@ -11,10 +11,10 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
-	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -87,6 +87,7 @@ type seriesDetailReadDTO struct {
 	Monitored        bool            `json:"monitored"`
 	QualityProfileID int64           `json:"quality_profile_id"`
 	PinnedGroup      string          `json:"pinned_group,omitempty" doc:"Release group pinned above profile scoring; absent when none"`
+	PinDelayHours    *int            `json:"pin_delay_hours,omitempty" doc:"Per-series override of how long the sweep waits for the pinned group; absent means the global default"`
 	Items            []detailItemDTO `json:"items"`
 }
 
@@ -116,6 +117,9 @@ type setPinnedGroupInput struct {
 	ID   int64 `path:"id" doc:"Series id"`
 	Body struct {
 		Group string `json:"group" maxLength:"100" doc:"Release group to pin above profile scoring; empty clears the pin"`
+		// maximum mirrors acquire.MaxPinDelayHours, which a struct tag cannot
+		// reference: past it the duration multiply wraps and the wait vanishes.
+		DelayHours *int `json:"delay_hours,omitempty" minimum:"0" maximum:"8760" doc:"Hours the scheduled sweep waits for this group before taking another (max 8760); omit to use the global default"`
 	}
 }
 
@@ -150,21 +154,21 @@ type seriesGrabsOutput struct {
 // seriesHandler owns the dependencies shared by the series endpoints — the
 // read/CRUD handlers here and the acquisition handlers in
 // series_acquisition_routes.go. Bundling them on a receiver lets both files hang
-// handlers off the same type and share helpers like requireSeries and
-// matchReleases without threading deps through every call.
+// handlers off the same type and share helpers like requireSeries without
+// threading deps through every call.
 type seriesHandler struct {
-	store    *store.Store
-	catalog  *catalog.Service
-	clients  *clients.Registry
-	settings *settings.Service
+	store   *store.Store
+	catalog *catalog.Service
+	clients *clients.Registry
+	acquire *acquire.Service
 }
 
 func newSeriesHandler(deps routeDeps) *seriesHandler {
 	return &seriesHandler{
-		store:    deps.store,
-		catalog:  deps.catalog,
-		clients:  deps.clients,
-		settings: deps.settings,
+		store:   deps.store,
+		catalog: deps.catalog,
+		clients: deps.clients,
+		acquire: deps.acquire,
 	}
 }
 
@@ -323,6 +327,10 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 		PinnedGroup:      series.PinnedGroup.String,
 		Items:            make([]detailItemDTO, 0, len(rows)),
 	}
+	if series.PinDelayHours.Valid {
+		hours := int(series.PinDelayHours.Int64)
+		out.Body.PinDelayHours = &hours
+	}
 	if series.AnilistID.Valid {
 		out.Body.AniListID = series.AnilistID.Int64
 		// Best-effort enrichment from the metadata cache (no network call): the
@@ -369,6 +377,13 @@ func (h *seriesHandler) setMonitored(ctx context.Context, in *setMonitoredInput)
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to update series", err)
 	}
+	// Monitoring a series again asks for it to be looked after now, not once a
+	// backoff accumulated before it was paused has run down.
+	if in.Body.Monitored {
+		if err := h.store.Q.ResetSeriesSearchState(ctx, in.ID); err != nil {
+			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
+		}
+	}
 	out := &setMonitoredOutput{}
 	out.Body.ID = in.ID
 	out.Body.Monitored = in.Body.Monitored
@@ -377,15 +392,28 @@ func (h *seriesHandler) setMonitored(ctx context.Context, in *setMonitoredInput)
 
 func (h *seriesHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupInput) (*setPinnedGroupOutput, error) {
 	group := strings.TrimSpace(in.Body.Group)
+	// PUT replaces: an omitted delay falls back to the global default, and a
+	// cleared group takes its delay with it.
+	var delay sql.NullInt64
+	if group != "" && in.Body.DelayHours != nil {
+		delay = sql.NullInt64{Int64: int64(*in.Body.DelayHours), Valid: true}
+	}
 	rows, err := h.store.Q.SetSeriesPinnedGroup(ctx, db.SetSeriesPinnedGroupParams{
-		PinnedGroup: sql.NullString{String: group, Valid: group != ""},
-		ID:          in.ID,
+		PinnedGroup:   sql.NullString{String: group, Valid: group != ""},
+		PinDelayHours: delay,
+		ID:            in.ID,
 	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to update series", err)
 	}
 	if rows == 0 {
 		return nil, huma.Error404NotFound("series not found")
+	}
+	// A held series' next_search_at was computed from the pin that just changed,
+	// so without this a shortened wait or a new group does nothing until the old
+	// window closes.
+	if err := h.store.Q.ResetSeriesSearchState(ctx, in.ID); err != nil {
+		return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
 	}
 	out := &setPinnedGroupOutput{}
 	out.Body.SeriesID = in.ID

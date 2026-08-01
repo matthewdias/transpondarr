@@ -6,6 +6,8 @@
 // Format plus a naming template, not a re-architecture.
 package domain
 
+import "time"
+
 // Format is the shape of a title. MOVIE is reserved for a later phase; the model
 // already accommodates it.
 type Format string
@@ -43,6 +45,24 @@ type WantedItem struct {
 	Number int // absolute/episode number; typically 1 for a movie
 	Name   string
 	Have   bool
+}
+
+// MaxPinDelayHours bounds the wait a pinned group can impose at a year. The
+// bound is not taste: time.Duration tops out near 2.6e6 hours, so an unclamped
+// multiply wraps int64 and a large wait silently becomes no wait at all.
+const MaxPinDelayHours = 24 * 365
+
+// PinDelay converts a stored or configured hour count into a duration, clamping
+// both ends so no caller can produce a wrapped or negative wait.
+func PinDelay(hours int64) time.Duration {
+	switch {
+	case hours <= 0:
+		return 0
+	case hours > MaxPinDelayHours:
+		return MaxPinDelayHours * time.Hour
+	default:
+		return time.Duration(hours) * time.Hour
+	}
 }
 
 // QualityProfile is what a user wants a release to be. Release group is the

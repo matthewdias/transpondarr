@@ -317,11 +317,19 @@ export const api = {
       })
       .then(unwrap),
 
-  setSeriesPinnedGroup: (seriesId: number, group: string) =>
+  // delayHours is PUT-replace: omitting it drops back to the global default.
+  setSeriesPinnedGroup: (
+    seriesId: number,
+    group: string,
+    delayHours?: number,
+  ) =>
     client
       .PUT("/api/v1/series/{id}/pinned-group", {
         params: { path: { id: seriesId } },
-        body: { group },
+        body:
+          delayHours === undefined
+            ? { group }
+            : { group, delay_hours: delayHours },
       })
       .then(unwrap),
 };

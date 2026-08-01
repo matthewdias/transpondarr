@@ -6,11 +6,8 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/decide"
-	"github.com/matthewdias/transpondarr/internal/core/domain"
-	"github.com/matthewdias/transpondarr/internal/core/download"
-	"github.com/matthewdias/transpondarr/internal/core/indexer"
-	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
 type candidateReleaseDTO struct {
@@ -71,8 +68,8 @@ type grabSeriesOutput struct {
 // registerSeriesAcquisitionRoutes wires the series acquisition endpoints: the
 // read-only release search (match against wanted items) and the grab that hands
 // a chosen release to the download client and records it. The handlers are
-// methods on seriesHandler (defined in series_routes.go), so they reuse
-// requireSeries and matchReleases.
+// methods on seriesHandler (defined in series_routes.go), so they share one
+// acquire.Service with the scheduled sweep.
 func registerSeriesAcquisitionRoutes(api huma.API, deps routeDeps) {
 	h := newSeriesHandler(deps)
 
@@ -95,15 +92,15 @@ func registerSeriesAcquisitionRoutes(api huma.API, deps routeDeps) {
 }
 
 func (h *seriesHandler) searchReleases(ctx context.Context, in *searchSeriesInput) (*searchSeriesOutput, error) {
-	series, term, _, cands, err := h.matchReleases(ctx, in.ID)
+	m, err := h.acquire.MatchSeries(ctx, in.ID)
 	if err != nil {
-		return nil, err
+		return nil, acquireHTTPError(err)
 	}
 	out := &searchSeriesOutput{}
-	out.Body.Series = series.Title
-	out.Body.Term = term
-	out.Body.Results = make([]candidateReleaseDTO, 0, len(cands))
-	for _, c := range cands {
+	out.Body.Series = m.Series.Title
+	out.Body.Term = m.Term
+	out.Body.Results = make([]candidateReleaseDTO, 0, len(m.Candidates))
+	for _, c := range m.Candidates {
 		parts := make([]scorePartDTO, 0, len(c.ScoreParts))
 		for _, p := range c.ScoreParts {
 			parts = append(parts, scorePartDTO{Label: p.Label, Points: p.Points})
@@ -131,24 +128,22 @@ func (h *seriesHandler) searchReleases(ctx context.Context, in *searchSeriesInpu
 }
 
 func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*grabSeriesOutput, error) {
-	dl := h.clients.Download()
-	if dl == nil {
-		return nil, huma.Error503ServiceUnavailable(
-			"no download client configured (set it in Settings, or TRANSPONDARR_QBIT_URL/_USER/_PASSWORD)")
+	if h.clients.Download() == nil {
+		return nil, acquireHTTPError(acquire.ErrNoDownloadClient)
 	}
 
-	_, _, items, cands, err := h.matchReleases(ctx, in.ID)
+	m, err := h.acquire.MatchSeries(ctx, in.ID)
 	if err != nil {
-		return nil, err
+		return nil, acquireHTTPError(err)
 	}
 
 	// Re-run the match and locate the chosen release by URL, so we grab exactly
 	// what the decider says it covers rather than trusting client-supplied item
 	// numbers.
 	var chosen *decide.Candidate
-	for i := range cands {
-		if cands[i].Release.DownloadURL == in.Body.DownloadURL {
-			chosen = &cands[i]
+	for i := range m.Candidates {
+		if m.Candidates[i].Release.DownloadURL == in.Body.DownloadURL {
+			chosen = &m.Candidates[i]
 			break
 		}
 	}
@@ -159,118 +154,17 @@ func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*
 		return nil, huma.Error422UnprocessableEntity("release does not match any wanted item: " + chosen.Reason)
 	}
 
-	// Hand off to the download client. The category is best-effort decoration.
-	res, err := dl.Add(ctx, download.AddOptions{
-		URL:      in.Body.DownloadURL,
-		Category: h.settings.DownloadCategory(),
-		Paused:   in.Body.Paused,
-	})
+	// Eligibility is reported, never enforced, on a manual grab (PR #57).
+	res, err := h.acquire.Grab(ctx, *chosen, m.Items, in.Body.Paused)
 	if err != nil {
-		return nil, huma.Error502BadGateway("download client add failed", err)
-	}
-
-	// Record a grab per covered wanted item (identity keyed on the info hash).
-	// have stays false — only a successful import marks an item as had.
-	itemID := make(map[int]int64, len(items))
-	for _, it := range items {
-		itemID[it.Number] = it.ID
-	}
-	grabbed := make([]int, 0, len(chosen.Items))
-	for _, n := range chosen.Items {
-		id, ok := itemID[n]
-		if !ok {
-			continue
-		}
-		if _, gerr := h.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
-			WantedItemID: id,
-			InfoHash:     res.Hash,
-			ReleaseTitle: chosen.Release.Title,
-			Status:       "grabbed",
-		}); gerr != nil {
-			return nil, huma.Error500InternalServerError("failed to record grab", gerr)
-		}
-		grabbed = append(grabbed, n)
+		return nil, acquireHTTPError(err)
 	}
 
 	out := &grabSeriesOutput{}
-	out.Body.InfoHash = res.Hash
+	out.Body.InfoHash = res.InfoHash
 	out.Body.Outcome = string(res.Outcome)
 	out.Body.Release = chosen.Release.Title
-	out.Body.Items = grabbed
+	out.Body.Items = res.Items
 	out.Body.IneligibleReason = chosen.IneligibleReason
 	return out, nil
-}
-
-// matchReleases loads a series and its wanted items, searches the indexer, and
-// returns the ranked match candidates plus the query term that produced them.
-// Errors are already huma status errors, so callers can return them directly.
-func (h *seriesHandler) matchReleases(ctx context.Context, id int64) (db.Series, string, []domain.WantedItem, []decide.Candidate, error) {
-	idx := h.clients.Indexer()
-	if idx == nil {
-		return db.Series{}, "", nil, nil, huma.Error503ServiceUnavailable(
-			"no indexer configured (set TRANSPONDARR_TORZNAB_URL, _APIKEY)")
-	}
-
-	series, err := h.requireSeries(ctx, id)
-	if err != nil {
-		return db.Series{}, "", nil, nil, err
-	}
-
-	rows, err := h.store.Q.ListWantedItems(ctx, series.ID)
-	if err != nil {
-		return db.Series{}, "", nil, nil, huma.Error500InternalServerError("failed to load wanted items", err)
-	}
-	items := make([]domain.WantedItem, 0, len(rows))
-	for _, r := range rows {
-		items = append(items, domain.WantedItem{
-			ID:     r.ID,
-			Kind:   domain.WantedKind(r.Kind),
-			Number: int(r.Number.Int64),
-			Have:   r.Have == 1,
-		})
-	}
-
-	// Title variants (romaji/english/native) let the matcher accept releases that
-	// use a different one of the series' names. Best-effort: fall back to the
-	// stored title if the metadata lookup fails.
-	variants := []string{series.Title}
-	if series.AnilistID.Valid {
-		if v, verr := h.catalog.TitleVariants(ctx, series.AnilistID.Int64); verr == nil {
-			variants = append(variants, v...)
-		}
-	}
-
-	profRow, err := h.store.Q.GetQualityProfile(ctx, series.QualityProfileID)
-	if err != nil {
-		return db.Series{}, "", nil, nil, huma.Error500InternalServerError("failed to load quality profile", err)
-	}
-	groupRows, err := h.store.Q.ListProfileGroups(ctx, profRow.ID)
-	if err != nil {
-		return db.Series{}, "", nil, nil, huma.Error500InternalServerError("failed to load profile groups", err)
-	}
-	profile, err := profileFromRows(profRow, groupRows)
-	if err != nil {
-		return db.Series{}, "", nil, nil, huma.Error500InternalServerError("invalid quality profile", err)
-	}
-
-	// Sanitized title first, then each variant as a zero-result fallback (#107):
-	// a romaji term can be unsearchable even sanitized, and one extra request is
-	// cheap next to reporting nothing.
-	var releases []indexer.Release
-	term := ""
-	for _, t := range decide.SearchTerms(variants) {
-		if term == "" {
-			term = t
-		}
-		releases, err = idx.Search(ctx, indexer.Query{Term: t})
-		if err != nil {
-			return db.Series{}, "", nil, nil, huma.Error502BadGateway("indexer search failed", err)
-		}
-		if len(releases) > 0 {
-			term = t
-			break
-		}
-	}
-	return series, term, items, decide.Match(items, variants, releases, profile,
-		decide.MatchOpts{PinnedGroup: series.PinnedGroup.String}), nil
 }

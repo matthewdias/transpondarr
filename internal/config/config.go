@@ -47,6 +47,16 @@ type Config struct {
 	// auto hardlinks and falls back to a copy across filesystems.
 	LibraryDir string
 	ImportMode string
+
+	// Automation (the scheduled search sweep). Strings, like every other value
+	// here, because the settings layer overlays persisted overrides on top and
+	// those live in the DB as text; it parses both at startup.
+	// AutomationEnabled ships "false": an install must configure its indexer and
+	// download client before anything grabs on its own.
+	AutomationEnabled string
+	// PinDelayHours is how long the sweep waits for a series' pinned group before
+	// taking another group's release. "0" means no wait.
+	PinDelayHours string
 }
 
 // Load reads configuration from the environment. A .env file in the working
@@ -79,6 +89,9 @@ func Load() (*Config, error) {
 
 	c.LibraryDir = os.Getenv("TRANSPONDARR_LIBRARY_DIR")
 	c.ImportMode = getenv("TRANSPONDARR_IMPORT_MODE", "auto")
+
+	c.AutomationEnabled = getenv("TRANSPONDARR_AUTOMATION_ENABLED", "false")
+	c.PinDelayHours = getenv("TRANSPONDARR_PIN_DELAY_HOURS", "0")
 
 	c.AuthUsername = os.Getenv("TRANSPONDARR_AUTH_USERNAME")
 	c.AuthPassword = os.Getenv("TRANSPONDARR_AUTH_PASSWORD")

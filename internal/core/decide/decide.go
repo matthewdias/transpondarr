@@ -56,6 +56,9 @@ type ScorePart struct {
 // pinned-first, then by profile score; seeders are only the tie-break between
 // equal scores. A pin is an absolute tier, never a score: it wins only among
 // eligible releases, so it can never bypass a block, exclude, or the floor.
+//
+// An item's Have means only "not a candidate" here, not library state: the sweep
+// also sets it for in-flight and unaired items (#97 must not read it as "held").
 func Match(items []domain.WantedItem, titleVariants []string, releases []indexer.Release, profile domain.QualityProfile, opts ...MatchOpts) []Candidate {
 	// itemSet holds the numbers still worth grabbing. Already-had items are excluded
 	// so a fully-downloaded episode is not re-matched and re-grabbed; maxItem still

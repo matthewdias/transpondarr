@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/config"
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/airing"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/browse"
+	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
@@ -58,6 +60,11 @@ const metadataRefreshInterval = 15 * time.Minute
 // decide what actually gets fetched, so an idle tick costs one query and no
 // requests.
 const seasonRefreshInterval = 15 * time.Minute
+
+// wantedSearchInterval ticks on the same rhythm: the per-series backoff decides
+// what a pass actually searches, and it is persisted, so running at start costs
+// an idle tick rather than an indexer stampede after a restart loop.
+const wantedSearchInterval = 15 * time.Minute
 
 func main() {
 	// `transpondarrd openapi` prints the OpenAPI spec to stdout and exits — used by
@@ -131,7 +138,7 @@ func run(logger *slog.Logger) error {
 	// and swaps them on a config change. Handlers and the importer read the
 	// current client from the registry each time, so edits take effect live.
 	reg := clients.New()
-	settingsSvc, err := settings.New(ctx, st, cfg, reg)
+	settingsSvc, err := settings.New(ctx, st, cfg, reg, logger)
 	if err != nil {
 		return err
 	}
@@ -169,6 +176,18 @@ func run(logger *slog.Logger) error {
 		Interval:   seasonRefreshInterval,
 		RunAtStart: true,
 		Run:        browse.New(st, provider, logger).RefreshOnce,
+	})
+	// Always registered; it no-ops when automation is off or either client is
+	// unconfigured, both read per run — so configuring an integration takes effect
+	// without a restart, while the switch itself waits on #102 for a writer.
+	// A second stateless catalog wrapper over the same shared provider keeps the
+	// AniList rate-limit budget single.
+	runner.Add(jobs.Job{
+		Name:       "wanted-search",
+		Interval:   wantedSearchInterval,
+		RunAtStart: true,
+		Run: acquire.New(st, reg, catalog.NewService(st, provider), settingsSvc, logger).
+			SweepOnce,
 	})
 	// The import scan always runs; each scan it reads the current download client
 	// and library from the registry and no-ops when either is unconfigured — so
