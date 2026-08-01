@@ -95,6 +95,14 @@ export function timeAgo(input: string): string {
   return `${Math.floor(months / 12)}y ago`;
 }
 
+/**
+ * "3 releases" / "1 series". Takes an explicit plural, because the words this
+ * UI counts include ones that do not take an s.
+ */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
 /** Two-digit zero-padded episode number for the mono column. */
 export function pad2(n: number): string {
   return String(n).padStart(2, "0");

@@ -158,6 +158,37 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 	}
 }
 
+// Every read of "is this still blocking?" goes through the service's clock, so
+// a test can move time rather than backdate rows -- and so the breaker's pinned
+// clock does not sit next to methods that quietly disagree with it.
+func TestExpiryHonoursTheServiceClock(t *testing.T) {
+	svc, _, series := newService(t)
+	ctx := context.Background()
+	start := time.Now()
+	at(svc, start)
+
+	if _, err := svc.Record(ctx, series.ID, []int64{1}, "h1",
+		"[SynthSubs] Placeholder Saga - 01", "failed"); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	if active, _ := svc.Active(ctx, series.ID); len(active) != 1 {
+		t.Fatalf("active entries = %d at the moment of recording, want 1", len(active))
+	}
+
+	// Past the first rung of the ladder, so the entry has lapsed.
+	at(svc, start.Add(firstBlock+time.Hour))
+	if active, _ := svc.Active(ctx, series.ID); len(active) != 0 {
+		t.Errorf("active entries = %d after the block lapsed, want 0", len(active))
+	}
+	cleared, err := svc.ClearExpired(ctx, series.ID)
+	if err != nil {
+		t.Fatalf("clear expired: %v", err)
+	}
+	if cleared != 1 {
+		t.Errorf("cleared %d expired entries, want the 1 that had lapsed", cleared)
+	}
+}
+
 // expire backdates an entry's block, which only time can otherwise do.
 func expire(t *testing.T, st *store.Store, hash string) {
 	t.Helper()

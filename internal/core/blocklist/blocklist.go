@@ -73,6 +73,12 @@ func New(st *store.Store, log *slog.Logger) *Service {
 // recently for this to be the release's fault, so nothing is written. A caller
 // must also skip whatever it would do to act on a fresh failure — the evidence
 // that justified it is what the breaker just rejected.
+//
+// The two results are independent, and a caller should honour both: a true with
+// an error means the entry was written but its expiry may still be the first
+// rung rather than the one the ladder owed it. Acting on the failure is then
+// still correct; only the block is shorter than it should be, and the next
+// failure re-derives it.
 func (s *Service) Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
 	normalized := decide.NormalizeReleaseTitle(releaseTitle)
 	if normalized == "" {
@@ -121,7 +127,7 @@ func (s *Service) BreakerState() BreakerState {
 func (s *Service) Active(ctx context.Context, seriesID int64) ([]db.ReleaseBlocklist, error) {
 	return s.store.Q.ListActiveBlocklist(ctx, db.ListActiveBlocklistParams{
 		SeriesID:     seriesID,
-		BlockedUntil: sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true},
+		BlockedUntil: sql.NullString{String: store.FormatTimestamp(s.now()), Valid: true},
 	})
 }
 
@@ -146,7 +152,9 @@ func (s *Service) Clear(ctx context.Context, seriesID, entryID int64) error {
 }
 
 // ClearSeries forgets every remembered release for one series, and reports how
-// many it forgot.
+// many it forgot. Every user-initiated clear discards failure counts, the
+// single-entry Clear included: unblocking says the block was wrong, and a wrong
+// block's place on the ladder is wrong with it.
 func (s *Service) ClearSeries(ctx context.Context, seriesID int64) (int64, error) {
 	rows, err := s.store.Q.DeleteBlocklistBySeries(ctx, seriesID)
 	if err != nil {
@@ -185,7 +193,7 @@ func (s *Service) Summary(ctx context.Context) (db.CountActiveBlocklistRow, erro
 func (s *Service) ClearExpired(ctx context.Context, seriesID int64) (int64, error) {
 	rows, err := s.store.Q.DeleteExpiredBlocklistBySeries(ctx, db.DeleteExpiredBlocklistBySeriesParams{
 		SeriesID:     seriesID,
-		BlockedUntil: sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true},
+		BlockedUntil: sql.NullString{String: store.FormatTimestamp(s.now()), Valid: true},
 	})
 	if err != nil {
 		return 0, fmt.Errorf("clear expired blocklist for series %d: %w", seriesID, err)

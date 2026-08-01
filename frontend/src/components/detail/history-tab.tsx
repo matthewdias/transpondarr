@@ -15,7 +15,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ApiError, api, type BlocklistEntry, type GrabEvent } from "@/lib/api";
 import { blocklistQuery, grabsQuery } from "@/lib/queries";
-import { countdownOrDate, timeAgo } from "@/lib/format";
+import { countdownOrDate, plural, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -222,7 +222,7 @@ export function BlockedReleases({
             ) : (
               <ChevronRight className="size-4" />
             )}
-            {expired.length} expired {expired.length === 1 ? "block" : "blocks"}
+            {plural(expired.length, "expired block")}
           </Button>
           {expandExpired && (
             <div className="mt-2">
@@ -257,9 +257,7 @@ function useClearBlocklist(seriesId: number) {
     mutationFn: (expiredOnly: boolean) =>
       api.clearSeriesBlocklist(seriesId, expiredOnly),
     onSuccess: (cleared) => {
-      toast.success(
-        `${cleared} ${cleared === 1 ? "release" : "releases"} unblocked`,
-      );
+      toast.success(`${plural(cleared, "release")} unblocked`);
       queryClient.invalidateQueries({
         queryKey: blocklistQuery(seriesId).queryKey,
       });

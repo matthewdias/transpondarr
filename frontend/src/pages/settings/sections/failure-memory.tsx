@@ -4,12 +4,10 @@ import { Ban, Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { api, type BlocklistSummary } from "@/lib/api";
 import { blocklistSummaryQuery } from "@/lib/queries";
-import { timeAgo } from "@/lib/format";
+import { plural, timeAgo } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionShell } from "../section-shell";
-
-const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 /**
  * The breaker's diagnosis, which is the point of surfacing it at all: an
@@ -89,7 +87,7 @@ export function FailureMemorySection() {
                 <span className="font-medium text-foreground">
                   {plural(data.blocked, "release")}
                 </span>{" "}
-                skipped across {data.series} series.
+                skipped across {plural(data.series, "series", "series")}.
               </p>
               {confirming ? (
                 <span className="flex flex-none items-center gap-2">

@@ -4,6 +4,7 @@ import {
   formatBytes,
   nextEpisodeLabel,
   pad2,
+  plural,
   timeAgo,
 } from "@/lib/format";
 
@@ -154,5 +155,20 @@ describe("nextEpisodeLabel", () => {
     expect(nextEpisodeLabel(undefined, "2026-07-26T12:30:00Z")).toBe(
       "Next ep in 3d",
     );
+  });
+});
+
+describe("plural", () => {
+  it("counts and pluralizes in one go", () => {
+    expect(plural(0, "release")).toBe("0 releases");
+    expect(plural(1, "release")).toBe("1 release");
+    expect(plural(2, "release")).toBe("2 releases");
+  });
+
+  // "series" is its own plural, and the count line read "2 seriess" before this
+  // helper could say so.
+  it("takes an explicit plural for words that do not take an s", () => {
+    expect(plural(1, "series", "series")).toBe("1 series");
+    expect(plural(3, "series", "series")).toBe("3 series");
   });
 });
