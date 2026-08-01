@@ -266,6 +266,15 @@ Concretely, in `internal/core/decide`:
 - **AniList**: ~30 req/min (degraded state, not the documented 90) and **no
   per-episode metadata** — cache aggressively, and degrade to absolute numbering
   rather than depending on TVDB.
+- **The indexer is the scheduled sweep's scarce resource.** A pass costs one
+  search per series (two when the zero-result title-variant fallback fires), so
+  `seriesPerPass` × the job interval sets the whole search rate. Cost scales with
+  series carrying *unfilled* items, not library size: the due query's `EXISTS`
+  drops a series as soon as nothing is wanted, so a complete library is free and a
+  satisfied one leaves the queue instead of taking a second slot. To raise
+  throughput, shorten the interval rather than widen the pass — the ratio sets
+  throughput, the width sets peak burst, and a pass issues its searches
+  back-to-back with no pacing.
 - **Identification**: v1 relies on identity-by-construction (we chose the release);
   hash/AniDB identification and pre-existing-library import are deliberately
   out of v1's design.

@@ -347,7 +347,8 @@ func nullTimestamp(t time.Time) sql.NullString {
 // pinHold reports when a candidate becomes grabbable, and whether it must wait
 // at all (#62). Only another group's release ever waits, and only while the
 // window since the latest covered broadcast is still open — a covered item with
-// no air date makes that window unmeasurable, so the delay does not apply.
+// no air date makes that window unmeasurable, so the delay does not apply rather
+// than anchoring to now, which would restart the wait on every process restart.
 func (s *Service) pinHold(series db.Series, c decide.Candidate, airs map[int]time.Time, now time.Time) (time.Time, bool) {
 	if !series.PinnedGroup.Valid || series.PinnedGroup.String == "" || c.Pinned {
 		return time.Time{}, false

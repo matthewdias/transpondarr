@@ -9,30 +9,6 @@
 // them. A manual grab racing a sweep converges — one grab row per item and the
 // download client's own info-hash dedupe make the exposure no worse than
 // double-clicking Grab.
-//
-// A failed pass backs off like an empty one. Only an indexer outage is free,
-// because every due series shares it; anything series-local must still yield its
-// slot, or a handful of permanently failing series hold the head of the bounded
-// due queue and nothing else is ever searched.
-//
-// Throughput is deliberately small — seriesPerPass series per tick — because a
-// pass costs one indexer search per series and the indexer is the scarce,
-// rate-limited resource. The backoff keeps the steady-state due set well under
-// that, but demand is correlated: anime airs in weekly blocks, and the clamp
-// puts every title from one block back on the queue at nearly the same moment.
-// A large library can therefore take a few passes to drain the evening its shows
-// air, which most-overdue-first ordering makes fair rather than fast. If that
-// ever needs tuning, shorten the interval before widening the pass: the ratio is
-// what sets throughput, and smaller more frequent passes smooth burst latency
-// without raising peak load on the indexer as much.
-//
-// A series with a pinned group can make the sweep wait a while before settling
-// for another group (#62). The window is measured from broadcast, so an item
-// with no air date is not delayed at all: there is no interval to wait out, a
-// now-anchor would restart on every process restart, and the null case is
-// dominated by backfill titles where the pinned release either already exists
-// and wins ranking or never will. The delay lives entirely in the sweep —
-// manual search and grab are untouched.
 package acquire
 
 import (
