@@ -171,6 +171,18 @@ Behaviour changes are test-driven. Work red → green → refactor:
   filtered, never deleted — the row carries the failure count the ladder reads.
   An *import* failure deliberately records nothing: it stays `grabbed` and
   retries, because its causes are path-mapping gaps rather than bad releases.
+- **A batch is matched but never eligible (#125).** `decide` maps a season pack
+  to the items it covers and then refuses it in `ineligibleReason`, rather than
+  refusing it at matching. Two things follow. Automation skips it through the
+  same gate as every other rule — one guard for the sweep and the feed poll, not
+  a check in either loop — because the importer can only *defer* a true
+  multi-episode payload and deferred is settled, so a grabbed pack parks its
+  season instead of failing it back to wanted. And a human still sees which
+  episodes it holds and can take it (PR #57), which the old unmatched refusal
+  blocked in the UI. The policy is "never automatically", not "last resort":
+  grabbing a pack unattended downloads a season only to park it. #126's per-file
+  import is what lifts this — and once it does, a pack becomes automation's
+  *preferred* choice for a back-catalog add, one grab instead of N.
 - **Periodic work goes on the job runner (`internal/core/jobs`), not a bare
   `go`.** Register by name with an interval in `main.go`; the runner owns panic
   containment, the "log failures only when `ctx.Err() == nil`" rule, and the
