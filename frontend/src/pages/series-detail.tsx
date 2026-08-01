@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pin } from "lucide-react";
+import { Pin, TriangleAlert } from "lucide-react";
 import { api, ApiError, type SeriesDetail } from "@/lib/api";
 import { statusLabel } from "@/lib/chart";
 import {
@@ -407,15 +407,21 @@ export function MonitoringToggle({
         />
       </label>
       {monitored && !automationEnabled && (
-        // The dot carries the caution: the palette's amber is under 4.5:1 at
-        // this size, so it stays decorative and the label stays readable.
+        // Helper text, not a chip: a bordered pill directly under a switch reads
+        // as a second control. The icon carries the caution, since the palette's
+        // amber is under 4.5:1 as text at this size.
         <Link
           to="/settings"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+          className="group flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground hover:text-foreground"
           title="Nothing is searched or grabbed automatically until automation is enabled in Settings"
         >
-          <span className="size-1.5 flex-none rounded-full bg-dl" />
-          Automation is off
+          <TriangleAlert className="size-3 flex-none text-dl" />
+          <span>
+            Automation is off —{" "}
+            <span className="underline underline-offset-2 group-hover:decoration-current">
+              Settings
+            </span>
+          </span>
         </Link>
       )}
     </div>
