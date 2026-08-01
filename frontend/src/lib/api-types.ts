@@ -189,7 +189,8 @@ export interface paths {
         get: operations["list-series-blocklist"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Unblock every remembered release for a series */
+        delete: operations["clear-series-blocklist"];
         options?: never;
         head?: never;
         patch?: never;
@@ -649,6 +650,19 @@ export interface components {
             /** Format: int64 */
             size: number;
             title: string;
+        };
+        ClearedOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ClearedOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description How many entries were forgotten
+             */
+            cleared: number;
         };
         DetailItemDTO: {
             /**
@@ -1659,6 +1673,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SeriesBlocklistOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "clear-series-blocklist": {
+        parameters: {
+            query?: {
+                /** @description Clear only the entries whose block has lapsed, keeping what still blocks */
+                expired?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Series id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearedOutputBody"];
                 };
             };
             /** @description Error */

@@ -208,10 +208,76 @@ describe("HistoryTab blocked releases", () => {
       ),
     );
     const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: /unblock/i }));
+    await user.click(await screen.findByRole("button", { name: "Unblock" }));
     await waitFor(() => expect(deleted).toBe(true));
     await waitFor(() =>
       expect(screen.queryByText(/Blocked releases/i)).not.toBeInTheDocument(),
     );
+  });
+
+  // The affordance a fan-out needs: an environmental fault can block a whole
+  // series' candidate pool, and clearing it one entry at a time is the problem.
+  it("unblocks the whole series in one request", async () => {
+    let cleared = false;
+    renderTab([], [blocklistEntry(), blocklistEntry({ id: 12 })]);
+    server.use(
+      http.delete("/api/v1/series/7/blocklist", ({ request }) => {
+        expect(new URL(request.url).searchParams.get("expired")).toBeNull();
+        cleared = true;
+        return HttpResponse.json({ cleared: 2 });
+      }),
+      http.get("/api/v1/series/7/blocklist", () =>
+        HttpResponse.json({
+          series: "Example Show",
+          entries: cleared
+            ? []
+            : [blocklistEntry(), blocklistEntry({ id: 12 })],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: /unblock all/i }),
+    );
+    await waitFor(() => expect(cleared).toBe(true));
+    await waitFor(() =>
+      expect(screen.queryByText(/Blocked releases/i)).not.toBeInTheDocument(),
+    );
+  });
+
+  it("forgets expired blocks without touching what still blocks", async () => {
+    let expiredOnly = false;
+    const live = blocklistEntry();
+    const lapsed = blocklistEntry({
+      id: 12,
+      active: false,
+      blocked_until: new Date(Date.now() - 3600_000).toISOString(),
+    });
+    renderTab([], [live, lapsed]);
+    server.use(
+      http.delete("/api/v1/series/7/blocklist", ({ request }) => {
+        expiredOnly =
+          new URL(request.url).searchParams.get("expired") === "true";
+        return HttpResponse.json({ cleared: 1 });
+      }),
+      http.get("/api/v1/series/7/blocklist", () =>
+        HttpResponse.json({
+          series: "Example Show",
+          entries: expiredOnly ? [live] : [live, lapsed],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /expired/i }));
+    await user.click(
+      await screen.findByRole("button", { name: /forget expired/i }),
+    );
+    await waitFor(() => expect(expiredOnly).toBe(true));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: /forget expired/i }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(/Blocked releases/i)).toBeInTheDocument();
   });
 });

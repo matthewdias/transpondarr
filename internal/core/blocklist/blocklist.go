@@ -119,6 +119,31 @@ func (s *Service) Clear(ctx context.Context, seriesID, entryID int64) error {
 	return nil
 }
 
+// ClearSeries forgets every remembered release for one series, and reports how
+// many it forgot.
+func (s *Service) ClearSeries(ctx context.Context, seriesID int64) (int64, error) {
+	rows, err := s.store.Q.DeleteBlocklistBySeries(ctx, seriesID)
+	if err != nil {
+		return 0, fmt.Errorf("clear blocklist for series %d: %w", seriesID, err)
+	}
+	return rows, nil
+}
+
+// ClearExpired forgets only the lapsed entries, leaving what still blocks. It
+// discards their failure counts, so a release cleared this way starts the
+// escalation ladder over — which is the point: the counts that survive an
+// environmental fault are the ones worth discarding.
+func (s *Service) ClearExpired(ctx context.Context, seriesID int64) (int64, error) {
+	rows, err := s.store.Q.DeleteExpiredBlocklistBySeries(ctx, db.DeleteExpiredBlocklistBySeriesParams{
+		SeriesID:     seriesID,
+		BlockedUntil: sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true},
+	})
+	if err != nil {
+		return 0, fmt.Errorf("clear expired blocklist for series %d: %w", seriesID, err)
+	}
+	return rows, nil
+}
+
 // expiry renders a block duration as a stored timestamp; a zero duration is
 // permanent, which the schema spells NULL.
 func expiry(d time.Duration, now time.Time) sql.NullString {

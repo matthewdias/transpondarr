@@ -169,6 +169,69 @@ func TestBlocklistedReleaseSurfacesAsIneligibleButStillGrabs(t *testing.T) {
 	}
 }
 
+// Bulk unblock, the affordance a fan-out needs: one click per series rather
+// than one per entry.
+func TestClearSeriesBlocklistInBulk(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
+	other := seedSeries(t, h.store, "Unrelated Show", 1)
+
+	seedBlocklistEntry(t, h.store, seriesID, "[TopSubs] Placeholder Saga - 03 [1080p]",
+		sql.NullString{String: store.FormatTimestamp(time.Now().Add(24 * time.Hour)), Valid: true})
+	seedBlocklistEntry(t, h.store, seriesID, "[OldSubs] Placeholder Saga - 02 [1080p]",
+		sql.NullString{String: store.FormatTimestamp(time.Now().Add(-time.Hour)), Valid: true})
+	seedBlocklistEntry(t, h.store, seriesID, "[DeadSubs] Placeholder Saga - 01 [1080p]", sql.NullString{})
+	seedBlocklistEntry(t, h.store, other, "[TopSubs] Unrelated Show - 01 [1080p]", sql.NullString{})
+
+	var cleared struct {
+		Cleared int `json:"cleared"`
+	}
+	if code := do(t, h, http.MethodDelete,
+		fmt.Sprintf("/api/v1/series/%d/blocklist?expired=true", seriesID), nil, &cleared); code != http.StatusOK {
+		t.Fatalf("clear expired status = %d, want 200", code)
+	}
+	if cleared.Cleared != 1 {
+		t.Errorf("cleared = %d, want only the 1 lapsed entry", cleared.Cleared)
+	}
+	var after blocklistJSON
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), &after); code != http.StatusOK {
+		t.Fatalf("re-list status = %d, want 200", code)
+	}
+	if len(after.Entries) != 2 {
+		t.Errorf("entries after clearing expired = %d, want the live and permanent ones", len(after.Entries))
+	}
+
+	if code := do(t, h, http.MethodDelete,
+		fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), nil, &cleared); code != http.StatusOK {
+		t.Fatalf("clear all status = %d, want 200", code)
+	}
+	if cleared.Cleared != 2 {
+		t.Errorf("cleared = %d, want the 2 that were left", cleared.Cleared)
+	}
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), &after); code != http.StatusOK {
+		t.Fatalf("re-list status = %d, want 200", code)
+	}
+	if len(after.Entries) != 0 {
+		t.Errorf("entries after clearing the series = %d, want none", len(after.Entries))
+	}
+
+	// A bulk clear stops at its series, like the single-entry one.
+	var elsewhere blocklistJSON
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", other), &elsewhere); code != http.StatusOK {
+		t.Fatalf("list other series status = %d, want 200", code)
+	}
+	if len(elsewhere.Entries) != 1 {
+		t.Errorf("other series has %d entries, want its own 1 untouched", len(elsewhere.Entries))
+	}
+}
+
+func TestBulkClearOfUnknownSeriesIs404(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	if code := do(t, h, http.MethodDelete, "/api/v1/series/9999/blocklist", nil, nil); code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", code)
+	}
+}
+
 func TestBlocklistOfUnknownSeriesIs404(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	if code := h.get(t, "/api/v1/series/9999/blocklist", nil); code != http.StatusNotFound {

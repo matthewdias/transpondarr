@@ -157,3 +157,85 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 		t.Errorf("clear of a missing entry = %v, want ErrNotFound", err)
 	}
 }
+
+// expire backdates an entry's block, which only time can otherwise do.
+func expire(t *testing.T, st *store.Store, hash string) {
+	t.Helper()
+	if _, err := st.DB.ExecContext(context.Background(),
+		"UPDATE release_blocklist SET blocked_until = ? WHERE info_hash = ?",
+		store.FormatTimestamp(time.Now().Add(-time.Hour)), hash,
+	); err != nil {
+		t.Fatalf("expire %s: %v", hash, err)
+	}
+}
+
+func hashes(entries []db.ReleaseBlocklist) []string {
+	out := make([]string, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, e.InfoHash)
+	}
+	return out
+}
+
+// ClearExpired is the "forget the history, keep what still blocks" affordance;
+// ClearSeries is the whole-series one. Both stop at the series boundary.
+func TestClearExpiredAndClearSeries(t *testing.T) {
+	svc, st, series := newService(t)
+	ctx := context.Background()
+	other, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
+		Title: "Another Placeholder", Format: "TV", Monitored: 1,
+	})
+	if err != nil {
+		t.Fatalf("create other series: %v", err)
+	}
+
+	for _, e := range []struct {
+		seriesID    int64
+		hash, title string
+	}{
+		{series.ID, "live", "[SynthSubs] Placeholder Saga - 01"},
+		{series.ID, "gone", "[SynthSubs] Placeholder Saga - 02"},
+		{series.ID, "forever", "[SynthSubs] Placeholder Saga - 03"},
+		{other.ID, "elsewhere", "[SynthSubs] Another Placeholder - 01"},
+	} {
+		if err := svc.Record(ctx, e.seriesID, e.hash, e.title, "failed"); err != nil {
+			t.Fatalf("record %s: %v", e.hash, err)
+		}
+	}
+	expire(t, st, "gone")
+	expire(t, st, "elsewhere")
+	if _, err := st.DB.ExecContext(ctx,
+		"UPDATE release_blocklist SET blocked_until = NULL WHERE info_hash = 'forever'"); err != nil {
+		t.Fatalf("make permanent: %v", err)
+	}
+
+	cleared, err := svc.ClearExpired(ctx, series.ID)
+	if err != nil {
+		t.Fatalf("clear expired: %v", err)
+	}
+	if cleared != 1 {
+		t.Errorf("cleared %d expired entries, want 1", cleared)
+	}
+	left, err := svc.List(ctx, series.ID)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if got := hashes(left); len(got) != 2 {
+		t.Errorf("entries after clearing expired = %v, want the live and permanent ones", got)
+	}
+
+	cleared, err = svc.ClearSeries(ctx, series.ID)
+	if err != nil {
+		t.Fatalf("clear series: %v", err)
+	}
+	if cleared != 2 {
+		t.Errorf("cleared %d entries, want the 2 that were left", cleared)
+	}
+	if left, _ := svc.List(ctx, series.ID); len(left) != 0 {
+		t.Errorf("entries after clearing the series = %v, want none", hashes(left))
+	}
+	// Neither clear reaches past the series it was scoped to.
+	if elsewhere, _ := svc.List(ctx, other.ID); len(elsewhere) != 1 {
+		t.Errorf("other series has %d entries, want its own 1 untouched", len(elsewhere))
+	}
+}

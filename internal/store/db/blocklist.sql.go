@@ -10,6 +10,20 @@ import (
 	"database/sql"
 )
 
+const deleteBlocklistBySeries = `-- name: DeleteBlocklistBySeries :execrows
+DELETE FROM release_blocklist
+WHERE series_id = ?
+`
+
+// Bulk unblock for one series. Scoped like the single-entry delete.
+func (q *Queries) DeleteBlocklistBySeries(ctx context.Context, seriesID int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteBlocklistBySeries, seriesID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteBlocklistEntry = `-- name: DeleteBlocklistEntry :execrows
 DELETE FROM release_blocklist
 WHERE id = ? AND series_id = ?
@@ -23,6 +37,25 @@ type DeleteBlocklistEntryParams struct {
 // Scoped to the series so an unblock cannot reach another series' entry.
 func (q *Queries) DeleteBlocklistEntry(ctx context.Context, arg DeleteBlocklistEntryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteBlocklistEntry, arg.ID, arg.SeriesID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteExpiredBlocklistBySeries = `-- name: DeleteExpiredBlocklistBySeries :execrows
+DELETE FROM release_blocklist
+WHERE series_id = ? AND blocked_until IS NOT NULL AND blocked_until <= ?
+`
+
+type DeleteExpiredBlocklistBySeriesParams struct {
+	SeriesID     int64          `json:"series_id"`
+	BlockedUntil sql.NullString `json:"blocked_until"`
+}
+
+// A permanent entry (NULL blocked_until) is never expired, so it survives this.
+func (q *Queries) DeleteExpiredBlocklistBySeries(ctx context.Context, arg DeleteExpiredBlocklistBySeriesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteExpiredBlocklistBySeries, arg.SeriesID, arg.BlockedUntil)
 	if err != nil {
 		return 0, err
 	}

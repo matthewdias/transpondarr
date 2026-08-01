@@ -43,6 +43,17 @@ type clearBlocklistEntryInput struct {
 	EntryID int64 `path:"entryId" doc:"Blocklist entry id"`
 }
 
+type clearSeriesBlocklistInput struct {
+	ID      int64 `path:"id" doc:"Series id"`
+	Expired bool  `query:"expired" doc:"Clear only the entries whose block has lapsed, keeping what still blocks"`
+}
+
+type clearedOutput struct {
+	Body struct {
+		Cleared int64 `json:"cleared" doc:"How many entries were forgotten"`
+	}
+}
+
 // blocklistHandler owns the per-series blocklist endpoints. Separate from grab
 // history because the two outlive each other.
 type blocklistHandler struct {
@@ -60,6 +71,14 @@ func registerBlocklistRoutes(api huma.API, deps routeDeps) {
 		Summary:     "List releases remembered as failed for a series",
 		Tags:        []string{"series"},
 	}, h.list)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "clear-series-blocklist",
+		Method:      http.MethodDelete,
+		Path:        "/api/v1/series/{id}/blocklist",
+		Summary:     "Unblock every remembered release for a series",
+		Tags:        []string{"series"},
+	}, h.clearSeries)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "clear-series-blocklist-entry",
@@ -100,6 +119,30 @@ func (h *blocklistHandler) list(ctx context.Context, in *seriesBlocklistInput) (
 			CreatedAt:    e.CreatedAt,
 		})
 	}
+	return out, nil
+}
+
+// clearSeries is the bulk unblock. It 404s on an unknown series rather than
+// reporting zero cleared, so a stale series id is not read as "nothing to do".
+func (h *blocklistHandler) clearSeries(ctx context.Context, in *clearSeriesBlocklistInput) (*clearedOutput, error) {
+	series, err := h.store.Q.GetSeries(ctx, in.ID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, huma.Error404NotFound("series not found")
+	}
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to load series", err)
+	}
+
+	cleared := h.blocklist.ClearSeries
+	if in.Expired {
+		cleared = h.blocklist.ClearExpired
+	}
+	n, err := cleared(ctx, series.ID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to clear blocklist", err)
+	}
+	out := &clearedOutput{}
+	out.Body.Cleared = n
 	return out, nil
 }
 

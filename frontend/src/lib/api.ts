@@ -283,6 +283,17 @@ export const api = {
       .then(unwrap)
       .then((r) => r.entries),
 
+  clearSeriesBlocklist: (id: number, expiredOnly = false) =>
+    client
+      .DELETE("/api/v1/series/{id}/blocklist", {
+        params: {
+          path: { id },
+          ...(expiredOnly ? { query: { expired: true } } : {}),
+        },
+      })
+      .then(unwrap)
+      .then((r) => r.cleared),
+
   clearBlocklistEntry: (id: number, entryId: number) =>
     client
       .DELETE("/api/v1/series/{id}/blocklist/{entryId}", {
