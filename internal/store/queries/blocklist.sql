@@ -16,6 +16,11 @@ ON CONFLICT (series_id, normalized_title) DO UPDATE SET
     updated_at    = datetime('now')
 RETURNING *;
 
+-- name: SetBlocklistExpiry :exec
+-- NULL is permanent. Separate from the upsert because the ladder is keyed on the
+-- failure count the upsert only reports after it has written.
+UPDATE release_blocklist SET blocked_until = ?, updated_at = datetime('now') WHERE id = ?;
+
 -- name: ListActiveBlocklist :many
 -- What decide must refuse right now. A NULL blocked_until is permanent.
 SELECT *

@@ -142,6 +142,22 @@ func (q *Queries) ListBlocklistBySeries(ctx context.Context, seriesID int64) ([]
 	return items, nil
 }
 
+const setBlocklistExpiry = `-- name: SetBlocklistExpiry :exec
+UPDATE release_blocklist SET blocked_until = ?, updated_at = datetime('now') WHERE id = ?
+`
+
+type SetBlocklistExpiryParams struct {
+	BlockedUntil sql.NullString `json:"blocked_until"`
+	ID           int64          `json:"id"`
+}
+
+// NULL is permanent. Separate from the upsert because the ladder is keyed on the
+// failure count the upsert only reports after it has written.
+func (q *Queries) SetBlocklistExpiry(ctx context.Context, arg SetBlocklistExpiryParams) error {
+	_, err := q.db.ExecContext(ctx, setBlocklistExpiry, arg.BlockedUntil, arg.ID)
+	return err
+}
+
 const upsertBlocklistEntry = `-- name: UpsertBlocklistEntry :one
 
 INSERT INTO release_blocklist (series_id, info_hash, release_title, normalized_title, reason, blocked_until)
