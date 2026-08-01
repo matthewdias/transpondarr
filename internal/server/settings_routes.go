@@ -37,6 +37,11 @@ type librarySettingsDTO struct {
 	Mode       string `json:"mode"`
 }
 
+type automationSettingsDTO struct {
+	Enabled       bool `json:"enabled"`
+	PinDelayHours int  `json:"pin_delay_hours"`
+}
+
 type generalSettingsDTO struct {
 	Version string `json:"version"`
 	Addr    string `json:"addr"`
@@ -52,11 +57,12 @@ type authSettingsDTO struct {
 }
 
 type settingsDTO struct {
-	Download downloadSettingsDTO `json:"download"`
-	Indexer  indexerSettingsDTO  `json:"indexer"`
-	Library  librarySettingsDTO  `json:"library"`
-	Auth     authSettingsDTO     `json:"auth"`
-	General  generalSettingsDTO  `json:"general"`
+	Download   downloadSettingsDTO   `json:"download"`
+	Indexer    indexerSettingsDTO    `json:"indexer"`
+	Library    librarySettingsDTO    `json:"library"`
+	Automation automationSettingsDTO `json:"automation"`
+	Auth       authSettingsDTO       `json:"auth"`
+	General    generalSettingsDTO    `json:"general"`
 }
 
 func downloadDTO(c settings.DownloadConfig) downloadSettingsDTO {
@@ -82,11 +88,16 @@ func libraryDTO(c settings.LibraryConfig) librarySettingsDTO {
 	return librarySettingsDTO{Configured: c.Dir != "", Dir: c.Dir, Mode: c.Mode}
 }
 
+func automationDTO(c settings.AutomationConfig) automationSettingsDTO {
+	return automationSettingsDTO{Enabled: c.Enabled, PinDelayHours: c.PinDelayHours}
+}
+
 func snapshotDTO(s settings.Snapshot) settingsDTO {
 	return settingsDTO{
-		Download: downloadDTO(s.Download),
-		Indexer:  indexerDTO(s.Indexer),
-		Library:  libraryDTO(s.Library),
+		Download:   downloadDTO(s.Download),
+		Indexer:    indexerDTO(s.Indexer),
+		Library:    libraryDTO(s.Library),
+		Automation: automationDTO(s.Automation),
 		General: generalSettingsDTO{
 			Version: version.Version,
 			Addr:    s.Addr,
@@ -123,6 +134,16 @@ type libraryInput struct {
 	Body struct {
 		Dir  string `json:"dir,omitempty"`
 		Mode string `json:"mode,omitempty" enum:"auto,hardlink,copy"`
+	}
+}
+
+// Both fields are required, unlike the sections above: a bool and an int have no
+// "unset" encoding, so omitempty would make "leave the delay alone" and "set it
+// to 0" the same request. The service clamps the hour count.
+type automationInput struct {
+	Body struct {
+		Enabled       bool `json:"enabled"`
+		PinDelayHours int  `json:"pin_delay_hours" doc:"Global pinned-group wait; 0 disables waiting"`
 	}
 }
 
@@ -210,6 +231,15 @@ func registerSettingsRoutes(api huma.API, deps routeDeps) {
 		Tags:        []string{"settings"},
 	}, h.updateLibrary)
 
+	// Automation ----------------------------------------------------------------
+	huma.Register(api, huma.Operation{
+		OperationID: "update-automation-settings",
+		Method:      http.MethodPut,
+		Path:        "/api/v1/settings/automation",
+		Summary:     "Update the global automation policy (applies on the next job tick)",
+		Tags:        []string{"settings"},
+	}, h.updateAutomation)
+
 	// API key ------------------------------------------------------------------
 	huma.Register(api, huma.Operation{
 		OperationID: "regenerate-api-key",
@@ -228,7 +258,10 @@ func registerSettingsRoutes(api huma.API, deps routeDeps) {
 	}, h.testLibrary)
 }
 
-func (h *settingsHandler) getSettings(_ context.Context, _ *struct{}) (*settingsOutput, error) {
+// respond builds the full settings body. Every handler here goes through it,
+// including the update paths: the client caches the response as the whole
+// settings object, so a section save that omitted auth would blank that card.
+func (h *settingsHandler) respond() *settingsOutput {
 	out := &settingsOutput{}
 	out.Body = snapshotDTO(h.settings.Snapshot())
 	out.Body.Auth = authSettingsDTO{
@@ -236,7 +269,11 @@ func (h *settingsHandler) getSettings(_ context.Context, _ *struct{}) (*settings
 		Username:   h.auth.Username(),
 		Required:   h.auth.Required(),
 	}
-	return out, nil
+	return out
+}
+
+func (h *settingsHandler) getSettings(_ context.Context, _ *struct{}) (*settingsOutput, error) {
+	return h.respond(), nil
 }
 
 func (h *settingsHandler) updateDownload(ctx context.Context, in *downloadInput) (*settingsOutput, error) {
@@ -248,9 +285,7 @@ func (h *settingsHandler) updateDownload(ctx context.Context, in *downloadInput)
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to save download settings", err)
 	}
-	out := &settingsOutput{}
-	out.Body = snapshotDTO(h.settings.Snapshot())
-	return out, nil
+	return h.respond(), nil
 }
 
 func (h *settingsHandler) testDownload(ctx context.Context, in *downloadInput) (*testOutput, error) {
@@ -274,9 +309,7 @@ func (h *settingsHandler) updateIndexer(ctx context.Context, in *indexerInput) (
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to save indexer settings", err)
 	}
-	out := &settingsOutput{}
-	out.Body = snapshotDTO(h.settings.Snapshot())
-	return out, nil
+	return h.respond(), nil
 }
 
 func (h *settingsHandler) testIndexer(ctx context.Context, in *indexerInput) (*testOutput, error) {
@@ -302,9 +335,17 @@ func (h *settingsHandler) updateLibrary(ctx context.Context, in *libraryInput) (
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to save library settings", err)
 	}
-	out := &settingsOutput{}
-	out.Body = snapshotDTO(h.settings.Snapshot())
-	return out, nil
+	return h.respond(), nil
+}
+
+func (h *settingsHandler) updateAutomation(ctx context.Context, in *automationInput) (*settingsOutput, error) {
+	if err := h.settings.UpdateAutomation(ctx, settings.AutomationConfig{
+		Enabled:       in.Body.Enabled,
+		PinDelayHours: in.Body.PinDelayHours,
+	}); err != nil {
+		return nil, huma.Error500InternalServerError("failed to save automation settings", err)
+	}
+	return h.respond(), nil
 }
 
 func (h *settingsHandler) regenerateAPIKey(ctx context.Context, _ *struct{}) (*apiKeyOutput, error) {

@@ -5,7 +5,8 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { SeriesDetail } from "@/lib/api";
-import { PinnedGroupChip } from "@/pages/series-detail";
+import { MemoryRouter } from "react-router";
+import { MonitoringToggle, PinnedGroupChip } from "@/pages/series-detail";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -230,5 +231,41 @@ describe("PinnedGroupChip", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
+  });
+});
+
+describe("MonitoringToggle", () => {
+  function renderToggle(monitored: boolean, automationEnabled: boolean) {
+    return render(
+      <MemoryRouter>
+        <MonitoringToggle
+          monitored={monitored}
+          automationEnabled={automationEnabled}
+          onToggle={() => {}}
+        />
+      </MemoryRouter>,
+    );
+  }
+
+  it("lets the switch speak for itself while automation is on", () => {
+    renderToggle(true, true);
+    expect(screen.getByRole("switch", { name: /monitor/i })).toBeChecked();
+    expect(screen.getByText("Monitored")).toBeInTheDocument();
+    expect(screen.queryByText(/automation is off/i)).not.toBeInTheDocument();
+  });
+
+  // Monitored means "will be grabbed automatically", so the global kill switch
+  // makes that label a promise the daemon is not keeping -- say so where the
+  // promise is made rather than only in Settings.
+  it("flags the global kill switch on a monitored series", () => {
+    renderToggle(true, false);
+    const note = screen.getByRole("link", { name: /automation is off/i });
+    expect(note).toHaveAttribute("href", "/settings");
+  });
+
+  it("stays quiet on an unmonitored series, which the switch already explains", () => {
+    renderToggle(false, false);
+    expect(screen.getByText("Unmonitored")).toBeInTheDocument();
+    expect(screen.queryByText(/automation is off/i)).not.toBeInTheDocument();
   });
 });

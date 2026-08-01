@@ -54,10 +54,10 @@ type sweepItem struct {
 }
 
 // SweepOnce searches every series due one and grabs what it can, and is what the
-// job runner calls. The clients are read per run, so configuring an integration
-// takes effect on the next tick without a restart; the kill switch is read per
-// run too, but nothing writes it yet (#102), so changing it still needs one.
-// One series' failure never costs the rest their pass.
+// job runner calls. The clients and the kill switch are both read per run, so
+// configuring an integration or flipping automation in Settings takes effect on
+// the next tick without a restart. One series' failure never costs the rest
+// their pass.
 func (s *Service) SweepOnce(ctx context.Context) error {
 	if !s.cfg.AutomationEnabled() {
 		return nil

@@ -331,6 +331,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/automation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update the global automation policy (applies on the next job tick) */
+        put: operations["update-automation-settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/download": {
         parameters: {
             query?: never;
@@ -505,6 +522,25 @@ export interface components {
             /** @description enabled or local */
             required: string;
             username: string;
+        };
+        AutomationInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/AutomationInputBody.json
+             */
+            readonly $schema?: string;
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description Global pinned-group wait; 0 disables waiting
+             */
+            pin_delay_hours: number;
+        };
+        AutomationSettingsDTO: {
+            enabled: boolean;
+            /** Format: int64 */
+            pin_delay_hours: number;
         };
         BlocklistEntryDTO: {
             /** @description Whether the block applies right now */
@@ -1101,6 +1137,7 @@ export interface components {
              */
             readonly $schema?: string;
             auth: components["schemas"]["AuthSettingsDTO"];
+            automation: components["schemas"]["AutomationSettingsDTO"];
             download: components["schemas"]["DownloadSettingsDTO"];
             general: components["schemas"]["GeneralSettingsDTO"];
             indexer: components["schemas"]["IndexerSettingsDTO"];
@@ -1884,6 +1921,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiKeyOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-automation-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomationInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsDTO"];
                 };
             };
             /** @description Error */

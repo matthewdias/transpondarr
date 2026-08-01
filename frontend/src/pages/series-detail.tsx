@@ -10,6 +10,7 @@ import {
   releasesQuery,
   seriesDetailQuery,
   seriesQuery,
+  settingsQuery,
 } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { AniListLink } from "@/components/anilist-link";
@@ -59,6 +60,12 @@ export function SeriesDetailPage() {
     ...seriesDetailQuery(id),
     enabled: Number.isFinite(id),
   });
+
+  // Monitoring only means anything while automation is on, so the header needs
+  // the global switch. Assumed on until the settings load, so a slow fetch does
+  // not flash a warning at someone whose automation is fine.
+  const { data: settings } = useQuery(settingsQuery());
+  const automationEnabled = settings?.automation.enabled ?? true;
 
   const monitor = useMutation({
     mutationFn: (v: boolean) => api.setMonitored(id, v),
@@ -126,6 +133,7 @@ export function SeriesDetailPage() {
           <>
             <DetailHeader
               detail={detail}
+              automationEnabled={automationEnabled}
               onToggleMonitored={(v) => monitor.mutate(v)}
             />
 
@@ -369,11 +377,58 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
   );
 }
 
+/**
+ * Monitoring switch. Monitored now means "will be searched and grabbed
+ * automatically", so the global kill switch turns that label into a promise the
+ * daemon is not keeping — the only case worth annotating, since an unmonitored
+ * series is already saying it will not run.
+ */
+export function MonitoringToggle({
+  monitored,
+  automationEnabled,
+  onToggle,
+}: {
+  monitored: boolean;
+  automationEnabled: boolean;
+  onToggle: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-none flex-col items-end gap-1">
+      <label className="flex cursor-pointer items-center gap-2.5 text-[13.5px] font-medium">
+        <span
+          className={monitored ? "text-foreground" : "text-muted-foreground"}
+        >
+          {monitored ? "Monitored" : "Unmonitored"}
+        </span>
+        <Switch
+          checked={monitored}
+          onCheckedChange={onToggle}
+          aria-label="Toggle monitoring"
+        />
+      </label>
+      {monitored && !automationEnabled && (
+        // The dot carries the caution: the palette's amber is under 4.5:1 at
+        // this size, so it stays decorative and the label stays readable.
+        <Link
+          to="/settings"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+          title="Nothing is searched or grabbed automatically until automation is enabled in Settings"
+        >
+          <span className="size-1.5 flex-none rounded-full bg-dl" />
+          Automation is off
+        </Link>
+      )}
+    </div>
+  );
+}
+
 function DetailHeader({
   detail,
+  automationEnabled,
   onToggleMonitored,
 }: {
   detail: SeriesDetail;
+  automationEnabled: boolean;
   onToggleMonitored: (v: boolean) => void;
 }) {
   // English only, matching the discovery detail view.
@@ -402,20 +457,11 @@ function DetailHeader({
               <p className="mt-0.5 text-sm text-faint">{subtitle}</p>
             )}
           </div>
-          <label className="flex flex-none cursor-pointer items-center gap-2.5 text-[13.5px] font-medium">
-            <span
-              className={
-                detail.monitored ? "text-foreground" : "text-muted-foreground"
-              }
-            >
-              {detail.monitored ? "Monitored" : "Unmonitored"}
-            </span>
-            <Switch
-              checked={detail.monitored}
-              onCheckedChange={onToggleMonitored}
-              aria-label="Toggle monitoring"
-            />
-          </label>
+          <MonitoringToggle
+            monitored={detail.monitored}
+            automationEnabled={automationEnabled}
+            onToggle={onToggleMonitored}
+          />
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">

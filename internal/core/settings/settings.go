@@ -84,6 +84,13 @@ type LibraryConfig struct {
 	Mode string // auto | hardlink | copy
 }
 
+// AutomationConfig is the global automation policy: the kill switch every
+// unattended job reads, and the pinned-group wait for series not overriding it.
+type AutomationConfig struct {
+	Enabled       bool
+	PinDelayHours int
+}
+
 func (c *DownloadConfig) applyDefaults() {
 	if strings.TrimSpace(c.Category) == "" {
 		c.Category = defaultCategory
@@ -105,13 +112,14 @@ func (c *LibraryConfig) applyDefaults() {
 // Snapshot is the effective configuration for display (secrets not masked here;
 // the HTTP layer masks them before serialization).
 type Snapshot struct {
-	Download DownloadConfig
-	Indexer  IndexerConfig
-	Library  LibraryConfig
-	APIKey   string
-	DataDir  string
-	DBPath   string
-	Addr     string
+	Download   DownloadConfig
+	Indexer    IndexerConfig
+	Library    LibraryConfig
+	Automation AutomationConfig
+	APIKey     string
+	DataDir    string
+	DBPath     string
+	Addr       string
 }
 
 // state is the effective configuration as an immutable value. It is only ever
@@ -206,21 +214,22 @@ func overlay(m map[string]string, key string, dst *string) {
 func (s *Service) Snapshot() Snapshot {
 	c := s.cur.Load()
 	return Snapshot{
-		Download: c.dl,
-		Indexer:  c.idx,
-		Library:  c.lib,
-		APIKey:   c.apiKey,
-		DataDir:  c.dataDir,
-		DBPath:   c.dbPath,
-		Addr:     c.addr,
+		Download:   c.dl,
+		Indexer:    c.idx,
+		Library:    c.lib,
+		Automation: AutomationConfig{Enabled: c.automationEnabled, PinDelayHours: int(c.pinDelayDefault / time.Hour)},
+		APIKey:     c.apiKey,
+		DataDir:    c.dataDir,
+		DBPath:     c.dbPath,
+		Addr:       c.addr,
 	}
 }
 
 // DownloadCategory returns the category applied to grabbed torrents.
 func (s *Service) DownloadCategory() string { return s.cur.Load().dl.Category }
 
-// AutomationEnabled reports whether the scheduled search sweep may grab. It is
-// read per run, so a future toggle (#102) takes effect without a restart.
+// AutomationEnabled reports whether unattended work may act. Every job reads it
+// per run, so UpdateAutomation takes effect on the next tick without a restart.
 func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationEnabled }
 
 // PinDelayDefault is how long the sweep waits for a series' pinned group before
@@ -359,6 +368,29 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 	next.lib = in
 	s.cur.Store(&next)
 	s.reg.SetLibrary(buildLibrary(in))
+	return nil
+}
+
+// UpdateAutomation saves the global automation policy. Nothing is rebuilt or
+// torn down: the jobs stay registered and read the switch per run, so disabling
+// and re-enabling are both restart-free. The clamped hour count is what gets
+// persisted, so a reload agrees with the live state rather than re-clamping.
+func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) error {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+
+	delay := domain.PinDelay(int64(in.PinDelayHours))
+	if err := s.persist(ctx, map[string]string{
+		keyAutomationEnabled:  strconv.FormatBool(in.Enabled),
+		keyAutomationPinDelay: strconv.Itoa(int(delay / time.Hour)),
+	}); err != nil {
+		return err
+	}
+
+	next := *s.cur.Load()
+	next.automationEnabled = in.Enabled
+	next.pinDelayDefault = delay
+	s.cur.Store(&next)
 	return nil
 }
 
