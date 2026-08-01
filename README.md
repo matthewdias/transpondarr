@@ -4,16 +4,54 @@ An anime-focused PVR — Sonarr's job, built around anime-native tooling and
 metadata. It monitors series, finds releases on anime indexers, drives a
 download client, and organizes the results into a media library.
 
-> **Status:** MVP. The full acquisition loop — add a series from AniList → search a
-> Torznab/Prowlarr indexer → grab via qBittorrent → hardlink into a Plex/Jellyfin-ready
-> library — runs end-to-end, with an embedded web UI and Sonarr-style authentication.
-> Indexing is via Torznab/Prowlarr for now.
+> **Status:** Beta. The acquisition loop runs end-to-end and unattended — add a
+> series from AniList, and monitored episodes are searched, graded against your
+> quality profile, grabbed via qBittorrent, and hardlinked into a
+> Plex/Jellyfin-ready library. Automation ships off by default; flip it on in
+> Settings. Indexing is via Torznab/Prowlarr for now.
 
 ## Why not just use Sonarr?
 
 Anime breaks Sonarr's assumptions: messy fansub filenames, absolute vs.
 per-season numbering, release-group/dual-audio/sub preferences, and metadata
 that lives on AniList/AniDB rather than TVDB.
+
+## Features
+
+**Today:**
+
+- **AniList-native metadata** — add series from AniList search, browse a seasonal
+  discovery chart, and see upcoming episodes on an airing calendar keyed to
+  Japanese broadcast times.
+- **Automated acquisition** — a scheduled sweep searches monitored series once
+  their episodes have aired, grabs eligible releases, and imports them; per-series
+  monitoring and a global on/off switch (off until you enable it).
+- **Anime-aware quality profiles** — release group is the dominant axis, then
+  resolution/source, dual audio, and sub preferences, with a score floor and hard
+  excludes. A per-series **pinned group** can also mean *wait for* — hold new
+  episodes for the pinned group's release before settling for another.
+- **Failure memory** — a failed release is blocklisted with escalating expiry
+  instead of re-grabbed forever, an environmental-fault breaker stops one bad
+  afternoon from blocklisting the library, and everything is visible and
+  unblockable in the UI.
+- **Manual control that's never refused** — search and grab any release by hand;
+  profiles inform manual actions but only gate automation.
+- **Seeding-safe library import** — hardlink (or copy) into Plex/Jellyfin-ready
+  naming, without breaking the seeding torrent.
+- **Self-hosted, single binary** — embedded web UI, login + API key auth, REST
+  API with an OpenAPI spec, observable background jobs, and live-editable
+  settings — no restarts.
+
+**Planned** (tracked in the
+[milestones](https://github.com/matthewdias/transpondarr/milestones)):
+
+- Recent-feed polling, so new releases are grabbed within minutes of appearing
+  rather than on the next sweep (in flight).
+- Notifications (Discord, webhook, ntfy) and a global activity feed.
+- Batch/season-pack import, quality upgrades, and episode-targeted search.
+- Post-1.0: anime movies, AniList account sync (auto-monitor your Watching list),
+  importing a pre-existing library, multiple indexers, and Sonarr-API
+  compatibility for existing dashboard/mobile apps.
 
 ## Install
 
