@@ -81,7 +81,7 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 				Monitored:   monitored,
 				Number:      int(r.Number.Int64),
 				Name:        r.Title.String,
-				AirsAt:      airsAtRFC3339(r.AirsAt),
+				AirsAt:      storedTimeRFC3339(r.AirsAt),
 				Status:      state.Status,
 				ImportError: state.ImportError,
 			})

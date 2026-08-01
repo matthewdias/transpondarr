@@ -5,6 +5,7 @@ import (
 
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
+	"github.com/matthewdias/transpondarr/internal/core/blocklist"
 	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
@@ -20,14 +21,15 @@ import (
 // once here rather than per handler group, so the manual routes and the sweep
 // share one service.
 type routeDeps struct {
-	store    *store.Store
-	catalog  *catalog.Service
-	browse   *browse.Service
-	clients  *clients.Registry
-	settings *settings.Service
-	auth     *auth.Service
-	jobs     *jobs.Runner
-	acquire  *acquire.Service
+	store     *store.Store
+	catalog   *catalog.Service
+	browse    *browse.Service
+	clients   *clients.Registry
+	settings  *settings.Service
+	auth      *auth.Service
+	jobs      *jobs.Runner
+	acquire   *acquire.Service
+	blocklist *blocklist.Service
 }
 
 // registerRoutes wires every Huma endpoint. Handlers are grouped by resource in
@@ -45,4 +47,5 @@ func registerRoutes(api huma.API, deps routeDeps) {
 	registerCalendarRoutes(api, deps)
 	registerSettingsRoutes(api, deps)
 	registerProfileRoutes(api, deps)
+	registerBlocklistRoutes(api, deps)
 }

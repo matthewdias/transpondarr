@@ -19,6 +19,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
+	"github.com/matthewdias/transpondarr/internal/core/blocklist"
 	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
@@ -52,14 +53,15 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider meta
 
 	api := humachi.New(r, apiConfig())
 	registerRoutes(api, routeDeps{
-		store:    st,
-		catalog:  svc,
-		browse:   browse.New(st, provider, logger),
-		clients:  reg,
-		settings: settingsSvc,
-		auth:     authSvc,
-		jobs:     runner,
-		acquire:  acquire.New(st, reg, svc, settingsSvc, logger),
+		store:     st,
+		catalog:   svc,
+		browse:    browse.New(st, provider, logger),
+		clients:   reg,
+		settings:  settingsSvc,
+		auth:      authSvc,
+		jobs:      runner,
+		acquire:   acquire.New(st, reg, svc, settingsSvc, logger),
+		blocklist: blocklist.New(st, logger),
 	})
 
 	r.NotFound(spaHandler())
