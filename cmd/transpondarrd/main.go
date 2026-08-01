@@ -17,6 +17,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/airing"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
+	"github.com/matthewdias/transpondarr/internal/core/blocklist"
 	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
@@ -196,7 +197,7 @@ func run(logger *slog.Logger) error {
 		Name:       "import-scan",
 		Interval:   importPollInterval,
 		RunAtStart: true,
-		Run:        importer.New(st, reg, logger).ScanOnce,
+		Run:        importer.New(st, reg, logger, blocklist.New(st, logger)).ScanOnce,
 	})
 	jobsDone := runner.Start(ctx)
 

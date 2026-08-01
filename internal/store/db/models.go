@@ -52,6 +52,19 @@ type QualityProfileGroup struct {
 	Blocked   int64  `json:"blocked"`
 }
 
+type ReleaseBlocklist struct {
+	ID              int64          `json:"id"`
+	SeriesID        int64          `json:"series_id"`
+	InfoHash        string         `json:"info_hash"`
+	ReleaseTitle    string         `json:"release_title"`
+	NormalizedTitle string         `json:"normalized_title"`
+	Reason          string         `json:"reason"`
+	Failures        int64          `json:"failures"`
+	BlockedUntil    sql.NullString `json:"blocked_until"`
+	CreatedAt       string         `json:"created_at"`
+	UpdatedAt       string         `json:"updated_at"`
+}
+
 type SeasonCache struct {
 	Provider  string `json:"provider"`
 	Season    string `json:"season"`

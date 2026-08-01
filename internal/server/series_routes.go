@@ -361,7 +361,7 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 			Status:       state.Status,
 			ReleaseTitle: state.ReleaseTitle,
 			ImportError:  state.ImportError,
-			AirsAt:       airsAtRFC3339(r.AirsAt),
+			AirsAt:       storedTimeRFC3339(r.AirsAt),
 		})
 	}
 	return out, nil
@@ -466,10 +466,10 @@ func boolToInt(b bool) int64 {
 	return 0
 }
 
-// airsAtRFC3339 restores the zone the stored form drops. Emitting it raw would
+// storedTimeRFC3339 restores the zone the stored form drops. Emitting it raw would
 // leave a browser to read a UTC instant as local time and shift the row by hours.
-// An unparseable value degrades to absent, matching a title with no schedule.
-func airsAtRFC3339(stored sql.NullString) string {
+// An unparseable value degrades to absent, matching a value that was never set.
+func storedTimeRFC3339(stored sql.NullString) string {
 	if !stored.Valid {
 		return ""
 	}

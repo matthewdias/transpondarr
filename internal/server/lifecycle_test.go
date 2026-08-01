@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matthewdias/transpondarr/internal/core/blocklist"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
@@ -53,7 +54,7 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	dl.Statuses = []download.Status{{Hash: "hash3", State: download.StateComplete, ContentPath: src}}
 
 	// Run one importer scan over the same registry the server uses.
-	im := importer.New(h.store, h.reg, discardLogger())
+	im := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil))
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -127,7 +128,7 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 		t.Fatalf("stamp missing_since: %v", err)
 	}
 
-	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -171,7 +172,7 @@ func TestDeferredBatchShowsDeferred(t *testing.T) {
 	}
 	dl.Statuses = []download.Status{{Hash: "hash9", State: download.StateComplete, ContentPath: dir}}
 
-	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -210,7 +211,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 		}
 	}
 	dl.Statuses = []download.Status{{Hash: "hashA", State: download.StateComplete, ContentPath: dir}}
-	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := itemStatus(t, h, seriesID, 9); got != "deferred" {
@@ -238,7 +239,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 		t.Fatal(err)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashB", State: download.StateComplete, ContentPath: src}}
-	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -271,7 +272,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 	// Complete, but at a path Transpondarr cannot see (a path-mapping gap).
 	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete,
 		ContentPath: filepath.Join(t.TempDir(), "unmapped", "raw.mkv")}}
-	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -316,7 +317,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 		t.Fatal(err)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete, ContentPath: src}}
-	if err := importer.New(h.store, h.reg, discardLogger()).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 

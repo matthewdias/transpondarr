@@ -42,6 +42,38 @@ type Candidate struct {
 // MatchOpts carries per-series knobs that are neither profile nor title data.
 type MatchOpts struct {
 	PinnedGroup string
+	Blocked     BlockedSet
+}
+
+// BlockedSet is the series' active release blocklist as plain data, so decide
+// stays pure. A release matches on either axis: Torznab often omits the infohash.
+type BlockedSet struct {
+	Hashes map[string]string // lowercased info hash -> reason
+	Titles map[string]string // normalized release title -> reason
+}
+
+// reason reports why this release is blocked, if it is.
+func (b BlockedSet) reason(rel indexer.Release) string {
+	if len(b.Hashes) == 0 && len(b.Titles) == 0 {
+		return "" // the common path: no per-release normalizing for an unblocked series
+	}
+	if h := strings.ToLower(strings.TrimSpace(rel.InfoHash)); h != "" {
+		if r, ok := b.Hashes[h]; ok {
+			return r
+		}
+	}
+	if t := NormalizeReleaseTitle(rel.Title); t != "" {
+		if r, ok := b.Titles[t]; ok {
+			return r
+		}
+	}
+	return ""
+}
+
+// NormalizeReleaseTitle is a blocklist entry's identity. Gentler than normalize,
+// which would fold two different releases of one episode into one entry.
+func NormalizeReleaseTitle(s string) string {
+	return strings.Join(strings.Fields(strings.ToLower(s)), " ")
 }
 
 // ScorePart is one axis' contribution to a candidate's score, for display.
@@ -75,8 +107,10 @@ func Match(items []domain.WantedItem, titleVariants []string, releases []indexer
 		itemSet[it.Number] = true
 	}
 	pin := ""
+	var blocked BlockedSet
 	if len(opts) > 0 {
 		pin = opts[0].PinnedGroup
+		blocked = opts[0].Blocked
 	}
 	variants := normalizeVariants(titleVariants)
 	// Which season this entry represents, derived from its own title (AniList
@@ -89,7 +123,7 @@ func Match(items []domain.WantedItem, titleVariants []string, releases []indexer
 	for _, rel := range releases {
 		c := evaluate(rel, variants, expectedSeason, itemSet, maxItem)
 		c.Score, c.ScoreParts = Score(c.Parsed, c.Release, profile)
-		c.IneligibleReason = ineligibleReason(c.Parsed, profile, c.Score)
+		c.IneligibleReason = ineligibleReason(c.Release, c.Parsed, profile, blocked, c.Score)
 		c.Eligible = c.IneligibleReason == ""
 		c.Pinned = pin != "" && strings.EqualFold(c.Parsed.Group, pin)
 		out = append(out, c)
@@ -178,7 +212,12 @@ func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) 
 // ineligibleReason is the floor from #16: the way the answer can be "nothing
 // yet" instead of the least-bad release available. "" means eligible. Scores
 // are never negative, so the zero-value MinScore expresses no floor.
-func ineligibleReason(p parser.Parsed, profile domain.QualityProfile, score int) string {
+func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.QualityProfile, blocked BlockedSet, score int) string {
+	// The blocklist first: when a release trips both, "this one already failed"
+	// is the more actionable answer than a profile rule.
+	if r := blocked.reason(rel); r != "" {
+		return r
+	}
 	if indexFold(profile.BlockedGroups, p.Group) >= 0 {
 		return fmt.Sprintf("group %s is blocked by the profile", p.Group)
 	}

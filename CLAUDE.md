@@ -156,6 +156,21 @@ Behaviour changes are test-driven. Work red → green → refactor:
   disambiguate. Deferred grabs are never re-imported (the
   no-infinite-retry property) but stay in the scan for missing-from-client
   reconciliation, so a vanished payload still frees its item.
+- **`failed` also means "this release is remembered" (`internal/core/blocklist`,
+  #118).** Both `failed` paths record a per-series blocklist entry, because the
+  grab row is per wanted item and the next attempt overwrites it — without that
+  memory the sweep re-derived the same ranking and re-grabbed the same doomed
+  release forever. `decide` consults it through the existing `ineligibleReason`,
+  so the sweep's eligibility gate, the Releases tab's reason column and manual
+  grab's freedom from eligibility (PR #57) all hold unchanged. Two constants are
+  load-bearing rather than arbitrary: identity is the **info hash or the
+  normalized title**, because Torznab often omits the hash; and the expiry
+  **escalates** (24h, 7d, then permanent) because the `failed` paths fire for
+  environmental reasons that can fail many grabs at once, so permanent-on-first
+  would blocklist a whole in-flight set on one qBit incident. Expired entries are
+  filtered, never deleted — the row carries the failure count the ladder reads.
+  An *import* failure deliberately records nothing: it stays `grabbed` and
+  retries, because its causes are path-mapping gaps rather than bad releases.
 - **Periodic work goes on the job runner (`internal/core/jobs`), not a bare
   `go`.** Register by name with an interval in `main.go`; the runner owns panic
   containment, the "log failures only when `ctx.Err() == nil`" rule, and the

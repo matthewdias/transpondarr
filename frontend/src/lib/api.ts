@@ -109,6 +109,7 @@ export type CalendarItem = Schemas["CalendarItemDTO"];
 export type UnscheduledSeries = Schemas["UnscheduledSeriesDTO"];
 export type Calendar = Schemas["CalendarOutputBody"];
 export type GrabEvent = Schemas["GrabEventDTO"];
+export type BlocklistEntry = Schemas["BlocklistEntryDTO"];
 export type GrabResult = Schemas["GrabSeriesOutputBody"];
 export type DownloadSettings = Schemas["DownloadSettingsDTO"];
 export type IndexerSettings = Schemas["IndexerSettingsDTO"];
@@ -269,6 +270,22 @@ export const api = {
       .GET("/api/v1/series/{id}/grabs", { params: { path: { id } }, signal })
       .then(unwrap)
       .then((r) => r.events),
+
+  listBlocklist: (id: number, signal?: AbortSignal) =>
+    client
+      .GET("/api/v1/series/{id}/blocklist", {
+        params: { path: { id } },
+        signal,
+      })
+      .then(unwrap)
+      .then((r) => r.entries),
+
+  clearBlocklistEntry: (id: number, entryId: number) =>
+    client
+      .DELETE("/api/v1/series/{id}/blocklist/{entryId}", {
+        params: { path: { id, entryId } },
+      })
+      .then(unwrap),
 
   getSettings: (signal?: AbortSignal) =>
     client.GET("/api/v1/settings", { signal }).then(unwrap),

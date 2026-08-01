@@ -178,6 +178,40 @@ export interface paths {
         patch: operations["set-series-monitored"];
         trace?: never;
     };
+    "/api/v1/series/{id}/blocklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List releases remembered as failed for a series */
+        get: operations["list-series-blocklist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/series/{id}/blocklist/{entryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unblock a release, making it eligible again */
+        delete: operations["clear-series-blocklist-entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/series/{id}/grab": {
         parameters: {
             query?: never;
@@ -471,6 +505,26 @@ export interface components {
             /** @description enabled or local */
             required: string;
             username: string;
+        };
+        BlocklistEntryDTO: {
+            /** @description Whether the block applies right now */
+            active: boolean;
+            /**
+             * Format: date-time
+             * @description When the block lapses; absent means permanent
+             */
+            blocked_until?: string;
+            created_at: string;
+            /**
+             * Format: int64
+             * @description How many times this release has failed; the third failure blocks it permanently
+             */
+            failures: number;
+            /** Format: int64 */
+            id: number;
+            infohash?: string;
+            reason: string;
+            release_title: string;
         };
         BrowseSeasonOutputBody: {
             /**
@@ -914,6 +968,16 @@ export interface components {
             status?: string;
             studio?: string;
             tracked: boolean;
+        };
+        SeriesBlocklistOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SeriesBlocklistOutputBody.json
+             */
+            readonly $schema?: string;
+            entries: components["schemas"]["BlocklistEntryDTO"][];
+            series: string;
         };
         SeriesDTO: {
             format: string;
@@ -1527,6 +1591,70 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SetMonitoredOutputBody"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-series-blocklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SeriesBlocklistOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "clear-series-blocklist-entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Series id */
+                id: number;
+                /** @description Blocklist entry id */
+                entryId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

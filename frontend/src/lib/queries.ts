@@ -45,6 +45,14 @@ export const grabsQuery = (seriesId: number) =>
     queryFn: ({ signal }) => api.listGrabs(seriesId, signal),
   });
 
+// Blocklist entries outlive grab rows, so this is separate data, not a slice of
+// the grab feed.
+export const blocklistQuery = (seriesId: number) =>
+  queryOptions({
+    queryKey: ["blocklist", seriesId],
+    queryFn: ({ signal }) => api.listBlocklist(seriesId, signal),
+  });
+
 // staleTime: the chart is a 6h-TTL cache server-side; refetching on every
 // season flip would only re-read the same snapshot. keepPreviousData holds the
 // outgoing chart on a flip instead of flashing the skeleton.

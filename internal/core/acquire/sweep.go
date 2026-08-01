@@ -180,11 +180,10 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			if !errors.Is(err, ErrDownloadAdd) {
 				return grabbed, time.Time{}, err
 			}
-			// A dead download URL is this release's problem, not the series'.
-			// The items stay unclaimed so the next-ranked release covering them is
-			// still tried; only a client that keeps refusing ends the pass. This
-			// fallback is same-pass only — nothing is persisted, so the next sweep
-			// re-derives the same ranking. That needs a blocklist (#118).
+			// A dead download URL is this release's problem, not the series': the
+			// items stay unclaimed so the next-ranked release is still tried, and
+			// only a client that keeps refusing ends the pass. Same-pass only —
+			// a refused add writes no grab row, so #118's blocklist never sees it.
 			failed++
 			s.log.Warn("sweep could not add a release; trying the next candidate",
 				"series", series.ID, "release", c.Release.Title, "err", err)

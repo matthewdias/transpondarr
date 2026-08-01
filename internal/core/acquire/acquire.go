@@ -17,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/decide"
@@ -166,13 +167,45 @@ func (s *Service) match(ctx context.Context, idx indexer.Indexer, series db.Seri
 		}
 	}
 
+	blocked, err := s.blocked(ctx, series.ID)
+	if err != nil {
+		return Match{}, err
+	}
+
 	return Match{
 		Series: series,
 		Term:   term,
 		Items:  items,
 		Candidates: decide.Match(items, variants, releases, profile,
-			decide.MatchOpts{PinnedGroup: series.PinnedGroup.String}),
+			decide.MatchOpts{PinnedGroup: series.PinnedGroup.String, Blocked: blocked}),
 	}, nil
+}
+
+// blocked loads the series' active release blocklist. Read off the store rather
+// than blocklist.Service so acquire need not depend on the package that writes it.
+func (s *Service) blocked(ctx context.Context, seriesID int64) (decide.BlockedSet, error) {
+	rows, err := s.store.Q.ListActiveBlocklist(ctx, db.ListActiveBlocklistParams{
+		SeriesID:     seriesID,
+		BlockedUntil: sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true},
+	})
+	if err != nil {
+		return decide.BlockedSet{}, fmt.Errorf("load blocklist for series %d: %w", seriesID, err)
+	}
+	if len(rows) == 0 {
+		return decide.BlockedSet{}, nil
+	}
+	set := decide.BlockedSet{
+		Hashes: make(map[string]string, len(rows)),
+		Titles: make(map[string]string, len(rows)),
+	}
+	for _, r := range rows {
+		reason := "release previously failed: " + r.Reason
+		if h := strings.ToLower(strings.TrimSpace(r.InfoHash)); h != "" {
+			set.Hashes[h] = reason
+		}
+		set.Titles[r.NormalizedTitle] = reason
+	}
+	return set, nil
 }
 
 // profile loads the series' quality profile in the domain form decide scores against.
