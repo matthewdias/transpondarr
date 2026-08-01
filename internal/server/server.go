@@ -40,8 +40,9 @@ func init() {
 // backs the runtime-config endpoints; auth backs forms login + sessions; runner
 // backs the job-status endpoint. provider is passed in rather than built here so
 // the daemon's background jobs share one — and so share its rate limiter; the
-// blocklist likewise, so its breaker sees every failure path.
-func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider metadata.Provider, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner, blocklistSvc *blocklist.Service) http.Handler {
+// blocklist likewise, so its breaker sees every failure path, and acquire so its
+// in-flight claims cover manual grabs and the jobs alike.
+func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider metadata.Provider, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner, blocklistSvc *blocklist.Service, acquireSvc *acquire.Service) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -50,18 +51,16 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider meta
 	logger.Info("auth: forms login", "required", authSvc.Required(), "configured", authSvc.Configured())
 	registerAuthRoutes(r, authSvc, settingsSvc.APIKey)
 
-	svc := catalog.NewService(st, provider)
-
 	api := humachi.New(r, apiConfig())
 	registerRoutes(api, routeDeps{
 		store:     st,
-		catalog:   svc,
+		catalog:   catalog.NewService(st, provider),
 		browse:    browse.New(st, provider, logger),
 		clients:   reg,
 		settings:  settingsSvc,
 		auth:      authSvc,
 		jobs:      runner,
-		acquire:   acquire.New(st, reg, svc, settingsSvc, logger, blocklistSvc),
+		acquire:   acquireSvc,
 		blocklist: blocklistSvc,
 	})
 

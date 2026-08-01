@@ -224,7 +224,7 @@ func run(logger *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner, blocklistSvc),
+		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner, blocklistSvc, acquireSvc),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

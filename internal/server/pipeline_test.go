@@ -14,8 +14,10 @@ import (
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/config"
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/blocklist"
+	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
@@ -79,7 +81,9 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 	reg.SetLibrary(lib)
 
 	runner := jobs.New(discardLogger())
-	h := server.New(cfg, st, discardLogger(), provider, reg, settingsSvc, authSvc, runner, blocklist.New(st, discardLogger()))
+	blocklistSvc := blocklist.New(st, discardLogger())
+	acquireSvc := acquire.New(st, reg, catalog.NewService(st, provider), settingsSvc, discardLogger(), blocklistSvc)
+	h := server.New(cfg, st, discardLogger(), provider, reg, settingsSvc, authSvc, runner, blocklistSvc, acquireSvc)
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
 	return &harness{ts: ts, store: st, reg: reg, jobs: runner, idx: idx, dl: dl, lib: lib}
