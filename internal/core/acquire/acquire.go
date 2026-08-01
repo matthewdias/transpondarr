@@ -52,10 +52,8 @@ type TitleSource interface {
 }
 
 // Config is the runtime configuration acquire reads (satisfied by
-// *settings.Service). Every value is read per use, so a value that has a writer
-// applies to the next sweep rather than the next restart — true today of the
-// download category. The automation values have no writer until the Settings
-// toggle (#102) lands, so for now they are whatever startup parsed.
+// *settings.Service). Every value is read per use, so a Settings edit applies to
+// the next sweep rather than the next restart.
 type Config interface {
 	DownloadCategory() string
 	AutomationEnabled() bool

@@ -116,10 +116,13 @@ export type IndexerSettings = Schemas["IndexerSettingsDTO"];
 export type LibrarySettings = Schemas["LibrarySettingsDTO"];
 export type GeneralSettings = Schemas["GeneralSettingsDTO"];
 export type AuthSettings = Schemas["AuthSettingsDTO"];
+export type AutomationSettings = Schemas["AutomationSettingsDTO"];
 export type Settings = Schemas["SettingsDTO"];
 export type DownloadInput = Schemas["DownloadInputBody"];
 export type IndexerInput = Schemas["IndexerInputBody"];
 export type LibraryInput = Schemas["LibraryInputBody"];
+export type AutomationInput = Schemas["AutomationInputBody"];
+export type JobStatus = Schemas["JobStatusDTO"];
 
 // The read model for a single series with its wanted items. Arrays are
 // non-nullable in the OpenAPI schema (Huma's DefaultArrayNullable is off; the
@@ -304,6 +307,15 @@ export const api = {
     client.PUT("/api/v1/settings/library", { body }).then(unwrap),
   testLibrary: (body: LibraryInput) =>
     client.POST("/api/v1/settings/library/test", { body }).then(unwrap),
+
+  updateAutomation: (body: AutomationInput) =>
+    client.PUT("/api/v1/settings/automation", { body }).then(unwrap),
+
+  listJobs: (signal?: AbortSignal) =>
+    client
+      .GET("/api/v1/system/jobs", { signal })
+      .then(unwrap)
+      .then((r) => r.jobs),
 
   listProfiles: (signal?: AbortSignal) =>
     client

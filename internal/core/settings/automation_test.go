@@ -105,3 +105,90 @@ func TestAutomationOverlongPinDelayClamps(t *testing.T) {
 		t.Errorf("pin delay = %v, want the %v ceiling", got, want)
 	}
 }
+
+// #102's acceptance criterion: the sweep reads the switch per run, so a save has
+// to be visible to the very next read without anything being rebuilt.
+func TestUpdateAutomationAppliesLive(t *testing.T) {
+	ctx := context.Background()
+	svc := newServiceWith(t, &config.Config{}, nil)
+
+	if err := svc.UpdateAutomation(ctx, AutomationConfig{Enabled: true, PinDelayHours: 6}); err != nil {
+		t.Fatalf("enable automation: %v", err)
+	}
+	if !svc.AutomationEnabled() {
+		t.Error("automation still off after being enabled")
+	}
+	if got := svc.PinDelayDefault(); got != 6*time.Hour {
+		t.Errorf("pin delay = %v, want 6h", got)
+	}
+
+	if err := svc.UpdateAutomation(ctx, AutomationConfig{Enabled: false, PinDelayHours: 6}); err != nil {
+		t.Fatalf("disable automation: %v", err)
+	}
+	if svc.AutomationEnabled() {
+		t.Error("automation still on after being disabled")
+	}
+}
+
+func TestUpdateAutomationPersistsAcrossRestart(t *testing.T) {
+	ctx := context.Background()
+	st, err := store.Open(filepath.Join(t.TempDir(), "settings.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = st.DB.Close() })
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	svc, err := New(ctx, st, &config.Config{}, clients.New(), log)
+	if err != nil {
+		t.Fatalf("new service: %v", err)
+	}
+	if err := svc.UpdateAutomation(ctx, AutomationConfig{Enabled: true, PinDelayHours: 9}); err != nil {
+		t.Fatalf("update automation: %v", err)
+	}
+
+	// The env baseline still says off; only the persisted override carries the save.
+	restarted, err := New(ctx, st, &config.Config{}, clients.New(), log)
+	if err != nil {
+		t.Fatalf("restart service: %v", err)
+	}
+	if !restarted.AutomationEnabled() {
+		t.Error("automation off after a restart; the save did not persist")
+	}
+	if got := restarted.PinDelayDefault(); got != 9*time.Hour {
+		t.Errorf("pin delay after restart = %v, want 9h", got)
+	}
+}
+
+// The HTTP layer hands through whatever a client sent, so the clamp has to hold
+// on the write path too, not only when parsing a stored value.
+func TestUpdateAutomationClampsPinDelay(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		hours int
+		want  time.Duration
+	}{
+		{-3, 0},
+		{0, 0},
+		{6, 6 * time.Hour},
+		{3_000_000, domain.MaxPinDelayHours * time.Hour},
+	} {
+		svc := newServiceWith(t, &config.Config{}, nil)
+		if err := svc.UpdateAutomation(ctx, AutomationConfig{PinDelayHours: tc.hours}); err != nil {
+			t.Fatalf("update automation with %d hours: %v", tc.hours, err)
+		}
+		if got := svc.PinDelayDefault(); got != tc.want {
+			t.Errorf("PinDelayHours %d stored as %v, want %v", tc.hours, got, tc.want)
+		}
+	}
+}
+
+// The Settings UI renders from the snapshot, so a control cannot show its own
+// current value unless the snapshot carries it.
+func TestSnapshotCarriesAutomation(t *testing.T) {
+	svc := newServiceWith(t, &config.Config{AutomationEnabled: "true", PinDelayHours: "12"}, nil)
+	got := svc.Snapshot().Automation
+	if want := (AutomationConfig{Enabled: true, PinDelayHours: 12}); got != want {
+		t.Errorf("snapshot automation = %+v, want %+v", got, want)
+	}
+}

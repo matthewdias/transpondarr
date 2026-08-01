@@ -179,8 +179,8 @@ func run(logger *slog.Logger) error {
 		Run:        browse.New(st, provider, logger).RefreshOnce,
 	})
 	// Always registered; it no-ops when automation is off or either client is
-	// unconfigured, both read per run — so configuring an integration takes effect
-	// without a restart, while the switch itself waits on #102 for a writer.
+	// unconfigured, both read per run — so flipping the Settings toggle or
+	// configuring an integration takes effect without a restart.
 	// A second stateless catalog wrapper over the same shared provider keeps the
 	// AniList rate-limit budget single.
 	runner.Add(jobs.Job{

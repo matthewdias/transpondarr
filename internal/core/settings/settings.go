@@ -84,6 +84,13 @@ type LibraryConfig struct {
 	Mode string // auto | hardlink | copy
 }
 
+// AutomationConfig is the global automation policy: the kill switch every
+// unattended job reads, and the pinned-group wait for series not overriding it.
+type AutomationConfig struct {
+	Enabled       bool
+	PinDelayHours int
+}
+
 func (c *DownloadConfig) applyDefaults() {
 	if strings.TrimSpace(c.Category) == "" {
 		c.Category = defaultCategory
@@ -105,13 +112,14 @@ func (c *LibraryConfig) applyDefaults() {
 // Snapshot is the effective configuration for display (secrets not masked here;
 // the HTTP layer masks them before serialization).
 type Snapshot struct {
-	Download DownloadConfig
-	Indexer  IndexerConfig
-	Library  LibraryConfig
-	APIKey   string
-	DataDir  string
-	DBPath   string
-	Addr     string
+	Download   DownloadConfig
+	Indexer    IndexerConfig
+	Library    LibraryConfig
+	Automation AutomationConfig
+	APIKey     string
+	DataDir    string
+	DBPath     string
+	Addr       string
 }
 
 // state is the effective configuration as an immutable value. It is only ever
@@ -123,9 +131,10 @@ type state struct {
 	lib LibraryConfig
 
 	// Parsed once at startup: settings are strings at rest, but every read of
-	// these is on a job tick, so the typed form lives here.
+	// these is on a job tick, so the typed form lives here. Hours, not a
+	// duration: the stored unit is what Snapshot reports, so nothing truncates.
 	automationEnabled bool
-	pinDelayDefault   time.Duration
+	pinDelayHours     int
 
 	apiKey string
 
@@ -185,7 +194,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	cfg.idx.applyDefaults()
 	cfg.lib.applyDefaults()
 	cfg.automationEnabled = parseBool(automation, log)
-	cfg.pinDelayDefault = parseHours(pinDelay, log)
+	cfg.pinDelayHours = parseHours(pinDelay, log)
 
 	s := &Service{store: st, reg: reg}
 	s.cur.Store(cfg)
@@ -206,26 +215,29 @@ func overlay(m map[string]string, key string, dst *string) {
 func (s *Service) Snapshot() Snapshot {
 	c := s.cur.Load()
 	return Snapshot{
-		Download: c.dl,
-		Indexer:  c.idx,
-		Library:  c.lib,
-		APIKey:   c.apiKey,
-		DataDir:  c.dataDir,
-		DBPath:   c.dbPath,
-		Addr:     c.addr,
+		Download:   c.dl,
+		Indexer:    c.idx,
+		Library:    c.lib,
+		Automation: AutomationConfig{Enabled: c.automationEnabled, PinDelayHours: c.pinDelayHours},
+		APIKey:     c.apiKey,
+		DataDir:    c.dataDir,
+		DBPath:     c.dbPath,
+		Addr:       c.addr,
 	}
 }
 
 // DownloadCategory returns the category applied to grabbed torrents.
 func (s *Service) DownloadCategory() string { return s.cur.Load().dl.Category }
 
-// AutomationEnabled reports whether the scheduled search sweep may grab. It is
-// read per run, so a future toggle (#102) takes effect without a restart.
+// AutomationEnabled reports whether unattended work may act. Every job reads it
+// per run, so UpdateAutomation takes effect on the next tick without a restart.
 func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationEnabled }
 
 // PinDelayDefault is how long the sweep waits for a series' pinned group before
 // taking another group's release, for series that do not override it.
-func (s *Service) PinDelayDefault() time.Duration { return s.cur.Load().pinDelayDefault }
+func (s *Service) PinDelayDefault() time.Duration {
+	return domain.PinDelay(int64(s.cur.Load().pinDelayHours))
+}
 
 // parseBool and parseHours degrade a bad value to the zero default rather than
 // failing startup: one mistyped setting must not take the daemon down.
@@ -237,7 +249,7 @@ func parseBool(v string, log *slog.Logger) bool {
 	return err == nil && b
 }
 
-func parseHours(v string, log *slog.Logger) time.Duration {
+func parseHours(v string, log *slog.Logger) int {
 	h, err := strconv.Atoi(strings.TrimSpace(v))
 	if err != nil && strings.TrimSpace(v) != "" {
 		log.Warn("ignoring unparseable automation setting", "key", keyAutomationPinDelay, "value", v)
@@ -245,13 +257,13 @@ func parseHours(v string, log *slog.Logger) time.Duration {
 	if err != nil {
 		return 0
 	}
-	// Clamped, not multiplied raw: an hour count past the duration ceiling wraps
-	// int64 and turns the longest possible wait into none.
+	// Clamped, not stored raw: an hour count past the duration ceiling wraps
+	// int64 when multiplied out and turns the longest possible wait into none.
 	if h > domain.MaxPinDelayHours {
 		log.Warn("clamping automation setting to its maximum",
 			"key", keyAutomationPinDelay, "value", v, "max_hours", domain.MaxPinDelayHours)
 	}
-	return domain.PinDelay(int64(h))
+	return int(domain.ClampPinDelayHours(int64(h)))
 }
 
 // APIKey returns the current API key. The auth middleware reads this on each
@@ -359,6 +371,29 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 	next.lib = in
 	s.cur.Store(&next)
 	s.reg.SetLibrary(buildLibrary(in))
+	return nil
+}
+
+// UpdateAutomation saves the global automation policy. Nothing is rebuilt or
+// torn down: the jobs stay registered and read the switch per run, so disabling
+// and re-enabling are both restart-free. The clamped hour count is what gets
+// persisted, so a reload agrees with the live state rather than re-clamping.
+func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) error {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+
+	hours := int(domain.ClampPinDelayHours(int64(in.PinDelayHours)))
+	if err := s.persist(ctx, map[string]string{
+		keyAutomationEnabled:  strconv.FormatBool(in.Enabled),
+		keyAutomationPinDelay: strconv.Itoa(hours),
+	}); err != nil {
+		return err
+	}
+
+	next := *s.cur.Load()
+	next.automationEnabled = in.Enabled
+	next.pinDelayHours = hours
+	s.cur.Store(&next)
 	return nil
 }
 

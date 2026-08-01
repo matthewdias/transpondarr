@@ -4,6 +4,7 @@ import {
   authStatusQuery,
   browseSeasonQuery,
   grabsQuery,
+  jobsQuery,
   metadataSearchQuery,
   releasesQuery,
   seriesDetailQuery,
@@ -49,9 +50,14 @@ describe("query key factories", () => {
       releasesQuery(1),
       grabsQuery(1),
       settingsQuery(),
+      jobsQuery(),
       browseSeasonQuery({ season: "summer", year: 2026 }),
     ].map((q) => q.queryKey[0]);
     expect(new Set(roots).size).toBe(roots.length);
+  });
+
+  it("polls job status, since it is telemetry that goes stale on its own", () => {
+    expect(jobsQuery().refetchInterval).toBe(15 * 1000);
   });
 
   it("keeps releases fresh for five minutes to spare the rate-limited indexer", () => {

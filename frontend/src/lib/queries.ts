@@ -83,6 +83,20 @@ export const settingsQuery = () =>
     queryFn: ({ signal }) => api.getSettings(signal),
   });
 
+// Exported because it bounds how stale a rendered job snapshot can be, which is
+// what the card's overdue threshold has to clear.
+export const JOBS_POLL_MS = 15 * 1000;
+
+// Job telemetry ages on its own with nothing to invalidate it, so this is the
+// one query that polls: a wedged or erroring job should surface while the
+// Settings page is open, not only on a reload.
+export const jobsQuery = () =>
+  queryOptions({
+    queryKey: ["jobs"],
+    queryFn: ({ signal }) => api.listJobs(signal),
+    refetchInterval: JOBS_POLL_MS,
+  });
+
 export const profilesQuery = () =>
   queryOptions({
     queryKey: ["profiles"],
