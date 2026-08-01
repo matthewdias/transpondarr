@@ -59,7 +59,7 @@ type clearedOutput struct {
 // to be the cause, so the fault is environmental and nothing is being recorded.
 type breakerDTO struct {
 	Open      bool   `json:"open"`
-	Items     int    `json:"items" doc:"Distinct wanted items that failed inside the window"`
+	Items     int    `json:"items" doc:"Distinct wanted items that failed inside the window, counting one item per release so a batch cannot inflate it"`
 	Threshold int    `json:"threshold" doc:"How many distinct items opens the breaker"`
 	WindowMin int    `json:"window_minutes"`
 	Since     string `json:"since,omitempty" format:"date-time" doc:"When the breaker opened; absent while closed"`

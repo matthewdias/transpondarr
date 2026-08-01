@@ -14,14 +14,20 @@ func at(svc *Service, t time.Time) {
 	svc.now = func() time.Time { return t }
 }
 
-// record is the shorthand the breaker tests use: one release, one item.
-func record(t *testing.T, svc *Service, seriesID, itemID int64, title string) bool {
+// recordItems is one release failing, covering the given items.
+func recordItems(t *testing.T, svc *Service, seriesID int64, title string, itemIDs ...int64) bool {
 	t.Helper()
-	ok, err := svc.Record(context.Background(), seriesID, []int64{itemID}, "", title, "failed")
+	ok, err := svc.Record(context.Background(), seriesID, itemIDs, "", title, "failed")
 	if err != nil {
 		t.Fatalf("record %q: %v", title, err)
 	}
 	return ok
+}
+
+// record is the shorthand the breaker tests use: one release, one item.
+func record(t *testing.T, svc *Service, seriesID, itemID int64, title string) bool {
+	t.Helper()
+	return recordItems(t, svc, seriesID, title, itemID)
 }
 
 // The fan-out #120 is about: an environmental fault fails a different release
@@ -76,6 +82,62 @@ func TestBreakerIgnoresOneItemExhaustingItsCandidates(t *testing.T) {
 	}
 	if st := svc.BreakerState(); st.Open || st.Items != 1 {
 		t.Errorf("breaker state = %+v, want closed with 1 item", st)
+	}
+}
+
+// The mirror of the depth rule, and the one that is easy to miss: one release's
+// breadth is not evidence about that release either. A season batch is the
+// standard anime backfill shape, so counting its own items against it would
+// refuse to remember every dead batch URL -- #118 all over again, for the case
+// that covers the most episodes.
+func TestBreakerRemembersABatchCoveringEnoughItemsToTripIt(t *testing.T) {
+	svc, _, series := newService(t)
+	at(svc, time.Now())
+
+	items := make([]int64, 0, breakerItems+7)
+	for n := int64(1); n <= int64(breakerItems)+7; n++ {
+		items = append(items, n)
+	}
+	if !recordItems(t, svc, series.ID, "[SynthSubs] Placeholder Saga - 01-12 [Batch]", items...) {
+		t.Fatal("a batch was refused on its own first failure; it can never be remembered")
+	}
+	if st := svc.BreakerState(); st.Open {
+		t.Errorf("breaker state = %+v, want closed: one release is one piece of evidence", st)
+	}
+}
+
+// The same batch reaching the breaker the way the importer delivers it: a grab
+// row per covered item, so one dead release arrives as many single-item calls
+// that only its identity ties together.
+func TestBreakerRemembersABatchFailingItemByItem(t *testing.T) {
+	svc, _, series := newService(t)
+	at(svc, time.Now())
+	const batch = "[SynthSubs] Placeholder Saga - 01-12 [Batch]"
+
+	for item := int64(1); item <= int64(breakerItems)+7; item++ {
+		if !record(t, svc, series.ID, item, batch) {
+			t.Fatalf("item %d of one dead batch was suppressed", item)
+		}
+	}
+	if st := svc.BreakerState(); st.Open {
+		t.Errorf("breaker state = %+v, want closed: it is still one release", st)
+	}
+}
+
+// Depth again, one level up: a batch's candidate pool churning is the ladder's
+// job, exactly as a single episode's is.
+func TestBreakerIgnoresOneBatchExhaustingItsCandidates(t *testing.T) {
+	svc, _, series := newService(t)
+	at(svc, time.Now())
+
+	for n := range breakerItems * 2 {
+		title := fmt.Sprintf("[Group%02d] Placeholder Saga - 01-06 [Batch]", n)
+		if !recordItems(t, svc, series.ID, title, 1, 2, 3, 4, 5, 6) {
+			t.Fatalf("candidate %d for the same batch was suppressed", n)
+		}
+	}
+	if st := svc.BreakerState(); st.Open {
+		t.Errorf("breaker state = %+v, want closed", st)
 	}
 }
 

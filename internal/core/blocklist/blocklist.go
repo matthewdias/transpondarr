@@ -79,7 +79,8 @@ func (s *Service) Record(ctx context.Context, seriesID int64, itemIDs []int64, i
 		return false, fmt.Errorf("blocklist: refusing to record an empty release title for series %d", seriesID)
 	}
 	now := s.now()
-	if !s.breaker.observe(itemIDs, now) {
+	ref := releaseRef{seriesID: seriesID, normalized: normalized}
+	if !s.breaker.observe(ref, itemIDs, now) {
 		st := s.breaker.state(now)
 		s.log.Warn("blocklist: too many items failing at once to blame the releases; not remembering this one",
 			"series", seriesID, "release", releaseTitle, "items_failed", st.Items, "window", st.Window)

@@ -28,8 +28,8 @@ function BreakerNotice({ breaker }: { breaker: BlocklistSummary["breaker"] }) {
           Not remembering failed releases right now
         </p>
         <p className="mt-0.5 text-muted-foreground">
-          {plural(breaker.items, "different item")} failed in the last{" "}
-          {breaker.window_minutes} minutes
+          {plural(breaker.items, "different item")} failed on unrelated releases
+          in the last {breaker.window_minutes} minutes
           {breaker.since && `, starting ${timeAgo(breaker.since)}`}. That many
           at once is the download client or the disk, not the releases, so
           blocking them would only take a healthy candidate pool out of

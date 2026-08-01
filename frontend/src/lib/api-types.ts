@@ -603,7 +603,7 @@ export interface components {
         BreakerDTO: {
             /**
              * Format: int64
-             * @description Distinct wanted items that failed inside the window
+             * @description Distinct wanted items that failed inside the window, counting one item per release so a batch cannot inflate it
              */
             items: number;
             open: boolean;
