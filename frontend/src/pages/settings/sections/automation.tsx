@@ -14,13 +14,19 @@ export function AutomationSection({ settings }: { settings: Settings }) {
   // Held as a string so the field can be transiently empty while being retyped.
   const [pinDelay, setPinDelay] = useState(String(a.pin_delay_hours));
 
+  const saveToast = useSaveToast(queryClient, "Automation");
   const save = useMutation({
     mutationFn: () =>
       api.updateAutomation({
         enabled,
         pin_delay_hours: Math.max(0, Math.trunc(Number(pinDelay) || 0)),
       }),
-    ...useSaveToast(queryClient, "Automation"),
+    ...saveToast,
+    onSuccess: (fresh) => {
+      saveToast.onSuccess(fresh);
+      // The service clamps the delay, so re-seed from what was actually saved.
+      setPinDelay(String(fresh.automation.pin_delay_hours));
+    },
   });
 
   return (
