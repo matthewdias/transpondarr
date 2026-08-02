@@ -189,7 +189,8 @@ export interface paths {
         get: operations["get-series"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete a series and everything tracked for it; library files are never touched */
+        delete: operations["delete-series"];
         options?: never;
         head?: never;
         /** Update whether a series is monitored */
@@ -1741,6 +1742,39 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SeriesDetailReadDTO"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-series": {
+        parameters: {
+            query?: {
+                /** @description Also remove the series' torrents (and their data) from the download client; otherwise they are left seeding */
+                remove_downloads?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Series id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

@@ -130,6 +130,11 @@ type setPinnedGroupOutput struct {
 	}
 }
 
+type deleteSeriesInput struct {
+	ID              int64 `path:"id" doc:"Series id"`
+	RemoveDownloads bool  `query:"remove_downloads" doc:"Also remove the series' torrents (and their data) from the download client; otherwise they are left seeding"`
+}
+
 type grabEventDTO struct {
 	ID           int64  `json:"id"`
 	ItemNumber   int    `json:"item_number"`
@@ -216,6 +221,15 @@ func registerSeriesRoutes(api huma.API, deps routeDeps) {
 		Summary:     "Get a series with its wanted items and their acquisition state",
 		Tags:        []string{"series"},
 	}, h.getSeries)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "delete-series",
+		Method:        http.MethodDelete,
+		Path:          "/api/v1/series/{id}",
+		Summary:       "Delete a series and everything tracked for it; library files are never touched",
+		Tags:          []string{"series"},
+		DefaultStatus: http.StatusNoContent,
+	}, h.deleteSeries)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "set-series-monitored",
@@ -365,6 +379,51 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 		})
 	}
 	return out, nil
+}
+
+// deleteSeries removes a series and, via FK cascades, its wanted items, grabs,
+// and blocklist memory. The client removal runs first so a refusal leaves the
+// series intact and the delete retryable; delete-first would orphan torrents
+// with no record and no retry path.
+func (h *seriesHandler) deleteSeries(ctx context.Context, in *deleteSeriesInput) (*struct{}, error) {
+	if _, err := h.requireSeries(ctx, in.ID); err != nil {
+		return nil, err
+	}
+	if in.RemoveDownloads {
+		grabs, err := h.store.Q.ListGrabsBySeries(ctx, in.ID)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("failed to load grabs", err)
+		}
+		// Every status but failed still has a client entry: imported torrents seed
+		// and deferred payloads sit in the client; failed means errored or gone.
+		seen := make(map[string]bool, len(grabs))
+		hashes := make([]string, 0, len(grabs))
+		for _, g := range grabs {
+			hash := strings.ToLower(g.InfoHash)
+			if g.Status == "failed" || hash == "" || seen[hash] {
+				continue
+			}
+			seen[hash] = true
+			hashes = append(hashes, hash)
+		}
+		if len(hashes) > 0 {
+			dl := h.clients.Download()
+			if dl == nil {
+				return nil, acquireHTTPError(acquire.ErrNoDownloadClient)
+			}
+			if err := dl.Remove(ctx, hashes, true); err != nil {
+				return nil, huma.Error502BadGateway("failed to remove downloads from the client", err)
+			}
+		}
+	}
+	rows, err := h.store.Q.DeleteSeries(ctx, in.ID)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to delete series", err)
+	}
+	if rows == 0 {
+		return nil, huma.Error404NotFound("series not found")
+	}
+	return nil, nil
 }
 
 func (h *seriesHandler) setMonitored(ctx context.Context, in *setMonitoredInput) (*setMonitoredOutput, error) {

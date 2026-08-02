@@ -175,6 +175,18 @@ func (c *Client) Status(ctx context.Context, hashes ...string) ([]download.Statu
 	return out, nil
 }
 
+// Remove deletes the given torrents (and their payload data when deleteData).
+func (c *Client) Remove(ctx context.Context, hashes []string, deleteData bool) error {
+	lower := make([]string, len(hashes))
+	for i, h := range hashes {
+		lower[i] = strings.ToLower(h)
+	}
+	if err := c.qb.DeleteTorrentsCtx(ctx, lower, deleteData); err != nil {
+		return fmt.Errorf("qbittorrent: remove: %w", err)
+	}
+	return nil
+}
+
 // mapState normalizes qBittorrent's state vocabulary to download.State.
 // See https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)
 func mapState(s string) download.State {

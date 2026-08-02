@@ -124,11 +124,21 @@ type FakeDownload struct {
 	// grab inside the client while another grab runs.
 	AddHook func(download.AddOptions)
 
-	// mu guards Adds: with the claim registry under test, two grabs can reach the
-	// client at once, and an unguarded slice would report that as a data race
-	// rather than as the assertion failure it is.
-	mu   sync.Mutex
-	Adds []download.AddOptions // recorded, in call order
+	// RemoveErr fails Remove, so a test can model a client that refuses deletes.
+	RemoveErr error
+
+	// mu guards Adds and Removes: with the claim registry under test, two grabs
+	// can reach the client at once, and an unguarded slice would report that as a
+	// data race rather than as the assertion failure it is.
+	mu      sync.Mutex
+	Adds    []download.AddOptions // recorded, in call order
+	Removes []RemoveCall          // recorded, in call order
+}
+
+// RemoveCall records one Remove request handed to the fake client.
+type RemoveCall struct {
+	Hashes     []string
+	DeleteData bool
 }
 
 var _ download.Client = (*FakeDownload)(nil)
@@ -163,6 +173,13 @@ func (f *FakeDownload) AddCount() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return len(f.Adds)
+}
+
+func (f *FakeDownload) Remove(_ context.Context, hashes []string, deleteData bool) error {
+	f.mu.Lock()
+	f.Removes = append(f.Removes, RemoveCall{Hashes: hashes, DeleteData: deleteData})
+	f.mu.Unlock()
+	return f.RemoveErr
 }
 
 func (f *FakeDownload) Status(_ context.Context, _ ...string) ([]download.Status, error) {

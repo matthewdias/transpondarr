@@ -61,6 +61,18 @@ func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Ser
 	return i, err
 }
 
+const deleteSeries = `-- name: DeleteSeries :execrows
+DELETE FROM series WHERE id = ?
+`
+
+func (q *Queries) DeleteSeries(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteSeries, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getSeries = `-- name: GetSeries :one
 SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
 FROM series
