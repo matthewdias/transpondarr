@@ -11,6 +11,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
+	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -215,6 +216,24 @@ func TestSweepNoOpsWhenAutomationDisabled(t *testing.T) {
 	}
 	if state := readSearchState(t, h.st, id); state.lastSearched.Valid {
 		t.Error("disabled sweep wrote search state")
+	}
+}
+
+// A hand-triggered run is explicit intent, so it passes the kill switch the way
+// a manual grab passes eligibility (PR #57).
+func TestSweepRunsWithAutomationDisabledWhenTriggeredByHand(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{automationOff: true})
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+
+	if err := h.svc.SweepOnce(jobs.WithManualRun(context.Background())); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+	if len(h.idx.Queries) == 0 {
+		t.Error("a manually triggered sweep issued no searches")
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
+		t.Errorf("grabbed items = %v, want [3]", got)
 	}
 }
 

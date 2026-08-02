@@ -11,6 +11,7 @@ import (
 
 	"github.com/matthewdias/transpondarr/internal/core/decide"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
+	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -36,12 +37,13 @@ func feedMarkKey(indexerName string) string { return "feed.seen." + indexerName 
 // series wants, and is what the job runner calls. It is only a cheaper trigger
 // than the sweep: eligibility is the sweep's, because both drive grabPass over a
 // Match built the same way. The clients and the kill switch are read per run, so
-// a Settings edit takes effect on the next tick.
+// a Settings edit takes effect on the next tick — except on a hand-triggered run,
+// which passes the kill switch as explicit intent (#122).
 //
 // An indexer with no recent feed is a supported configuration, not a failure:
 // the scheduled sweep already covers those series, just less promptly.
 func (s *Service) PollFeedOnce(ctx context.Context) error {
-	if !s.cfg.AutomationEnabled() {
+	if !s.cfg.AutomationEnabled() && !jobs.ManualRun(ctx) {
 		return nil
 	}
 	idx := s.clients.Indexer()

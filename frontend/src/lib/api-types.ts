@@ -486,6 +486,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/jobs/{name}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run a background job now
+         * @description Queues the job on its own goroutine and returns immediately; a pending trigger is coalesced.
+         */
+        post: operations["run-job"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2346,6 +2366,36 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ListJobsOutputBody"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "run-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The runner's job name, as reported by list-jobs */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

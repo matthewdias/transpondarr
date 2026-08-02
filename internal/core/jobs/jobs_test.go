@@ -380,6 +380,50 @@ func TestTriggerRunsTheJobBeforeItsInterval(t *testing.T) {
 	})
 }
 
+// The marker a manually triggered run carries, which is how the automation
+// kill switch tells an operator's request apart from the schedule.
+func TestOnlyATriggeredRunIsMarkedManual(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		seen := make(chan bool, 4)
+		r := New(discardLogger())
+		r.Add(Job{Name: "a", Interval: time.Hour, RunAtStart: true, Run: func(ctx context.Context) error {
+			seen <- ManualRun(ctx)
+			return nil
+		}})
+
+		cancel, done := start(r)
+		defer func() { cancel(); <-done }()
+
+		synctest.Wait()
+		if <-seen {
+			t.Error("a scheduled run reported ManualRun(ctx) = true")
+		}
+
+		if err := r.Trigger("a"); err != nil {
+			t.Fatalf("trigger: %v", err)
+		}
+		synctest.Wait()
+		if !<-seen {
+			t.Error("a triggered run reported ManualRun(ctx) = false")
+		}
+
+		// The mark is per run: the interval firing after a trigger is scheduled work.
+		advance(time.Hour)
+		if <-seen {
+			t.Error("the run after a trigger inherited its manual mark")
+		}
+	})
+}
+
+func TestManualRunIsFalseWithoutTheMarker(t *testing.T) {
+	if ManualRun(context.Background()) {
+		t.Error("ManualRun on a plain context = true, want false")
+	}
+	if !ManualRun(WithManualRun(context.Background())) {
+		t.Error("ManualRun on a marked context = false, want true")
+	}
+}
+
 func TestTriggerUnknownJobIsAnError(t *testing.T) {
 	err := New(discardLogger()).Trigger("nope")
 	if !errors.Is(err, ErrUnknownJob) {

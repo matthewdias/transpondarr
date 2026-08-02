@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"math"
 	"net/http"
 	"time"
@@ -68,6 +69,29 @@ func registerSystemRoutes(api huma.API, deps routeDeps) {
 			out.Body.Jobs = append(out.Body.Jobs, toJobStatusDTO(s))
 		}
 		return out, nil
+	})
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "run-job",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/system/jobs/{name}/run",
+		Summary:       "Run a background job now",
+		Description:   "Queues the job on its own goroutine and returns immediately; a pending trigger is coalesced.",
+		Tags:          []string{"system"},
+		DefaultStatus: http.StatusAccepted,
+	}, func(_ context.Context, in *struct {
+		Name string `path:"name" doc:"The runner's job name, as reported by list-jobs"`
+	}) (*struct{}, error) {
+		if deps.jobs == nil {
+			return nil, huma.Error404NotFound("unknown job")
+		}
+		if err := deps.jobs.Trigger(in.Name); err != nil {
+			if errors.Is(err, jobs.ErrUnknownJob) {
+				return nil, huma.Error404NotFound("unknown job")
+			}
+			return nil, err
+		}
+		return nil, nil
 	})
 }
 

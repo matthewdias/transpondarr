@@ -14,6 +14,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
+	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -316,6 +317,26 @@ func TestFeedPollNoOpsWhenAutomationDisabled(t *testing.T) {
 	if h.feed.Polls != 0 || len(h.dl.Adds) != 0 {
 		t.Errorf("disabled poll fetched %d feeds and added %d torrents, want none",
 			h.feed.Polls, len(h.dl.Adds))
+	}
+}
+
+// A hand-triggered poll is explicit intent, so it passes the kill switch the way
+// a manual grab passes eligibility (PR #57).
+func TestFeedPollRunsWithAutomationDisabledWhenTriggeredByHand(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	h := newFeedPoll(t, []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 3, time.Now()),
+	}, fakeConfig{automationOff: true})
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+
+	if err := h.svc.PollFeedOnce(jobs.WithManualRun(context.Background())); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if h.feed.Polls != 1 {
+		t.Errorf("a manually triggered poll fetched %d feeds, want 1", h.feed.Polls)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
+		t.Errorf("grabbed items = %v, want [3]", got)
 	}
 }
 

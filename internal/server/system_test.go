@@ -3,6 +3,7 @@ package server_test
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -95,6 +96,38 @@ func TestListJobsReportsLastRunDurationAndError(t *testing.T) {
 	}
 	if j.NextRun == "" {
 		t.Error("next_run is absent for a scheduled job")
+	}
+}
+
+// #122's acceptance criterion: the endpoint queues the run and says so at once,
+// rather than holding the request open for the job's duration.
+func TestRunJobTriggersTheJob(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	ran := make(chan struct{}, 1)
+	h.jobs.Add(jobs.Job{Name: "session-cleanup", Interval: time.Hour, Run: func(context.Context) error {
+		ran <- struct{}{}
+		return nil
+	}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := h.jobs.Start(ctx)
+	defer func() { cancel(); <-done }()
+
+	if code := do(t, h, http.MethodPost, "/api/v1/system/jobs/session-cleanup/run", nil, nil); code != 202 {
+		t.Fatalf("status = %d, want 202", code)
+	}
+	select {
+	case <-ran:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the job never ran after its run endpoint returned 202")
+	}
+}
+
+func TestRunJobRejectsAnUnknownJob(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	if code := do(t, h, http.MethodPost, "/api/v1/system/jobs/nope/run", nil, nil); code != 404 {
+		t.Fatalf("status = %d, want 404", code)
 	}
 }
 
