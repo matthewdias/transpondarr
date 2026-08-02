@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { SeasonEntry } from "@/lib/api";
+import { currentSeason, seasonLabel } from "@/lib/season";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DiscoveryPage } from "@/pages/discovery";
 
@@ -202,8 +203,9 @@ describe("DiscoveryPage", () => {
     renderPage();
 
     await screen.findByText("Alpha Adventure");
+    const today = currentSeason();
     const year = screen.getByRole("combobox", { name: "Year" });
-    expect(year).toHaveTextContent("2026");
+    expect(year).toHaveTextContent(String(today.year));
 
     await userEvent.click(year);
     await userEvent.click(await screen.findByRole("option", { name: "2024" }));
@@ -212,7 +214,9 @@ describe("DiscoveryPage", () => {
     expect(screen.getByRole("combobox", { name: "Year" })).toHaveTextContent(
       "2024",
     );
-    expect(screen.getByText("Summer 2024")).toBeInTheDocument();
+    expect(
+      screen.getByText(seasonLabel({ season: today.season, year: 2024 })),
+    ).toBeInTheDocument();
   });
 
   it("keeps a movie visible but not addable", async () => {

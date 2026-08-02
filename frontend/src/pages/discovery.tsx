@@ -147,7 +147,7 @@ export function DiscoveryPage() {
                 onValueChange={(year) => setRef({ ...ref, year: Number(year) })}
               >
                 <SelectTrigger aria-label="Year" className="w-[5.5rem]">
-                  {/* Explicit children are what let the 88 items mount only while open. */}
+                  {/* Explicit children are what let the items mount only while open. */}
                   <SelectValue>{ref.year}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
