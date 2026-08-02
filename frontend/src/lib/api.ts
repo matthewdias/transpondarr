@@ -338,6 +338,11 @@ export const api = {
       .then(unwrap)
       .then((r) => r.jobs),
 
+  runJob: (name: string) =>
+    client
+      .POST("/api/v1/system/jobs/{name}/run", { params: { path: { name } } })
+      .then(unwrap),
+
   listProfiles: (signal?: AbortSignal) =>
     client
       .GET("/api/v1/profiles", { signal })

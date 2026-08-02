@@ -1,7 +1,19 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { setupServer } from "msw/node";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import type { JobStatus } from "@/lib/api";
-import { JobsTable } from "@/pages/settings/sections/jobs";
+import { JobsSection, JobsTable } from "@/pages/settings/sections/jobs";
 
 function job(over: Partial<JobStatus> = {}): JobStatus {
   return {
@@ -157,5 +169,146 @@ describe("JobsTable", () => {
   it("explains an empty runner instead of rendering a bare empty list", () => {
     render(<JobsTable jobs={[]} />);
     expect(screen.getByText(/no background jobs/i)).toBeInTheDocument();
+  });
+
+  it("offers each job a run of its own", async () => {
+    const onRun = vi.fn();
+    render(
+      <JobsTable jobs={[job(), job({ name: "import-scan" })]} onRun={onRun} />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Run Wanted search now" }),
+    );
+    expect(onRun).toHaveBeenCalledExactlyOnceWith("wanted-search");
+  });
+
+  // A trigger during a run is not absorbed into it — the runner queues a full
+  // second pass as soon as the run finishes — so the button refuses to stack one.
+  it("cannot run a job that is already running", () => {
+    render(<JobsTable jobs={[job({ running: true })]} onRun={vi.fn()} />);
+    expect(
+      screen.getByRole("button", { name: "Run Wanted search now" }),
+    ).toBeDisabled();
+  });
+
+  // Trigger returns before the runner flips `running`, so until the poll
+  // catches up the request in flight is the only sign a second click would
+  // stack a second pass.
+  it("holds every run button while a run request is in flight", () => {
+    render(
+      <JobsTable
+        jobs={[job(), job({ name: "import-scan" })]}
+        onRun={vi.fn()}
+        busy
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Run Wanted search now" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Run Import scan now" }),
+    ).toBeDisabled();
+  });
+
+  it("leaves the run button out when nothing can act on it", () => {
+    render(<JobsTable jobs={[job()]} />);
+    expect(
+      screen.queryByRole("button", { name: /^Run/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+const server = setupServer();
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+// runs collects every job name the section asked the server to run.
+function renderSection(
+  jobs: JobStatus[],
+  automationEnabled: boolean | "unreadable",
+) {
+  const runs: string[] = [];
+  server.use(
+    http.get("/api/v1/system/jobs", () => HttpResponse.json({ jobs })),
+    http.get("/api/v1/settings", () =>
+      automationEnabled === "unreadable"
+        ? new HttpResponse(null, { status: 500 })
+        : HttpResponse.json({
+            automation: { enabled: automationEnabled, pin_delay_hours: 0 },
+          }),
+    ),
+    http.post("/api/v1/system/jobs/:name/run", ({ params }) => {
+      runs.push(String(params.name));
+      return new HttpResponse(null, { status: 202 });
+    }),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <JobsSection />
+    </QueryClientProvider>,
+  );
+  return runs;
+}
+
+const runButton = (label: string) =>
+  screen.findByRole("button", { name: `Run ${label} now` });
+
+describe("JobsSection", () => {
+  it("runs a job on request while automation is on", async () => {
+    const runs = renderSection([job()], true);
+    await userEvent.click(await runButton("Wanted search"));
+    await waitFor(() => expect(runs).toEqual(["wanted-search"]));
+  });
+
+  // Running the sweep with the kill switch off grabs for real, so the one case
+  // where the button contradicts a setting the user chose asks first.
+  it("asks before running an automation-gated job with automation off", async () => {
+    const runs = renderSection([job()], false);
+    await userEvent.click(await runButton("Wanted search"));
+
+    expect(await screen.findByRole("dialog")).toHaveTextContent(
+      /automation is off/i,
+    );
+    expect(runs).toEqual([]);
+
+    await userEvent.click(screen.getByRole("button", { name: /run anyway/i }));
+    await waitFor(() => expect(runs).toEqual(["wanted-search"]));
+  });
+
+  // A failed settings read still asks (fail-safe), but must not assert a state
+  // it never learned.
+  it("admits when it could not tell whether automation is off", async () => {
+    const runs = renderSection([job()], "unreadable");
+    await userEvent.click(await runButton("Wanted search"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent(/may be off/i);
+    expect(dialog).not.toHaveTextContent(/automation is off/i);
+    expect(runs).toEqual([]);
+  });
+
+  it("runs nothing when that confirmation is declined", async () => {
+    const runs = renderSection([job()], false);
+    await userEvent.click(await runButton("Wanted search"));
+    await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    expect(runs).toEqual([]);
+  });
+
+  // Only the two jobs that grab are gated; the rest are unaffected by the switch.
+  it("does not ask about a job automation never gated", async () => {
+    const runs = renderSection([job({ name: "session-cleanup" })], false);
+    await userEvent.click(await runButton("Session cleanup"));
+
+    await waitFor(() => expect(runs).toEqual(["session-cleanup"]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

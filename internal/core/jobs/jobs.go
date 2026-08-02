@@ -26,6 +26,19 @@ import (
 // ErrUnknownJob is returned by Trigger for a name that was never registered.
 var ErrUnknownJob = errors.New("unknown job")
 
+type manualRunKey struct{}
+
+// WithManualRun marks ctx as an operator-requested run rather than a scheduled one.
+func WithManualRun(ctx context.Context) context.Context {
+	return context.WithValue(ctx, manualRunKey{}, true)
+}
+
+// ManualRun reports whether this run was asked for by hand.
+func ManualRun(ctx context.Context) bool {
+	v, _ := ctx.Value(manualRunKey{}).(bool)
+	return v
+}
+
 // Job is a unit of periodic work. Run must honour ctx — cancellation is the
 // only shutdown signal it gets.
 type Job struct {
@@ -133,11 +146,13 @@ func (r *Runner) loop(ctx context.Context, j *job) {
 	t := time.NewTimer(time.Until(next))
 	defer t.Stop()
 	for {
+		manual := false
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		case <-j.trigger:
+			manual = true
 		}
 		if ctx.Err() != nil {
 			return
@@ -149,7 +164,7 @@ func (r *Runner) loop(ctx context.Context, j *job) {
 		next = next.Add(j.spec.Interval)
 		r.schedule(j, next)
 
-		r.runOnce(ctx, j)
+		r.runOnce(ctx, j, manual)
 
 		if now := time.Now(); next.Before(now) {
 			next = now.Add(j.spec.Interval)
@@ -167,13 +182,13 @@ func (r *Runner) schedule(j *job, at time.Time) {
 	r.mu.Unlock()
 }
 
-func (r *Runner) runOnce(ctx context.Context, j *job) {
+func (r *Runner) runOnce(ctx context.Context, j *job, manual bool) {
 	r.mu.Lock()
 	j.running = true
 	r.mu.Unlock()
 
 	start := time.Now()
-	err := r.call(ctx, j)
+	err := r.call(ctx, j, manual)
 	elapsed := time.Since(start)
 
 	r.mu.Lock()
@@ -188,7 +203,10 @@ func (r *Runner) runOnce(ctx context.Context, j *job) {
 
 // call contains a panic to the single run that caused it: recovering here rather
 // than in loop is what lets the job's own loop reschedule instead of dying.
-func (r *Runner) call(ctx context.Context, j *job) (err error) {
+func (r *Runner) call(ctx context.Context, j *job, manual bool) (err error) {
+	if manual {
+		ctx = WithManualRun(ctx)
+	}
 	defer func() {
 		if v := recover(); v != nil {
 			err = fmt.Errorf("panic: %v", v)

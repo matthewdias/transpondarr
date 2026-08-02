@@ -1,8 +1,19 @@
-import { useQuery } from "@tanstack/react-query";
-import { ListChecks } from "lucide-react";
-import { type JobStatus } from "@/lib/api";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ListChecks, Play } from "lucide-react";
+import { toast } from "sonner";
+import { api, type JobStatus } from "@/lib/api";
 import { countdownOrDate, parseTimestamp, timeAgo } from "@/lib/format";
-import { JOBS_POLL_MS, jobsQuery } from "@/lib/queries";
+import { JOBS_POLL_MS, jobsQuery, settingsQuery } from "@/lib/queries";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionShell } from "../section-shell";
 
@@ -48,7 +59,15 @@ function jobNextRun(j: JobStatus): { text: string; overdue: boolean } {
   return { text: "overdue", overdue: true };
 }
 
-export function JobsTable({ jobs }: { jobs: JobStatus[] }) {
+export function JobsTable({
+  jobs,
+  onRun,
+  busy,
+}: {
+  jobs: JobStatus[];
+  onRun?: (name: string) => void;
+  busy?: boolean;
+}) {
   if (jobs.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
@@ -91,6 +110,20 @@ export function JobsTable({ jobs }: { jobs: JobStatus[] }) {
                 >
                   {next.text}
                 </span>
+                {onRun && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="self-center"
+                    aria-label={`Run ${label} now`}
+                    // A trigger during a run queues a full second pass — and
+                    // `running` lags the poll — so refuse both windows for one.
+                    disabled={j.running || busy}
+                    onClick={() => onRun(j.name)}
+                  >
+                    <Play />
+                  </Button>
+                )}
               </span>
             </div>
             {j.last_error && (
@@ -105,8 +138,40 @@ export function JobsTable({ jobs }: { jobs: JobStatus[] }) {
   );
 }
 
+// The jobs that grab unattended; mirrors the jobs.ManualRun gates in
+// internal/core/acquire — keep the two in sync.
+const AUTOMATION_GATED = ["wanted-search", "feed-poll"];
+
 export function JobsSection() {
+  const queryClient = useQueryClient();
   const { data, isLoading, isError, error } = useQuery(jobsQuery());
+  const settings = useQuery(settingsQuery());
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  const run = useMutation({
+    mutationFn: (name: string) => api.runJob(name),
+    onSuccess: () => {
+      // Fire and forget: the running pill and the new last run arrive on the poll.
+      toast.success("Run queued");
+      queryClient.invalidateQueries({ queryKey: jobsQuery().queryKey });
+    },
+    onError: (e) =>
+      toast.error("Could not run the job", {
+        description: e instanceof Error ? e.message : String(e),
+      }),
+  });
+
+  // A failed settings read warns rather than assuming automation is on.
+  const requiresConfirmation = (name: string) =>
+    AUTOMATION_GATED.includes(name) && !settings.data?.automation.enabled;
+
+  const handleRun = (name: string) => {
+    if (requiresConfirmation(name)) {
+      setConfirming(name);
+      return;
+    }
+    run.mutate(name);
+  };
 
   return (
     <SectionShell
@@ -127,7 +192,64 @@ export function JobsSection() {
           ))}
         </div>
       )}
-      {data && <JobsTable jobs={data} />}
+      {data && (
+        <JobsTable
+          jobs={data}
+          // Withheld until the kill switch is known, so the button never runs a
+          // gated job without the warning it would have earned.
+          onRun={settings.isPending ? undefined : handleRun}
+          busy={run.isPending}
+        />
+      )}
+      {confirming && (
+        <ConfirmGatedRunDialog
+          name={confirming}
+          automationUnknown={!settings.data}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            run.mutate(confirming);
+            setConfirming(null);
+          }}
+        />
+      )}
     </SectionShell>
+  );
+}
+
+// Running a gated job by hand is explicit intent, so it bypasses the kill switch
+// — and that is exactly why it is worth spelling out first.
+function ConfirmGatedRunDialog({
+  name,
+  automationUnknown,
+  onCancel,
+  onConfirm,
+}: {
+  name: string;
+  automationUnknown: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Run {jobLabel(name).toLowerCase()} anyway?</DialogTitle>
+          <DialogDescription>
+            {automationUnknown
+              ? "Automation may be off — its setting could not be loaded."
+              : "Automation is off, so this job normally does nothing."}{" "}
+            Running it by hand searches your indexer and grabs whatever it
+            picks, with no further prompt. Quality profiles, failure memory and
+            pinned-group delays still apply.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button onClick={onConfirm}>Run anyway</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

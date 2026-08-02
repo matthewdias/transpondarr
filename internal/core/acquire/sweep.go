@@ -10,6 +10,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/decide"
 	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
+	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -56,10 +57,12 @@ type sweepItem struct {
 // SweepOnce searches every series due one and grabs what it can, and is what the
 // job runner calls. The clients and the kill switch are both read per run, so
 // configuring an integration or flipping automation in Settings takes effect on
-// the next tick without a restart. One series' failure never costs the rest
-// their pass.
+// the next tick without a restart — except on a hand-triggered run, which passes
+// the kill switch as explicit intent (#122). One series' failure never costs the
+// rest their pass.
 func (s *Service) SweepOnce(ctx context.Context) error {
-	if !s.cfg.AutomationEnabled() {
+	// Gated jobs are mirrored in the UI's AUTOMATION_GATED list (jobs.tsx).
+	if !s.cfg.AutomationEnabled() && !jobs.ManualRun(ctx) {
 		return nil
 	}
 	idx := s.clients.Indexer()
