@@ -70,6 +70,7 @@ export function DiscoveryPage() {
   const today = currentSeason();
   const [ref, setRef] = useState<SeasonRef>(today);
   const [filters, setFilters] = useState<ChartFilters>(NO_FILTERS);
+  const [yearOpen, setYearOpen] = useState(false);
 
   const chart = useQuery(browseSeasonQuery(ref));
   const entries = useMemo(() => chart.data?.entries ?? [], [chart.data]);
@@ -140,18 +141,22 @@ export function DiscoveryPage() {
                 </SelectContent>
               </Select>
               <Select
+                open={yearOpen}
+                onOpenChange={setYearOpen}
                 value={String(ref.year)}
                 onValueChange={(year) => setRef({ ...ref, year: Number(year) })}
               >
                 <SelectTrigger aria-label="Year" className="w-[5.5rem]">
-                  <SelectValue />
+                  {/* Explicit children are what let the items mount only while open. */}
+                  <SelectValue>{ref.year}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {years.map((y) => (
-                    <SelectItem key={y} value={String(y)}>
-                      {y}
-                    </SelectItem>
-                  ))}
+                  {yearOpen &&
+                    years.map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        {y}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               <Button

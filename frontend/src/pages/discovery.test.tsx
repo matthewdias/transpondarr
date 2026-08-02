@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { SeasonEntry } from "@/lib/api";
+import { currentSeason, seasonLabel } from "@/lib/season";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DiscoveryPage } from "@/pages/discovery";
 
@@ -183,6 +184,39 @@ describe("DiscoveryPage", () => {
     } finally {
       window.innerWidth = wide;
     }
+  });
+
+  it("refetches the chart for a year picked from the year menu", async () => {
+    const requested: (string | null)[] = [];
+    server.use(
+      http.get("/api/v1/browse/season", ({ request }) => {
+        const url = new URL(request.url);
+        requested.push(url.searchParams.get("year"));
+        return HttpResponse.json({
+          season: url.searchParams.get("season"),
+          year: Number(url.searchParams.get("year")),
+          entries: [entry({ anilist_id: 101, romaji: "Alpha Adventure" })],
+        });
+      }),
+    );
+
+    renderPage();
+
+    await screen.findByText("Alpha Adventure");
+    const today = currentSeason();
+    const year = screen.getByRole("combobox", { name: "Year" });
+    expect(year).toHaveTextContent(String(today.year));
+
+    await userEvent.click(year);
+    await userEvent.click(await screen.findByRole("option", { name: "2024" }));
+
+    await waitFor(() => expect(requested).toContain("2024"));
+    expect(screen.getByRole("combobox", { name: "Year" })).toHaveTextContent(
+      "2024",
+    );
+    expect(
+      screen.getByText(seasonLabel({ season: today.season, year: 2024 })),
+    ).toBeInTheDocument();
   });
 
   it("keeps a movie visible but not addable", async () => {
