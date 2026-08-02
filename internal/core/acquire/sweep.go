@@ -61,6 +61,7 @@ type sweepItem struct {
 // the kill switch as explicit intent (#122). One series' failure never costs the
 // rest their pass.
 func (s *Service) SweepOnce(ctx context.Context) error {
+	// Gated jobs are mirrored in the UI's AUTOMATION_GATED list (jobs.tsx).
 	if !s.cfg.AutomationEnabled() && !jobs.ManualRun(ctx) {
 		return nil
 	}

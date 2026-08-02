@@ -43,6 +43,7 @@ func feedMarkKey(indexerName string) string { return "feed.seen." + indexerName 
 // An indexer with no recent feed is a supported configuration, not a failure:
 // the scheduled sweep already covers those series, just less promptly.
 func (s *Service) PollFeedOnce(ctx context.Context) error {
+	// Gated jobs are mirrored in the UI's AUTOMATION_GATED list (jobs.tsx).
 	if !s.cfg.AutomationEnabled() && !jobs.ManualRun(ctx) {
 		return nil
 	}

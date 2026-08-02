@@ -183,12 +183,31 @@ describe("JobsTable", () => {
     expect(onRun).toHaveBeenCalledExactlyOnceWith("wanted-search");
   });
 
-  // A trigger would only be coalesced into the run already in flight, so the
-  // button says as much rather than lying about having queued a second pass.
+  // A trigger during a run is not absorbed into it — the runner queues a full
+  // second pass as soon as the run finishes — so the button refuses to stack one.
   it("cannot run a job that is already running", () => {
     render(<JobsTable jobs={[job({ running: true })]} onRun={vi.fn()} />);
     expect(
       screen.getByRole("button", { name: "Run Wanted search now" }),
+    ).toBeDisabled();
+  });
+
+  // Trigger returns before the runner flips `running`, so until the poll
+  // catches up the request in flight is the only sign a second click would
+  // stack a second pass.
+  it("holds every run button while a run request is in flight", () => {
+    render(
+      <JobsTable
+        jobs={[job(), job({ name: "import-scan" })]}
+        onRun={vi.fn()}
+        busy
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Run Wanted search now" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Run Import scan now" }),
     ).toBeDisabled();
   });
 
@@ -206,14 +225,19 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 // runs collects every job name the section asked the server to run.
-function renderSection(jobs: JobStatus[], automationEnabled: boolean) {
+function renderSection(
+  jobs: JobStatus[],
+  automationEnabled: boolean | "unreadable",
+) {
   const runs: string[] = [];
   server.use(
     http.get("/api/v1/system/jobs", () => HttpResponse.json({ jobs })),
     http.get("/api/v1/settings", () =>
-      HttpResponse.json({
-        automation: { enabled: automationEnabled, pin_delay_hours: 0 },
-      }),
+      automationEnabled === "unreadable"
+        ? new HttpResponse(null, { status: 500 })
+        : HttpResponse.json({
+            automation: { enabled: automationEnabled, pin_delay_hours: 0 },
+          }),
     ),
     http.post("/api/v1/system/jobs/:name/run", ({ params }) => {
       runs.push(String(params.name));
@@ -254,6 +278,18 @@ describe("JobsSection", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /run anyway/i }));
     await waitFor(() => expect(runs).toEqual(["wanted-search"]));
+  });
+
+  // A failed settings read still asks (fail-safe), but must not assert a state
+  // it never learned.
+  it("admits when it could not tell whether automation is off", async () => {
+    const runs = renderSection([job()], "unreadable");
+    await userEvent.click(await runButton("Wanted search"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent(/may be off/i);
+    expect(dialog).not.toHaveTextContent(/automation is off/i);
+    expect(runs).toEqual([]);
   });
 
   it("runs nothing when that confirmation is declined", async () => {

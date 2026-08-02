@@ -62,9 +62,11 @@ function jobNextRun(j: JobStatus): { text: string; overdue: boolean } {
 export function JobsTable({
   jobs,
   onRun,
+  busy,
 }: {
   jobs: JobStatus[];
   onRun?: (name: string) => void;
+  busy?: boolean;
 }) {
   if (jobs.length === 0) {
     return (
@@ -114,9 +116,9 @@ export function JobsTable({
                     size="icon-xs"
                     className="self-center"
                     aria-label={`Run ${label} now`}
-                    // A trigger on a running job is only coalesced into the run
-                    // already in flight, so there is nothing to queue.
-                    disabled={j.running}
+                    // A trigger during a run queues a full second pass — and
+                    // `running` lags the poll — so refuse both windows for one.
+                    disabled={j.running || busy}
                     onClick={() => onRun(j.name)}
                   >
                     <Play />
@@ -136,7 +138,8 @@ export function JobsTable({
   );
 }
 
-// The two jobs that grab unattended, and so the two the kill switch silences.
+// The jobs that grab unattended; mirrors the jobs.ManualRun gates in
+// internal/core/acquire — keep the two in sync.
 const AUTOMATION_GATED = ["wanted-search", "feed-poll"];
 
 export function JobsSection() {
@@ -195,11 +198,13 @@ export function JobsSection() {
           // Withheld until the kill switch is known, so the button never runs a
           // gated job without the warning it would have earned.
           onRun={settings.isPending ? undefined : handleRun}
+          busy={run.isPending}
         />
       )}
       {confirming && (
         <ConfirmGatedRunDialog
           name={confirming}
+          automationUnknown={!settings.data}
           onCancel={() => setConfirming(null)}
           onConfirm={() => {
             run.mutate(confirming);
@@ -215,10 +220,12 @@ export function JobsSection() {
 // — and that is exactly why it is worth spelling out first.
 function ConfirmGatedRunDialog({
   name,
+  automationUnknown,
   onCancel,
   onConfirm,
 }: {
   name: string;
+  automationUnknown: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -228,10 +235,12 @@ function ConfirmGatedRunDialog({
         <DialogHeader>
           <DialogTitle>Run {jobLabel(name).toLowerCase()} anyway?</DialogTitle>
           <DialogDescription>
-            Automation is off, so this job normally does nothing. Running it by
-            hand searches your indexer and grabs whatever it picks, with no
-            further prompt. Quality profiles, failure memory and pinned-group
-            delays still apply.
+            {automationUnknown
+              ? "Automation may be off — its setting could not be loaded."
+              : "Automation is off, so this job normally does nothing."}{" "}
+            Running it by hand searches your indexer and grabs whatever it
+            picks, with no further prompt. Quality profiles, failure memory and
+            pinned-group delays still apply.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

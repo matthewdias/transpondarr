@@ -497,7 +497,7 @@ export interface paths {
         put?: never;
         /**
          * Run a background job now
-         * @description Queues the job on its own goroutine and returns immediately; a pending trigger is coalesced.
+         * @description Queues the job on its own goroutine and returns immediately. A trigger during a run queues one follow-up run; further triggers coalesce into that pending one.
          */
         post: operations["run-job"];
         delete?: never;

@@ -76,7 +76,7 @@ func registerSystemRoutes(api huma.API, deps routeDeps) {
 		Method:        http.MethodPost,
 		Path:          "/api/v1/system/jobs/{name}/run",
 		Summary:       "Run a background job now",
-		Description:   "Queues the job on its own goroutine and returns immediately; a pending trigger is coalesced.",
+		Description:   "Queues the job on its own goroutine and returns immediately. A trigger during a run queues one follow-up run; further triggers coalesce into that pending one.",
 		Tags:          []string{"system"},
 		DefaultStatus: http.StatusAccepted,
 	}, func(_ context.Context, in *struct {

@@ -2,11 +2,24 @@ package server
 
 import (
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/danielgtaylor/huma/v2/humatest"
+
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 )
+
+// The spec-dump path registers routes with zero-value deps, so a nil runner
+// must answer like an unknown job rather than panic.
+func TestRunJobWithoutARunnerIsNotFound(t *testing.T) {
+	_, api := humatest.New(t)
+	registerSystemRoutes(api, routeDeps{})
+	if resp := api.Post("/api/v1/system/jobs/import-scan/run"); resp.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want %d", resp.Code, http.StatusNotFound)
+	}
+}
 
 // In-package so the DTO mapping can be pinned without timing: a sub-millisecond
 // job is the common case (the session sweep is one DELETE), and integer
