@@ -52,12 +52,6 @@ func (r *recorder) received(t *testing.T) Event {
 	return r.events[len(r.events)-1]
 }
 
-func (r *recorder) count() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return len(r.events)
-}
-
 func allKinds() map[Kind]bool {
 	return map[Kind]bool{
 		KindGrabbed: true, KindImported: true, KindImportStuck: true,
