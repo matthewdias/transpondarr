@@ -51,6 +51,8 @@ type candidate struct {
 // has a largest file too, and taking it would silently drop the rest of the pack.
 func resolvePayloadFile(root string, wantNumber int) (string, error) {
 	var cands []candidate
+	var soleVideo string
+	videos := 0
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -70,6 +72,8 @@ func resolvePayloadFile(root string, wantNumber int) (string, error) {
 		if !videoExts[strings.ToLower(filepath.Ext(name))] {
 			return nil
 		}
+		videos++
+		soleVideo = path
 		if hasNonEpisodeToken(name) {
 			return nil
 		}
@@ -82,6 +86,11 @@ func resolvePayloadFile(root string, wantNumber int) (string, error) {
 
 	switch len(cands) {
 	case 0:
+		// Same identity-by-construction reasoning: one video and nothing to confuse
+		// it with, so an extras token in its name is a word in the title.
+		if videos == 1 {
+			return soleVideo, nil
+		}
 		return "", errNoVideoFile
 	case 1:
 		// Identity by construction: we chose this release, so the sole video is the

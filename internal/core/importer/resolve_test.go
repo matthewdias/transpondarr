@@ -136,6 +136,24 @@ func TestRefusesPayloadWithoutVideo(t *testing.T) {
 	}
 }
 
+// TestResolvesSoleVideoCarryingAnExtrasToken: a token in the only video's name is
+// a word in the title, not an extra — deferring here parks the episode forever.
+func TestResolvesSoleVideoCarryingAnExtrasToken(t *testing.T) {
+	root := writeTree(t,
+		"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv",
+		"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].nfo",
+		"Subs/[ExampleSubs] Preview Of A Placeholder - 05 [1080p].en.srt",
+	)
+
+	got, err := resolvePayloadFile(root, 5)
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if filepath.Base(got) != "[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv" {
+		t.Errorf("resolved %q, want the sole video", got)
+	}
+}
+
 // TestRefusesWhenOnlyCandidateIsAnExtra: filtering out extras must not leave the
 // resolver reaching for whatever is left.
 func TestRefusesWhenOnlyCandidateIsAnExtra(t *testing.T) {
