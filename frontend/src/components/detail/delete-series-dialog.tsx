@@ -42,6 +42,9 @@ export function DeleteSeriesDialog({
     mutationFn: () => api.deleteSeries(detail.id, removeDownloads),
     onSuccess: () => {
       toast.success(`Deleted “${detail.title}”`);
+      // Drop the still-mounted detail query first, or the series-prefix
+      // invalidation refetches it into a 404 before the navigation lands.
+      queryClient.removeQueries({ queryKey: ["series", detail.id] });
       // The calendar caches its own series-derived rows under a separate prefix.
       queryClient.invalidateQueries({ queryKey: ["series"] });
       queryClient.invalidateQueries({ queryKey: ["calendar"] });

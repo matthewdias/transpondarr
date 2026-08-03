@@ -13,7 +13,9 @@ import {
   vi,
 } from "vitest";
 import { MemoryRouter } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import type { SeriesDetail, WantedItem } from "@/lib/api";
+import { seriesDetailQuery } from "@/lib/queries";
 import { DeleteSeriesDialog } from "@/components/detail/delete-series-dialog";
 
 const server = setupServer();
@@ -39,7 +41,8 @@ const detail: SeriesDetail = {
     item(2, "have"),
     item(3, "downloading"),
     item(4, "deferred"),
-    item(5, "wanted"),
+    item(5, "stuck"),
+    item(6, "wanted"),
   ],
 };
 
@@ -64,11 +67,11 @@ describe("DeleteSeriesDialog", () => {
 
     await user.click(screen.getByRole("button", { name: /delete/i }));
     const dialog = screen.getByRole("dialog");
-    // 5 tracked episodes go; the 2 in the library stay on disk.
-    expect(dialog).toHaveTextContent(/5 tracked episodes/i);
+    // 6 tracked episodes go; the 2 in the library stay on disk.
+    expect(dialog).toHaveTextContent(/6 tracked episodes/i);
     expect(dialog).toHaveTextContent(/2 episodes? in your library/i);
-    // 2 active downloads (downloading + deferred) ride the checkbox label.
-    expect(dialog).toHaveTextContent(/2 active downloads/i);
+    // 3 active downloads (downloading + stuck + deferred) ride the checkbox label.
+    expect(dialog).toHaveTextContent(/3 active downloads/i);
   });
 
   it("deletes without touching downloads by default", async () => {
@@ -112,6 +115,46 @@ describe("DeleteSeriesDialog", () => {
     await waitFor(() =>
       expect(url?.searchParams.get("remove_downloads")).toBe("true"),
     );
+  });
+
+  it("drops the mounted detail query instead of refetching it into a 404", async () => {
+    let detailGets = 0;
+    server.use(
+      http.get("/api/v1/series/7", () => {
+        detailGets++;
+        return HttpResponse.json(detail);
+      }),
+      http.delete(
+        "/api/v1/series/7",
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+    );
+    // The dialog lives on the detail page, so its query is active when the
+    // series-prefix invalidation lands.
+    function Page() {
+      useQuery(seriesDetailQuery(7));
+      return <DeleteSeriesDialog detail={detail} onDeleted={() => {}} />;
+    }
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Page />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(detailGets).toBe(1));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /delete/i }));
+    await user.click(screen.getByRole("button", { name: /delete series/i }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    expect(detailGets).toBe(1);
   });
 
   it("keeps the dialog open and reports a failed delete", async () => {

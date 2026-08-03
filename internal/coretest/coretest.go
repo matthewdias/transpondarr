@@ -197,6 +197,10 @@ type FakeLibrary struct {
 	NameStr string
 	DestErr error
 
+	// PlaceHook runs at the top of every Place. A test can drive another actor
+	// from it to model work landing while an import is at its point of no return.
+	PlaceHook func(library.ImportRequest)
+
 	Placed []library.ImportRequest // recorded, in call order
 }
 
@@ -210,6 +214,9 @@ func (f *FakeLibrary) Name() string {
 }
 
 func (f *FakeLibrary) Place(_ context.Context, r library.ImportRequest) (string, error) {
+	if f.PlaceHook != nil {
+		f.PlaceHook(r)
+	}
 	f.Placed = append(f.Placed, r)
 	if f.DestErr != nil {
 		return "", f.DestErr
