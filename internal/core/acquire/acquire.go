@@ -101,6 +101,32 @@ type Match struct {
 	Candidates []decide.Candidate
 }
 
+// passItem is one wanted item as an entry point hands it to the matcher: the
+// stored item, which a grab needs for its id and kind, plus a candidacy the pass
+// derives — the sweep withholds in-flight and unaired items it does not hold.
+type passItem struct {
+	domain.WantedItem
+	grabbable bool
+}
+
+// matchItems is the matcher's view of a pass: numbering basis plus candidacy.
+func matchItems(items []passItem) []decide.Item {
+	out := make([]decide.Item, 0, len(items))
+	for _, it := range items {
+		out = append(out, decide.Item{Number: it.Number, Grabbable: it.grabbable})
+	}
+	return out
+}
+
+// wantedItems drops the pass's candidacy, leaving what a grab resolves ids from.
+func wantedItems(items []passItem) []domain.WantedItem {
+	out := make([]domain.WantedItem, 0, len(items))
+	for _, it := range items {
+		out = append(out, it.WantedItem)
+	}
+	return out
+}
+
 // Service runs search/decide/grab against the store and the live clients.
 type Service struct {
 	store     *store.Store
@@ -138,8 +164,10 @@ func (s *Service) MatchSeries(ctx context.Context, id int64) (Match, error) {
 	return s.match(ctx, idx, series, items)
 }
 
-// loadItems reads a series and every wanted item belonging to it.
-func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []domain.WantedItem, error) {
+// loadItems reads a series and every wanted item belonging to it. Outside a
+// sweep the only thing withholding an item is the library, so candidacy is the
+// complement of Have here — and nowhere else.
+func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passItem, error) {
 	series, err := s.store.Q.GetSeries(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return db.Series{}, nil, ErrSeriesNotFound
@@ -151,22 +179,25 @@ func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []domain.
 	if err != nil {
 		return db.Series{}, nil, fmt.Errorf("load wanted items for series %d: %w", id, err)
 	}
-	items := make([]domain.WantedItem, 0, len(rows))
+	items := make([]passItem, 0, len(rows))
 	for _, r := range rows {
-		items = append(items, domain.WantedItem{
-			ID:     r.ID,
-			Kind:   domain.WantedKind(r.Kind),
-			Number: int(r.Number.Int64),
-			Have:   r.Have == 1,
+		items = append(items, passItem{
+			WantedItem: domain.WantedItem{
+				ID:     r.ID,
+				Kind:   domain.WantedKind(r.Kind),
+				Number: int(r.Number.Int64),
+				Have:   r.Have == 1,
+			},
+			grabbable: r.Have != 1,
 		})
 	}
 	return series, items, nil
 }
 
-// match takes the item list explicitly so a caller can narrow what is worth
-// grabbing — the sweep passes a grab-state-filtered list — while reusing one
-// matcher.
-func (s *Service) match(ctx context.Context, idx indexer.Indexer, series db.Series, items []domain.WantedItem) (Match, error) {
+// match takes the item list explicitly so a caller can scope what is worth
+// grabbing — the sweep marks in-flight and unaired items non-candidates — while
+// reusing one matcher.
+func (s *Service) match(ctx context.Context, idx indexer.Indexer, series db.Series, items []passItem) (Match, error) {
 	variants := s.variants(ctx, series)
 	releases, term, err := s.search(ctx, idx, variants)
 	if err != nil {
@@ -215,7 +246,7 @@ func (s *Service) search(ctx context.Context, idx indexer.Indexer, variants []st
 // evaluate ranks already-fetched releases against a series. It is split from the
 // search so the feed poll (#101) drives exactly this decision layer — profile,
 // blocklist, eligibility — over one page it fetched once for every series.
-func (s *Service) evaluate(ctx context.Context, series db.Series, items []domain.WantedItem, variants []string, term string, releases []indexer.Release) (Match, error) {
+func (s *Service) evaluate(ctx context.Context, series db.Series, items []passItem, variants []string, term string, releases []indexer.Release) (Match, error) {
 	profile, err := s.profile(ctx, series)
 	if err != nil {
 		return Match{}, err
@@ -228,8 +259,8 @@ func (s *Service) evaluate(ctx context.Context, series db.Series, items []domain
 	return Match{
 		Series: series,
 		Term:   term,
-		Items:  items,
-		Candidates: decide.Match(items, variants, releases, profile,
+		Items:  wantedItems(items),
+		Candidates: decide.Match(matchItems(items), variants, releases, profile,
 			decide.MatchOpts{PinnedGroup: series.PinnedGroup.String, Blocked: blocked}),
 	}, nil
 }

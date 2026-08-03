@@ -130,7 +130,7 @@ func (s *Service) pollOneSeries(ctx context.Context, series db.Series, releases 
 	if err != nil {
 		return err
 	}
-	m, err := s.evaluate(ctx, series, grabbableItems(sweep), s.variants(ctx, series), "", releases)
+	m, err := s.evaluate(ctx, series, passItems(sweep), s.variants(ctx, series), "", releases)
 	if err != nil {
 		return err
 	}

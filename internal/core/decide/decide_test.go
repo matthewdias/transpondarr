@@ -13,10 +13,10 @@ import (
 // All fixtures use invented series/group names; only the naming structure under
 // test is real.
 
-func items(n int) []domain.WantedItem {
-	out := make([]domain.WantedItem, 0, n)
+func items(n int) []Item {
+	out := make([]Item, 0, n)
 	for i := 1; i <= n; i++ {
-		out = append(out, domain.WantedItem{Number: i, Kind: domain.KindEpisode})
+		out = append(out, Item{Number: i, Grabbable: true})
 	}
 	return out
 }
@@ -24,13 +24,27 @@ func items(n int) []domain.WantedItem {
 // An already-had episode must not be re-matched (and thus not re-grabbed).
 func TestAlreadyHadEpisodeNotMatched(t *testing.T) {
 	its := items(12)
-	its[2].Have = true // episode 3 already imported
+	its[2].Grabbable = false // episode 3 already imported
 	rels := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga S1E03 [1080p]", Seeders: 100},
 	}
 	got := Match(its, []string{"Placeholder Saga"}, rels, domain.QualityProfile{})
 	if got[0].Matched {
 		t.Errorf("already-had episode 3 should not match: items %v", got[0].Items)
+	}
+}
+
+// A non-candidate item still counts toward the entry's range, so scoping a pass
+// cannot make an in-range release read as absolute numbering from another season.
+func TestNonCandidateItemStillSpansTheRange(t *testing.T) {
+	its := items(12)
+	its[11].Grabbable = false // the highest item is in flight, not a candidate
+	rels := []indexer.Release{
+		{Title: "[ExampleSubs] Placeholder Saga S1E12 [1080p]", Seeders: 100},
+	}
+	got := Match(its, []string{"Placeholder Saga"}, rels, domain.QualityProfile{})
+	if c := got[0]; c.Matched || strings.Contains(c.Reason, "exceeds") {
+		t.Errorf("episode 12 should read as not-wanted, not out of range: matched=%v reason=%q", c.Matched, c.Reason)
 	}
 }
 
@@ -102,7 +116,7 @@ func TestSeasonPackMatchesEveryWantedItemButIsIneligible(t *testing.T) {
 func TestBatchCoveringNothingWantedIsUnmatched(t *testing.T) {
 	its := items(6)
 	for i := range its {
-		its[i].Have = true
+		its[i].Grabbable = false
 	}
 	rels := []indexer.Release{
 		{Title: "[Batchers] Placeholder Saga S1 (01-06) [1080p][Batch]", Seeders: 50},

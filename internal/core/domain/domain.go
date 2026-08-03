@@ -44,7 +44,7 @@ type WantedItem struct {
 	Kind   WantedKind
 	Number int // absolute/episode number; typically 1 for a movie
 	Name   string
-	Have   bool
+	Have   bool // library state only: an import placed a file for it
 }
 
 // MaxPinDelayHours bounds the wait a pinned group can impose at a year. The
