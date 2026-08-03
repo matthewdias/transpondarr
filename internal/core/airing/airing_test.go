@@ -247,6 +247,99 @@ func TestSyncFillsTheGapsAScheduleSkips(t *testing.T) {
 	}
 }
 
+// searchCadence reads a series' accumulated backoff and its next due time.
+func searchCadence(t *testing.T, st *store.Store, seriesID int64) (backoff int, next *string) {
+	t.Helper()
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, seriesID).Scan(&backoff, &next); err != nil {
+		t.Fatalf("read search cadence: %v", err)
+	}
+	return backoff, next
+}
+
+// A gap-filled item carries no air date, so airedSince cannot see it and the
+// series that skipped an episode — likely the one that climbed the ladder
+// finding nothing — would wait out its backoff before looking.
+func TestGapFillResetsSearchCadence(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 100, 0)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET search_backoff = 8, next_search_at = ? WHERE id = ?`,
+		store.FormatTimestamp(time.Now().Add(24*time.Hour)), seriesID); err != nil {
+		t.Fatalf("seed a long backoff: %v", err)
+	}
+
+	prov := newFakeProvider()
+	prov.schedules[100] = []metadata.Airing{
+		{Number: 1, AirsAt: time.Date(2026, 1, 4, 15, 30, 0, 0, time.UTC)},
+		{Number: 3, AirsAt: time.Date(2026, 1, 18, 15, 30, 0, 0, time.UTC)},
+	}
+
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	if backoff, next := searchCadence(t, st, seriesID); backoff != 0 || next != nil {
+		t.Errorf("cadence = backoff %d, next %v; want it reset so the sweep looks for the filled item", backoff, next)
+	}
+}
+
+// A sync that fills nothing must not hand a backed-off series a free retry.
+func TestSyncKeepsSearchCadenceWhenNothingIsFilled(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 100, 2)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET search_backoff = 8 WHERE id = ?`, seriesID); err != nil {
+		t.Fatalf("seed a long backoff: %v", err)
+	}
+
+	prov := newFakeProvider()
+	prov.schedules[100] = []metadata.Airing{
+		{Number: 1, AirsAt: time.Date(2026, 1, 4, 15, 30, 0, 0, time.UTC)},
+		{Number: 2, AirsAt: time.Date(2026, 1, 11, 15, 30, 0, 0, time.UTC)},
+	}
+
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	if backoff, _ := searchCadence(t, st, seriesID); backoff != 8 {
+		t.Errorf("search_backoff = %d, want the accumulated 8", backoff)
+	}
+}
+
+// AniList retains only a recent window of schedule records for a long-runner
+// (One Piece's first page is episodes 1123-1147), and a 1-based entry can lose
+// its early records outright (Vinland Saga season 1 starts at 23). A full fetch
+// therefore fills from 1: a schedule whose lowest number is not 1 means missing
+// records, not an offset season, since AniList sequel entries restart at 1.
+func TestFullFetchFillsFromOneBelowTheScheduleWindow(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 100, 0)
+
+	prov := newFakeProvider()
+	prov.schedules[100] = []metadata.Airing{
+		{Number: 13, AirsAt: time.Date(2026, 4, 5, 15, 30, 0, 0, time.UTC)},
+		{Number: 14, AirsAt: time.Date(2026, 4, 12, 15, 30, 0, 0, time.UTC)},
+	}
+
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	for _, n := range []int{1, 12} {
+		_, airs, found := itemState(t, st, seriesID, n)
+		if !found {
+			t.Errorf("item %d was not created, so the run below the schedule window is lost", n)
+		} else if airs != nil {
+			t.Errorf("item %d airs_at = %v, want null", n, *airs)
+		}
+	}
+	if _, _, found := itemState(t, st, seriesID, 15); found {
+		t.Error("item 15 was created past the highest number the schedule knows")
+	}
+}
+
 // A tail fetch is a partial view of the numbering, so it fills gaps only inside
 // its own span rather than re-deriving a long-runner's whole back catalogue.
 func TestSyncTailFillsOnlyInsideItsOwnSpan(t *testing.T) {

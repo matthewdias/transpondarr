@@ -5,7 +5,7 @@
 // is background work rather than part of GetTitle because it costs a request
 // per page: unremarkable off the request path, unacceptable behind a user
 // action against a ~30 req/min budget. GetTitle carries a single in-band page
-// for the add, which is bounded by construction; everything past it is here.
+// for the add; everything past it is here.
 package airing
 
 import (
@@ -104,13 +104,22 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		}
 	}
 
+	var filled int64
 	for _, n := range skipped(schedule, !notYetAired) {
-		if _, err := s.store.Q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
+		rows, err := s.store.Q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
 			SeriesID: series.ID,
 			Kind:     string(domain.KindEpisode),
 			Number:   sql.NullInt64{Int64: int64(n), Valid: true},
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf("create item %d for a skipped schedule entry: %w", n, err)
+		}
+		filled += rows
+	}
+	// A filled item has no air date, so it is exactly what airedSince cannot see.
+	if filled > 0 {
+		if err := s.store.Q.ResetSeriesSearchState(ctx, series.ID); err != nil {
+			return fmt.Errorf("reset search cadence: %w", err)
 		}
 	}
 
@@ -126,12 +135,9 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	return nil
 }
 
-// skipped lists the item numbers a schedule implies but never names: AniList
-// publishes no entry when two episodes share a broadcast slot, and with a null
-// episode count nothing else would ever create the missing one. fromOne widens
-// the fill to the whole numbering, which only a full fetch owns — a tail is a
-// partial view, so it fills gaps inside its own span instead of re-deriving a
-// long-runner's entire back catalogue every pass.
+// skipped lists the item numbers a schedule implies but never names. fromOne
+// widens the fill to the whole numbering, which only a full fetch owns: a tail
+// is a partial view, so it fills gaps inside its own span instead.
 func skipped(schedule []metadata.Airing, fromOne bool) []int {
 	if len(schedule) == 0 {
 		return nil

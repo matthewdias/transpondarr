@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -73,18 +74,6 @@ func itemNumbers(items []metadata.ItemMeta) []int {
 	return out
 }
 
-func equalInts(a, b []int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 // A releasing title whose count AniList never publishes must still come back
 // with its known items — from the one request the add already pays for — and the
 // episode the schedule skips (episodes 1 and 2 sharing a broadcast slot) must be
@@ -112,7 +101,7 @@ func TestGetTitleFillsANullCountTitleFromOneRequest(t *testing.T) {
 		t.Error("title query does not request airingSchedule")
 	}
 	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
-	if got := itemNumbers(items); !equalInts(got, want) {
+	if got := itemNumbers(items); !slices.Equal(got, want) {
 		t.Errorf("items = %v, want %v", got, want)
 	}
 	// The count itself is still unknown; only the items it would have produced
@@ -136,13 +125,15 @@ func TestGetTitleFallsBackToTheNextBroadcast(t *testing.T) {
 		t.Fatalf("GetTitle: %v", err)
 	}
 	want := []int{1, 2, 3, 4, 5, 6}
-	if got := itemNumbers(items); !equalInts(got, want) {
+	if got := itemNumbers(items); !slices.Equal(got, want) {
 		t.Errorf("items = %v, want %v", got, want)
 	}
 }
 
-// A published count is authoritative. Sequel entries whose schedule continues the
-// previous season's numbering would otherwise double a 12-episode season.
+// A published count is authoritative in both directions. This is the shape of a
+// real entry (a 12-episode show whose schedule runs 2..13, missing episode 1's
+// record and carrying one past the end): the floors must neither trim it to the
+// window nor extend it to a phantom 13th item.
 func TestGetTitleKeepsAPublishedCountOverTheSchedule(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -150,10 +141,10 @@ func TestGetTitleKeepsAPublishedCountOverTheSchedule(t *testing.T) {
 			"id": 9,
 			"title": {"romaji": "Sample Show"},
 			"format": "TV",
-			"episodes": 3,
+			"episodes": 12,
 			"status": "RELEASING",
-			"nextAiringEpisode": {"episode": 16},
-			"airingSchedule": {"nodes": [{"episode":13},{"episode":14},{"episode":15}]}
+			"nextAiringEpisode": {"episode": 7},
+			"airingSchedule": {"nodes": [{"episode":2},{"episode":3},{"episode":13}]}
 		}}}`)
 	}))
 	defer srv.Close()
@@ -162,8 +153,34 @@ func TestGetTitleKeepsAPublishedCountOverTheSchedule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
-	if got := itemNumbers(items); !equalInts(got, []int{1, 2, 3}) {
-		t.Errorf("items = %v, want [1 2 3]", got)
+	want := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+	if got := itemNumbers(items); !slices.Equal(got, want) {
+		t.Errorf("items = %v, want %v", got, want)
+	}
+}
+
+// AniList retains only a recent window of schedule records for a null-count
+// long-runner (One Piece's first page is 1123-1147 against a next broadcast of
+// 1173), so the add materializes the whole run rather than that window — the
+// back catalogue is otherwise created by nothing at all.
+func TestGetTitleMaterializesALongRunnersWholeRun(t *testing.T) {
+	window := make([]int, 0, 25)
+	for n := 1123; n <= 1147; n++ {
+		window = append(window, n)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, nullCountResponse(1173, window...))
+	}))
+	defer srv.Close()
+
+	_, items, err := stubClient(srv.URL).GetTitle(context.Background(), 21)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if len(items) != 1173 || items[0].Number != 1 || items[len(items)-1].Number != 1173 {
+		t.Errorf("items = %d spanning %d..%d, want 1173 spanning 1..1173",
+			len(items), items[0].Number, items[len(items)-1].Number)
 	}
 }
 

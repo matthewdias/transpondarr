@@ -110,8 +110,7 @@ func (m media) episodes() int {
 }
 
 // highestItem is the last episode number the title is known to reach. A published
-// count wins outright: sequel entries whose schedule continues the previous
-// season's numbering would otherwise double a 12-episode season.
+// count wins outright: a schedule can carry an entry past the announced end.
 func (m media) highestItem() int {
 	if n := m.episodes(); n > 0 {
 		return n
@@ -175,10 +174,7 @@ func (c *Client) Search(ctx context.Context, term string) ([]metadata.Candidate,
 }
 
 // airingSchedule is a field on Media, not a root query, so one page of it rides
-// along here for no extra request — page 1 is episodes 1-25, which is the whole
-// schedule for the seasonal show a null count nearly always means. A long-runner
-// gets its ancient prefix instead, and the background airing sync still does the
-// real work.
+// along here for no extra request.
 const titleQuery = `
 query ($id: Int!, $perPage: Int!) {
   Media(id: $id, type: ANIME) {
@@ -196,11 +192,9 @@ query ($id: Int!, $perPage: Int!) {
 }`
 
 // GetTitle resolves one title and expands its items (1..N, absolute numbering,
-// no per-episode names). N is the published episode count, or — when AniList
-// leaves it null on a releasing series — the highest number the in-band schedule
-// page or the next broadcast reaches. Filling to that number rather than
-// transcribing it densifies: AniList lists no schedule entry when two episodes
-// share a broadcast slot, and nothing else would ever create the skipped one.
+// no per-episode names), N coming from highestItem. Filling to that number
+// rather than transcribing the schedule is what creates an episode AniList lists
+// no entry for, having shared a broadcast slot.
 func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []metadata.ItemMeta, error) {
 	var data struct {
 		Media media `json:"Media"`
