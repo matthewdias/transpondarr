@@ -1,5 +1,6 @@
 import { Check, CircleX, Download, FolderClock } from "lucide-react";
 import { Link } from "react-router";
+import type { GrabEvent } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
@@ -10,15 +11,12 @@ import {
 } from "@/components/ui/item";
 
 // The fields the row reads, shared by the per-series GrabEventDTO and the
-// global ActivityEventDTO (which differ in hash spelling and series fields).
-export interface PresentableGrabEvent {
-  id: number;
-  item_number: number;
-  release_title: string;
-  status: "grabbed" | "imported" | "import_deferred" | "failed";
-  detail?: string;
-  created_at: string;
-}
+// global ActivityEventDTO (which differs only in carrying series fields).
+// Picked from the generated type so a new status cannot silently drift.
+export type PresentableGrabEvent = Pick<
+  GrabEvent,
+  "id" | "item_number" | "release_title" | "status" | "detail" | "created_at"
+>;
 
 // History is past-tense: a grabbed event is a recorded moment ("Grabbed"), never
 // live progress — the queue and Episodes tab own in-flight state.

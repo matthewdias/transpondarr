@@ -105,7 +105,8 @@ func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
 // must not be refused (PR #57), so enforcement belongs to the sweep, which
 // checks Eligible before calling. It takes an unconditional claim for the same
 // reason — the claim exists to make automation yield to a grab in flight, never
-// to gate one.
+// to gate one. seriesID must be the series the items belong to — nothing
+// cross-checks it, and history events are recorded under it.
 func (s *Service) Grab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem, paused bool) (GrabResult, error) {
 	dl := s.clients.Download()
 	if dl == nil {

@@ -1,4 +1,9 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import {
   Download,
   History,
@@ -80,6 +85,21 @@ function SectionError({
 function QueueSection() {
   const { data, isLoading, isPaused, isError, error, refetch } =
     useQuery(activityQueueQuery());
+
+  // History only changes when an item settles out of the open set (or shifts
+  // derived status), so that is the invalidation signal — not progress ticks.
+  const queryClient = useQueryClient();
+  const openSet = data?.items.map((i) => `${i.id}:${i.status}`).join(",");
+  const prevOpenSet = useRef<string>(undefined);
+  useEffect(() => {
+    if (openSet === undefined) return;
+    if (prevOpenSet.current !== undefined && prevOpenSet.current !== openSet) {
+      void queryClient.invalidateQueries({
+        queryKey: activityHistoryQuery().queryKey,
+      });
+    }
+    prevOpenSet.current = openSet;
+  }, [openSet, queryClient]);
 
   return (
     <section>

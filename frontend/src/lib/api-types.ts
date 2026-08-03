@@ -578,7 +578,7 @@ export interface components {
              * @example https://example.com/schemas/ActivityQueueOutputBody.json
              */
             readonly $schema?: string;
-            /** @description Whether the download client answered; false degrades rows to grab state only */
+            /** @description False when the download client is missing or did not answer; rows then carry grab state only */
             client_ok: boolean;
             items: components["schemas"]["QueueItemDTO"][];
         };

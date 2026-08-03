@@ -33,7 +33,7 @@ type queueItemDTO struct {
 type activityQueueOutput struct {
 	Body struct {
 		Items    []queueItemDTO `json:"items"`
-		ClientOk bool           `json:"client_ok" doc:"Whether the download client answered; false degrades rows to grab state only"`
+		ClientOk bool           `json:"client_ok" doc:"False when the download client is missing or did not answer; rows then carry grab state only"`
 	}
 }
 
@@ -165,9 +165,6 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 		Tags:        []string{"activity"},
 	}, func(ctx context.Context, in *activityHistoryInput) (*activityHistoryOutput, error) {
 		limit := in.Limit
-		if limit == 0 {
-			limit = 50
-		}
 
 		// Fetch one past the page to learn whether a next page exists.
 		var rows []db.ListGrabEventsPageRow

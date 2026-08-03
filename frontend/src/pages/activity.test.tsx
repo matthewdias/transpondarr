@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -57,7 +57,7 @@ function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <SidebarProvider>
@@ -66,6 +66,7 @@ function renderPage() {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return client;
 }
 
 describe("ActivityPage", () => {
@@ -153,6 +154,42 @@ describe("ActivityPage", () => {
         screen.queryByRole("button", { name: /load more/i }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  // History only fetches once, so a settle the queue reflects (an item leaving)
+  // must invalidate it; progress ticks alone must not.
+  it("refreshes history when a queue item settles, not on progress ticks", async () => {
+    let queuePayload: ActivityQueue = {
+      client_ok: true,
+      items: [queueItem({ id: 1, client_state: "downloading", progress: 0.1 })],
+    };
+    let historyCalls = 0;
+    server.use(
+      http.get("/api/v1/activity/queue", () => HttpResponse.json(queuePayload)),
+      http.get("/api/v1/activity/history", () => {
+        historyCalls++;
+        return HttpResponse.json({ events: [historyEvent({ id: 11 })] });
+      }),
+    );
+
+    const client = renderPage();
+    expect(await screen.findByText(/Episode 4/)).toBeInTheDocument();
+    await waitFor(() => expect(historyCalls).toBe(1));
+
+    // A poll that only moves progress leaves history alone.
+    queuePayload = {
+      client_ok: true,
+      items: [queueItem({ id: 1, client_state: "downloading", progress: 0.9 })],
+    };
+    await act(() => client.refetchQueries({ queryKey: ["activity-queue"] }));
+    expect(await screen.findByText(/90%/)).toBeInTheDocument();
+    expect(historyCalls).toBe(1);
+
+    // The item settles out of the queue; history refetches.
+    queuePayload = { client_ok: true, items: [] };
+    await act(() => client.refetchQueries({ queryKey: ["activity-queue"] }));
+    expect(await screen.findByText(/Nothing downloading/i)).toBeInTheDocument();
+    await waitFor(() => expect(historyCalls).toBe(2));
   });
 
   it("says when the download client is unreachable instead of hiding the queue", async () => {
