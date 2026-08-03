@@ -504,6 +504,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update the notification adapters (rebuilds the dispatcher live) */
+        put: operations["update-notifications-settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/notifications/discord/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test notification to the given (unsaved) Discord webhook */
+        post: operations["test-notify-discord"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/notifications/ntfy/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test notification to the given (unsaved) ntfy topic */
+        post: operations["test-notify-ntfy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/notifications/webhook/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send a test notification to the given (unsaved) webhook URL */
+        post: operations["test-notify-webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/jobs": {
         parameters: {
             query?: never;
@@ -1038,6 +1106,61 @@ export interface components {
             readonly $schema?: string;
             series: components["schemas"]["SeriesDTO"][];
         };
+        NotificationsInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/NotificationsInputBody.json
+             */
+            readonly $schema?: string;
+            discord: components["schemas"]["NotifyAdapterInput"];
+            ntfy: components["schemas"]["NtfyInput"];
+            webhook: components["schemas"]["NotifyAdapterInput"];
+        };
+        NotificationsSettingsDTO: {
+            discord: components["schemas"]["NotifyAdapterDTO"];
+            ntfy: components["schemas"]["NtfySettingsDTO"];
+            webhook: components["schemas"]["NotifyAdapterDTO"];
+        };
+        NotifyAdapterDTO: {
+            configured: boolean;
+            on_grab_failed: boolean;
+            on_grabbed: boolean;
+            on_imported: boolean;
+            on_series_added: boolean;
+            on_stuck: boolean;
+            url: string;
+        };
+        NotifyAdapterInput: {
+            on_grab_failed: boolean;
+            on_grabbed: boolean;
+            on_imported: boolean;
+            on_series_added: boolean;
+            on_stuck: boolean;
+            url?: string;
+        };
+        NtfyInput: {
+            on_grab_failed: boolean;
+            on_grabbed: boolean;
+            on_imported: boolean;
+            on_series_added: boolean;
+            on_stuck: boolean;
+            server?: string;
+            /** @description Leave empty to keep the stored token */
+            token?: string;
+            topic?: string;
+        };
+        NtfySettingsDTO: {
+            configured: boolean;
+            on_grab_failed: boolean;
+            on_grabbed: boolean;
+            on_imported: boolean;
+            on_series_added: boolean;
+            on_stuck: boolean;
+            server: string;
+            token_set: boolean;
+            topic: string;
+        };
         ProfileBody: {
             /**
              * Format: uri
@@ -1329,6 +1452,7 @@ export interface components {
             general: components["schemas"]["GeneralSettingsDTO"];
             indexer: components["schemas"]["IndexerSettingsDTO"];
             library: components["schemas"]["LibrarySettingsDTO"];
+            notifications: components["schemas"]["NotificationsSettingsDTO"];
         };
         TestDownloadOutputBody: {
             /**
@@ -2518,6 +2642,138 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["LibraryInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "update-notifications-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "test-notify-discord": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "test-notify-ntfy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationsInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "test-notify-webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationsInputBody"];
             };
         };
         responses: {

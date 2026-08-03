@@ -12,6 +12,14 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
+const notifyEvents = {
+  on_grabbed: true,
+  on_imported: true,
+  on_stuck: true,
+  on_grab_failed: true,
+  on_series_added: true,
+};
+
 function settings(automation: Settings["automation"]): Settings {
   return {
     download: {
@@ -24,6 +32,17 @@ function settings(automation: Settings["automation"]): Settings {
     indexer: { configured: false, name: "", url: "", apikey_set: false },
     library: { configured: false, dir: "", mode: "" },
     automation,
+    notifications: {
+      discord: { configured: false, url: "", ...notifyEvents },
+      webhook: { configured: false, url: "", ...notifyEvents },
+      ntfy: {
+        configured: false,
+        server: "https://ntfy.sh",
+        topic: "",
+        token_set: false,
+        ...notifyEvents,
+      },
+    },
     auth: { configured: false, username: "", required: "enabled" },
     general: {
       version: "test",

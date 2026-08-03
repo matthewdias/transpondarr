@@ -4,7 +4,7 @@
 // the importer) read the current client on each use rather than capturing one,
 // so a swap is picked up on the next request or poll.
 //
-// Any of the three may be nil when the corresponding integration is not
+// Any of the four may be nil when the corresponding integration is not
 // configured; callers must nil-check.
 package clients
 
@@ -14,14 +14,16 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/library"
+	"github.com/matthewdias/transpondarr/internal/core/notify"
 )
 
-// Registry is the swappable holder of the three pluggable clients.
+// Registry is the swappable holder of the four pluggable clients.
 type Registry struct {
 	mu  sync.RWMutex
 	dl  download.Client
 	idx indexer.Indexer
 	lib library.Target
+	ntf *notify.Dispatcher
 }
 
 // New returns an empty registry (all clients nil until set).
@@ -48,6 +50,15 @@ func (r *Registry) Library() library.Target {
 	return r.lib
 }
 
+// Notify returns the current notification dispatcher, or nil when no adapter is
+// configured. Concrete rather than an interface, so nil is just nil (see
+// buildLibrary for the typed-nil gotcha this sidesteps).
+func (r *Registry) Notify() *notify.Dispatcher {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.ntf
+}
+
 // SetDownload swaps the download client (pass nil to disable).
 func (r *Registry) SetDownload(c download.Client) {
 	r.mu.Lock()
@@ -66,5 +77,12 @@ func (r *Registry) SetIndexer(c indexer.Indexer) {
 func (r *Registry) SetLibrary(c library.Target) {
 	r.mu.Lock()
 	r.lib = c
+	r.mu.Unlock()
+}
+
+// SetNotify swaps the notification dispatcher (pass nil to disable).
+func (r *Registry) SetNotify(d *notify.Dispatcher) {
+	r.mu.Lock()
+	r.ntf = d
 	r.mu.Unlock()
 }

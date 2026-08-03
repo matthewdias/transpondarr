@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DownloadSection } from "./sections/download";
 import { IndexerSection } from "./sections/indexer";
 import { LibrarySection } from "./sections/library";
+import { NotificationsSection } from "./sections/notifications";
 import { AuthSection } from "./sections/auth";
 import { ApiKeySection } from "./sections/api-key";
 import { GeneralSection } from "./sections/general";
@@ -32,6 +33,7 @@ export function SettingsPage() {
             <DownloadSection settings={data} />
             <IndexerSection settings={data} />
             <LibrarySection settings={data} />
+            <NotificationsSection settings={data} />
             <ProfilesSection />
             <AutomationSection settings={data} />
             <FailureMemorySection />

@@ -118,11 +118,13 @@ export type LibrarySettings = Schemas["LibrarySettingsDTO"];
 export type GeneralSettings = Schemas["GeneralSettingsDTO"];
 export type AuthSettings = Schemas["AuthSettingsDTO"];
 export type AutomationSettings = Schemas["AutomationSettingsDTO"];
+export type NotificationsSettings = Schemas["NotificationsSettingsDTO"];
 export type Settings = Schemas["SettingsDTO"];
 export type DownloadInput = Schemas["DownloadInputBody"];
 export type IndexerInput = Schemas["IndexerInputBody"];
 export type LibraryInput = Schemas["LibraryInputBody"];
 export type AutomationInput = Schemas["AutomationInputBody"];
+export type NotificationsInput = Schemas["NotificationsInputBody"];
 export type JobStatus = Schemas["JobStatusDTO"];
 export type QueueItem = Schemas["QueueItemDTO"];
 export type ActivityEvent = Schemas["ActivityEventDTO"];
@@ -358,6 +360,21 @@ export const api = {
 
   updateAutomation: (body: AutomationInput) =>
     client.PUT("/api/v1/settings/automation", { body }).then(unwrap),
+
+  updateNotifications: (body: NotificationsInput) =>
+    client.PUT("/api/v1/settings/notifications", { body }).then(unwrap),
+  testNotifyDiscord: (body: NotificationsInput) =>
+    client
+      .POST("/api/v1/settings/notifications/discord/test", { body })
+      .then(unwrap),
+  testNotifyWebhook: (body: NotificationsInput) =>
+    client
+      .POST("/api/v1/settings/notifications/webhook/test", { body })
+      .then(unwrap),
+  testNotifyNtfy: (body: NotificationsInput) =>
+    client
+      .POST("/api/v1/settings/notifications/ntfy/test", { body })
+      .then(unwrap),
 
   listJobs: (signal?: AbortSignal) =>
     client

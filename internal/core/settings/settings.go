@@ -32,6 +32,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/indexer/torznab"
 	"github.com/matthewdias/transpondarr/internal/core/library"
 	"github.com/matthewdias/transpondarr/internal/core/library/mediaserver"
+	"github.com/matthewdias/transpondarr/internal/core/notify"
+	"github.com/matthewdias/transpondarr/internal/core/notify/discord"
+	"github.com/matthewdias/transpondarr/internal/core/notify/ntfy"
+	"github.com/matthewdias/transpondarr/internal/core/notify/webhook"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -54,13 +58,26 @@ const (
 
 	keyAutomationEnabled  = "automation.enabled"
 	keyAutomationPinDelay = "automation.pin_delay_hours"
+
+	keyNotifyDiscordURL = "notify.discord.url"
+	keyNotifyWebhookURL = "notify.webhook.url"
+	keyNotifyNtfyServer = "notify.ntfy.server"
+	keyNotifyNtfyTopic  = "notify.ntfy.topic"
+	keyNotifyNtfyToken  = "notify.ntfy.token"
 )
+
+// notifyToggleKey names one adapter's per-event switch, e.g.
+// notify.discord.on_imported. Absent means enabled; only "false" disables.
+func notifyToggleKey(adapter, event string) string {
+	return "notify." + adapter + ".on_" + event
+}
 
 // Defaults for values that must never be empty.
 const (
 	defaultCategory    = "transpondarr"
 	defaultIndexerName = "torznab"
 	defaultImportMode  = "auto"
+	defaultNtfyServer  = "https://ntfy.sh"
 )
 
 // DownloadConfig is the qBittorrent client configuration.
@@ -91,6 +108,29 @@ type AutomationConfig struct {
 	PinDelayHours int
 }
 
+// NotifyEvents is one adapter's per-event switches (the Sonarr model): a
+// configured adapter defaults to all-on, each kind toggleable off.
+type NotifyEvents struct {
+	Grabbed     bool
+	Imported    bool
+	Stuck       bool
+	GrabFailed  bool
+	SeriesAdded bool
+}
+
+// NotifyConfig is the notification adapters' configuration. An adapter is
+// configured when its URL (Discord/webhook) or topic (ntfy) is non-empty.
+type NotifyConfig struct {
+	DiscordURL    string
+	DiscordEvents NotifyEvents
+	WebhookURL    string
+	WebhookEvents NotifyEvents
+	NtfyServer    string
+	NtfyTopic     string
+	NtfyToken     string
+	NtfyEvents    NotifyEvents
+}
+
 func (c *DownloadConfig) applyDefaults() {
 	if strings.TrimSpace(c.Category) == "" {
 		c.Category = defaultCategory
@@ -109,6 +149,12 @@ func (c *LibraryConfig) applyDefaults() {
 	}
 }
 
+func (c *NotifyConfig) applyDefaults() {
+	if strings.TrimSpace(c.NtfyServer) == "" {
+		c.NtfyServer = defaultNtfyServer
+	}
+}
+
 // Snapshot is the effective configuration for display (secrets not masked here;
 // the HTTP layer masks them before serialization).
 type Snapshot struct {
@@ -116,6 +162,7 @@ type Snapshot struct {
 	Indexer    IndexerConfig
 	Library    LibraryConfig
 	Automation AutomationConfig
+	Notify     NotifyConfig
 	APIKey     string
 	DataDir    string
 	DBPath     string
@@ -129,6 +176,7 @@ type state struct {
 	dl  DownloadConfig
 	idx IndexerConfig
 	lib LibraryConfig
+	ntf NotifyConfig
 
 	// Parsed once at startup: settings are strings at rest, but every read of
 	// these is on a job tick, so the typed form lives here. Hours, not a
@@ -153,6 +201,7 @@ type Service struct {
 
 	store *store.Store
 	reg   *clients.Registry
+	log   *slog.Logger
 }
 
 // New builds the service from the environment baseline, overlays any persisted
@@ -185,6 +234,14 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	overlay(m, keyTorznabAPIKey, &cfg.idx.APIKey)
 	overlay(m, keyLibraryDir, &cfg.lib.Dir)
 	overlay(m, keyLibraryMode, &cfg.lib.Mode)
+	overlay(m, keyNotifyDiscordURL, &cfg.ntf.DiscordURL)
+	overlay(m, keyNotifyWebhookURL, &cfg.ntf.WebhookURL)
+	overlay(m, keyNotifyNtfyServer, &cfg.ntf.NtfyServer)
+	overlay(m, keyNotifyNtfyTopic, &cfg.ntf.NtfyTopic)
+	overlay(m, keyNotifyNtfyToken, &cfg.ntf.NtfyToken)
+	cfg.ntf.DiscordEvents = overlayToggles(m, "discord")
+	cfg.ntf.WebhookEvents = overlayToggles(m, "webhook")
+	cfg.ntf.NtfyEvents = overlayToggles(m, "ntfy")
 
 	automation, pinDelay := base.AutomationEnabled, base.PinDelayHours
 	overlay(m, keyAutomationEnabled, &automation)
@@ -193,16 +250,38 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	cfg.dl.applyDefaults()
 	cfg.idx.applyDefaults()
 	cfg.lib.applyDefaults()
+	cfg.ntf.applyDefaults()
 	cfg.automationEnabled = parseBool(automation, log)
 	cfg.pinDelayHours = parseHours(pinDelay, log)
 
-	s := &Service{store: st, reg: reg}
+	s := &Service{store: st, reg: reg, log: log}
 	s.cur.Store(cfg)
 
 	reg.SetDownload(buildDownload(cfg.dl))
 	reg.SetIndexer(buildIndexer(cfg.idx))
 	reg.SetLibrary(buildLibrary(cfg.lib))
+	reg.SetNotify(s.buildNotify(cfg.ntf))
 	return s, nil
+}
+
+// overlayToggles reads one adapter's per-event switches: an absent key is
+// enabled, so a freshly configured adapter notifies on everything.
+func overlayToggles(m map[string]string, adapter string) NotifyEvents {
+	on := func(event string) bool {
+		v, ok := m[notifyToggleKey(adapter, event)]
+		if !ok {
+			return true
+		}
+		b, err := strconv.ParseBool(strings.TrimSpace(v))
+		return err != nil || b
+	}
+	return NotifyEvents{
+		Grabbed:     on("grabbed"),
+		Imported:    on("imported"),
+		Stuck:       on("stuck"),
+		GrabFailed:  on("grab_failed"),
+		SeriesAdded: on("series_added"),
+	}
 }
 
 func overlay(m map[string]string, key string, dst *string) {
@@ -219,6 +298,7 @@ func (s *Service) Snapshot() Snapshot {
 		Indexer:    c.idx,
 		Library:    c.lib,
 		Automation: AutomationConfig{Enabled: c.automationEnabled, PinDelayHours: c.pinDelayHours},
+		Notify:     c.ntf,
 		APIKey:     c.apiKey,
 		DataDir:    c.dataDir,
 		DBPath:     c.dbPath,
@@ -395,6 +475,110 @@ func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) err
 	next.pinDelayHours = hours
 	s.cur.Store(&next)
 	return nil
+}
+
+// UpdateNotify saves the notification config and swaps in the rebuilt
+// dispatcher. An empty NtfyToken keeps the stored one; clearing every adapter
+// drops the dispatcher to nil. Persisting before the swap leaves live state
+// untouched if the save fails.
+func (s *Service) UpdateNotify(ctx context.Context, in NotifyConfig) error {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+
+	cur := s.cur.Load()
+	if in.NtfyToken == "" {
+		in.NtfyToken = cur.ntf.NtfyToken
+	}
+	in.applyDefaults()
+
+	kv := map[string]string{
+		keyNotifyDiscordURL: in.DiscordURL,
+		keyNotifyWebhookURL: in.WebhookURL,
+		keyNotifyNtfyServer: in.NtfyServer,
+		keyNotifyNtfyTopic:  in.NtfyTopic,
+		keyNotifyNtfyToken:  in.NtfyToken,
+	}
+	persistToggles(kv, "discord", in.DiscordEvents)
+	persistToggles(kv, "webhook", in.WebhookEvents)
+	persistToggles(kv, "ntfy", in.NtfyEvents)
+	if err := s.persist(ctx, kv); err != nil {
+		return err
+	}
+
+	next := *cur
+	next.ntf = in
+	s.cur.Store(&next)
+	s.reg.SetNotify(s.buildNotify(in))
+	return nil
+}
+
+func persistToggles(kv map[string]string, adapter string, ev NotifyEvents) {
+	kv[notifyToggleKey(adapter, "grabbed")] = strconv.FormatBool(ev.Grabbed)
+	kv[notifyToggleKey(adapter, "imported")] = strconv.FormatBool(ev.Imported)
+	kv[notifyToggleKey(adapter, "stuck")] = strconv.FormatBool(ev.Stuck)
+	kv[notifyToggleKey(adapter, "grab_failed")] = strconv.FormatBool(ev.GrabFailed)
+	kv[notifyToggleKey(adapter, "series_added")] = strconv.FormatBool(ev.SeriesAdded)
+}
+
+func notifyKinds(ev NotifyEvents) map[notify.Kind]bool {
+	return map[notify.Kind]bool{
+		notify.KindGrabbed:     ev.Grabbed,
+		notify.KindImported:    ev.Imported,
+		notify.KindImportStuck: ev.Stuck,
+		notify.KindGrabFailed:  ev.GrabFailed,
+		notify.KindSeriesAdded: ev.SeriesAdded,
+	}
+}
+
+// buildNotify returns a dispatcher over the configured adapters, or nil when
+// none is — a concrete *Dispatcher, so nil-checking it never hits the typed-nil
+// interface gotcha buildLibrary documents.
+func (s *Service) buildNotify(c NotifyConfig) *notify.Dispatcher {
+	var routes []notify.Route
+	if strings.TrimSpace(c.DiscordURL) != "" {
+		routes = append(routes, notify.Route{Notifier: discord.New(c.DiscordURL), Kinds: notifyKinds(c.DiscordEvents)})
+	}
+	if strings.TrimSpace(c.WebhookURL) != "" {
+		routes = append(routes, notify.Route{Notifier: webhook.New(c.WebhookURL), Kinds: notifyKinds(c.WebhookEvents)})
+	}
+	if strings.TrimSpace(c.NtfyTopic) != "" {
+		cc := c
+		cc.applyDefaults()
+		routes = append(routes, notify.Route{Notifier: ntfy.New(cc.NtfyServer, cc.NtfyTopic, cc.NtfyToken), Kinds: notifyKinds(c.NtfyEvents)})
+	}
+	if len(routes) == 0 {
+		return nil
+	}
+	return notify.NewDispatcher(s.log, routes...)
+}
+
+// TestNotifyDiscord sends a test event to the given (unsaved) Discord webhook.
+func (s *Service) TestNotifyDiscord(ctx context.Context, in NotifyConfig) error {
+	if strings.TrimSpace(in.DiscordURL) == "" {
+		return errors.New("a Discord webhook URL is required")
+	}
+	return discord.New(in.DiscordURL).Send(ctx, notify.Event{Kind: notify.KindTest})
+}
+
+// TestNotifyWebhook sends a test event to the given (unsaved) webhook URL.
+func (s *Service) TestNotifyWebhook(ctx context.Context, in NotifyConfig) error {
+	if strings.TrimSpace(in.WebhookURL) == "" {
+		return errors.New("a webhook URL is required")
+	}
+	return webhook.New(in.WebhookURL).Send(ctx, notify.Event{Kind: notify.KindTest})
+}
+
+// TestNotifyNtfy sends a test event to the given (unsaved) ntfy topic, filling
+// in the stored token when the field is blank.
+func (s *Service) TestNotifyNtfy(ctx context.Context, in NotifyConfig) error {
+	if strings.TrimSpace(in.NtfyTopic) == "" {
+		return errors.New("an ntfy topic is required")
+	}
+	if in.NtfyToken == "" {
+		in.NtfyToken = s.cur.Load().ntf.NtfyToken
+	}
+	in.applyDefaults()
+	return ntfy.New(in.NtfyServer, in.NtfyTopic, in.NtfyToken).Send(ctx, notify.Event{Kind: notify.KindTest})
 }
 
 // TestDownload verifies connectivity for the given (unsaved) values, filling in

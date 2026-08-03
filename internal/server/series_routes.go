@@ -15,6 +15,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
+	"github.com/matthewdias/transpondarr/internal/core/notify"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -288,6 +289,10 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 	}
 	if err != nil {
 		return nil, huma.Error502BadGateway("failed to add series", err)
+	}
+	// Dispatch is async, so this adds no request latency.
+	if d := h.clients.Notify(); d != nil {
+		d.Dispatch(ctx, notify.Event{Kind: notify.KindSeriesAdded, SeriesTitle: title.Name})
 	}
 
 	out := &addSeriesOutput{}

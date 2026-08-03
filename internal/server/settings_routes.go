@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -56,13 +57,42 @@ type authSettingsDTO struct {
 	Required   string `json:"required" doc:"enabled or local"`
 }
 
+type notifyAdapterDTO struct {
+	Configured    bool   `json:"configured"`
+	URL           string `json:"url"`
+	OnGrabbed     bool   `json:"on_grabbed"`
+	OnImported    bool   `json:"on_imported"`
+	OnStuck       bool   `json:"on_stuck"`
+	OnGrabFailed  bool   `json:"on_grab_failed"`
+	OnSeriesAdded bool   `json:"on_series_added"`
+}
+
+type ntfySettingsDTO struct {
+	Configured    bool   `json:"configured"`
+	Server        string `json:"server"`
+	Topic         string `json:"topic"`
+	TokenSet      bool   `json:"token_set"`
+	OnGrabbed     bool   `json:"on_grabbed"`
+	OnImported    bool   `json:"on_imported"`
+	OnStuck       bool   `json:"on_stuck"`
+	OnGrabFailed  bool   `json:"on_grab_failed"`
+	OnSeriesAdded bool   `json:"on_series_added"`
+}
+
+type notificationsSettingsDTO struct {
+	Discord notifyAdapterDTO `json:"discord"`
+	Webhook notifyAdapterDTO `json:"webhook"`
+	Ntfy    ntfySettingsDTO  `json:"ntfy"`
+}
+
 type settingsDTO struct {
-	Download   downloadSettingsDTO   `json:"download"`
-	Indexer    indexerSettingsDTO    `json:"indexer"`
-	Library    librarySettingsDTO    `json:"library"`
-	Automation automationSettingsDTO `json:"automation"`
-	Auth       authSettingsDTO       `json:"auth"`
-	General    generalSettingsDTO    `json:"general"`
+	Download      downloadSettingsDTO      `json:"download"`
+	Indexer       indexerSettingsDTO       `json:"indexer"`
+	Library       librarySettingsDTO       `json:"library"`
+	Automation    automationSettingsDTO    `json:"automation"`
+	Notifications notificationsSettingsDTO `json:"notifications"`
+	Auth          authSettingsDTO          `json:"auth"`
+	General       generalSettingsDTO       `json:"general"`
 }
 
 func downloadDTO(c settings.DownloadConfig) downloadSettingsDTO {
@@ -92,12 +122,43 @@ func automationDTO(c settings.AutomationConfig) automationSettingsDTO {
 	return automationSettingsDTO{Enabled: c.Enabled, PinDelayHours: c.PinDelayHours}
 }
 
+func notifyAdapterDTOFrom(url string, ev settings.NotifyEvents) notifyAdapterDTO {
+	return notifyAdapterDTO{
+		Configured:    url != "",
+		URL:           url,
+		OnGrabbed:     ev.Grabbed,
+		OnImported:    ev.Imported,
+		OnStuck:       ev.Stuck,
+		OnGrabFailed:  ev.GrabFailed,
+		OnSeriesAdded: ev.SeriesAdded,
+	}
+}
+
+func notificationsDTO(c settings.NotifyConfig) notificationsSettingsDTO {
+	return notificationsSettingsDTO{
+		Discord: notifyAdapterDTOFrom(c.DiscordURL, c.DiscordEvents),
+		Webhook: notifyAdapterDTOFrom(c.WebhookURL, c.WebhookEvents),
+		Ntfy: ntfySettingsDTO{
+			Configured:    c.NtfyTopic != "",
+			Server:        c.NtfyServer,
+			Topic:         c.NtfyTopic,
+			TokenSet:      c.NtfyToken != "",
+			OnGrabbed:     c.NtfyEvents.Grabbed,
+			OnImported:    c.NtfyEvents.Imported,
+			OnStuck:       c.NtfyEvents.Stuck,
+			OnGrabFailed:  c.NtfyEvents.GrabFailed,
+			OnSeriesAdded: c.NtfyEvents.SeriesAdded,
+		},
+	}
+}
+
 func snapshotDTO(s settings.Snapshot) settingsDTO {
 	return settingsDTO{
-		Download:   downloadDTO(s.Download),
-		Indexer:    indexerDTO(s.Indexer),
-		Library:    libraryDTO(s.Library),
-		Automation: automationDTO(s.Automation),
+		Download:      downloadDTO(s.Download),
+		Indexer:       indexerDTO(s.Indexer),
+		Library:       libraryDTO(s.Library),
+		Automation:    automationDTO(s.Automation),
+		Notifications: notificationsDTO(s.Notify),
 		General: generalSettingsDTO{
 			Version: version.Version,
 			Addr:    s.Addr,
@@ -144,6 +205,39 @@ type automationInput struct {
 	Body struct {
 		Enabled       bool `json:"enabled"`
 		PinDelayHours int  `json:"pin_delay_hours" doc:"Global pinned-group wait; 0 disables waiting"`
+	}
+}
+
+// notifyAdapterInput mirrors notifyAdapterDTO for writes. Toggles are required
+// (the automationInput precedent — bools have no unset encoding); an empty URL
+// disables the adapter.
+type notifyAdapterInput struct {
+	URL           string `json:"url,omitempty"`
+	OnGrabbed     bool   `json:"on_grabbed"`
+	OnImported    bool   `json:"on_imported"`
+	OnStuck       bool   `json:"on_stuck"`
+	OnGrabFailed  bool   `json:"on_grab_failed"`
+	OnSeriesAdded bool   `json:"on_series_added"`
+}
+
+type ntfyInput struct {
+	Server        string `json:"server,omitempty"`
+	Topic         string `json:"topic,omitempty"`
+	Token         string `json:"token,omitempty" doc:"Leave empty to keep the stored token"`
+	OnGrabbed     bool   `json:"on_grabbed"`
+	OnImported    bool   `json:"on_imported"`
+	OnStuck       bool   `json:"on_stuck"`
+	OnGrabFailed  bool   `json:"on_grab_failed"`
+	OnSeriesAdded bool   `json:"on_series_added"`
+}
+
+// One body serves the save and all three per-adapter tests, so the UI sends the
+// whole section either way.
+type notificationsInput struct {
+	Body struct {
+		Discord notifyAdapterInput `json:"discord"`
+		Webhook notifyAdapterInput `json:"webhook"`
+		Ntfy    ntfyInput          `json:"ntfy"`
 	}
 }
 
@@ -239,6 +333,39 @@ func registerSettingsRoutes(api huma.API, deps routeDeps) {
 		Summary:     "Update the global automation policy (applies on the next job tick)",
 		Tags:        []string{"settings"},
 	}, h.updateAutomation)
+
+	// Notifications -------------------------------------------------------------
+	huma.Register(api, huma.Operation{
+		OperationID: "update-notifications-settings",
+		Method:      http.MethodPut,
+		Path:        "/api/v1/settings/notifications",
+		Summary:     "Update the notification adapters (rebuilds the dispatcher live)",
+		Tags:        []string{"settings"},
+	}, h.updateNotifications)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "test-notify-discord",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/settings/notifications/discord/test",
+		Summary:     "Send a test notification to the given (unsaved) Discord webhook",
+		Tags:        []string{"settings"},
+	}, h.testNotifyDiscord)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "test-notify-webhook",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/settings/notifications/webhook/test",
+		Summary:     "Send a test notification to the given (unsaved) webhook URL",
+		Tags:        []string{"settings"},
+	}, h.testNotifyWebhook)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "test-notify-ntfy",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/settings/notifications/ntfy/test",
+		Summary:     "Send a test notification to the given (unsaved) ntfy topic",
+		Tags:        []string{"settings"},
+	}, h.testNotifyNtfy)
 
 	// API key ------------------------------------------------------------------
 	huma.Register(api, huma.Operation{
@@ -346,6 +473,71 @@ func (h *settingsHandler) updateAutomation(ctx context.Context, in *automationIn
 		return nil, huma.Error500InternalServerError("failed to save automation settings", err)
 	}
 	return h.respond(), nil
+}
+
+func notifyConfigFrom(in *notificationsInput) settings.NotifyConfig {
+	events := func(a notifyAdapterInput) settings.NotifyEvents {
+		return settings.NotifyEvents{
+			Grabbed:     a.OnGrabbed,
+			Imported:    a.OnImported,
+			Stuck:       a.OnStuck,
+			GrabFailed:  a.OnGrabFailed,
+			SeriesAdded: a.OnSeriesAdded,
+		}
+	}
+	return settings.NotifyConfig{
+		DiscordURL:    in.Body.Discord.URL,
+		DiscordEvents: events(in.Body.Discord),
+		WebhookURL:    in.Body.Webhook.URL,
+		WebhookEvents: events(in.Body.Webhook),
+		NtfyServer:    in.Body.Ntfy.Server,
+		NtfyTopic:     in.Body.Ntfy.Topic,
+		NtfyToken:     in.Body.Ntfy.Token,
+		NtfyEvents: settings.NotifyEvents{
+			Grabbed:     in.Body.Ntfy.OnGrabbed,
+			Imported:    in.Body.Ntfy.OnImported,
+			Stuck:       in.Body.Ntfy.OnStuck,
+			GrabFailed:  in.Body.Ntfy.OnGrabFailed,
+			SeriesAdded: in.Body.Ntfy.OnSeriesAdded,
+		},
+	}
+}
+
+func (h *settingsHandler) updateNotifications(ctx context.Context, in *notificationsInput) (*settingsOutput, error) {
+	if err := h.settings.UpdateNotify(ctx, notifyConfigFrom(in)); err != nil {
+		return nil, huma.Error500InternalServerError("failed to save notification settings", err)
+	}
+	return h.respond(), nil
+}
+
+func (h *settingsHandler) testNotifyDiscord(ctx context.Context, in *notificationsInput) (*testOutput, error) {
+	if strings.TrimSpace(in.Body.Discord.URL) == "" {
+		return nil, huma.Error422UnprocessableEntity("a Discord webhook URL is required")
+	}
+	return notifyTestResult(h.settings.TestNotifyDiscord(ctx, notifyConfigFrom(in)))
+}
+
+func (h *settingsHandler) testNotifyWebhook(ctx context.Context, in *notificationsInput) (*testOutput, error) {
+	if strings.TrimSpace(in.Body.Webhook.URL) == "" {
+		return nil, huma.Error422UnprocessableEntity("a webhook URL is required")
+	}
+	return notifyTestResult(h.settings.TestNotifyWebhook(ctx, notifyConfigFrom(in)))
+}
+
+func (h *settingsHandler) testNotifyNtfy(ctx context.Context, in *notificationsInput) (*testOutput, error) {
+	if strings.TrimSpace(in.Body.Ntfy.Topic) == "" {
+		return nil, huma.Error422UnprocessableEntity("an ntfy topic is required")
+	}
+	return notifyTestResult(h.settings.TestNotifyNtfy(ctx, notifyConfigFrom(in)))
+}
+
+func notifyTestResult(err error) (*testOutput, error) {
+	if err != nil {
+		return nil, huma.Error502BadGateway("notification test failed", err)
+	}
+	out := &testOutput{}
+	out.Body.Status = "ok"
+	return out, nil
 }
 
 func (h *settingsHandler) regenerateAPIKey(ctx context.Context, _ *struct{}) (*apiKeyOutput, error) {

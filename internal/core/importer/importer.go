@@ -27,6 +27,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/library"
+	"github.com/matthewdias/transpondarr/internal/core/notify"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -43,12 +44,14 @@ const (
 // is fully back; an unreachable client errors out of the scan instead.
 const missingGracePeriod = 5 * time.Minute
 
-// ClientSource supplies the current download client and library target. It is
-// read on every scan so a runtime settings change (which swaps the clients) is
-// picked up on the next poll without restarting the importer.
+// ClientSource supplies the current download client, library target, and
+// notification dispatcher. It is read on every scan so a runtime settings
+// change (which swaps the clients) is picked up on the next poll without
+// restarting the importer.
 type ClientSource interface {
 	Download() download.Client
 	Library() library.Target
+	Notify() *notify.Dispatcher
 }
 
 // Recorder remembers a release that failed, so the sweep stops re-deriving it
@@ -136,21 +139,31 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 	return nil
 }
 
+// notify dispatches one event through the current dispatcher, if any.
+func (im *Importer) notify(ctx context.Context, ev notify.Event) {
+	if d := im.clients.Notify(); d != nil {
+		d.Dispatch(ctx, ev)
+	}
+}
+
 // failedGrab is one row this scan settled as failed, held until the scan can
 // group them by the release they came from.
 type failedGrab struct {
 	seriesID     int64
+	seriesTitle  string
 	itemID       int64
+	itemNumber   int
 	infoHash     string
 	releaseTitle string
 	reason       string
 }
 
-// remember records one entry per failed release, not per failed row: a batch is
-// a row per episode, and recording each walked the whole ladder in one incident
-// — 24h, 7d, permanent — on a release that had failed once (#124).
+// remember reports and records one entry per failed release, not per failed
+// row: a batch is a row per episode, and recording each walked the whole ladder
+// in one incident — 24h, 7d, permanent — on a release that had failed once
+// (#124). The grab_failed notification groups the same way: one per incident.
 func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
-	if im.blocklist == nil || len(failed) == 0 {
+	if len(failed) == 0 {
 		return
 	}
 	// Keyed like the blocklist: the hash we derived at grab time, or the title
@@ -175,6 +188,20 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 
 	for _, key := range order {
 		rows := byRelease[key]
+		item := 0
+		if len(rows) == 1 {
+			item = rows[0].itemNumber
+		}
+		im.notify(ctx, notify.Event{
+			Kind:         notify.KindGrabFailed,
+			SeriesTitle:  rows[0].seriesTitle,
+			ItemNumber:   item,
+			ReleaseTitle: rows[0].releaseTitle,
+			Error:        rows[0].reason,
+		})
+		if im.blocklist == nil {
+			continue
+		}
 		items := make([]int64, 0, len(rows))
 		for _, r := range rows {
 			items = append(items, r.itemID)
@@ -250,7 +277,9 @@ func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, rea
 	im.settle(ctx, g, statusFailed, reason)
 	return failedGrab{
 		seriesID:     g.SeriesID,
+		seriesTitle:  g.SeriesTitle,
 		itemID:       g.WantedItemID,
+		itemNumber:   int(g.ItemNumber.Int64),
 		infoHash:     g.InfoHash,
 		releaseTitle: g.ReleaseTitle,
 		reason:       reason,
@@ -318,6 +347,13 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 	}
 	im.settle(ctx, g, statusImported, "")
 	im.log.Info("importer: imported", "release", g.ReleaseTitle, "item", int(g.ItemNumber.Int64), "dest", final)
+	im.notify(ctx, notify.Event{
+		Kind:         notify.KindImported,
+		SeriesTitle:  g.SeriesTitle,
+		ItemNumber:   int(g.ItemNumber.Int64),
+		ReleaseTitle: g.ReleaseTitle,
+		Path:         final,
+	})
 }
 
 // setLastError records why this attempt could not import (a status transition
@@ -330,7 +366,20 @@ func (im *Importer) setLastError(ctx context.Context, g db.ListGrabsByStatusRow,
 		LastError: sql.NullString{String: msg, Valid: true}, ID: g.ID,
 	}); err != nil {
 		im.log.Error("importer: set grab last_error", "err", err)
+		return
 	}
+	// Notify only on the no-error -> error transition: one per stuck incident, so
+	// an alternating reason cannot flap (last_error clears only when it settles).
+	if g.LastError.Valid && g.LastError.String != "" {
+		return
+	}
+	im.notify(ctx, notify.Event{
+		Kind:         notify.KindImportStuck,
+		SeriesTitle:  g.SeriesTitle,
+		ItemNumber:   int(g.ItemNumber.Int64),
+		ReleaseTitle: g.ReleaseTitle,
+		Error:        msg,
+	})
 }
 
 // settle writes a grab's terminal status and appends the matching history event.

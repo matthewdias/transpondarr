@@ -16,6 +16,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/library"
+	"github.com/matthewdias/transpondarr/internal/core/notify"
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
@@ -187,6 +188,37 @@ func (f *FakeDownload) Status(_ context.Context, _ ...string) ([]download.Status
 		return nil, f.StatusErr
 	}
 	return f.Statuses, nil
+}
+
+// --- fake notifier -----------------------------------------------------------
+
+// FakeNotifier records sends onto a buffered channel. Wrap it in a real
+// notify.Dispatcher: the dispatcher's async-ness is exactly what never-blocks
+// tests must exercise, so assert by receiving from Events with a timeout.
+type FakeNotifier struct {
+	NameStr string
+	Err     error
+
+	Events chan notify.Event
+}
+
+// NewFakeNotifier builds a FakeNotifier with a buffered Events channel.
+func NewFakeNotifier() *FakeNotifier {
+	return &FakeNotifier{Events: make(chan notify.Event, 16)}
+}
+
+var _ notify.Notifier = (*FakeNotifier)(nil)
+
+func (f *FakeNotifier) Name() string {
+	if f.NameStr != "" {
+		return f.NameStr
+	}
+	return "fake-notifier"
+}
+
+func (f *FakeNotifier) Send(_ context.Context, ev notify.Event) error {
+	f.Events <- ev
+	return f.Err
 }
 
 // --- fake library target ----------------------------------------------------

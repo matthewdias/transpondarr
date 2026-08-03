@@ -11,6 +11,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
+	"github.com/matthewdias/transpondarr/internal/core/notify"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -212,6 +213,18 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 		}
 		s.log.Info("grabbed a release",
 			"source", source, "series", series.ID, "release", c.Release.Title, "items", c.Items)
+		if d := s.clients.Notify(); d != nil {
+			item := 0
+			if len(c.Items) == 1 {
+				item = c.Items[0]
+			}
+			d.Dispatch(ctx, notify.Event{
+				Kind:         notify.KindGrabbed,
+				SeriesTitle:  series.Title,
+				ItemNumber:   item,
+				ReleaseTitle: c.Release.Title,
+			})
+		}
 		markCovered(covered, c.Items)
 		grabbed++
 	}
