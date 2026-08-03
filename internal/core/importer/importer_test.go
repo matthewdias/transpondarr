@@ -14,6 +14,7 @@ import (
 
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/library"
+	"github.com/matthewdias/transpondarr/internal/core/notify"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -26,10 +27,12 @@ import (
 type fakeSource struct {
 	dl  download.Client
 	lib library.Target
+	ntf *notify.Dispatcher
 }
 
-func (f fakeSource) Download() download.Client { return f.dl }
-func (f fakeSource) Library() library.Target   { return f.lib }
+func (f fakeSource) Download() download.Client  { return f.dl }
+func (f fakeSource) Library() library.Target    { return f.lib }
+func (f fakeSource) Notify() *notify.Dispatcher { return f.ntf }
 
 // cancelOnPlace cancels the run context the instant a file lands in the library,
 // reproducing a SIGTERM landing between Place and the status writes.
