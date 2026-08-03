@@ -43,6 +43,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
+	"github.com/matthewdias/transpondarr/internal/core/notify"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -57,11 +58,13 @@ var (
 	ErrDownloadAdd      = errors.New("acquire: download client add failed")
 )
 
-// ClientSource supplies the current indexer and download client, read per use so
-// a runtime settings change takes effect without a restart.
+// ClientSource supplies the current indexer, download client, and notification
+// dispatcher, read per use so a runtime settings change takes effect without a
+// restart.
 type ClientSource interface {
 	Indexer() indexer.Indexer
 	Download() download.Client
+	Notify() *notify.Dispatcher
 }
 
 // TitleSource supplies a title's accepted name variants (satisfied by
