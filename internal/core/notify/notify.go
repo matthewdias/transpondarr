@@ -1,0 +1,83 @@
+// Package notify is the notification seam: one structured Event with typed
+// kinds, fanned out by a Dispatcher to configured adapters (Discord, generic
+// webhook, ntfy). Delivery is fire-and-forget push — a failing notifier logs and
+// never blocks or fails the pipeline; retry and queueing are out of scope.
+package notify
+
+import (
+	"context"
+	"log/slog"
+	"time"
+)
+
+// sendTimeout bounds one adapter's delivery so a hung endpoint cannot leak its
+// goroutine forever.
+const sendTimeout = 30 * time.Second
+
+// Kind names one notification-worthy pipeline moment.
+type Kind string
+
+// The event kinds adapters render.
+const (
+	KindTest        Kind = "test"
+	KindGrabbed     Kind = "grabbed"
+	KindImported    Kind = "imported"
+	KindImportStuck Kind = "import_stuck"
+	KindGrabFailed  Kind = "grab_failed"
+	KindSeriesAdded Kind = "series_added"
+)
+
+// Event is the one structured payload; adapters flatten it, emitters never do.
+type Event struct {
+	Kind         Kind
+	SeriesTitle  string
+	ItemNumber   int    // 0 when not item-scoped or multi-item
+	ReleaseTitle string // empty when not release-scoped
+	Error        string // stuck/failed reason
+	Path         string // library destination on imported
+}
+
+// Notifier delivers one event to one destination.
+type Notifier interface {
+	Name() string
+	Send(ctx context.Context, ev Event) error
+}
+
+// Route pairs an adapter with the kinds it is enabled for.
+type Route struct {
+	Notifier Notifier
+	Kinds    map[Kind]bool
+}
+
+// Dispatcher fans events out to its routes.
+type Dispatcher struct {
+	routes []Route
+	log    *slog.Logger
+}
+
+// NewDispatcher builds a dispatcher over the given routes.
+func NewDispatcher(log *slog.Logger, routes ...Route) *Dispatcher {
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
+	return &Dispatcher{routes: routes, log: log}
+}
+
+// Dispatch delivers ev to every kind-enabled route, one goroutine per route.
+// It returns immediately and never reports failure — "never blocks, never fails
+// the caller" is structural. WithoutCancel because a request-scoped ctx or a
+// shutdown must not cancel an in-flight send.
+func (d *Dispatcher) Dispatch(ctx context.Context, ev Event) {
+	for _, r := range d.routes {
+		if !r.Kinds[ev.Kind] {
+			continue
+		}
+		go func(r Route) {
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sendTimeout)
+			defer cancel()
+			if err := r.Notifier.Send(ctx, ev); err != nil {
+				d.log.Warn("notify: send failed", "notifier", r.Notifier.Name(), "kind", ev.Kind, "err", err)
+			}
+		}(r)
+	}
+}
