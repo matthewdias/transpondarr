@@ -18,7 +18,7 @@ func withNotifier(reg *clients.Registry) *coretest.FakeNotifier {
 	fn := coretest.NewFakeNotifier()
 	kinds := map[notify.Kind]bool{
 		notify.KindGrabbed: true, notify.KindImported: true, notify.KindImportStuck: true,
-		notify.KindGrabFailed: true, notify.KindSeriesAdded: true,
+		notify.KindGrabFailed: true, notify.KindSeriesAdded: true, notify.KindRehearsal: true,
 	}
 	reg.SetNotify(notify.NewDispatcher(discardLogger(), notify.Route{Notifier: fn, Kinds: kinds}))
 	return fn

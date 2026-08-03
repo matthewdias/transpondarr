@@ -19,6 +19,7 @@ type notifyAdapterJSON struct {
 	OnStuck       bool   `json:"on_stuck"`
 	OnGrabFailed  bool   `json:"on_grab_failed"`
 	OnSeriesAdded bool   `json:"on_series_added"`
+	OnRehearsal   bool   `json:"on_rehearsal"`
 }
 
 type ntfyJSON struct {
@@ -31,6 +32,7 @@ type ntfyJSON struct {
 	OnStuck       bool   `json:"on_stuck"`
 	OnGrabFailed  bool   `json:"on_grab_failed"`
 	OnSeriesAdded bool   `json:"on_series_added"`
+	OnRehearsal   bool   `json:"on_rehearsal"`
 }
 
 type notificationsJSON struct {
@@ -47,6 +49,7 @@ func adapterBody(url string) map[string]any {
 	return map[string]any{
 		"url": url, "on_grabbed": true, "on_imported": true,
 		"on_stuck": true, "on_grab_failed": true, "on_series_added": true,
+		"on_rehearsal": true,
 	}
 }
 
@@ -57,7 +60,7 @@ func notificationsBody(discordURL, webhookURL, ntfyServer, ntfyTopic, ntfyToken 
 		"ntfy": map[string]any{
 			"server": ntfyServer, "topic": ntfyTopic, "token": ntfyToken,
 			"on_grabbed": true, "on_imported": false, "on_stuck": true,
-			"on_grab_failed": true, "on_series_added": true,
+			"on_grab_failed": true, "on_series_added": true, "on_rehearsal": true,
 		},
 	}
 }

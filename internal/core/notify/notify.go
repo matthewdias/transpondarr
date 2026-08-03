@@ -25,6 +25,10 @@ const (
 	KindImportStuck Kind = "import_stuck"
 	KindGrabFailed  Kind = "grab_failed"
 	KindSeriesAdded Kind = "series_added"
+	// KindRehearsal is a notify-only pass reporting what automation would have
+	// done (#116): ReleaseTitle set means "would have grabbed"; otherwise Error
+	// carries why nothing would have been.
+	KindRehearsal Kind = "rehearsal"
 )
 
 // Event is the one structured payload; adapters flatten it, emitters never do.
@@ -33,8 +37,17 @@ type Event struct {
 	SeriesTitle  string
 	ItemNumber   int    // 0 when not item-scoped or multi-item
 	ReleaseTitle string // empty when not release-scoped
-	Error        string // stuck/failed reason
+	Error        string // stuck/failed reason; on rehearsal, the outcome either way
 	Path         string // library destination on imported
+}
+
+// DetailLabel names what Error holds for this kind, so an adapter with labelled
+// fields does not file a correct rehearsal outcome under "Error".
+func (k Kind) DetailLabel() string {
+	if k == KindRehearsal {
+		return "Outcome"
+	}
+	return "Error"
 }
 
 // Notifier delivers one event to one destination.

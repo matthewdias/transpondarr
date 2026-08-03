@@ -227,16 +227,16 @@ afterAll(() => server.close());
 // runs collects every job name the section asked the server to run.
 function renderSection(
   jobs: JobStatus[],
-  automationEnabled: boolean | "unreadable",
+  automationMode: "off" | "notify_only" | "on" | "unreadable",
 ) {
   const runs: string[] = [];
   server.use(
     http.get("/api/v1/system/jobs", () => HttpResponse.json({ jobs })),
     http.get("/api/v1/settings", () =>
-      automationEnabled === "unreadable"
+      automationMode === "unreadable"
         ? new HttpResponse(null, { status: 500 })
         : HttpResponse.json({
-            automation: { enabled: automationEnabled, pin_delay_hours: 0 },
+            automation: { mode: automationMode, pin_delay_hours: 0 },
           }),
     ),
     http.post("/api/v1/system/jobs/:name/run", ({ params }) => {
@@ -260,7 +260,7 @@ const runButton = (label: string) =>
 
 describe("JobsSection", () => {
   it("runs a job on request while automation is on", async () => {
-    const runs = renderSection([job()], true);
+    const runs = renderSection([job()], "on");
     await userEvent.click(await runButton("Wanted search"));
     await waitFor(() => expect(runs).toEqual(["wanted-search"]));
   });
@@ -268,7 +268,7 @@ describe("JobsSection", () => {
   // Running the sweep with the kill switch off grabs for real, so the one case
   // where the button contradicts a setting the user chose asks first.
   it("asks before running an automation-gated job with automation off", async () => {
-    const runs = renderSection([job()], false);
+    const runs = renderSection([job()], "off");
     await userEvent.click(await runButton("Wanted search"));
 
     expect(await screen.findByRole("dialog")).toHaveTextContent(
@@ -278,6 +278,15 @@ describe("JobsSection", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /run anyway/i }));
     await waitFor(() => expect(runs).toEqual(["wanted-search"]));
+  });
+
+  // A notify-only run rehearses — it grabs nothing — so it earns no dialog.
+  it("runs a gated job without asking in notify-only", async () => {
+    const runs = renderSection([job()], "notify_only");
+    await userEvent.click(await runButton("Wanted search"));
+
+    await waitFor(() => expect(runs).toEqual(["wanted-search"]));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   // A failed settings read still asks (fail-safe), but must not assert a state
@@ -293,7 +302,7 @@ describe("JobsSection", () => {
   });
 
   it("runs nothing when that confirmation is declined", async () => {
-    const runs = renderSection([job()], false);
+    const runs = renderSection([job()], "off");
     await userEvent.click(await runButton("Wanted search"));
     await userEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
@@ -305,7 +314,7 @@ describe("JobsSection", () => {
 
   // Only the two jobs that grab are gated; the rest are unaffected by the switch.
   it("does not ask about a job automation never gated", async () => {
-    const runs = renderSection([job({ name: "session-cleanup" })], false);
+    const runs = renderSection([job({ name: "session-cleanup" })], "off");
     await userEvent.click(await runButton("Session cleanup"));
 
     await waitFor(() => expect(runs).toEqual(["session-cleanup"]));

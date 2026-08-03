@@ -710,7 +710,11 @@ export interface components {
              * @example https://example.com/schemas/AutomationInputBody.json
              */
             readonly $schema?: string;
-            enabled: boolean;
+            /**
+             * @description notify_only rehearses: search and decide, notify, never grab
+             * @enum {string}
+             */
+            mode: "off" | "notify_only" | "on";
             /**
              * Format: int64
              * @description Global pinned-group wait; 0 disables waiting
@@ -718,7 +722,11 @@ export interface components {
             pin_delay_hours: number;
         };
         AutomationSettingsDTO: {
-            enabled: boolean;
+            /**
+             * @description notify_only rehearses: search and decide, notify, never grab
+             * @enum {string}
+             */
+            mode: "off" | "notify_only" | "on";
             /** Format: int64 */
             pin_delay_hours: number;
         };
@@ -1127,6 +1135,7 @@ export interface components {
             on_grab_failed: boolean;
             on_grabbed: boolean;
             on_imported: boolean;
+            on_rehearsal: boolean;
             on_series_added: boolean;
             on_stuck: boolean;
             url: string;
@@ -1135,6 +1144,7 @@ export interface components {
             on_grab_failed: boolean;
             on_grabbed: boolean;
             on_imported: boolean;
+            on_rehearsal: boolean;
             on_series_added: boolean;
             on_stuck: boolean;
             url?: string;
@@ -1143,6 +1153,7 @@ export interface components {
             on_grab_failed: boolean;
             on_grabbed: boolean;
             on_imported: boolean;
+            on_rehearsal: boolean;
             on_series_added: boolean;
             on_stuck: boolean;
             server?: string;
@@ -1155,6 +1166,7 @@ export interface components {
             on_grab_failed: boolean;
             on_grabbed: boolean;
             on_imported: boolean;
+            on_rehearsal: boolean;
             on_series_added: boolean;
             on_stuck: boolean;
             server: string;

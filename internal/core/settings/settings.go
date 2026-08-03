@@ -101,10 +101,23 @@ type LibraryConfig struct {
 	Mode string // auto | hardlink | copy
 }
 
-// AutomationConfig is the global automation policy: the kill switch every
-// unattended job reads, and the pinned-group wait for series not overriding it.
+// AutomationMode is the global toggle's three states (#102, widened by #116).
+// Notify-only runs the unattended jobs for real — search, decide, cadence — but
+// rehearses the grab: a notification says what would have been taken, and
+// nothing reaches the download client.
+type AutomationMode string
+
+// The automation modes, in increasing order of commitment.
+const (
+	AutomationOff        AutomationMode = "off"
+	AutomationNotifyOnly AutomationMode = "notify_only"
+	AutomationOn         AutomationMode = "on"
+)
+
+// AutomationConfig is the global automation policy: the mode every unattended
+// job reads, and the pinned-group wait for series not overriding it.
 type AutomationConfig struct {
-	Enabled       bool
+	Mode          AutomationMode
 	PinDelayHours int
 }
 
@@ -116,6 +129,7 @@ type NotifyEvents struct {
 	Stuck       bool
 	GrabFailed  bool
 	SeriesAdded bool
+	Rehearsal   bool
 }
 
 // NotifyConfig is the notification adapters' configuration. An adapter is
@@ -181,8 +195,8 @@ type state struct {
 	// Parsed once at startup: settings are strings at rest, but every read of
 	// these is on a job tick, so the typed form lives here. Hours, not a
 	// duration: the stored unit is what Snapshot reports, so nothing truncates.
-	automationEnabled bool
-	pinDelayHours     int
+	automationMode AutomationMode
+	pinDelayHours  int
 
 	apiKey string
 
@@ -251,7 +265,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	cfg.idx.applyDefaults()
 	cfg.lib.applyDefaults()
 	cfg.ntf.applyDefaults()
-	cfg.automationEnabled = parseBool(automation, log)
+	cfg.automationMode = parseMode(automation, log)
 	cfg.pinDelayHours = parseHours(pinDelay, log)
 
 	s := &Service{store: st, reg: reg, log: log}
@@ -281,6 +295,7 @@ func overlayToggles(m map[string]string, adapter string) NotifyEvents {
 		Stuck:       on("stuck"),
 		GrabFailed:  on("grab_failed"),
 		SeriesAdded: on("series_added"),
+		Rehearsal:   on("rehearsal"),
 	}
 }
 
@@ -297,7 +312,7 @@ func (s *Service) Snapshot() Snapshot {
 		Download:   c.dl,
 		Indexer:    c.idx,
 		Library:    c.lib,
-		Automation: AutomationConfig{Enabled: c.automationEnabled, PinDelayHours: c.pinDelayHours},
+		Automation: AutomationConfig{Mode: c.automationMode, PinDelayHours: c.pinDelayHours},
 		Notify:     c.ntf,
 		APIKey:     c.apiKey,
 		DataDir:    c.dataDir,
@@ -309,9 +324,14 @@ func (s *Service) Snapshot() Snapshot {
 // DownloadCategory returns the category applied to grabbed torrents.
 func (s *Service) DownloadCategory() string { return s.cur.Load().dl.Category }
 
-// AutomationEnabled reports whether unattended work may act. Every job reads it
-// per run, so UpdateAutomation takes effect on the next tick without a restart.
-func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationEnabled }
+// AutomationEnabled reports whether unattended work may run at all — true in
+// notify-only too, where the jobs run but rehearse. Every job reads it per run,
+// so UpdateAutomation takes effect on the next tick without a restart.
+func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationMode != AutomationOff }
+
+// NotifyOnly reports whether unattended work must rehearse: evaluate and notify,
+// never grab (#116).
+func (s *Service) NotifyOnly() bool { return s.cur.Load().automationMode == AutomationNotifyOnly }
 
 // PinDelayDefault is how long the sweep waits for a series' pinned group before
 // taking another group's release, for series that do not override it.
@@ -319,14 +339,24 @@ func (s *Service) PinDelayDefault() time.Duration {
 	return domain.PinDelay(int64(s.cur.Load().pinDelayHours))
 }
 
-// parseBool and parseHours degrade a bad value to the zero default rather than
-// failing startup: one mistyped setting must not take the daemon down.
-func parseBool(v string, log *slog.Logger) bool {
-	b, err := strconv.ParseBool(strings.TrimSpace(v))
-	if err != nil && strings.TrimSpace(v) != "" {
-		log.Warn("ignoring unparseable automation setting", "key", keyAutomationEnabled, "value", v)
+// parseMode and parseHours degrade a bad value to the zero default rather than
+// failing startup: one mistyped setting must not take the daemon down. Bools are
+// the toggle's own pre-#116 values, and are lowercased with everything else so a
+// mode name is not the one spelling that is case-sensitive.
+func parseMode(v string, log *slog.Logger) AutomationMode {
+	switch t := strings.ToLower(strings.TrimSpace(v)); AutomationMode(t) {
+	case AutomationOff, AutomationNotifyOnly, AutomationOn:
+		return AutomationMode(t)
+	default:
+		b, err := strconv.ParseBool(t)
+		if err != nil && t != "" {
+			log.Warn("ignoring unparseable automation setting", "key", keyAutomationEnabled, "value", v)
+		}
+		if err == nil && b {
+			return AutomationOn
+		}
+		return AutomationOff
 	}
-	return err == nil && b
 }
 
 func parseHours(v string, log *slog.Logger) int {
@@ -458,20 +488,41 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 // torn down: the jobs stay registered and read the switch per run, so disabling
 // and re-enabling are both restart-free. The clamped hour count is what gets
 // persisted, so a reload agrees with the live state rather than re-clamping.
+//
+// Switching *into* on also clears the search cadence, in the same transaction
+// (#116). A notify-only pass settles nothing, so it walks the backoff ladder to
+// its daily cap, and the feed's one-shot dedupe has already consumed whatever it
+// rehearsed — without the reset, "flip to on and it grabs" would wait out a
+// backoff the rehearsal itself accrued.
 func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) error {
+	switch in.Mode {
+	case AutomationOff, AutomationNotifyOnly, AutomationOn:
+	default:
+		return fmt.Errorf("invalid automation mode %q (want off, notify_only or on)", in.Mode)
+	}
+
 	s.updateMu.Lock()
 	defer s.updateMu.Unlock()
 
+	resume := in.Mode == AutomationOn && s.cur.Load().automationMode != AutomationOn
 	hours := int(domain.ClampPinDelayHours(int64(in.PinDelayHours)))
-	if err := s.persist(ctx, map[string]string{
-		keyAutomationEnabled:  strconv.FormatBool(in.Enabled),
+	if err := s.persistWith(ctx, map[string]string{
+		keyAutomationEnabled:  string(in.Mode),
 		keyAutomationPinDelay: strconv.Itoa(hours),
+	}, func(q *db.Queries) error {
+		if !resume {
+			return nil
+		}
+		if err := q.ResetAllSeriesSearchState(ctx); err != nil {
+			return fmt.Errorf("reset search cadence on resuming automation: %w", err)
+		}
+		return nil
 	}); err != nil {
 		return err
 	}
 
 	next := *s.cur.Load()
-	next.automationEnabled = in.Enabled
+	next.automationMode = in.Mode
 	next.pinDelayHours = hours
 	s.cur.Store(&next)
 	return nil
@@ -518,6 +569,7 @@ func persistToggles(kv map[string]string, adapter string, ev NotifyEvents) {
 	kv[notifyToggleKey(adapter, "stuck")] = strconv.FormatBool(ev.Stuck)
 	kv[notifyToggleKey(adapter, "grab_failed")] = strconv.FormatBool(ev.GrabFailed)
 	kv[notifyToggleKey(adapter, "series_added")] = strconv.FormatBool(ev.SeriesAdded)
+	kv[notifyToggleKey(adapter, "rehearsal")] = strconv.FormatBool(ev.Rehearsal)
 }
 
 func notifyKinds(ev NotifyEvents) map[notify.Kind]bool {
@@ -527,6 +579,7 @@ func notifyKinds(ev NotifyEvents) map[notify.Kind]bool {
 		notify.KindImportStuck: ev.Stuck,
 		notify.KindGrabFailed:  ev.GrabFailed,
 		notify.KindSeriesAdded: ev.SeriesAdded,
+		notify.KindRehearsal:   ev.Rehearsal,
 	}
 }
 
@@ -634,6 +687,13 @@ func (s *Service) TestLibrary(_ context.Context, in LibraryConfig) error {
 // so a mid-write failure never leaves a section half-updated (e.g. a new URL
 // paired with an old password).
 func (s *Service) persist(ctx context.Context, kv map[string]string) error {
+	return s.persistWith(ctx, kv, nil)
+}
+
+// persistWith is persist plus a step that has to land or not land with it. The
+// only caller is the automation mode change, whose cadence reset must not
+// survive a failed save (or be lost by one that succeeded).
+func (s *Service) persistWith(ctx context.Context, kv map[string]string, also func(*db.Queries) error) error {
 	tx, err := s.store.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin settings tx: %w", err)
@@ -643,6 +703,11 @@ func (s *Service) persist(ctx context.Context, kv map[string]string) error {
 	for k, v := range kv {
 		if err := q.UpsertSetting(ctx, db.UpsertSettingParams{Key: k, Value: v}); err != nil {
 			return fmt.Errorf("persist %s: %w", k, err)
+		}
+	}
+	if also != nil {
+		if err := also(q); err != nil {
+			return err
 		}
 	}
 	if err := tx.Commit(); err != nil {

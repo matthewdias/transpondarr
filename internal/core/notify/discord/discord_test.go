@@ -114,6 +114,29 @@ func TestSendIncludesOnlyApplicableFields(t *testing.T) {
 	}
 }
 
+// A rehearsal's detail is its outcome, including a perfectly healthy one, so
+// filing it under a field labelled Error would report a success as a fault.
+func TestSendLabelsARehearsalOutcomeNotAnError(t *testing.T) {
+	ts, got := capture(t, http.StatusNoContent)
+	err := New(ts.URL).Send(context.Background(), notify.Event{
+		Kind:         notify.KindRehearsal,
+		SeriesTitle:  "Placeholder Saga",
+		ItemNumber:   5,
+		ReleaseTitle: "[Group] Placeholder Saga - 05 (1080p)",
+		Error:        "would have grabbed",
+	})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	e := got.Embeds[0]
+	if v, ok := fieldValue(e, "Outcome"); !ok || v != "would have grabbed" {
+		t.Errorf("Outcome field = %q (present=%v), want the rehearsed outcome", v, ok)
+	}
+	if _, ok := fieldValue(e, "Error"); ok {
+		t.Error("a rehearsal rendered its outcome under an Error field")
+	}
+}
+
 func TestSendOmitsUnsetFields(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
 	if err := New(ts.URL).Send(context.Background(), notify.Event{Kind: notify.KindSeriesAdded, SeriesTitle: "Placeholder Saga"}); err != nil {

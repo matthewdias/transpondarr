@@ -120,6 +120,7 @@ export type AuthSettings = Schemas["AuthSettingsDTO"];
 export type AutomationSettings = Schemas["AutomationSettingsDTO"];
 export type NotificationsSettings = Schemas["NotificationsSettingsDTO"];
 export type Settings = Schemas["SettingsDTO"];
+export type AutomationMode = Settings["automation"]["mode"];
 export type DownloadInput = Schemas["DownloadInputBody"];
 export type IndexerInput = Schemas["IndexerInputBody"];
 export type LibraryInput = Schemas["LibraryInputBody"];

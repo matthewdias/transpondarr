@@ -18,6 +18,7 @@ const offEvents = {
   on_stuck: false,
   on_grab_failed: false,
   on_series_added: false,
+  on_rehearsal: false,
 };
 
 const onEvents = {
@@ -26,6 +27,7 @@ const onEvents = {
   on_stuck: true,
   on_grab_failed: true,
   on_series_added: true,
+  on_rehearsal: true,
 };
 
 function notifications(
@@ -56,7 +58,7 @@ function settings(n: Settings["notifications"]): Settings {
     },
     indexer: { configured: false, name: "", url: "", apikey_set: false },
     library: { configured: false, dir: "", mode: "" },
-    automation: { enabled: false, pin_delay_hours: 0 },
+    automation: { mode: "off", pin_delay_hours: 0 },
     notifications: n,
     auth: { configured: false, username: "", required: "enabled" },
     general: {

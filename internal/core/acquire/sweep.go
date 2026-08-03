@@ -45,6 +45,16 @@ func backoffDelay(n int) time.Duration {
 	return backoffBase << (n - 1)
 }
 
+// passSource names the entry point driving a pass. It is control flow, not just
+// a log field: only the sweep spent a search on this series, so only the sweep
+// reports a rehearsal that would have done nothing.
+type passSource string
+
+const (
+	sourceSweep passSource = "sweep"
+	sourceFeed  passSource = "feed"
+)
+
 // sweepItem is one wanted item with everything the pass needs to reason about it.
 type sweepItem struct {
 	id        int64
@@ -116,7 +126,7 @@ func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series d
 		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
 
-	grabbed, held, err := s.grabPass(ctx, series, m, sweep, now, "sweep")
+	grabbed, held, err := s.grabPass(ctx, series, m, sweep, now, sourceSweep)
 	// A pass that landed something is progress even if it ended badly, and its
 	// successful grabs settle those items, so it records the ordinary cadence.
 	if err != nil && grabbed == 0 {
@@ -163,7 +173,16 @@ func grabbableItems(sweep []sweepItem) []domain.WantedItem {
 // the earliest moment a held release becomes grabbable (zero when none is held).
 // source names the entry point that drove it — the sweep or the feed poll — so a
 // log line says which of the two acted.
-func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source string) (int, time.Time, error) {
+//
+// In notify-only (#116) the walk is the same walk — the one decision layer both
+// entry points share — but every take dispatches a rehearsal event instead of
+// grabbing, and the count returned is 0. So the search cadence is rehearsed and
+// the grab-driven reset is not: a real grab makes a series due next tick, while
+// a would-grab backs it off, because nothing settled and counting it would
+// re-decide the same items every tick. Switching to on clears that (see
+// settings.UpdateAutomation).
+func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source passSource) (int, time.Time, error) {
+	notifyOnly := s.cfg.NotifyOnly()
 	airs := make(map[int]time.Time, len(sweep))
 	for _, it := range sweep {
 		if !it.airsAt.IsZero() {
@@ -187,6 +206,19 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			// long closed, when a batch's anchor is its newest episode. Deliberate:
 			// taking an old episode separately and the batch later is worse.
 			markCovered(covered, c.Items)
+			if notifyOnly {
+				s.dispatchRehearsal(ctx, series, c.Items, c.Release.Title,
+					fmt.Sprintf("would have waited: held %s for the pinned group %q",
+						until.Sub(now).Round(time.Minute), series.PinnedGroup.String))
+			}
+			continue
+		}
+		if notifyOnly {
+			s.log.Info("rehearsal: would have grabbed a release",
+				"source", string(source), "series", series.ID, "release", c.Release.Title, "items", c.Items)
+			s.dispatchRehearsal(ctx, series, c.Items, c.Release.Title, "would have grabbed")
+			markCovered(covered, c.Items)
+			grabbed++
 			continue
 		}
 		if _, err := s.AutoGrab(ctx, series.ID, c, m.Items); err != nil {
@@ -205,14 +237,14 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			// remembered it if the release itself was at fault (#120).
 			failed++
 			s.log.Warn("could not add a release; trying the next candidate",
-				"source", source, "series", series.ID, "release", c.Release.Title, "err", err)
+				"source", string(source), "series", series.ID, "release", c.Release.Title, "err", err)
 			if failed >= maxAddFailures {
 				return grabbed, time.Time{}, fmt.Errorf("%d refused adds: %w", failed, err)
 			}
 			continue
 		}
 		s.log.Info("grabbed a release",
-			"source", source, "series", series.ID, "release", c.Release.Title, "items", c.Items)
+			"source", string(source), "series", series.ID, "release", c.Release.Title, "items", c.Items)
 		if d := s.clients.Notify(); d != nil {
 			item := 0
 			if len(c.Items) == 1 {
@@ -228,7 +260,63 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 		markCovered(covered, c.Items)
 		grabbed++
 	}
+	if notifyOnly {
+		// "Would have done nothing, and here's why" is the useful half of a
+		// rehearsal — but only the sweep's, which spent a search on this series;
+		// per-series silence is the feed page's normal state.
+		if source == sourceSweep {
+			s.rehearseNoAction(ctx, series, m, sweep, covered)
+		}
+		return 0, held, nil
+	}
 	return grabbed, held, nil
+}
+
+// dispatchRehearsal reports one rehearsed decision (#116). The outcome is always
+// spelled out: an adapter renders this field as the event's detail, so a correct
+// "would have grabbed" must not arrive as a blank where a reason belongs.
+func (s *Service) dispatchRehearsal(ctx context.Context, series db.Series, items []int, release, outcome string) {
+	d := s.clients.Notify()
+	if d == nil {
+		return
+	}
+	item := 0
+	if len(items) == 1 {
+		item = items[0]
+	}
+	d.Dispatch(ctx, notify.Event{
+		Kind:         notify.KindRehearsal,
+		SeriesTitle:  series.Title,
+		ItemNumber:   item,
+		ReleaseTitle: release,
+		Error:        outcome,
+	})
+}
+
+// rehearseNoAction reports the wanted items a searched pass would have left
+// untouched, blaming the best matched-but-refused candidate when there is one.
+// It reports on what the walk did not cover rather than on "nothing happened",
+// so a series whose episode 1 was pin-held still says that 2 and 3 went
+// unmatched — the mismatch a rehearsal exists to surface.
+func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, m Match, sweep []sweepItem, covered map[int]bool) {
+	var wanted []int
+	for _, it := range sweep {
+		if it.grabbable && !covered[it.number] {
+			wanted = append(wanted, it.number)
+		}
+	}
+	if len(wanted) == 0 {
+		return
+	}
+	release, reason := "", "no matching release found"
+	for _, c := range m.Candidates {
+		// Candidates are ranked, so the first refusal is the closest miss.
+		if c.Matched && len(c.Items) > 0 && !c.Eligible {
+			release, reason = c.Release.Title, c.IneligibleReason
+			break
+		}
+	}
+	s.dispatchRehearsal(ctx, series, wanted, release, "would have grabbed nothing: "+reason)
 }
 
 // writeSearchState records what the pass found. The write is guarded on the

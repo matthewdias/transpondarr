@@ -161,9 +161,11 @@ export function JobsSection() {
       }),
   });
 
-  // A failed settings read warns rather than assuming automation is on.
+  // A failed settings read warns rather than assuming automation is on. Only
+  // "off" earns the dialog: a notify-only run rehearses, so it grabs nothing.
   const requiresConfirmation = (name: string) =>
-    AUTOMATION_GATED.includes(name) && !settings.data?.automation.enabled;
+    AUTOMATION_GATED.includes(name) &&
+    (settings.data ? settings.data.automation.mode === "off" : true);
 
   const handleRun = (name: string) => {
     if (requiresConfirmation(name)) {

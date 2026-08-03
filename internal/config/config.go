@@ -52,7 +52,8 @@ type Config struct {
 	// here, because the settings layer overlays persisted overrides on top and
 	// those live in the DB as text; it parses both at startup.
 	// AutomationEnabled ships "false": an install must configure its indexer and
-	// download client before anything grabs on its own.
+	// download client before anything grabs on its own. Accepts the mode names
+	// "off" / "notify_only" / "on" as well as bool spellings (#116).
 	AutomationEnabled string
 	// PinDelayHours is how long the sweep waits for a series' pinned group before
 	// taking another group's release. "0" means no wait.

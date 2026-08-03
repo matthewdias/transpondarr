@@ -3,7 +3,12 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pin, TriangleAlert } from "lucide-react";
-import { api, ApiError, type SeriesDetail } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type AutomationMode,
+  type SeriesDetail,
+} from "@/lib/api";
 import { statusLabel } from "@/lib/chart";
 import {
   profilesQuery,
@@ -67,7 +72,7 @@ export function SeriesDetailPage() {
   // the global switch. Assumed on until the settings load, so a slow fetch does
   // not flash a warning at someone whose automation is fine.
   const { data: settings } = useQuery(settingsQuery());
-  const automationEnabled = settings?.automation.enabled ?? true;
+  const automationMode = settings?.automation.mode ?? "on";
 
   const monitor = useMutation({
     mutationFn: (v: boolean) => api.setMonitored(id, v),
@@ -145,7 +150,7 @@ export function SeriesDetailPage() {
           <>
             <DetailHeader
               detail={detail}
-              automationEnabled={automationEnabled}
+              automationMode={automationMode}
               onToggleMonitored={(v) => monitor.mutate(v)}
             />
 
@@ -397,13 +402,27 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
  */
 export function MonitoringToggle({
   monitored,
-  automationEnabled,
+  automationMode,
   onToggle,
 }: {
   monitored: boolean;
-  automationEnabled: boolean;
+  automationMode: AutomationMode;
   onToggle: (v: boolean) => void;
 }) {
+  const note =
+    automationMode === "off"
+      ? {
+          label: "Automation is off",
+          title:
+            "Nothing is searched or grabbed automatically until automation is enabled in Settings",
+        }
+      : automationMode === "notify_only"
+        ? {
+            label: "Notify-only rehearsal",
+            title:
+              "Automation reports what it would have grabbed but downloads nothing until it is switched on in Settings",
+          }
+        : null;
   return (
     <div className="flex flex-none flex-col items-end gap-1">
       <label className="flex cursor-pointer items-center gap-2.5 text-[13.5px] font-medium">
@@ -418,18 +437,18 @@ export function MonitoringToggle({
           aria-label="Toggle monitoring"
         />
       </label>
-      {monitored && !automationEnabled && (
+      {monitored && note && (
         // Helper text, not a chip: a bordered pill directly under a switch reads
         // as a second control. The icon carries the caution, since the palette's
         // amber is under 4.5:1 as text at this size.
         <Link
           to="/settings"
           className="group flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground hover:text-foreground"
-          title="Nothing is searched or grabbed automatically until automation is enabled in Settings"
+          title={note.title}
         >
           <TriangleAlert className="size-3 flex-none text-dl" />
           <span>
-            Automation is off —{" "}
+            {note.label} —{" "}
             <span className="underline underline-offset-2 group-hover:decoration-current">
               Settings
             </span>
@@ -442,11 +461,11 @@ export function MonitoringToggle({
 
 function DetailHeader({
   detail,
-  automationEnabled,
+  automationMode,
   onToggleMonitored,
 }: {
   detail: SeriesDetail;
-  automationEnabled: boolean;
+  automationMode: AutomationMode;
   onToggleMonitored: (v: boolean) => void;
 }) {
   // English only, matching the discovery detail view.
@@ -477,7 +496,7 @@ function DetailHeader({
           </div>
           <MonitoringToggle
             monitored={detail.monitored}
-            automationEnabled={automationEnabled}
+            automationMode={automationMode}
             onToggle={onToggleMonitored}
           />
         </div>

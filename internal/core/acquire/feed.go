@@ -134,7 +134,7 @@ func (s *Service) pollOneSeries(ctx context.Context, series db.Series, releases 
 	if err != nil {
 		return err
 	}
-	_, _, err = s.grabPass(ctx, series, m, sweep, now, "feed")
+	_, _, err = s.grabPass(ctx, series, m, sweep, now, sourceFeed)
 	return err
 }
 

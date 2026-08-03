@@ -65,6 +65,8 @@ func look(k notify.Kind) (string, int) {
 		return "Grab failed", 0xE74C3C
 	case notify.KindSeriesAdded:
 		return "Series added", 0x3498DB
+	case notify.KindRehearsal:
+		return "Rehearsal", 0x95A5A6
 	default:
 		return "Test notification", 0x5865F2
 	}
@@ -84,7 +86,7 @@ func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
 		e.Fields = append(e.Fields, field{Name: "Release", Value: capValue(ev.ReleaseTitle)})
 	}
 	if ev.Error != "" {
-		e.Fields = append(e.Fields, field{Name: "Error", Value: capValue(ev.Error)})
+		e.Fields = append(e.Fields, field{Name: ev.Kind.DetailLabel(), Value: capValue(ev.Error)})
 	}
 	if ev.Path != "" {
 		e.Fields = append(e.Fields, field{Name: "Path", Value: capValue(ev.Path)})
