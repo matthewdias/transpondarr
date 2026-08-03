@@ -215,6 +215,64 @@ func TestSyncCreatesItemsTheScheduleKnowsAbout(t *testing.T) {
 	}
 }
 
+// AniList lists no entry when two episodes share a broadcast slot, so the
+// schedule reads 1, 3, 4. With a null count nothing else would ever create
+// episode 2 — the gap is invisible because nothing claims the item should exist.
+func TestSyncFillsTheGapsAScheduleSkips(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 100, 0)
+
+	prov := newFakeProvider()
+	prov.schedules[100] = []metadata.Airing{
+		{Number: 1, AirsAt: time.Date(2026, 1, 4, 15, 30, 0, 0, time.UTC)},
+		{Number: 3, AirsAt: time.Date(2026, 1, 18, 15, 30, 0, 0, time.UTC)},
+	}
+
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	have, airs, found := itemState(t, st, seriesID, 2)
+	if !found {
+		t.Fatal("item 2 was not created, so the episode that shared a slot is silently missing")
+	}
+	if airs != nil {
+		t.Errorf("item 2 airs_at = %v, want null — the schedule gave it no date", *airs)
+	}
+	if have != 0 {
+		t.Errorf("item 2 have = %d, want a fresh item at 0", have)
+	}
+	if _, _, found := itemState(t, st, seriesID, 4); found {
+		t.Error("item 4 was created past the highest number the schedule knows")
+	}
+}
+
+// A tail fetch is a partial view of the numbering, so it fills gaps only inside
+// its own span rather than re-deriving a long-runner's whole back catalogue.
+func TestSyncTailFillsOnlyInsideItsOwnSpan(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 101, 0)
+	setCachedStatus(t, st, 101, "RELEASING")
+	setSyncedAt(t, st, seriesID, time.Now().Add(-24*time.Hour))
+
+	prov := newFakeProvider()
+	prov.schedules[101] = []metadata.Airing{
+		{Number: 13, AirsAt: time.Date(2026, 4, 5, 15, 30, 0, 0, time.UTC)},
+		{Number: 15, AirsAt: time.Date(2026, 4, 19, 15, 30, 0, 0, time.UTC)},
+	}
+
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+
+	if _, _, found := itemState(t, st, seriesID, 14); !found {
+		t.Error("item 14 was not created, so the gap inside the tail stays missing")
+	}
+	if _, _, found := itemState(t, st, seriesID, 1); found {
+		t.Error("the tail fetch created items below its own span")
+	}
+}
+
 func TestSyncUpsertDoesNotClobberHave(t *testing.T) {
 	st := coretest.NewStore(t)
 	seriesID := seedSeries(t, st, 100, 1)

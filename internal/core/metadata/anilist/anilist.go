@@ -91,6 +91,11 @@ type media struct {
 		Episode  int   `json:"episode"`
 		AiringAt int64 `json:"airingAt"`
 	} `json:"nextAiringEpisode"`
+	AiringSchedule struct {
+		Nodes []struct {
+			Episode int `json:"episode"`
+		} `json:"nodes"`
+	} `json:"airingSchedule"`
 }
 
 func (m media) titles() metadata.Titles {
@@ -102,6 +107,23 @@ func (m media) episodes() int {
 		return 0
 	}
 	return *m.Episodes
+}
+
+// highestItem is the last episode number the title is known to reach. A published
+// count wins outright: sequel entries whose schedule continues the previous
+// season's numbering would otherwise double a 12-episode season.
+func (m media) highestItem() int {
+	if n := m.episodes(); n > 0 {
+		return n
+	}
+	n := 0
+	for _, node := range m.AiringSchedule.Nodes {
+		n = max(n, node.Episode)
+	}
+	if m.NextAiringEpisode != nil {
+		n = max(n, m.NextAiringEpisode.Episode)
+	}
+	return n
 }
 
 // --- Provider methods -------------------------------------------------------
@@ -152,8 +174,13 @@ func (c *Client) Search(ctx context.Context, term string) ([]metadata.Candidate,
 	return out, nil
 }
 
+// airingSchedule is a field on Media, not a root query, so one page of it rides
+// along here for no extra request — page 1 is episodes 1-25, which is the whole
+// schedule for the seasonal show a null count nearly always means. A long-runner
+// gets its ancient prefix instead, and the background airing sync still does the
+// real work.
 const titleQuery = `
-query ($id: Int!) {
+query ($id: Int!, $perPage: Int!) {
   Media(id: $id, type: ANIME) {
     id
     title { romaji english native }
@@ -161,18 +188,25 @@ query ($id: Int!) {
     episodes
     status
     coverImage { large }
+    nextAiringEpisode { episode }
+    airingSchedule(page: 1, perPage: $perPage) {
+      nodes { episode }
+    }
   }
 }`
 
-// GetTitle resolves one title and expands its known episode count into items
-// (1..N, absolute numbering, no per-episode names). When the count is not yet
-// known (a releasing series with a null count), it returns zero items — the
-// title is still created, and a later refresh/airing-schedule pass fills it in.
+// GetTitle resolves one title and expands its items (1..N, absolute numbering,
+// no per-episode names). N is the published episode count, or — when AniList
+// leaves it null on a releasing series — the highest number the in-band schedule
+// page or the next broadcast reaches. Filling to that number rather than
+// transcribing it densifies: AniList lists no schedule entry when two episodes
+// share a broadcast slot, and nothing else would ever create the skipped one.
 func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []metadata.ItemMeta, error) {
 	var data struct {
 		Media media `json:"Media"`
 	}
-	if err := c.do(ctx, titleQuery, map[string]any{"id": id}, &data); err != nil {
+	vars := map[string]any{"id": id, "perPage": schedulePerPage}
+	if err := c.do(ctx, titleQuery, vars, &data); err != nil {
 		return metadata.TitleMeta{}, nil, err
 	}
 	m := data.Media
@@ -186,8 +220,9 @@ func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []
 		CoverURL:   m.CoverImage.Large,
 	}
 
-	items := make([]metadata.ItemMeta, 0, meta.Episodes)
-	for n := 1; n <= meta.Episodes; n++ {
+	highest := m.highestItem()
+	items := make([]metadata.ItemMeta, 0, highest)
+	for n := 1; n <= highest; n++ {
 		items = append(items, metadata.ItemMeta{Number: n})
 	}
 	return meta, items, nil

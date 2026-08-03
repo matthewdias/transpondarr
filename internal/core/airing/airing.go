@@ -1,10 +1,11 @@
 // Package airing keeps per-item broadcast times in step with the metadata
-// provider, creating the wanted items a schedule names as it goes — for a
-// long-runner whose episode total AniList never publishes, the schedule is the
-// only source that knows those episodes exist. It is background work rather
-// than part of GetTitle because paging a full schedule costs one request per
-// 50 episodes: unremarkable off the request path, unacceptable behind a user
-// action against a ~30 req/min budget.
+// provider, creating the wanted items a schedule names (and the ones it skips)
+// as it goes — for a long-runner whose episode total AniList never publishes,
+// the schedule is the only source that knows those episodes exist. Paging one
+// is background work rather than part of GetTitle because it costs a request
+// per page: unremarkable off the request path, unacceptable behind a user
+// action against a ~30 req/min budget. GetTitle carries a single in-band page
+// for the add, which is bounded by construction; everything past it is here.
 package airing
 
 import (
@@ -103,6 +104,16 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		}
 	}
 
+	for _, n := range skipped(schedule, !notYetAired) {
+		if _, err := s.store.Q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
+			SeriesID: series.ID,
+			Kind:     string(domain.KindEpisode),
+			Number:   sql.NullInt64{Int64: int64(n), Valid: true},
+		}); err != nil {
+			return fmt.Errorf("create item %d for a skipped schedule entry: %w", n, err)
+		}
+	}
+
 	// Guarded on the stamp read at selection: if the metadata refresh cleared it
 	// mid-sync (the series grew), the clear wins and the next pass re-pages.
 	if err := s.store.Q.SetSeriesAiringSyncedAt(ctx, db.SetSeriesAiringSyncedAtParams{
@@ -113,4 +124,32 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	}
 	s.log.Debug("airing schedule synced", "series", series.ID, "airings", len(schedule), "tail_only", notYetAired)
 	return nil
+}
+
+// skipped lists the item numbers a schedule implies but never names: AniList
+// publishes no entry when two episodes share a broadcast slot, and with a null
+// episode count nothing else would ever create the missing one. fromOne widens
+// the fill to the whole numbering, which only a full fetch owns — a tail is a
+// partial view, so it fills gaps inside its own span instead of re-deriving a
+// long-runner's entire back catalogue every pass.
+func skipped(schedule []metadata.Airing, fromOne bool) []int {
+	if len(schedule) == 0 {
+		return nil
+	}
+	known := make(map[int]bool, len(schedule))
+	lo, hi := schedule[0].Number, schedule[0].Number
+	for _, a := range schedule {
+		known[a.Number] = true
+		lo, hi = min(lo, a.Number), max(hi, a.Number)
+	}
+	if fromOne {
+		lo = 1
+	}
+	var out []int
+	for n := lo; n <= hi; n++ {
+		if !known[n] {
+			out = append(out, n)
+		}
+	}
+	return out
 }

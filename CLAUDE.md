@@ -253,6 +253,28 @@ Behaviour changes are test-driven. Work red → green → refactor:
   is what stops an unschedulable title being re-asked every tick. Aired times are
   immutable, so only a never-synced series pages full history; a resync passes
   `notYetAired` and fetches the tail.
+- **A schedule is densified, never transcribed (#152).** Both the in-band page
+  `titleQuery` carries and the background sync create `1..max(known number)`,
+  leaving `airs_at` null on the filled-in ones — a schedule reading 1, 3, 4 means
+  episode 2 shared a broadcast slot, and with a null count nothing else would
+  ever create it. The asymmetry is the argument: over-creating leaves an item
+  permanently wanted that no release matches (a sweep slot, and a series that
+  reads incomplete), but it cannot cause a wrong grab, because `decide` refuses
+  anything numbered past `maxItem` regardless; under-creating loses an episode
+  nobody notices is missing. A **published count wins outright** over both
+  floors, since sequel entries whose schedule continues the previous season's
+  numbering would otherwise double a 12-episode season. And a **tail fetch fills
+  only inside its own span** — it is a partial view of the numbering, so filling
+  from 1 would re-derive a long-runner's whole back catalogue every pass.
+- **One schedule page rides in `titleQuery`; paging stays off the request path.**
+  `airingSchedule` is a field on `Media`, so page 1 (episodes 1-25 — the whole
+  schedule for the seasonal show a null count nearly always means) plus
+  `nextAiringEpisode.episode` as a weaker floor cost zero extra requests, and a
+  null-count add returns its items immediately instead of sitting at `0 / 0` for
+  an `airingSyncInterval`. This does not undercut the `AiringProvider` rationale:
+  what stays off the request path is *unbounded* paging. Numbers only — carrying
+  dates through the add would pull in `ItemMeta`, `CreateWantedItem` and the sqlc
+  layer for a column `internal/core/airing` already owns.
 - **Auth is forms-based** (`internal/core/auth`): the web UI logs in (username +
   argon2id password) and gets an httpOnly session cookie; the **API key** is for
   machine clients only (`X-Api-Key`). A request to `/api/*` is authorized by a
