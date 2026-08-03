@@ -124,11 +124,21 @@ type FakeDownload struct {
 	// grab inside the client while another grab runs.
 	AddHook func(download.AddOptions)
 
-	// mu guards Adds: with the claim registry under test, two grabs can reach the
-	// client at once, and an unguarded slice would report that as a data race
-	// rather than as the assertion failure it is.
-	mu   sync.Mutex
-	Adds []download.AddOptions // recorded, in call order
+	// RemoveErr fails Remove, so a test can model a client that refuses deletes.
+	RemoveErr error
+
+	// mu guards Adds and Removes: with the claim registry under test, two grabs
+	// can reach the client at once, and an unguarded slice would report that as a
+	// data race rather than as the assertion failure it is.
+	mu      sync.Mutex
+	Adds    []download.AddOptions // recorded, in call order
+	Removes []RemoveCall          // recorded, in call order
+}
+
+// RemoveCall records one Remove request handed to the fake client.
+type RemoveCall struct {
+	Hashes     []string
+	DeleteData bool
 }
 
 var _ download.Client = (*FakeDownload)(nil)
@@ -165,6 +175,13 @@ func (f *FakeDownload) AddCount() int {
 	return len(f.Adds)
 }
 
+func (f *FakeDownload) Remove(_ context.Context, hashes []string, deleteData bool) error {
+	f.mu.Lock()
+	f.Removes = append(f.Removes, RemoveCall{Hashes: hashes, DeleteData: deleteData})
+	f.mu.Unlock()
+	return f.RemoveErr
+}
+
 func (f *FakeDownload) Status(_ context.Context, _ ...string) ([]download.Status, error) {
 	if f.StatusErr != nil {
 		return nil, f.StatusErr
@@ -180,6 +197,10 @@ type FakeLibrary struct {
 	NameStr string
 	DestErr error
 
+	// PlaceHook runs at the top of every Place. A test can drive another actor
+	// from it to model work landing while an import is at its point of no return.
+	PlaceHook func(library.ImportRequest)
+
 	Placed []library.ImportRequest // recorded, in call order
 }
 
@@ -193,6 +214,9 @@ func (f *FakeLibrary) Name() string {
 }
 
 func (f *FakeLibrary) Place(_ context.Context, r library.ImportRequest) (string, error) {
+	if f.PlaceHook != nil {
+		f.PlaceHook(r)
+	}
 	f.Placed = append(f.Placed, r)
 	if f.DestErr != nil {
 		return "", f.DestErr

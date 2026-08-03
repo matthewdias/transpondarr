@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pin, TriangleAlert } from "lucide-react";
@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DeleteSeriesDialog } from "@/components/detail/delete-series-dialog";
 import { EpisodesTab } from "@/components/detail/episodes-tab";
 import { ReleasesTab } from "@/components/detail/releases-tab";
 import { HistoryTab } from "@/components/detail/history-tab";
@@ -48,6 +49,7 @@ export function SeriesDetailPage() {
   const id = Number(params.id);
   const [tab, setTab] = useState<TabKey>("episodes");
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const detailKey = seriesDetailQuery(id).queryKey;
 
@@ -105,7 +107,17 @@ export function SeriesDetailPage() {
 
   return (
     <>
-      <Topbar breadcrumb={breadcrumb} />
+      <Topbar
+        breadcrumb={breadcrumb}
+        actions={
+          detail && (
+            <DeleteSeriesDialog
+              detail={detail}
+              onDeleted={() => navigate("/", { replace: true })}
+            />
+          )
+        }
+      />
       <div className="px-4 py-6 sm:px-6">
         {isLoading && <HeaderSkeleton />}
 

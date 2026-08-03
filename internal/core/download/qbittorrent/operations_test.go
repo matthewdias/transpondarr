@@ -279,6 +279,39 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 	}
 }
 
+// Remove forwards the hashes lowercased (identity is the lowercase info hash
+// throughout the pipeline) and asks qBittorrent to delete the payload data too.
+func TestRemoveDeletesTorrentsWithData(t *testing.T) {
+	var gotHashes, gotDeleteFiles string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "test"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/delete":
+			gotHashes = r.FormValue("hashes")
+			gotDeleteFiles = r.FormValue("deleteFiles")
+			_, _ = w.Write([]byte("Ok."))
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "u", "p")
+	err := c.Remove(context.Background(),
+		[]string{"AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111", "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222"}, true)
+	if err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if gotHashes != "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111|bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222" {
+		t.Errorf("hashes sent to qBittorrent = %q, want both, lowercased, pipe-joined", gotHashes)
+	}
+	if gotDeleteFiles != "true" {
+		t.Errorf("deleteFiles = %q, want true", gotDeleteFiles)
+	}
+}
+
 func TestMapState(t *testing.T) {
 	cases := map[string]download.State{
 		"downloading":  download.StateDownloading,

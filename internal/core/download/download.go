@@ -88,4 +88,7 @@ type Client interface {
 	// client does not know are omitted from the result. With no hashes, it
 	// returns every torrent the client is managing.
 	Status(ctx context.Context, hashes ...string) ([]Status, error)
+	// Remove deletes the given torrents, and their payload data when deleteData
+	// is set. Hashes the client does not know are ignored.
+	Remove(ctx context.Context, hashes []string, deleteData bool) error
 }

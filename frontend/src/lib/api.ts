@@ -212,6 +212,18 @@ export const api = {
       .GET("/api/v1/series/{id}", { params: { path: { id } }, signal })
       .then(unwrap),
 
+  // remove_downloads rides as `true` or not at all, so the default request
+  // carries no param.
+  deleteSeries: (id: number, removeDownloads?: boolean) =>
+    client
+      .DELETE("/api/v1/series/{id}", {
+        params: {
+          path: { id },
+          query: { remove_downloads: removeDownloads || undefined },
+        },
+      })
+      .then(unwrap),
+
   setMonitored: (id: number, monitored: boolean) =>
     client
       .PATCH("/api/v1/series/{id}", {

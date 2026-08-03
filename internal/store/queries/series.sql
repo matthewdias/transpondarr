@@ -33,6 +33,9 @@ RETURNING *;
 -- name: SetSeriesMonitored :exec
 UPDATE series SET monitored = ? WHERE id = ?;
 
+-- name: DeleteSeries :execrows
+DELETE FROM series WHERE id = ?;
+
 -- name: SetSeriesPinnedGroup :execrows
 -- NULL clears the pin; execrows lets the handler 404 an unknown series. The
 -- delay rides along because it is meaningless without a group to wait for, so
