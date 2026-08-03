@@ -4,7 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { HistoryRow, HistoryTab } from "@/components/detail/history-tab";
+import { HistoryTab } from "@/components/detail/history-tab";
+import { GrabEventRow } from "@/components/grab-event-row";
 import type { BlocklistEntry, GrabEvent } from "@/lib/api";
 
 function event(overrides: Partial<GrabEvent>): GrabEvent {
@@ -19,30 +20,28 @@ function event(overrides: Partial<GrabEvent>): GrabEvent {
   };
 }
 
-describe("HistoryRow", () => {
-  it("shows an in-progress grab as Downloading", () => {
-    render(<HistoryRow event={event({ status: "grabbed" })} />);
-    expect(screen.getByText(/Downloading/)).toBeInTheDocument();
+describe("GrabEventRow", () => {
+  // History is past-tense: a grabbed event is a moment, not live progress.
+  it("shows a grabbed event as Grabbed", () => {
+    render(<GrabEventRow event={event({ status: "grabbed" })} />);
+    expect(screen.getByText(/Grabbed/)).toBeInTheDocument();
+    expect(screen.queryByText(/Downloading/)).not.toBeInTheDocument();
   });
 
   // Regression pin from issue #47: a terminal failure must not read as in-progress.
-  it("shows a failed grab as Failed, not Downloading", () => {
-    render(<HistoryRow event={event({ status: "failed" })} />);
-    expect(screen.queryByText(/Downloading/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Failed/)).toBeInTheDocument();
-  });
-
-  it("shows a grab with a pending import error as Import blocked", () => {
+  it("shows a failed event as Failed, with its detail", () => {
     render(
-      <HistoryRow
+      <GrabEventRow
         event={event({
-          status: "grabbed",
-          last_error: "import failed: disk full",
+          status: "failed",
+          detail: "the download vanished from the client",
         })}
       />,
     );
-    expect(screen.getByText(/Import blocked/)).toBeInTheDocument();
-    expect(screen.getByText("import failed: disk full")).toBeInTheDocument();
+    expect(screen.getByText(/Failed/)).toBeInTheDocument();
+    expect(
+      screen.getByText("the download vanished from the client"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -183,12 +182,12 @@ describe("HistoryTab blocked releases", () => {
     expect(
       await screen.findByText(/load blocked releases/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Downloading/)).toBeInTheDocument();
+    expect(screen.getByText(/Grabbed/)).toBeInTheDocument();
   });
 
   it("omits the section when nothing is blocked", async () => {
     renderTab([event({})], []);
-    expect(await screen.findByText(/Downloading/)).toBeInTheDocument();
+    expect(await screen.findByText(/Grabbed/)).toBeInTheDocument();
     expect(screen.queryByText(/Blocked releases/i)).not.toBeInTheDocument();
   });
 

@@ -247,7 +247,7 @@ func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatus
 // (#118). Settling before recording is load-bearing: a grab left in "grabbed"
 // would never free its item.
 func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, reason string) failedGrab {
-	im.setStatus(ctx, g.ID, statusFailed)
+	im.settle(ctx, g, statusFailed, reason)
 	return failedGrab{
 		seriesID:     g.SeriesID,
 		itemID:       g.WantedItemID,
@@ -281,7 +281,7 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 		if err != nil {
 			im.log.Info("importer: cannot resolve a single episode from payload; deferring",
 				"release", g.ReleaseTitle, "path", st.ContentPath, "reason", err)
-			im.setStatus(ctx, g.ID, statusDeferred)
+			im.settle(ctx, g, statusDeferred, "")
 			return
 		}
 		im.log.Info("importer: resolved folder-wrapped episode", "release", g.ReleaseTitle, "file", source)
@@ -316,7 +316,7 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 		im.log.Error("importer: set have", "err", err)
 		return
 	}
-	im.setStatus(ctx, g.ID, statusImported)
+	im.settle(ctx, g, statusImported, "")
 	im.log.Info("importer: imported", "release", g.ReleaseTitle, "item", int(g.ItemNumber.Int64), "dest", final)
 }
 
@@ -333,9 +333,23 @@ func (im *Importer) setLastError(ctx context.Context, g db.ListGrabsByStatusRow,
 	}
 }
 
-func (im *Importer) setStatus(ctx context.Context, id int64, status string) {
-	if err := im.store.Q.SetGrabStatus(ctx, db.SetGrabStatusParams{Status: status, ID: id}); err != nil {
+// settle writes a grab's terminal status and appends the matching history event.
+// The event is best-effort: history must never wedge the pipeline.
+func (im *Importer) settle(ctx context.Context, g db.ListGrabsByStatusRow, status, detail string) {
+	if err := im.store.Q.SetGrabStatus(ctx, db.SetGrabStatusParams{Status: status, ID: g.ID}); err != nil {
 		im.log.Error("importer: set grab status", "status", status, "err", err)
+	}
+	if err := im.store.Q.AppendGrabEvent(ctx, db.AppendGrabEventParams{
+		SeriesID:     g.SeriesID,
+		WantedItemID: g.WantedItemID,
+		ItemNumber:   g.ItemNumber.Int64,
+		ItemKind:     g.ItemKind,
+		InfoHash:     g.InfoHash,
+		ReleaseTitle: g.ReleaseTitle,
+		Event:        status,
+		Detail:       detail,
+	}); err != nil {
+		im.log.Error("importer: append grab event", "event", status, "err", err)
 	}
 }
 

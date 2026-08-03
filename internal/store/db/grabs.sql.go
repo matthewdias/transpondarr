@@ -155,6 +155,73 @@ func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListG
 	return items, nil
 }
 
+const listOpenGrabs = `-- name: ListOpenGrabs :many
+SELECT
+    g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
+    g.missing_since, g.last_error, g.created_at,
+    w.number AS item_number,
+    w.kind   AS item_kind,
+    s.id     AS series_id,
+    s.title  AS series_title
+FROM grabs g
+JOIN wanted_items w ON w.id = g.wanted_item_id
+JOIN series s ON s.id = w.series_id
+WHERE g.status IN ('grabbed', 'import_deferred')
+ORDER BY g.created_at DESC, g.id DESC
+`
+
+type ListOpenGrabsRow struct {
+	ID           int64          `json:"id"`
+	WantedItemID int64          `json:"wanted_item_id"`
+	InfoHash     string         `json:"info_hash"`
+	ReleaseTitle string         `json:"release_title"`
+	Status       string         `json:"status"`
+	MissingSince sql.NullString `json:"missing_since"`
+	LastError    sql.NullString `json:"last_error"`
+	CreatedAt    string         `json:"created_at"`
+	ItemNumber   sql.NullInt64  `json:"item_number"`
+	ItemKind     string         `json:"item_kind"`
+	SeriesID     int64          `json:"series_id"`
+	SeriesTitle  string         `json:"series_title"`
+}
+
+// Open mirrors the importer's scan set: grabbed plus deferred.
+func (q *Queries) ListOpenGrabs(ctx context.Context) ([]ListOpenGrabsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOpenGrabs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOpenGrabsRow{}
+	for rows.Next() {
+		var i ListOpenGrabsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WantedItemID,
+			&i.InfoHash,
+			&i.ReleaseTitle,
+			&i.Status,
+			&i.MissingSince,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.ItemNumber,
+			&i.ItemKind,
+			&i.SeriesID,
+			&i.SeriesTitle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setGrabLastError = `-- name: SetGrabLastError :exec
 UPDATE grabs SET last_error = ? WHERE id = ?
 `

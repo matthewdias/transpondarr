@@ -1,7 +1,11 @@
 // Query key + fetch wiring for every server query, in one place. Call sites use
 // useQuery(fooQuery(...)) and spread in call-site state like `enabled`; signal
 // threading for cancellation lives here so components never mention it.
-import { keepPreviousData, queryOptions } from "@tanstack/react-query";
+import {
+  infiniteQueryOptions,
+  keepPreviousData,
+  queryOptions,
+} from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { SeasonRef } from "@/lib/season";
 
@@ -104,6 +108,26 @@ export const blocklistSummaryQuery = () =>
     queryKey: ["blocklist-summary"],
     queryFn: ({ signal }) => api.blocklistSummary(signal),
     refetchInterval: JOBS_POLL_MS,
+  });
+
+// Exported so tests and the page agree on how stale a queue snapshot can be.
+export const ACTIVITY_QUEUE_POLL_MS = 15 * 1000;
+
+// Polls like jobs: torrent progress ages on its own with nothing to invalidate it.
+export const activityQueueQuery = () =>
+  queryOptions({
+    queryKey: ["activity-queue"],
+    queryFn: ({ signal }) => api.activityQueue(signal),
+    refetchInterval: ACTIVITY_QUEUE_POLL_MS,
+  });
+
+// Keyset pagination: each page carries the cursor for the next, absent on the last.
+export const activityHistoryQuery = () =>
+  infiniteQueryOptions({
+    queryKey: ["activity-history"],
+    queryFn: ({ pageParam, signal }) => api.activityHistory(pageParam, signal),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
   });
 
 export const profilesQuery = () =>

@@ -39,6 +39,21 @@ JOIN series s ON s.id = w.series_id
 WHERE g.status = ?
 ORDER BY g.info_hash;
 
+-- name: ListOpenGrabs :many
+-- Open mirrors the importer's scan set: grabbed plus deferred.
+SELECT
+    g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
+    g.missing_since, g.last_error, g.created_at,
+    w.number AS item_number,
+    w.kind   AS item_kind,
+    s.id     AS series_id,
+    s.title  AS series_title
+FROM grabs g
+JOIN wanted_items w ON w.id = g.wanted_item_id
+JOIN series s ON s.id = w.series_id
+WHERE g.status IN ('grabbed', 'import_deferred')
+ORDER BY g.created_at DESC, g.id DESC;
+
 -- name: SetGrabStatus :exec
 -- Every status but grabbed is settled, so a stale import error never survives
 -- a transition.

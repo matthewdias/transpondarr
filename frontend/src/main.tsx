@@ -14,6 +14,7 @@ import { DiscoveryPage } from "@/pages/discovery";
 import { CalendarPage } from "@/pages/calendar";
 import { SeriesDetailPage } from "@/pages/series-detail";
 import { SettingsPage } from "@/pages/settings";
+import { ActivityPage } from "@/pages/activity";
 import { PlaceholderPage } from "@/pages/placeholder";
 
 const queryClient = new QueryClient({
@@ -49,15 +50,7 @@ createRoot(document.getElementById("root")!).render(
                     />
                   }
                 />
-                <Route
-                  path="activity"
-                  element={
-                    <PlaceholderPage
-                      title="Activity"
-                      blurb="A global download & import feed is coming. Per-series history lives on each series' History tab."
-                    />
-                  }
-                />
+                <Route path="activity" element={<ActivityPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
             </Routes>

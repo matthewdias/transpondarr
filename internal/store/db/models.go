@@ -19,6 +19,19 @@ type Grab struct {
 	LastError    sql.NullString `json:"last_error"`
 }
 
+type GrabEvent struct {
+	ID           int64  `json:"id"`
+	SeriesID     int64  `json:"series_id"`
+	WantedItemID int64  `json:"wanted_item_id"`
+	ItemNumber   int64  `json:"item_number"`
+	ItemKind     string `json:"item_kind"`
+	InfoHash     string `json:"info_hash"`
+	ReleaseTitle string `json:"release_title"`
+	Event        string `json:"event"`
+	Detail       string `json:"detail"`
+	CreatedAt    string `json:"created_at"`
+}
+
 type MetadataCache struct {
 	Provider     string         `json:"provider"`
 	ProviderID   int64          `json:"provider_id"`

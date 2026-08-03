@@ -124,6 +124,10 @@ export type IndexerInput = Schemas["IndexerInputBody"];
 export type LibraryInput = Schemas["LibraryInputBody"];
 export type AutomationInput = Schemas["AutomationInputBody"];
 export type JobStatus = Schemas["JobStatusDTO"];
+export type QueueItem = Schemas["QueueItemDTO"];
+export type ActivityEvent = Schemas["ActivityEventDTO"];
+export type ActivityQueue = Schemas["ActivityQueueOutputBody"];
+export type ActivityHistoryPage = Schemas["ActivityHistoryOutputBody"];
 
 // The read model for a single series with its wanted items. Arrays are
 // non-nullable in the OpenAPI schema (Huma's DefaultArrayNullable is off; the
@@ -266,6 +270,17 @@ export const api = {
       .POST("/api/v1/series/{id}/grab", {
         params: { path: { id } },
         body: { download_url: downloadUrl, paused },
+      })
+      .then(unwrap),
+
+  activityQueue: (signal?: AbortSignal) =>
+    client.GET("/api/v1/activity/queue", { signal }).then(unwrap),
+
+  activityHistory: (cursor: string, signal?: AbortSignal) =>
+    client
+      .GET("/api/v1/activity/history", {
+        params: { query: cursor ? { cursor } : {} },
+        signal,
       })
       .then(unwrap),
 
