@@ -39,8 +39,10 @@ All notable changes to this project are documented here. The format is based on
   the search queue while it drains. It costs no additional AniList requests, and
   no additional indexer load per episode either: a sweep spends one search per
   *series*, whatever its item count. If you would rather not track a long-runner's
-  back catalogue, unmonitor the series — an unmonitored series is skipped by both
-  the sweep and the airing sync.
+  back catalogue, unmonitor the series before upgrading — an unmonitored series is
+  skipped by the metadata refresh and the airing sync, which are the two passes
+  that would create the items, and by the search sweep that would go looking for
+  them.
 
 ## [0.5.0] — 2026-08-02
 

@@ -93,8 +93,19 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		return fmt.Errorf("fetch schedule: %w", err)
 	}
 
+	// One transaction, opened after the fetch so no write lock is held across the
+	// network: a never-synced long-runner writes thousands of rows, and in
+	// autocommit each is its own fsync — ~60x the wall clock, spent holding off
+	// the importer and grab paths on busy_timeout.
+	tx, err := s.store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
+	q := s.store.Q.WithTx(tx)
+
 	for _, a := range schedule {
-		if err := s.store.Q.UpsertWantedItemAiring(ctx, db.UpsertWantedItemAiringParams{
+		if err := q.UpsertWantedItemAiring(ctx, db.UpsertWantedItemAiringParams{
 			SeriesID: series.ID,
 			Kind:     string(domain.KindEpisode),
 			Number:   sql.NullInt64{Int64: int64(a.Number), Valid: true},
@@ -106,7 +117,7 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 
 	var filled int64
 	for _, n := range skipped(schedule, !notYetAired) {
-		rows, err := s.store.Q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
+		rows, err := q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
 			SeriesID: series.ID,
 			Kind:     string(domain.KindEpisode),
 			Number:   sql.NullInt64{Int64: int64(n), Valid: true},
@@ -118,18 +129,21 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	}
 	// A filled item has no air date, so it is exactly what airedSince cannot see.
 	if filled > 0 {
-		if err := s.store.Q.ResetSeriesSearchState(ctx, series.ID); err != nil {
+		if err := q.ResetSeriesSearchState(ctx, series.ID); err != nil {
 			return fmt.Errorf("reset search cadence: %w", err)
 		}
 	}
 
 	// Guarded on the stamp read at selection: if the metadata refresh cleared it
 	// mid-sync (the series grew), the clear wins and the next pass re-pages.
-	if err := s.store.Q.SetSeriesAiringSyncedAt(ctx, db.SetSeriesAiringSyncedAtParams{
+	if err := q.SetSeriesAiringSyncedAt(ctx, db.SetSeriesAiringSyncedAtParams{
 		ID:             series.ID,
 		AiringSyncedAt: series.AiringSyncedAt,
 	}); err != nil {
 		return fmt.Errorf("stamp synced: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
 	}
 	s.log.Debug("airing schedule synced", "series", series.ID, "airings", len(schedule), "tail_only", notYetAired)
 	return nil
