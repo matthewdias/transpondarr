@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,9 +74,10 @@ func TestImportDispatchesImportedEvent(t *testing.T) {
 	}
 }
 
-// A stuck import notifies once per distinct reason: the transition dispatches,
-// the identical reason next tick stays silent.
-func TestStuckImportNotifiesOncePerReason(t *testing.T) {
+// A stuck import notifies once per incident — on the no-error → error
+// transition — not once per distinct reason: a flaky mount alternating error
+// strings tick-to-tick must not flap notifications.
+func TestStuckImportNotifiesOncePerIncident(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
@@ -100,6 +102,20 @@ func TestStuckImportNotifiesOncePerReason(t *testing.T) {
 		t.Fatalf("scan 2: %v", err)
 	}
 	expectNoEvent(t, fn)
+
+	// A *different* reason on a still-stuck grab is the same incident: the DB row
+	// updates, the notification does not repeat.
+	dl.Statuses = []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: "/elsewhere/raw.mkv"},
+	}
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan 3: %v", err)
+	}
+	expectNoEvent(t, fn)
+	if g := grabByHash(t, st, "abc"); !g.LastError.Valid ||
+		!strings.Contains(g.LastError.String, "/elsewhere/raw.mkv") {
+		t.Errorf("last_error = %+v, want it updated to the new reason", g.LastError)
+	}
 }
 
 // A batch failing in the client is one incident: one event, not one per row.

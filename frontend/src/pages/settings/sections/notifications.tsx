@@ -8,6 +8,12 @@ import { Switch } from "@/components/ui/switch";
 import { Field, SectionShell, type TestState } from "../section-shell";
 import { useSaveToast } from "../section-helpers";
 
+// One canonical display name per adapter, shared by headings, switch
+// aria-labels, and Test buttons (ntfy is a lowercase brand).
+const ADAPTER_DISCORD = "Discord";
+const ADAPTER_WEBHOOK = "Webhook";
+const ADAPTER_NTFY = "ntfy";
+
 type EventToggles = {
   on_grabbed: boolean;
   on_imported: boolean;
@@ -186,7 +192,7 @@ export function NotificationsSection({ settings }: { settings: Settings }) {
       }
     >
       <div className="space-y-3">
-        <h3 className="text-xs font-semibold">Discord</h3>
+        <h3 className="text-xs font-semibold">{ADAPTER_DISCORD}</h3>
         <Field
           label="Discord webhook URL"
           placeholder="https://discord.com/api/webhooks/…"
@@ -195,12 +201,12 @@ export function NotificationsSection({ settings }: { settings: Settings }) {
           hint="Leave empty to disable Discord notifications."
         />
         <EventSwitches
-          adapter="Discord"
+          adapter={ADAPTER_DISCORD}
           value={discordEvents}
           onChange={setDiscordEvents}
         />
         <TestButton
-          adapter="Discord"
+          adapter={ADAPTER_DISCORD}
           onTest={() => discordTest.test.mutate()}
           testing={discordTest.test.isPending}
           testState={discordTest.state}
@@ -208,7 +214,7 @@ export function NotificationsSection({ settings }: { settings: Settings }) {
       </div>
 
       <div className="space-y-3 border-t pt-3.5">
-        <h3 className="text-xs font-semibold">Webhook</h3>
+        <h3 className="text-xs font-semibold">{ADAPTER_WEBHOOK}</h3>
         <Field
           label="Webhook URL"
           placeholder="https://example.com/hook"
@@ -217,12 +223,12 @@ export function NotificationsSection({ settings }: { settings: Settings }) {
           hint="POSTs a stable JSON payload you can script against. Leave empty to disable."
         />
         <EventSwitches
-          adapter="Webhook"
+          adapter={ADAPTER_WEBHOOK}
           value={webhookEvents}
           onChange={setWebhookEvents}
         />
         <TestButton
-          adapter="webhook"
+          adapter={ADAPTER_WEBHOOK}
           onTest={() => webhookTest.test.mutate()}
           testing={webhookTest.test.isPending}
           testState={webhookTest.state}
@@ -230,7 +236,7 @@ export function NotificationsSection({ settings }: { settings: Settings }) {
       </div>
 
       <div className="space-y-3 border-t pt-3.5">
-        <h3 className="text-xs font-semibold">ntfy</h3>
+        <h3 className="text-xs font-semibold">{ADAPTER_NTFY}</h3>
         <div className="grid gap-3.5 sm:grid-cols-2">
           <Field
             label="ntfy server"
@@ -259,12 +265,12 @@ export function NotificationsSection({ settings }: { settings: Settings }) {
           autoComplete="new-password"
         />
         <EventSwitches
-          adapter="ntfy"
+          adapter={ADAPTER_NTFY}
           value={ntfyEvents}
           onChange={setNtfyEvents}
         />
         <TestButton
-          adapter="ntfy"
+          adapter={ADAPTER_NTFY}
           onTest={() => ntfyTest.test.mutate()}
           testing={ntfyTest.test.isPending}
           testState={ntfyTest.state}

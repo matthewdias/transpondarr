@@ -13,6 +13,8 @@
 //	  "timestamp": "RFC 3339"
 //	}
 //
+// timestamp is the send time, not the event time — delivery has no retry or
+// queueing, so the two coincide, but scripts should treat it as send time.
 // Requests are sent with Content-Type: application/json and User-Agent:
 // transpondarr; any 2xx response counts as delivered.
 package webhook

@@ -357,9 +357,7 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 }
 
 // setLastError records why this attempt could not import (a status transition
-// clears it). Skips the write when the reason is unchanged since last tick —
-// which also makes it the transition hook: one import_stuck notification per
-// distinct reason, never one per tick.
+// clears it). Skips the write when the reason is unchanged since last tick.
 func (im *Importer) setLastError(ctx context.Context, g db.ListGrabsByStatusRow, msg string) {
 	if g.LastError.Valid && g.LastError.String == msg {
 		return
@@ -368,6 +366,11 @@ func (im *Importer) setLastError(ctx context.Context, g db.ListGrabsByStatusRow,
 		LastError: sql.NullString{String: msg, Valid: true}, ID: g.ID,
 	}); err != nil {
 		im.log.Error("importer: set grab last_error", "err", err)
+		return
+	}
+	// Notify only on the no-error -> error transition: one per stuck incident, so
+	// an alternating reason cannot flap (last_error clears only when it settles).
+	if g.LastError.Valid && g.LastError.String != "" {
 		return
 	}
 	im.notify(ctx, notify.Event{

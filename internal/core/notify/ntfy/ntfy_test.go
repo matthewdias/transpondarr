@@ -25,7 +25,8 @@ func capture(t *testing.T) (*httptest.Server, *captured) {
 			t.Errorf("method = %s, want POST", r.Method)
 		}
 		body, _ := io.ReadAll(r.Body)
-		got = captured{path: r.URL.Path, headers: r.Header.Clone(), body: string(body)}
+		// EscapedPath is the wire form, which is what topic escaping is about.
+		got = captured{path: r.URL.EscapedPath(), headers: r.Header.Clone(), body: string(body)}
 		w.WriteHeader(http.StatusOK)
 	}))
 	t.Cleanup(ts.Close)
@@ -56,6 +57,17 @@ func TestSendPostsToServerSlashTopic(t *testing.T) {
 	}
 	if got.headers.Get("Authorization") != "" {
 		t.Error("authorization header sent with no token configured")
+	}
+}
+
+// A topic carrying URL metacharacters must not alter the request path or query.
+func TestSendEscapesTheTopic(t *testing.T) {
+	ts, got := capture(t)
+	if err := New(ts.URL, "a/b?c", "").Send(context.Background(), notify.Event{Kind: notify.KindTest}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if got.path != "/a%2Fb%3Fc" {
+		t.Errorf("path = %q, want the escaped topic /a%%2Fb%%3Fc", got.path)
 	}
 }
 

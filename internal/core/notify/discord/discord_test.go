@@ -128,6 +128,29 @@ func TestSendOmitsUnsetFields(t *testing.T) {
 	}
 }
 
+// Discord rejects an embed field value over 1024 chars with a 400, which would
+// lose the notification exactly when the error detail is longest.
+func TestSendCapsFieldValues(t *testing.T) {
+	ts, got := capture(t, http.StatusNoContent)
+	long := strings.Repeat("e", 3000)
+	err := New(ts.URL).Send(context.Background(), notify.Event{
+		Kind: notify.KindImportStuck, SeriesTitle: "Placeholder Saga", Error: long,
+	})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	v, ok := fieldValue(got.Embeds[0], "Error")
+	if !ok {
+		t.Fatal("Error field missing")
+	}
+	if n := len([]rune(v)); n != 1024 {
+		t.Fatalf("field value length = %d, want exactly the 1024 cap", n)
+	}
+	if !strings.HasSuffix(v, "…") {
+		t.Error("capped value should end with an ellipsis")
+	}
+}
+
 func TestSendReportsNon2xx(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -75,8 +76,9 @@ func body(ev notify.Event) string {
 
 // Send posts ev as a plain-text message with Title/Priority/Tags headers.
 func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
-	url := strings.TrimSuffix(n.server, "/") + "/" + n.topic
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(body(ev)))
+	// PathEscape keeps a metacharacter-bearing topic one path segment.
+	endpoint := strings.TrimSuffix(n.server, "/") + "/" + url.PathEscape(n.topic)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(body(ev)))
 	if err != nil {
 		return fmt.Errorf("ntfy: build request: %w", err)
 	}

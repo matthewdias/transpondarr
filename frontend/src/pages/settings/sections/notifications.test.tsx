@@ -137,6 +137,9 @@ describe("NotificationsSection", () => {
       }),
     );
 
+    // Canonical adapter names: "Discord", "Webhook", "ntfy" (lowercase brand).
+    expect(screen.getByRole("button", { name: "Test Webhook" })).toBeTruthy();
+
     await user.click(screen.getByRole("button", { name: "Test Discord" }));
     expect(await screen.findByText("Test notification sent.")).toBeTruthy();
 

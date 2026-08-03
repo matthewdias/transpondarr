@@ -35,6 +35,17 @@ type field struct {
 	Value string `json:"value"`
 }
 
+// maxFieldLen is Discord's per-field-value cap; exceeding it 400s the whole embed.
+const maxFieldLen = 1024
+
+func capValue(v string) string {
+	r := []rune(v)
+	if len(r) <= maxFieldLen {
+		return v
+	}
+	return string(r[:maxFieldLen-1]) + "…"
+}
+
 type embed struct {
 	Title  string  `json:"title"`
 	Color  int     `json:"color"`
@@ -64,19 +75,19 @@ func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
 	title, color := look(ev.Kind)
 	e := embed{Title: title, Color: color}
 	if ev.SeriesTitle != "" {
-		e.Fields = append(e.Fields, field{Name: "Series", Value: ev.SeriesTitle})
+		e.Fields = append(e.Fields, field{Name: "Series", Value: capValue(ev.SeriesTitle)})
 	}
 	if ev.ItemNumber > 0 {
 		e.Fields = append(e.Fields, field{Name: "Episode", Value: strconv.Itoa(ev.ItemNumber)})
 	}
 	if ev.ReleaseTitle != "" {
-		e.Fields = append(e.Fields, field{Name: "Release", Value: ev.ReleaseTitle})
+		e.Fields = append(e.Fields, field{Name: "Release", Value: capValue(ev.ReleaseTitle)})
 	}
 	if ev.Error != "" {
-		e.Fields = append(e.Fields, field{Name: "Error", Value: ev.Error})
+		e.Fields = append(e.Fields, field{Name: "Error", Value: capValue(ev.Error)})
 	}
 	if ev.Path != "" {
-		e.Fields = append(e.Fields, field{Name: "Path", Value: ev.Path})
+		e.Fields = append(e.Fields, field{Name: "Path", Value: capValue(ev.Path)})
 	}
 
 	body, err := json.Marshal(map[string]any{"embeds": []embed{e}})
