@@ -297,18 +297,19 @@ func TestStuckImportShowsReason(t *testing.T) {
 		t.Fatal("episode 4 not in series detail")
 	}
 
-	// The grab history carries the same reason.
+	// History records lifecycle moments, not live trouble: an import failure
+	// stays out of it (#111), owned by the stuck status and the queue instead.
 	var hist struct {
 		Events []struct {
-			Status    string `json:"status"`
-			LastError string `json:"last_error"`
+			Status string `json:"status"`
+			Detail string `json:"detail"`
 		} `json:"events"`
 	}
 	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/grabs", seriesID), &hist); code != http.StatusOK {
 		t.Fatalf("GET grabs = %d, want 200", code)
 	}
-	if len(hist.Events) != 1 || hist.Events[0].LastError == "" {
-		t.Errorf("grab events = %+v, want one event carrying last_error", hist.Events)
+	if len(hist.Events) != 1 || hist.Events[0].Status != "grabbed" {
+		t.Errorf("grab events = %+v, want only the grabbed event while stuck", hist.Events)
 	}
 
 	// The path-mapping gap is fixed: the same scan now imports and the reason clears.

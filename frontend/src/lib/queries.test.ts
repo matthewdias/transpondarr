@@ -1,6 +1,9 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
+  ACTIVITY_QUEUE_POLL_MS,
+  activityHistoryQuery,
+  activityQueueQuery,
   authStatusQuery,
   browseSeasonQuery,
   grabsQuery,
@@ -52,8 +55,26 @@ describe("query key factories", () => {
       settingsQuery(),
       jobsQuery(),
       browseSeasonQuery({ season: "summer", year: 2026 }),
+      activityQueueQuery(),
+      activityHistoryQuery(),
     ].map((q) => q.queryKey[0]);
     expect(new Set(roots).size).toBe(roots.length);
+  });
+
+  it("polls the activity queue, since live client state goes stale on its own", () => {
+    expect(activityQueueQuery().refetchInterval).toBe(ACTIVITY_QUEUE_POLL_MS);
+    expect(ACTIVITY_QUEUE_POLL_MS).toBe(15 * 1000);
+  });
+
+  it("pages history by the server cursor and stops when it runs out", () => {
+    const q = activityHistoryQuery();
+    expect(q.initialPageParam).toBe("");
+    const page = (next_cursor?: string) => ({
+      events: [],
+      ...(next_cursor ? { next_cursor } : {}),
+    });
+    expect(q.getNextPageParam(page("abc"), [page("abc")], "", [])).toBe("abc");
+    expect(q.getNextPageParam(page(), [page()], "", [])).toBeUndefined();
   });
 
   it("polls job status, since it is telemetry that goes stale on its own", () => {

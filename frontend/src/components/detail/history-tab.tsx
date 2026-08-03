@@ -1,19 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
-  Check,
   ChevronDown,
   ChevronRight,
-  CircleX,
-  Download,
-  FolderClock,
   History,
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ApiError, api, type BlocklistEntry, type GrabEvent } from "@/lib/api";
+import { ApiError, api, type BlocklistEntry } from "@/lib/api";
+import { GrabEventRow } from "@/components/grab-event-row";
 import { blocklistQuery, grabsQuery } from "@/lib/queries";
 import { countdownOrDate, plural, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -26,33 +23,6 @@ import {
   ItemGroup,
 } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
-
-function present(event: GrabEvent) {
-  switch (event.status) {
-    case "imported":
-      return { verb: "Imported", icon: Check, tone: "bg-have-weak text-have" };
-    case "import_deferred":
-      return {
-        verb: "Downloaded (batch)",
-        icon: FolderClock,
-        tone: "bg-panel-2 text-muted-foreground",
-      };
-    case "failed":
-      return {
-        verb: "Failed",
-        icon: CircleX,
-        tone: "bg-destructive/15 text-destructive",
-      };
-    default:
-      return event.last_error
-        ? {
-            verb: "Import blocked",
-            icon: TriangleAlert,
-            tone: "bg-destructive/15 text-destructive",
-          }
-        : { verb: "Downloading", icon: Download, tone: "bg-dl-weak text-dl" };
-  }
-}
 
 export function HistoryTab({
   seriesId,
@@ -125,7 +95,7 @@ export function HistoryTab({
       ) : (
         <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
           {events.map((e) => (
-            <HistoryRow key={e.id} event={e} />
+            <GrabEventRow key={e.id} event={e} />
           ))}
         </ItemGroup>
       )}
@@ -357,33 +327,4 @@ function blockWindow(entry: BlocklistEntry): string {
   if (!entry.blocked_until) return "Blocked permanently";
   if (!entry.active) return `Block expired ${timeAgo(entry.blocked_until)}`;
   return `Unblocks ${countdownOrDate(entry.blocked_until)}`;
-}
-
-export function HistoryRow({ event }: { event: GrabEvent }) {
-  const { verb, icon: Icon, tone } = present(event);
-  return (
-    <Item className="gap-3">
-      <ItemMedia>
-        <span className={cn("grid size-8 place-items-center rounded-lg", tone)}>
-          <Icon className="size-4" />
-        </span>
-      </ItemMedia>
-      <ItemContent className="min-w-0 gap-0.5">
-        <div className="text-sm font-medium">
-          {verb} · Episode {event.item_number}
-        </div>
-        <div className="line-clamp-1 font-mono text-[12px] text-faint">
-          {event.release_title}
-        </div>
-        {event.last_error && (
-          <div className="line-clamp-2 text-[12px] text-destructive">
-            {event.last_error}
-          </div>
-        )}
-      </ItemContent>
-      <ItemActions>
-        <span className="text-xs text-faint">{timeAgo(event.created_at)}</span>
-      </ItemActions>
-    </Item>
-  );
 }

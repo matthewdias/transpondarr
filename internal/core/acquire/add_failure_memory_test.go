@@ -77,7 +77,7 @@ func TestManualGrabRemembersNothing(t *testing.T) {
 		rel.DownloadURL: fmt.Errorf("%w: 404 fetching the torrent", download.ErrBadRelease),
 	}
 
-	_, err := h.svc.Grab(context.Background(),
+	_, err := h.svc.Grab(context.Background(), 1,
 		decide.Candidate{Release: rel, Items: []int{3}},
 		[]domain.WantedItem{{ID: 1, Kind: domain.KindEpisode, Number: 3}}, false)
 	if !errors.Is(err, acquire.ErrDownloadAdd) {

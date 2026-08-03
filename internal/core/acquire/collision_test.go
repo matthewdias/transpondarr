@@ -93,7 +93,7 @@ func TestManualGrabIgnoresAnInFlightClaim(t *testing.T) {
 		Matched: true, Items: []int{3},
 	}
 	want := []domain.WantedItem{{ID: items[0].ID, Kind: domain.KindEpisode, Number: 3}}
-	if _, err := h.svc.Grab(ctx, cand, want, false); err != nil {
+	if _, err := h.svc.Grab(ctx, 1, cand, want, false); err != nil {
 		t.Fatalf("manual Grab refused while automation held the claim: %v", err)
 	}
 

@@ -48,4 +48,5 @@ func registerRoutes(api huma.API, deps routeDeps) {
 	registerSettingsRoutes(api, deps)
 	registerProfileRoutes(api, deps)
 	registerBlocklistRoutes(api, deps)
+	registerActivityRoutes(api, deps)
 }

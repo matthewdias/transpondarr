@@ -140,8 +140,8 @@ type grabEventDTO struct {
 	ItemNumber   int    `json:"item_number"`
 	ReleaseTitle string `json:"release_title"`
 	InfoHash     string `json:"infohash"`
-	Status       string `json:"status" doc:"grabbed, imported, import_deferred, or failed"`
-	LastError    string `json:"last_error,omitempty" doc:"Why the last import attempt failed, while still grabbed"`
+	Status       string `json:"status" enum:"grabbed,imported,import_deferred,failed"`
+	Detail       string `json:"detail,omitempty" doc:"Why a failed event failed"`
 	CreatedAt    string `json:"created_at"`
 }
 
@@ -486,33 +486,23 @@ func (h *seriesHandler) listGrabs(ctx context.Context, in *seriesGrabsInput) (*s
 		return nil, err
 	}
 
-	// Map wanted-item id → episode number so events can name their episode.
-	itemRows, err := h.store.Q.ListWantedItems(ctx, series.ID)
+	events, err := h.store.Q.ListSeriesGrabEvents(ctx, series.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load wanted items", err)
-	}
-	numberByItem := make(map[int64]int, len(itemRows))
-	for _, it := range itemRows {
-		numberByItem[it.ID] = int(it.Number.Int64)
-	}
-
-	grabRows, err := h.store.Q.ListGrabsBySeries(ctx, series.ID)
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load grabs", err)
+		return nil, huma.Error500InternalServerError("failed to load grab history", err)
 	}
 
 	out := &seriesGrabsOutput{}
 	out.Body.Series = series.Title
-	out.Body.Events = make([]grabEventDTO, 0, len(grabRows))
-	for _, g := range grabRows {
+	out.Body.Events = make([]grabEventDTO, 0, len(events))
+	for _, e := range events {
 		out.Body.Events = append(out.Body.Events, grabEventDTO{
-			ID:           g.ID,
-			ItemNumber:   numberByItem[g.WantedItemID],
-			ReleaseTitle: g.ReleaseTitle,
-			InfoHash:     g.InfoHash,
-			Status:       g.Status,
-			LastError:    g.LastError.String,
-			CreatedAt:    g.CreatedAt,
+			ID:           e.ID,
+			ItemNumber:   int(e.ItemNumber),
+			ReleaseTitle: e.ReleaseTitle,
+			InfoHash:     e.InfoHash,
+			Status:       e.Event,
+			Detail:       e.Detail,
+			CreatedAt:    e.CreatedAt,
 		})
 	}
 	return out, nil

@@ -38,7 +38,7 @@ func TestGrabRecordsOneGrabPerCoveredItem(t *testing.T) {
 	id := seedSeries(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	res, err := svc.Grab(context.Background(), m.Candidates[0], m.Items, false)
+	res, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false)
 	if err != nil {
 		t.Fatalf("Grab: %v", err)
 	}
@@ -58,6 +58,52 @@ func TestGrabRecordsOneGrabPerCoveredItem(t *testing.T) {
 	}
 }
 
+// A grab appends one grabbed event per covered item, giving history rows the
+// upsert would otherwise erase on re-grab.
+func TestGrabAppendsOneEventPerCoveredItem(t *testing.T) {
+	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
+		{Title: "[Batchers] Placeholder Saga S1 (01-02) [1080p][Batch]",
+			DownloadURL: "magnet:?xt=urn:btih:ab12", Seeders: 40},
+	}}
+	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashbatch", Outcome: download.AddSuccess}}
+	st := coretest.NewStore(t)
+	svc, reg := newService(t, st, idx, fakeTitles{})
+	reg.SetDownload(dl)
+	id := seedSeries(t, st, "Placeholder Saga", 12)
+
+	m := grabMatch(t, svc, id)
+	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); err != nil {
+		t.Fatalf("Grab: %v", err)
+	}
+
+	events, err := st.Q.ListSeriesGrabEvents(context.Background(), id)
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("recorded %d events, want 2", len(events))
+	}
+	numbers := map[int64]bool{}
+	for _, e := range events {
+		if e.Event != "grabbed" {
+			t.Errorf("event = %s, want grabbed", e.Event)
+		}
+		if e.SeriesID != id || e.InfoHash != "hashbatch" || e.ItemKind != "episode" {
+			t.Errorf("event row = %+v, want series %d / hashbatch / episode", e, id)
+		}
+		if e.ReleaseTitle != "[Batchers] Placeholder Saga S1 (01-02) [1080p][Batch]" {
+			t.Errorf("release title = %q", e.ReleaseTitle)
+		}
+		if e.WantedItemID == 0 {
+			t.Errorf("event has zero wanted_item_id: %+v", e)
+		}
+		numbers[e.ItemNumber] = true
+	}
+	if !numbers[1] || !numbers[2] {
+		t.Errorf("event item numbers = %v, want 1 and 2", numbers)
+	}
+}
+
 // The download client is handed the configured category, which is what makes
 // Transpondarr's torrents identifiable in the client UI.
 func TestGrabAddsWithConfiguredCategory(t *testing.T) {
@@ -72,7 +118,7 @@ func TestGrabAddsWithConfiguredCategory(t *testing.T) {
 	id := seedSeries(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	if _, err := svc.Grab(context.Background(), m.Candidates[0], m.Items, true); err != nil {
+	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, true); err != nil {
 		t.Fatalf("Grab: %v", err)
 	}
 	if len(dl.Adds) != 1 {
@@ -96,7 +142,7 @@ func TestGrabDownloadAddFailureRecordsNothing(t *testing.T) {
 	id := seedSeries(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	if _, err := svc.Grab(context.Background(), m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrDownloadAdd) {
+	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrDownloadAdd) {
 		t.Fatalf("Grab error = %v, want ErrDownloadAdd", err)
 	}
 	grabs, _ := st.Q.ListGrabsBySeries(context.Background(), id)
@@ -116,7 +162,7 @@ func TestGrabWithoutDownloadClient(t *testing.T) {
 	id := seedSeries(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	if _, err := svc.Grab(context.Background(), m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrNoDownloadClient) {
+	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrNoDownloadClient) {
 		t.Fatalf("Grab error = %v, want ErrNoDownloadClient", err)
 	}
 }

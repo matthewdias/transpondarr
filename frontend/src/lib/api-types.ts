@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/api/v1/activity/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Recent grab and import events across the library, newest first */
+        get: operations["list-activity-history"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/activity/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every in-flight grab across the library, with live client state */
+        get: operations["get-activity-queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/blocklist": {
         parameters: {
             query?: never;
@@ -511,6 +545,44 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        ActivityEventDTO: {
+            created_at: string;
+            /** @description Why a failed event failed */
+            detail?: string;
+            /** Format: int64 */
+            id: number;
+            infohash: string;
+            /** Format: int64 */
+            item_number: number;
+            release_title: string;
+            /** Format: int64 */
+            series_id: number;
+            series_title: string;
+            /** @enum {string} */
+            status: "grabbed" | "imported" | "import_deferred" | "failed";
+        };
+        ActivityHistoryOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ActivityHistoryOutputBody.json
+             */
+            readonly $schema?: string;
+            events: components["schemas"]["ActivityEventDTO"][];
+            /** @description Absent on the last page */
+            next_cursor?: string;
+        };
+        ActivityQueueOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ActivityQueueOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description False when the download client is missing or did not answer; rows then carry grab state only */
+            client_ok: boolean;
+            items: components["schemas"]["QueueItemDTO"][];
+        };
         AddSeriesInputBody: {
             /**
              * Format: uri
@@ -840,16 +912,16 @@ export interface components {
         };
         GrabEventDTO: {
             created_at: string;
+            /** @description Why a failed event failed */
+            detail?: string;
             /** Format: int64 */
             id: number;
             infohash: string;
             /** Format: int64 */
             item_number: number;
-            /** @description Why the last import attempt failed, while still grabbed */
-            last_error?: string;
             release_title: string;
-            /** @description grabbed, imported, import_deferred, or failed */
-            status: string;
+            /** @enum {string} */
+            status: "grabbed" | "imported" | "import_deferred" | "failed";
         };
         GrabSeriesInputBody: {
             /**
@@ -1024,6 +1096,29 @@ export interface components {
              */
             series_count: number;
             sub_pref: string;
+        };
+        QueueItemDTO: {
+            /**
+             * @description Live torrent state; absent when the client is unreachable
+             * @enum {string}
+             */
+            client_state?: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "unknown";
+            created_at: string;
+            /** Format: int64 */
+            id: number;
+            /** @description Why the completed download cannot import (stuck rows) */
+            import_error?: string;
+            infohash: string;
+            /** Format: int64 */
+            item_number: number;
+            /** Format: double */
+            progress?: number;
+            release_title: string;
+            /** Format: int64 */
+            series_id: number;
+            series_title: string;
+            /** @enum {string} */
+            status: "downloading" | "stuck" | "deferred";
         };
         ReleaseDTO: {
             download_url: string;
@@ -1279,6 +1374,69 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "list-activity-history": {
+        parameters: {
+            query?: {
+                /** @description Events per page */
+                limit?: number;
+                /** @description Opaque cursor from the previous page's next_cursor */
+                cursor?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityHistoryOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-activity-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityQueueOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "get-blocklist-summary": {
         parameters: {
             query?: never;

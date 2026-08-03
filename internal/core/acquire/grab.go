@@ -51,7 +51,7 @@ func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Cand
 		return GrabResult{}, fmt.Errorf("%w: settled since the pass read them", errItemsTaken)
 	}
 
-	res, err := s.Grab(ctx, cand, items, false)
+	res, err := s.Grab(ctx, seriesID, cand, items, false)
 	if err == nil || !errors.Is(err, download.ErrBadRelease) || s.blocklist == nil {
 		return res, err
 	}
@@ -105,8 +105,9 @@ func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
 // must not be refused (PR #57), so enforcement belongs to the sweep, which
 // checks Eligible before calling. It takes an unconditional claim for the same
 // reason — the claim exists to make automation yield to a grab in flight, never
-// to gate one.
-func (s *Service) Grab(ctx context.Context, cand decide.Candidate, items []domain.WantedItem, paused bool) (GrabResult, error) {
+// to gate one. seriesID must be the series the items belong to — nothing
+// cross-checks it, and history events are recorded under it.
+func (s *Service) Grab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem, paused bool) (GrabResult, error) {
 	dl := s.clients.Download()
 	if dl == nil {
 		return GrabResult{}, ErrNoDownloadClient
@@ -127,8 +128,10 @@ func (s *Service) Grab(ctx context.Context, cand decide.Candidate, items []domai
 	}
 
 	itemID := make(map[int]int64, len(items))
+	itemKind := make(map[int]domain.WantedKind, len(items))
 	for _, it := range items {
 		itemID[it.Number] = it.ID
+		itemKind[it.Number] = it.Kind
 	}
 
 	tx, err := s.store.DB.BeginTx(ctx, nil)
@@ -154,6 +157,18 @@ func (s *Service) Grab(ctx context.Context, cand decide.Candidate, items []domai
 			Status:       statusGrabbed,
 		}); err != nil {
 			return GrabResult{}, fmt.Errorf("record grab for item %d: %w", n, err)
+		}
+		// Same tx as the grab row: the history row and the state it explains are atomic.
+		if err := q.AppendGrabEvent(ctx, db.AppendGrabEventParams{
+			SeriesID:     seriesID,
+			WantedItemID: id,
+			ItemNumber:   int64(n),
+			ItemKind:     string(itemKind[n]),
+			InfoHash:     res.Hash,
+			ReleaseTitle: cand.Release.Title,
+			Event:        statusGrabbed,
+		}); err != nil {
+			return GrabResult{}, fmt.Errorf("record grab event for item %d: %w", n, err)
 		}
 		grabbed = append(grabbed, n)
 	}

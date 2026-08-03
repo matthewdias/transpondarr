@@ -155,7 +155,7 @@ func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*
 	}
 
 	// Eligibility is reported, never enforced, on a manual grab (PR #57).
-	res, err := h.acquire.Grab(ctx, *chosen, m.Items, in.Body.Paused)
+	res, err := h.acquire.Grab(ctx, in.ID, *chosen, m.Items, in.Body.Paused)
 	if err != nil {
 		return nil, acquireHTTPError(err)
 	}
