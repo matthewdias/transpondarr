@@ -4,7 +4,7 @@
 //
 //	{
 //	  "application": "transpondarr",
-//	  "event": "grabbed" | "imported" | "import_stuck" | "grab_failed" | "series_added" | "test",
+//	  "event": "grabbed" | "imported" | "import_stuck" | "grab_failed" | "series_added" | "rehearsal" | "test",
 //	  "series_title": "…",
 //	  "item_number": 0,
 //	  "release_title": "…",

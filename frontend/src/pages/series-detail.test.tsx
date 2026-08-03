@@ -235,12 +235,15 @@ describe("PinnedGroupChip", () => {
 });
 
 describe("MonitoringToggle", () => {
-  function renderToggle(monitored: boolean, automationEnabled: boolean) {
+  function renderToggle(
+    monitored: boolean,
+    automationMode: "off" | "notify_only" | "on",
+  ) {
     return render(
       <MemoryRouter>
         <MonitoringToggle
           monitored={monitored}
-          automationEnabled={automationEnabled}
+          automationMode={automationMode}
           onToggle={() => {}}
         />
       </MemoryRouter>,
@@ -248,7 +251,7 @@ describe("MonitoringToggle", () => {
   }
 
   it("lets the switch speak for itself while automation is on", () => {
-    renderToggle(true, true);
+    renderToggle(true, "on");
     expect(screen.getByRole("switch", { name: /monitor/i })).toBeChecked();
     expect(screen.getByText("Monitored")).toBeInTheDocument();
     expect(screen.queryByText(/automation is off/i)).not.toBeInTheDocument();
@@ -258,13 +261,20 @@ describe("MonitoringToggle", () => {
   // makes that label a promise the daemon is not keeping -- say so where the
   // promise is made rather than only in Settings.
   it("flags the global kill switch on a monitored series", () => {
-    renderToggle(true, false);
+    renderToggle(true, "off");
     const note = screen.getByRole("link", { name: /automation is off/i });
     expect(note).toHaveAttribute("href", "/settings");
   });
 
+  // Notify-only keeps the promise half-made: searched and reported, not grabbed.
+  it("flags a notify-only rehearsal on a monitored series", () => {
+    renderToggle(true, "notify_only");
+    const note = screen.getByRole("link", { name: /notify-only rehearsal/i });
+    expect(note).toHaveAttribute("href", "/settings");
+  });
+
   it("stays quiet on an unmonitored series, which the switch already explains", () => {
-    renderToggle(false, false);
+    renderToggle(false, "off");
     expect(screen.getByText("Unmonitored")).toBeInTheDocument();
     expect(screen.queryByText(/automation is off/i)).not.toBeInTheDocument();
   });

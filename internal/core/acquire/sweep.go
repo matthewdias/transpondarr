@@ -163,7 +163,13 @@ func grabbableItems(sweep []sweepItem) []domain.WantedItem {
 // the earliest moment a held release becomes grabbable (zero when none is held).
 // source names the entry point that drove it — the sweep or the feed poll — so a
 // log line says which of the two acted.
+//
+// In notify-only (#116) the walk is the same walk — the one decision layer both
+// entry points share — but every take dispatches a rehearsal event instead of
+// grabbing, and the count returned is 0: nothing settled, so counting would-grabs
+// would make the cadence re-decide the same items every tick.
 func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source string) (int, time.Time, error) {
+	notifyOnly := s.cfg.NotifyOnly()
 	airs := make(map[int]time.Time, len(sweep))
 	for _, it := range sweep {
 		if !it.airsAt.IsZero() {
@@ -187,6 +193,18 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			// long closed, when a batch's anchor is its newest episode. Deliberate:
 			// taking an old episode separately and the batch later is worse.
 			markCovered(covered, c.Items)
+			if notifyOnly {
+				s.dispatchRehearsal(ctx, series, c.Items, c.Release.Title,
+					"held for pinned group until "+store.FormatTimestamp(until))
+			}
+			continue
+		}
+		if notifyOnly {
+			s.log.Info("rehearsal: would have grabbed a release",
+				"source", source, "series", series.ID, "release", c.Release.Title, "items", c.Items)
+			s.dispatchRehearsal(ctx, series, c.Items, c.Release.Title, "")
+			markCovered(covered, c.Items)
+			grabbed++
 			continue
 		}
 		if _, err := s.AutoGrab(ctx, series.ID, c, m.Items); err != nil {
@@ -228,7 +246,59 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 		markCovered(covered, c.Items)
 		grabbed++
 	}
+	if notifyOnly {
+		// "Would have done nothing, and here's why" is the useful half of a
+		// rehearsal — but only the sweep's, which spent a search on this series;
+		// per-series silence is the feed page's normal state.
+		if source == "sweep" && grabbed == 0 && held.IsZero() {
+			s.rehearseNoAction(ctx, series, m, sweep)
+		}
+		return 0, held, nil
+	}
 	return grabbed, held, nil
+}
+
+// dispatchRehearsal reports one rehearsed decision (#116). An empty reason means
+// "would have grabbed"; otherwise the reason says why nothing would have been.
+func (s *Service) dispatchRehearsal(ctx context.Context, series db.Series, items []int, release, reason string) {
+	d := s.clients.Notify()
+	if d == nil {
+		return
+	}
+	item := 0
+	if len(items) == 1 {
+		item = items[0]
+	}
+	d.Dispatch(ctx, notify.Event{
+		Kind:         notify.KindRehearsal,
+		SeriesTitle:  series.Title,
+		ItemNumber:   item,
+		ReleaseTitle: release,
+		Error:        reason,
+	})
+}
+
+// rehearseNoAction reports a searched series the pass would have left alone,
+// blaming the best matched-but-refused candidate when there is one.
+func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, m Match, sweep []sweepItem) {
+	var wanted []int
+	for _, it := range sweep {
+		if it.grabbable {
+			wanted = append(wanted, it.number)
+		}
+	}
+	if len(wanted) == 0 {
+		return
+	}
+	release, reason := "", "no matching release found"
+	for _, c := range m.Candidates {
+		// Candidates are ranked, so the first refusal is the closest miss.
+		if c.Matched && len(c.Items) > 0 && !c.Eligible {
+			release, reason = c.Release.Title, c.IneligibleReason
+			break
+		}
+	}
+	s.dispatchRehearsal(ctx, series, wanted, release, "would have grabbed nothing: "+reason)
 }
 
 // writeSearchState records what the pass found. The write is guarded on the

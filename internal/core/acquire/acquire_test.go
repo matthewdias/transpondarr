@@ -36,6 +36,7 @@ func (f fakeTitles) TitleVariants(_ context.Context, id int64) ([]string, error)
 type fakeConfig struct {
 	category      string
 	automationOff bool
+	notifyOnly    bool
 	pinDelay      time.Duration
 }
 
@@ -47,6 +48,8 @@ func (f fakeConfig) DownloadCategory() string {
 }
 
 func (f fakeConfig) AutomationEnabled() bool { return !f.automationOff }
+
+func (f fakeConfig) NotifyOnly() bool { return f.notifyOnly }
 
 func (f fakeConfig) PinDelayDefault() time.Duration { return f.pinDelay }
 

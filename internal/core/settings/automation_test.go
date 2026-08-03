@@ -73,6 +73,51 @@ func TestAutomationPersistedOverrideWinsOverEnv(t *testing.T) {
 	}
 }
 
+// #116: the toggle carries a third state. The stored value stays one key whose
+// domain widened, so every legacy "true"/"false" — persisted or env — must keep
+// meaning what it always did.
+func TestAutomationModeParsing(t *testing.T) {
+	for _, tc := range []struct {
+		stored     string
+		want       AutomationMode
+		enabled    bool
+		notifyOnly bool
+	}{
+		{"on", AutomationOn, true, false},
+		{"off", AutomationOff, false, false},
+		{"notify_only", AutomationNotifyOnly, true, true},
+		{"true", AutomationOn, true, false},
+		{"false", AutomationOff, false, false},
+		{"yes-please", AutomationOff, false, false},
+	} {
+		svc := newServiceWith(t, &config.Config{}, map[string]string{keyAutomationEnabled: tc.stored})
+		if got := svc.Snapshot().Automation.Mode; got != tc.want {
+			t.Errorf("stored %q: mode = %q, want %q", tc.stored, got, tc.want)
+		}
+		if got := svc.AutomationEnabled(); got != tc.enabled {
+			t.Errorf("stored %q: AutomationEnabled = %t, want %t", tc.stored, got, tc.enabled)
+		}
+		if got := svc.NotifyOnly(); got != tc.notifyOnly {
+			t.Errorf("stored %q: NotifyOnly = %t, want %t", tc.stored, got, tc.notifyOnly)
+		}
+	}
+}
+
+// Notify-only through the env baseline, for installs configured entirely by env.
+func TestAutomationNotifyOnlyFromEnv(t *testing.T) {
+	svc := newServiceWith(t, &config.Config{AutomationEnabled: "notify_only"}, nil)
+	if !svc.AutomationEnabled() || !svc.NotifyOnly() {
+		t.Error("notify_only env baseline did not yield an enabled, notify-only service")
+	}
+}
+
+func TestUpdateAutomationRejectsUnknownMode(t *testing.T) {
+	svc := newServiceWith(t, &config.Config{}, nil)
+	if err := svc.UpdateAutomation(context.Background(), AutomationConfig{Mode: "loud"}); err == nil {
+		t.Error("an unknown automation mode was accepted")
+	}
+}
+
 // An unparseable value degrades to the default rather than failing startup: a
 // typo in one setting must not take the whole daemon down.
 func TestAutomationUnparseableValueDegradesToDefault(t *testing.T) {
@@ -112,7 +157,7 @@ func TestUpdateAutomationAppliesLive(t *testing.T) {
 	ctx := context.Background()
 	svc := newServiceWith(t, &config.Config{}, nil)
 
-	if err := svc.UpdateAutomation(ctx, AutomationConfig{Enabled: true, PinDelayHours: 6}); err != nil {
+	if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: AutomationOn, PinDelayHours: 6}); err != nil {
 		t.Fatalf("enable automation: %v", err)
 	}
 	if !svc.AutomationEnabled() {
@@ -122,10 +167,17 @@ func TestUpdateAutomationAppliesLive(t *testing.T) {
 		t.Errorf("pin delay = %v, want 6h", got)
 	}
 
-	if err := svc.UpdateAutomation(ctx, AutomationConfig{Enabled: false, PinDelayHours: 6}); err != nil {
+	if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: AutomationNotifyOnly, PinDelayHours: 6}); err != nil {
+		t.Fatalf("switch to notify-only: %v", err)
+	}
+	if !svc.AutomationEnabled() || !svc.NotifyOnly() {
+		t.Error("notify-only did not read as enabled-but-rehearsing on the next read")
+	}
+
+	if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: AutomationOff, PinDelayHours: 6}); err != nil {
 		t.Fatalf("disable automation: %v", err)
 	}
-	if svc.AutomationEnabled() {
+	if svc.AutomationEnabled() || svc.NotifyOnly() {
 		t.Error("automation still on after being disabled")
 	}
 }
@@ -143,7 +195,7 @@ func TestUpdateAutomationPersistsAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
-	if err := svc.UpdateAutomation(ctx, AutomationConfig{Enabled: true, PinDelayHours: 9}); err != nil {
+	if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: AutomationNotifyOnly, PinDelayHours: 9}); err != nil {
 		t.Fatalf("update automation: %v", err)
 	}
 
@@ -152,8 +204,8 @@ func TestUpdateAutomationPersistsAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("restart service: %v", err)
 	}
-	if !restarted.AutomationEnabled() {
-		t.Error("automation off after a restart; the save did not persist")
+	if !restarted.AutomationEnabled() || !restarted.NotifyOnly() {
+		t.Error("notify-only lost after a restart; the save did not persist")
 	}
 	if got := restarted.PinDelayDefault(); got != 9*time.Hour {
 		t.Errorf("pin delay after restart = %v, want 9h", got)
@@ -174,7 +226,7 @@ func TestUpdateAutomationClampsPinDelay(t *testing.T) {
 		{3_000_000, domain.MaxPinDelayHours * time.Hour},
 	} {
 		svc := newServiceWith(t, &config.Config{}, nil)
-		if err := svc.UpdateAutomation(ctx, AutomationConfig{PinDelayHours: tc.hours}); err != nil {
+		if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: AutomationOff, PinDelayHours: tc.hours}); err != nil {
 			t.Fatalf("update automation with %d hours: %v", tc.hours, err)
 		}
 		if got := svc.PinDelayDefault(); got != tc.want {
@@ -188,7 +240,7 @@ func TestUpdateAutomationClampsPinDelay(t *testing.T) {
 func TestSnapshotCarriesAutomation(t *testing.T) {
 	svc := newServiceWith(t, &config.Config{AutomationEnabled: "true", PinDelayHours: "12"}, nil)
 	got := svc.Snapshot().Automation
-	if want := (AutomationConfig{Enabled: true, PinDelayHours: 12}); got != want {
+	if want := (AutomationConfig{Mode: AutomationOn, PinDelayHours: 12}); got != want {
 		t.Errorf("snapshot automation = %+v, want %+v", got, want)
 	}
 }

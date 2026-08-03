@@ -39,8 +39,8 @@ type librarySettingsDTO struct {
 }
 
 type automationSettingsDTO struct {
-	Enabled       bool `json:"enabled"`
-	PinDelayHours int  `json:"pin_delay_hours"`
+	Mode          string `json:"mode" enum:"off,notify_only,on" doc:"notify_only rehearses: search and decide, notify, never grab"`
+	PinDelayHours int    `json:"pin_delay_hours"`
 }
 
 type generalSettingsDTO struct {
@@ -65,6 +65,7 @@ type notifyAdapterDTO struct {
 	OnStuck       bool   `json:"on_stuck"`
 	OnGrabFailed  bool   `json:"on_grab_failed"`
 	OnSeriesAdded bool   `json:"on_series_added"`
+	OnRehearsal   bool   `json:"on_rehearsal"`
 }
 
 type ntfySettingsDTO struct {
@@ -77,6 +78,7 @@ type ntfySettingsDTO struct {
 	OnStuck       bool   `json:"on_stuck"`
 	OnGrabFailed  bool   `json:"on_grab_failed"`
 	OnSeriesAdded bool   `json:"on_series_added"`
+	OnRehearsal   bool   `json:"on_rehearsal"`
 }
 
 type notificationsSettingsDTO struct {
@@ -119,7 +121,7 @@ func libraryDTO(c settings.LibraryConfig) librarySettingsDTO {
 }
 
 func automationDTO(c settings.AutomationConfig) automationSettingsDTO {
-	return automationSettingsDTO{Enabled: c.Enabled, PinDelayHours: c.PinDelayHours}
+	return automationSettingsDTO{Mode: string(c.Mode), PinDelayHours: c.PinDelayHours}
 }
 
 func notifyAdapterDTOFrom(url string, ev settings.NotifyEvents) notifyAdapterDTO {
@@ -131,6 +133,7 @@ func notifyAdapterDTOFrom(url string, ev settings.NotifyEvents) notifyAdapterDTO
 		OnStuck:       ev.Stuck,
 		OnGrabFailed:  ev.GrabFailed,
 		OnSeriesAdded: ev.SeriesAdded,
+		OnRehearsal:   ev.Rehearsal,
 	}
 }
 
@@ -148,6 +151,7 @@ func notificationsDTO(c settings.NotifyConfig) notificationsSettingsDTO {
 			OnStuck:       c.NtfyEvents.Stuck,
 			OnGrabFailed:  c.NtfyEvents.GrabFailed,
 			OnSeriesAdded: c.NtfyEvents.SeriesAdded,
+			OnRehearsal:   c.NtfyEvents.Rehearsal,
 		},
 	}
 }
@@ -198,13 +202,13 @@ type libraryInput struct {
 	}
 }
 
-// Both fields are required, unlike the sections above: a bool and an int have no
-// "unset" encoding, so omitempty would make "leave the delay alone" and "set it
-// to 0" the same request. The service clamps the hour count.
+// Both fields are required, unlike the sections above: the delay has no "unset"
+// encoding, so omitempty would make "leave the delay alone" and "set it to 0"
+// the same request. The service clamps the hour count.
 type automationInput struct {
 	Body struct {
-		Enabled       bool `json:"enabled"`
-		PinDelayHours int  `json:"pin_delay_hours" doc:"Global pinned-group wait; 0 disables waiting"`
+		Mode          string `json:"mode" enum:"off,notify_only,on" doc:"notify_only rehearses: search and decide, notify, never grab"`
+		PinDelayHours int    `json:"pin_delay_hours" doc:"Global pinned-group wait; 0 disables waiting"`
 	}
 }
 
@@ -218,6 +222,7 @@ type notifyAdapterInput struct {
 	OnStuck       bool   `json:"on_stuck"`
 	OnGrabFailed  bool   `json:"on_grab_failed"`
 	OnSeriesAdded bool   `json:"on_series_added"`
+	OnRehearsal   bool   `json:"on_rehearsal"`
 }
 
 type ntfyInput struct {
@@ -229,6 +234,7 @@ type ntfyInput struct {
 	OnStuck       bool   `json:"on_stuck"`
 	OnGrabFailed  bool   `json:"on_grab_failed"`
 	OnSeriesAdded bool   `json:"on_series_added"`
+	OnRehearsal   bool   `json:"on_rehearsal"`
 }
 
 // One body serves the save and all three per-adapter tests, so the UI sends the
@@ -467,7 +473,7 @@ func (h *settingsHandler) updateLibrary(ctx context.Context, in *libraryInput) (
 
 func (h *settingsHandler) updateAutomation(ctx context.Context, in *automationInput) (*settingsOutput, error) {
 	if err := h.settings.UpdateAutomation(ctx, settings.AutomationConfig{
-		Enabled:       in.Body.Enabled,
+		Mode:          settings.AutomationMode(in.Body.Mode),
 		PinDelayHours: in.Body.PinDelayHours,
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to save automation settings", err)
@@ -483,6 +489,7 @@ func notifyConfigFrom(in *notificationsInput) settings.NotifyConfig {
 			Stuck:       a.OnStuck,
 			GrabFailed:  a.OnGrabFailed,
 			SeriesAdded: a.OnSeriesAdded,
+			Rehearsal:   a.OnRehearsal,
 		}
 	}
 	return settings.NotifyConfig{
@@ -499,6 +506,7 @@ func notifyConfigFrom(in *notificationsInput) settings.NotifyConfig {
 			Stuck:       in.Body.Ntfy.OnStuck,
 			GrabFailed:  in.Body.Ntfy.OnGrabFailed,
 			SeriesAdded: in.Body.Ntfy.OnSeriesAdded,
+			Rehearsal:   in.Body.Ntfy.OnRehearsal,
 		},
 	}
 }

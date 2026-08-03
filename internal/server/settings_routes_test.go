@@ -6,8 +6,8 @@ import (
 )
 
 type automationJSON struct {
-	Enabled       bool `json:"enabled"`
-	PinDelayHours int  `json:"pin_delay_hours"`
+	Mode          string `json:"mode"`
+	PinDelayHours int    `json:"pin_delay_hours"`
 }
 
 type settingsJSON struct {
@@ -29,29 +29,33 @@ func getAutomation(t *testing.T, h *harness) automationJSON {
 func TestAutomationSettingsRoundTrip(t *testing.T) {
 	h := newHarness(t, nil, nil)
 
-	if got := getAutomation(t, h); got.Enabled {
+	if got := getAutomation(t, h); got.Mode != "off" {
 		t.Errorf("automation = %+v on a fresh install, want off until configured", got)
 	}
 
-	var saved settingsJSON
-	code := do(t, h, http.MethodPut, "/api/v1/settings/automation",
-		map[string]any{"enabled": true, "pin_delay_hours": 6}, &saved)
-	if code != http.StatusOK {
-		t.Fatalf("PUT /settings/automation = %d, want 200", code)
+	for _, mode := range []string{"on", "notify_only", "off"} {
+		var saved settingsJSON
+		code := do(t, h, http.MethodPut, "/api/v1/settings/automation",
+			map[string]any{"mode": mode, "pin_delay_hours": 6}, &saved)
+		if code != http.StatusOK {
+			t.Fatalf("PUT /settings/automation mode=%s = %d, want 200", mode, code)
+		}
+		if want := (automationJSON{Mode: mode, PinDelayHours: 6}); saved.Automation != want {
+			t.Errorf("save returned %+v, want %+v", saved.Automation, want)
+		}
+		if got := getAutomation(t, h); got != (automationJSON{Mode: mode, PinDelayHours: 6}) {
+			t.Errorf("automation after save = %+v, want mode %s with a 6h pin delay", got, mode)
+		}
 	}
-	if want := (automationJSON{Enabled: true, PinDelayHours: 6}); saved.Automation != want {
-		t.Errorf("save returned %+v, want %+v", saved.Automation, want)
-	}
-	if got := getAutomation(t, h); got != (automationJSON{Enabled: true, PinDelayHours: 6}) {
-		t.Errorf("automation after save = %+v, want it enabled with a 6h pin delay", got)
-	}
+}
 
-	if code := do(t, h, http.MethodPut, "/api/v1/settings/automation",
-		map[string]any{"enabled": false, "pin_delay_hours": 6}, &saved); code != http.StatusOK {
-		t.Fatalf("PUT /settings/automation (disable) = %d, want 200", code)
-	}
-	if got := getAutomation(t, h); got.Enabled {
-		t.Error("automation still enabled after being turned off")
+// The mode is a closed enum: a typo'd client value must not silently become off.
+func TestAutomationSettingsRejectsUnknownMode(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	code := do(t, h, http.MethodPut, "/api/v1/settings/automation",
+		map[string]any{"mode": "loud", "pin_delay_hours": 0}, nil)
+	if code != http.StatusUnprocessableEntity {
+		t.Fatalf("PUT /settings/automation with an unknown mode = %d, want 422", code)
 	}
 }
 
@@ -66,7 +70,7 @@ func TestAutomationSettingsClampsPinDelay(t *testing.T) {
 	} {
 		var saved settingsJSON
 		if code := do(t, h, http.MethodPut, "/api/v1/settings/automation",
-			map[string]any{"enabled": true, "pin_delay_hours": tc.send}, &saved); code != http.StatusOK {
+			map[string]any{"mode": "on", "pin_delay_hours": tc.send}, &saved); code != http.StatusOK {
 			t.Fatalf("PUT /settings/automation with %d = %d, want 200", tc.send, code)
 		}
 		if saved.Automation.PinDelayHours != tc.want {

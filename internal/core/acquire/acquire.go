@@ -85,7 +85,10 @@ type Recorder interface {
 // the next sweep rather than the next restart.
 type Config interface {
 	DownloadCategory() string
+	// AutomationEnabled gates whether unattended work runs at all; NotifyOnly
+	// makes a run that does happen rehearse (#116): evaluate, notify, never grab.
 	AutomationEnabled() bool
+	NotifyOnly() bool
 	PinDelayDefault() time.Duration
 }
 

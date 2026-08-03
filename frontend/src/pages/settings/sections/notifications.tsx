@@ -20,6 +20,7 @@ type EventToggles = {
   on_stuck: boolean;
   on_grab_failed: boolean;
   on_series_added: boolean;
+  on_rehearsal: boolean;
 };
 
 const EVENT_ROWS: { key: keyof EventToggles; label: string; hint: string }[] = [
@@ -36,6 +37,11 @@ const EVENT_ROWS: { key: keyof EventToggles; label: string; hint: string }[] = [
     hint: "A download errored or vanished",
   },
   { key: "on_series_added", label: "Series added", hint: "A series was added" },
+  {
+    key: "on_rehearsal",
+    label: "Rehearsal",
+    hint: "What notify-only automation would have done",
+  },
 ];
 
 function toggles(t: EventToggles): EventToggles {
@@ -45,10 +51,11 @@ function toggles(t: EventToggles): EventToggles {
     on_stuck: t.on_stuck,
     on_grab_failed: t.on_grab_failed,
     on_series_added: t.on_series_added,
+    on_rehearsal: t.on_rehearsal,
   };
 }
 
-/** Five per-event switch rows, aria-labelled "<adapter> <event>". */
+/** Per-event switch rows, aria-labelled "<adapter> <event>". */
 function EventSwitches({
   adapter,
   value,

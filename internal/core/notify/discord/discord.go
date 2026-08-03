@@ -65,6 +65,8 @@ func look(k notify.Kind) (string, int) {
 		return "Grab failed", 0xE74C3C
 	case notify.KindSeriesAdded:
 		return "Series added", 0x3498DB
+	case notify.KindRehearsal:
+		return "Rehearsal", 0x95A5A6
 	default:
 		return "Test notification", 0x5865F2
 	}

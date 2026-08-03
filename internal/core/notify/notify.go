@@ -25,6 +25,10 @@ const (
 	KindImportStuck Kind = "import_stuck"
 	KindGrabFailed  Kind = "grab_failed"
 	KindSeriesAdded Kind = "series_added"
+	// KindRehearsal is a notify-only pass reporting what automation would have
+	// done (#116): ReleaseTitle set means "would have grabbed"; otherwise Error
+	// carries why nothing would have been.
+	KindRehearsal Kind = "rehearsal"
 )
 
 // Event is the one structured payload; adapters flatten it, emitters never do.

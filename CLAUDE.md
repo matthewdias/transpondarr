@@ -214,6 +214,19 @@ Behaviour changes are test-driven. Work red → green → refactor:
   `LastRssSyncReleaseInfo` shape. Two entry ids matter — the GUID is unreliable
   across Torznab implementations (Sonarr keys on the download URL for exactly
   that reason), and a feed publishing no dates dedupes on ids alone.
+- **The automation toggle is three-state (#116): `off` / `notify_only` / `on` —
+  one settings key (`automation.enabled`) whose value domain widened, so legacy
+  stored/env bools still parse.** Notify-only rehearses: both entry points run
+  the real decision walk in `grabPass`, but every take dispatches a `rehearsal`
+  notify event instead of grabbing, and the sweep also reports "would have
+  grabbed nothing" with the best refusal's reason (the feed stays silent there —
+  per-series silence is a feed page's normal state). A rehearsed pass returns a
+  grab count of 0 on purpose: nothing settled, so counting would-grabs would
+  make the cadence re-decide the same items every tick; the backoff ladder is
+  what paces repeat reports. `AutomationEnabled()` stays the run/don't-run gate
+  (true in notify-only) and `NotifyOnly()` is the rehearse switch; a manual "Run
+  now" bypasses only `off` — notify-only means nothing reaches the download
+  client, no matter who triggered the run.
 - **Periodic work goes on the job runner (`internal/core/jobs`), not a bare
   `go`.** Register by name with an interval in `main.go`; the runner owns panic
   containment, the "log failures only when `ctx.Err() == nil`" rule, and the

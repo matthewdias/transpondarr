@@ -48,7 +48,7 @@ func TestSweepObeysLiveAutomationToggle(t *testing.T) {
 		t.Fatalf("disabled sweep issued %d searches, want none", len(idx.Queries))
 	}
 
-	if err := cfg.UpdateAutomation(ctx, settings.AutomationConfig{Enabled: true}); err != nil {
+	if err := cfg.UpdateAutomation(ctx, settings.AutomationConfig{Mode: settings.AutomationOn}); err != nil {
 		t.Fatalf("enable automation: %v", err)
 	}
 	if err := svc.SweepOnce(ctx); err != nil {
@@ -61,7 +61,7 @@ func TestSweepObeysLiveAutomationToggle(t *testing.T) {
 		t.Fatal("sweep grabbed nothing after automation was enabled")
 	}
 
-	if err := cfg.UpdateAutomation(ctx, settings.AutomationConfig{Enabled: false}); err != nil {
+	if err := cfg.UpdateAutomation(ctx, settings.AutomationConfig{Mode: settings.AutomationOff}); err != nil {
 		t.Fatalf("disable automation: %v", err)
 	}
 	searches, adds := len(idx.Queries), len(dl.Adds)
