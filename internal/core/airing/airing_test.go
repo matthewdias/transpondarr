@@ -308,11 +308,8 @@ func TestSyncKeepsSearchCadenceWhenNothingIsFilled(t *testing.T) {
 	}
 }
 
-// AniList retains only a recent window of schedule records for a long-runner
-// (One Piece's first page is episodes 1123-1147), and a 1-based entry can lose
-// its early records outright (Vinland Saga season 1 starts at 23). A full fetch
-// therefore fills from 1: a schedule whose lowest number is not 1 means missing
-// records, not an offset season, since AniList sequel entries restart at 1.
+// A schedule whose lowest number is not 1 means AniList lost the early records,
+// not an offset season, so a full fetch fills from 1 rather than from that low.
 func TestFullFetchFillsFromOneBelowTheScheduleWindow(t *testing.T) {
 	st := coretest.NewStore(t)
 	seriesID := seedSeries(t, st, 100, 0)

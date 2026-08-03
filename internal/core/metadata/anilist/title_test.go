@@ -160,9 +160,8 @@ func TestGetTitleKeepsAPublishedCountOverTheSchedule(t *testing.T) {
 }
 
 // AniList retains only a recent window of schedule records for a null-count
-// long-runner (One Piece's first page is 1123-1147 against a next broadcast of
-// 1173), so the add materializes the whole run rather than that window — the
-// back catalogue is otherwise created by nothing at all.
+// long-runner, so the add materializes the whole run rather than that window —
+// the back catalogue is otherwise created by nothing at all.
 func TestGetTitleMaterializesALongRunnersWholeRun(t *testing.T) {
 	window := make([]int, 0, 25)
 	for n := 1123; n <= 1147; n++ {
@@ -174,7 +173,7 @@ func TestGetTitleMaterializesALongRunnersWholeRun(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, items, err := stubClient(srv.URL).GetTitle(context.Background(), 21)
+	_, items, err := stubClient(srv.URL).GetTitle(context.Background(), 207141)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}

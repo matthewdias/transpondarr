@@ -271,15 +271,15 @@ Behaviour changes are test-driven. Work red → green → refactor:
     schedule runs 2..13), which unconditional `max` would turn into a phantom item.
   - **A full fetch fills from 1, never from the schedule's own minimum.** In the
     wild a minimum above 1 means AniList lost the early records — a 24-episode
-    Vinland Saga whose schedule starts at 23, a 16-episode entry starting at 14 —
-    *not* an offset season: sampled sequel entries restart their numbering at 1
-    (24 of 25). Filling from the minimum would silently drop the run below it.
+    entry whose schedule starts at 23, a 16-episode one starting at 14 — *not* an
+    offset season: sampled sequel entries restart their numbering at 1 (24 of
+    25). Filling from the minimum would silently drop the run below it.
   - **A tail fetch fills only inside its own span**, being a partial view of the
     numbering, so it does not re-derive a back catalogue every pass.
 - **The in-band page is bounded; the next-broadcast floor is not.** AniList keeps
-  only a recent *window* of schedule records for a long-runner (One Piece's page
-  1 is episodes 1123-1147, not 1-25), so a null-count long-runner materializes
-  its whole run — ~1173 items — in the add's transaction. That is deliberate: it
+  only a recent *window* of schedule records for a long-runner — its first page
+  starts in the middle of the run, not at episode 1 — so a null-count long-runner
+  materializes its whole run in the add's transaction. That is deliberate: it
   is the same set the sync would reach for the tail, plus a back catalogue
   *nothing* creates today, and it costs no extra AniList requests, because the
   sweep spends one search per *series* regardless of item count. Numbers only —
