@@ -6,6 +6,42 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **A releasing title whose episode count AniList never publishes now adds with
+  its episodes.** Such a title previously created a series with *no* wanted
+  items and sat at `0 / 0` until a background pass caught up, because the add
+  asked only for the episode count — precisely the field that is null. AniList
+  exposes the broadcast schedule as a field on the title rather than a separate
+  query, so one page of it now rides along in the request the add already makes:
+  zero extra API calls, and the item set arrives immediately. Separately, the
+  schedule *skips* an episode when two share a broadcast slot — it reads 1, 3,
+  4 — so both the add and the background sync now fill the gaps rather than
+  transcribing, which is the only thing that creates an episode nothing else
+  ever claimed should exist. A filled-in episode has no air date (a normal state
+  here) and resets the series' search cadence, so it is looked for on the next
+  pass instead of waiting out an accumulated backoff.
+
+### Upgrade notes
+
+- **A long-running series already in your library will gain its full back
+  catalogue.** This affects monitored series whose AniList entry publishes no
+  episode count — in practice the very long ones (One Piece, Detective Conan,
+  Pokémon, Crayon Shin-chan). AniList keeps only a *recent window* of broadcast
+  records for these (One Piece's first page starts at episode 1123), so until
+  now everything below that window was created by nothing at all and the series
+  quietly tracked only its recent tail. On the next metadata refresh or airing
+  sync each one materializes its whole run — for One Piece, about 1,170 wanted
+  items in place of roughly 25.
+
+  Nothing is grabbed by that write, but the new items are wanted and searchable
+  immediately, so expect the series to read as far from complete and to stay in
+  the search queue while it drains. It costs no additional AniList requests, and
+  no additional indexer load per episode either: a sweep spends one search per
+  *series*, whatever its item count. If you would rather not track a long-runner's
+  back catalogue, unmonitor the series — an unmonitored series is skipped by both
+  the sweep and the airing sync.
+
 ## [0.5.0] — 2026-08-02
 
 Visibility: the release where unattended acquisition stops being silent. v0.4.0
