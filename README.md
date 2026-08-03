@@ -8,7 +8,8 @@ download client, and organizes the results into a media library.
 > series from AniList, and monitored episodes are searched, graded against your
 > quality profile, grabbed via qBittorrent, and hardlinked into a
 > Plex/Jellyfin-ready library. Automation ships off by default; flip it on in
-> Settings. Indexing is via Torznab/Prowlarr for now.
+> Settings, or set it to **notify-only** first to watch what it would grab
+> without grabbing anything. Indexing is via Torznab/Prowlarr for now.
 
 ## Why not just use Sonarr?
 
@@ -23,9 +24,14 @@ that lives on AniList/AniDB rather than TVDB.
 - **AniList-native metadata** — add series from AniList search, browse a seasonal
   discovery chart, and see upcoming episodes on an airing calendar keyed to
   Japanese broadcast times.
-- **Automated acquisition** — a scheduled sweep searches monitored series once
-  their episodes have aired, grabs eligible releases, and imports them; per-series
-  monitoring and a global on/off switch (off until you enable it).
+- **Automated acquisition** — recent-feed polling grabs new releases within
+  minutes of them appearing, and a scheduled sweep backs it up for everything
+  that already existed; per-series monitoring and a global off / notify-only / on
+  switch (off until you enable it). **Notify-only** rehearses the whole thing —
+  real searches and real decisions, reported rather than grabbed.
+- **Notifications and an activity feed** — Discord, generic webhook, and ntfy,
+  with per-event toggles and a test button each; an Activity page collects the
+  in-flight queue and the grab/import history across every series.
 - **Anime-aware quality profiles** — release group is the dominant axis, then
   resolution/source, dual audio, and sub preferences, with a score floor and hard
   excludes. A per-series **pinned group** can also mean *wait for* — hold new
@@ -45,10 +51,9 @@ that lives on AniList/AniDB rather than TVDB.
 **Planned** (tracked in the
 [milestones](https://github.com/matthewdias/transpondarr/milestones)):
 
-- Recent-feed polling, so new releases are grabbed within minutes of appearing
-  rather than on the next sweep (in flight).
-- Notifications (Discord, webhook, ntfy) and a global activity feed.
 - Batch/season-pack import, quality upgrades, and episode-targeted search.
+- Per-indexer category filtering, and feed-gap recovery for releases that scroll
+  off between polls.
 - Post-1.0: anime movies, AniList account sync (auto-monitor your Watching list),
   importing a pre-existing library, multiple indexers, and Sonarr-API
   compatibility for existing dashboard/mobile apps.

@@ -6,6 +6,105 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-08-02
+
+Visibility: the release where unattended acquisition stops being silent. v0.4.0
+made Transpondarr act on its own; this one tells you what it did — pushed to
+Discord, a webhook, or ntfy, and collected in an Activity feed — and lets you
+rehearse the whole thing first. Turn automation to **notify-only** and watch a
+week of real decisions across your library without a single byte reaching the
+download client.
+
+### Added
+
+- **Notifications, with Discord, generic-webhook, and ntfy adapters.** Once
+  acquisition runs unattended, silence is the default failure mode: a stuck
+  import, a failed grab, an episode landing — all of it previously visible only
+  by opening the UI. A new `Notifier` seam carries one structured event that
+  each adapter flattens natively: Discord to a colored embed with per-field
+  detail, the generic webhook to a documented JSON contract you can script
+  against, ntfy to title/priority/tags. ntfy is first-class rather than reached
+  through the generic webhook because its priority mapping *is* the feature —
+  a stuck import buzzes at high priority, an episode landing does not. Six
+  event kinds (grabbed, imported, import stuck, grab failed, series added, and
+  rehearsal), per-adapter per-event toggles, and a **test button per adapter**
+  so a config can be verified without waiting for a real event. Delivery is
+  fire-and-forget: a failing notifier logs and never blocks or fails the
+  pipeline that triggered it. A *manual* grab stays deliberately silent — you
+  were there.
+- **Notification-only mode: rehearse the sweep without grabbing.** The global
+  automation toggle grew a third state — off / notify-only / on. In notify-only
+  the sweep and feed poll run for real (search, decide, cadence, pinned-group
+  holds) and report what they *would* have taken, without recording a grab or
+  touching the download client. The negative half reports too, which is the
+  more useful half: no eligible candidate, held for a pinned group, refused by
+  the season-pack guard — each with its reason. A rehearsal is a firehose by
+  design, so ntfy maps it to low priority. Switching to `on` afterwards resets
+  every series' search cadence, because a rehearsal settles nothing and would
+  otherwise leave the library backed off for releases the feed has already
+  consumed.
+- **Activity page: the global download and import feed.** The placeholder is
+  now the answer to "what did automation do while I wasn't looking?" — a
+  **queue** of every in-flight grab across the library, joined with live
+  client-reported state, and a paginated **history feed** of grab and import
+  events, newest first. The queue surfaces paused, stalled, and checking per
+  row, which the derived status vocabulary could not express: a paused torrent
+  previously read as "Downloading" forever. With the download client
+  unconfigured or unreachable it degrades to grab state rather than erroring.
+- **Per-job "Run now" from the Background jobs card.** The runner's trigger has
+  been implemented and tested since v0.3.0 with no caller; it now has a button.
+  A manual run bypasses the automation kill switch on the same precedent that
+  governs manual search and grab — an explicit action is intent, not something
+  to gate — so the card confirms in words when a hand-triggered sweep will grab
+  for real. Every eligibility rule still applies, and a run in notify-only
+  rehearses like any other, so the mode's guarantee holds no matter who
+  triggered it. The trigger only queues, so the button never pretends to wait
+  for a result.
+- **Delete a series.** Anything added previously stayed forever, occupying the
+  library list and keeping the sweep searching. `DELETE /api/v1/series/{id}`
+  removes the series with its episodes, grab history, and blocklist memory in
+  one transaction, behind a confirmation that names what goes and what stays.
+  **Library files are never touched** — a decision, not an omission: deleting
+  media is a bigger call than deleting a tracking row. An optional flag also
+  clears the series' torrents from the download client; without it they are
+  left seeding.
+
+### Changed
+
+- **Breaking:** `PUT /api/v1/settings/automation` now takes `mode`
+  (`off` | `notify_only` | `on`) in place of the `enabled` boolean, and
+  `GET /api/v1/settings` reports it the same way — an old client body is
+  rejected. Stored values and `TRANSPONDARR_AUTOMATION_ENABLED` still accept
+  the old booleans, so no configuration needs migrating.
+- **A re-grab no longer erases the attempt before it.** The per-series History
+  tab now reads an append-only event log instead of the single current grab
+  row, so a completed lifecycle shows both "Grabbed" and "Imported" and a
+  replaced release keeps its record. "Import blocked" leaves history in the
+  process — it is live state, owned by the Episodes tab and the Activity
+  queue, not an event that happened at a point in time.
+
+### Fixed
+
+- **The Discovery page built 88 hidden year options on every render.** Radix
+  keeps a closed `Select`'s items mounted so the trigger can resolve its own
+  text, so the year picker's full 1940-onward range was constructed on every
+  render — about half the page's mount cost, for a dropdown that is rarely
+  opened. The items now render only while the menu is open.
+
+### Internal
+
+- **An append-only `grab_events` table** records the lifecycle the `grabs`
+  table structurally cannot: one row per wanted item, overwritten by the next
+  attempt. Events are written at the two convergence points — inside the grab
+  transaction, and as the importer settles — with the importer's writes
+  best-effort, because history must never wedge the pipeline. The migration
+  backfills from surviving grab rows so an upgrade does not start empty.
+- **The API's first pagination**, keyset-cursor over `(created_at, id)` with an
+  opaque cursor, set as the precedent for the endpoints that follow.
+- **The notification dispatcher fans out under `context.WithoutCancel`** with
+  its own timeout, so neither a request-scoped context nor a shutdown cancels
+  an in-flight send, and a hung endpoint cannot leak a goroutine.
+
 ## [0.4.0] — 2026-08-01
 
 Monitoring and scheduled search: the release where the monitored flag starts
@@ -334,7 +433,8 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/matthewdias/transpondarr/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/matthewdias/transpondarr/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/matthewdias/transpondarr/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/matthewdias/transpondarr/compare/v0.2.0...v0.2.1
