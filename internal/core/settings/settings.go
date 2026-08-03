@@ -340,10 +340,11 @@ func (s *Service) PinDelayDefault() time.Duration {
 }
 
 // parseMode and parseHours degrade a bad value to the zero default rather than
-// failing startup: one mistyped setting must not take the daemon down. Bool
-// spellings are the toggle's own pre-#116 stored values, so they stay valid.
+// failing startup: one mistyped setting must not take the daemon down. Bools are
+// the toggle's own pre-#116 values, and are lowercased with everything else so a
+// mode name is not the one spelling that is case-sensitive.
 func parseMode(v string, log *slog.Logger) AutomationMode {
-	switch t := strings.TrimSpace(v); AutomationMode(t) {
+	switch t := strings.ToLower(strings.TrimSpace(v)); AutomationMode(t) {
 	case AutomationOff, AutomationNotifyOnly, AutomationOn:
 		return AutomationMode(t)
 	default:
@@ -487,6 +488,12 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 // torn down: the jobs stay registered and read the switch per run, so disabling
 // and re-enabling are both restart-free. The clamped hour count is what gets
 // persisted, so a reload agrees with the live state rather than re-clamping.
+//
+// Switching *into* on also clears the search cadence, in the same transaction
+// (#116). A notify-only pass settles nothing, so it walks the backoff ladder to
+// its daily cap, and the feed's one-shot dedupe has already consumed whatever it
+// rehearsed — without the reset, "flip to on and it grabs" would wait out a
+// backoff the rehearsal itself accrued.
 func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) error {
 	switch in.Mode {
 	case AutomationOff, AutomationNotifyOnly, AutomationOn:
@@ -497,10 +504,19 @@ func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) err
 	s.updateMu.Lock()
 	defer s.updateMu.Unlock()
 
+	resume := in.Mode == AutomationOn && s.cur.Load().automationMode != AutomationOn
 	hours := int(domain.ClampPinDelayHours(int64(in.PinDelayHours)))
-	if err := s.persist(ctx, map[string]string{
+	if err := s.persistWith(ctx, map[string]string{
 		keyAutomationEnabled:  string(in.Mode),
 		keyAutomationPinDelay: strconv.Itoa(hours),
+	}, func(q *db.Queries) error {
+		if !resume {
+			return nil
+		}
+		if err := q.ResetAllSeriesSearchState(ctx); err != nil {
+			return fmt.Errorf("reset search cadence on resuming automation: %w", err)
+		}
+		return nil
 	}); err != nil {
 		return err
 	}
@@ -671,6 +687,13 @@ func (s *Service) TestLibrary(_ context.Context, in LibraryConfig) error {
 // so a mid-write failure never leaves a section half-updated (e.g. a new URL
 // paired with an old password).
 func (s *Service) persist(ctx context.Context, kv map[string]string) error {
+	return s.persistWith(ctx, kv, nil)
+}
+
+// persistWith is persist plus a step that has to land or not land with it. The
+// only caller is the automation mode change, whose cadence reset must not
+// survive a failed save (or be lost by one that succeeded).
+func (s *Service) persistWith(ctx context.Context, kv map[string]string, also func(*db.Queries) error) error {
 	tx, err := s.store.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin settings tx: %w", err)
@@ -680,6 +703,11 @@ func (s *Service) persist(ctx context.Context, kv map[string]string) error {
 	for k, v := range kv {
 		if err := q.UpsertSetting(ctx, db.UpsertSettingParams{Key: k, Value: v}); err != nil {
 			return fmt.Errorf("persist %s: %w", k, err)
+		}
+	}
+	if also != nil {
+		if err := also(q); err != nil {
+			return err
 		}
 	}
 	if err := tx.Commit(); err != nil {

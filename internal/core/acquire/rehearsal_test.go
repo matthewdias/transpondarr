@@ -76,8 +76,8 @@ func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 	if ev.ItemNumber != 5 {
 		t.Errorf("item = %d, want 5", ev.ItemNumber)
 	}
-	if ev.Error != "" {
-		t.Errorf("a would-grab carries no error, got %q", ev.Error)
+	if ev.Error != "would have grabbed" {
+		t.Errorf("outcome = %q, want the would-grab spelled out", ev.Error)
 	}
 	if len(h.dl.Adds) != 0 {
 		t.Errorf("download Add called %d times in notify-only, want 0", len(h.dl.Adds))
@@ -86,8 +86,9 @@ func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 		t.Errorf("grabs recorded in notify-only: %v", got)
 	}
 
-	// The cadence still advances: the point is to rehearse the real schedule,
-	// not to re-decide the same item every tick.
+	// The search cadence advances — a rehearsal must not re-decide the same item
+	// every tick. The grab-driven reset is what it cannot rehearse: a real grab
+	// would have made this series due next tick, a would-grab backs it off.
 	state := readSearchState(t, h.st, id)
 	if !state.lastSearched.Valid {
 		t.Error("last_searched_at not advanced by a rehearsed pass")
@@ -134,7 +135,7 @@ func TestNotifyOnlySweepReportsEmptySearch(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	ev := wantRehearsalEvent(t, h.fn)
-	if ev.Error == "" || ev.ReleaseTitle != "" {
+	if !strings.Contains(ev.Error, "no matching release found") || ev.ReleaseTitle != "" {
 		t.Errorf("empty search rehearsed as %+v, want a reason and no release", ev)
 	}
 	if ev.ItemNumber != 5 {
@@ -156,7 +157,11 @@ func TestNotifyOnlySweepReportsPinHold(t *testing.T) {
 	}
 	ev := wantRehearsalEvent(t, h.fn)
 	if !strings.Contains(ev.Error, "pinned group") {
-		t.Errorf("error = %q, want the pinned-group hold named", ev.Error)
+		t.Errorf("outcome = %q, want the pinned-group hold named", ev.Error)
+	}
+	// A push carries a human duration, not a database timestamp.
+	if strings.Contains(ev.Error, "T") || strings.Contains(ev.Error, ":00") {
+		t.Errorf("outcome = %q, want a duration rather than a raw timestamp", ev.Error)
 	}
 	if ev.ReleaseTitle == "" {
 		t.Error("a held rehearsal should name the release being waited out")
@@ -185,7 +190,7 @@ func TestNotifyOnlyFeedReportsInsteadOfGrabbing(t *testing.T) {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	ev := wantRehearsalEvent(t, fn)
-	if ev.ItemNumber != 3 || ev.Error != "" {
+	if ev.ItemNumber != 3 || ev.Error != "would have grabbed" {
 		t.Errorf("feed rehearsal = %+v, want a would-grab for episode 3", ev)
 	}
 	if len(dl.Adds) != 0 {
@@ -219,6 +224,69 @@ func TestNotifyOnlyFeedStaysSilentWhenNothingWouldBeTaken(t *testing.T) {
 	case ev := <-fn.Events:
 		t.Fatalf("feed poll dispatched %+v for a page with nothing to take", ev)
 	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+// A rehearsed entry is consumed like any other: the mark advances, so a quiet
+// feed stays one request and the 15-minute poll is not a repeating firehose.
+// What that costs — the entry never comes around again — is why switching on
+// resets the search cadence, which the sweep then re-finds by searching.
+func TestNotifyOnlyFeedAdvancesItsMark(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	st := coretest.NewStore(t)
+	feed := &coretest.FakeFeed{Entries: []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
+	}}
+	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "polled", Outcome: download.AddSuccess}}
+	reg := clients.New()
+	reg.SetIndexer(feed)
+	reg.SetDownload(dl)
+	fn := withNotifier(reg)
+	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{notifyOnly: true}, discardLogger(), nil)
+	seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+
+	for i := range 2 {
+		if err := svc.PollFeedOnce(context.Background()); err != nil {
+			t.Fatalf("PollFeedOnce %d: %v", i, err)
+		}
+	}
+	wantRehearsalEvent(t, fn)
+	select {
+	case ev := <-fn.Events:
+		t.Fatalf("the second poll re-reported %+v; a rehearsed entry is still seen", ev)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+// A hold covers only its own items. Episodes nothing matched at all must still
+// be reported, or an unrelated pin delay hides exactly the gap being rehearsed.
+func TestNotifyOnlySweepReportsUncoveredItemsBesideAHold(t *testing.T) {
+	aired := time.Now().Add(-time.Hour)
+	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 1)},
+		fakeConfig{notifyOnly: true, pinDelay: 6 * time.Hour})
+	id := seedSweep(t, h.st, "Placeholder Saga", true,
+		sweepItem{number: 1, airsAt: &aired},
+		sweepItem{number: 2, airsAt: &aired},
+		sweepItem{number: 3, airsAt: &aired})
+	pinSeries(t, h.st, id, "OtherSubs", -1)
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+
+	var held, unmatched bool
+	for range 2 {
+		ev := wantRehearsalEvent(t, h.fn)
+		switch {
+		case strings.Contains(ev.Error, "pinned group"):
+			held = true
+		case strings.Contains(ev.Error, "no matching release found"):
+			unmatched = true
+		}
+	}
+	if !held || !unmatched {
+		t.Errorf("held=%t unmatched=%t; both the hold and the unmatched episodes must be reported",
+			held, unmatched)
 	}
 }
 
@@ -267,12 +335,15 @@ func TestNotifyOnlyFlipsToOnAndOffLive(t *testing.T) {
 		t.Fatalf("notify-only added %d torrents", len(dl.Adds))
 	}
 
+	// No help from the test: a rehearsed pass leaves the series backed off, and
+	// flipping to on is what has to clear that (#116) — a user has no way to
+	// reach in and make the series due.
+	if state := readSearchState(t, st, id); state.backoff == 0 {
+		t.Fatal("precondition: the rehearsed pass did not back the series off")
+	}
 	if err := cfg.UpdateAutomation(ctx, settings.AutomationConfig{Mode: settings.AutomationOn}); err != nil {
 		t.Fatalf("flip to on: %v", err)
 	}
-	// The rehearsed pass backed the series off; make it due so "the next sweep"
-	// is this one rather than an hour away.
-	makeSeriesDue(t, st, id)
 	if err := svc.SweepOnce(ctx); err != nil {
 		t.Fatalf("SweepOnce after flipping on: %v", err)
 	}
@@ -283,6 +354,7 @@ func TestNotifyOnlyFlipsToOnAndOffLive(t *testing.T) {
 	if err := cfg.UpdateAutomation(ctx, settings.AutomationConfig{Mode: settings.AutomationOff}); err != nil {
 		t.Fatalf("flip to off: %v", err)
 	}
+	// Due again, so "off" is proven to stop a series that would otherwise search.
 	makeSeriesDue(t, st, id)
 	drainEvents(fn)
 	searches := len(idx.Queries)

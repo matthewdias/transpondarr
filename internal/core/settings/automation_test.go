@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"database/sql"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -89,6 +90,9 @@ func TestAutomationModeParsing(t *testing.T) {
 		{"true", AutomationOn, true, false},
 		{"false", AutomationOff, false, false},
 		{"yes-please", AutomationOff, false, false},
+		{"ON", AutomationOn, true, false},
+		{"Notify_Only", AutomationNotifyOnly, true, true},
+		{"TRUE", AutomationOn, true, false},
 	} {
 		svc := newServiceWith(t, &config.Config{}, map[string]string{keyAutomationEnabled: tc.stored})
 		if got := svc.Snapshot().Automation.Mode; got != tc.want {
@@ -115,6 +119,74 @@ func TestUpdateAutomationRejectsUnknownMode(t *testing.T) {
 	svc := newServiceWith(t, &config.Config{}, nil)
 	if err := svc.UpdateAutomation(context.Background(), AutomationConfig{Mode: "loud"}); err == nil {
 		t.Error("an unknown automation mode was accepted")
+	}
+}
+
+// backedOffSeries inserts a series parked at the far end of the backoff ladder,
+// which is where a stretch of notify-only leaves every rehearsed series.
+func backedOffSeries(t *testing.T, svc *Service) int64 {
+	t.Helper()
+	row, err := svc.store.Q.CreateSeries(context.Background(),
+		db.CreateSeriesParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
+	if err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+	if _, err := svc.store.DB.ExecContext(context.Background(),
+		`UPDATE series SET search_backoff = 6, next_search_at = '2099-01-01 00:00:00' WHERE id = ?`,
+		row.ID); err != nil {
+		t.Fatalf("back the series off: %v", err)
+	}
+	return row.ID
+}
+
+func searchCadence(t *testing.T, svc *Service, id int64) (backoff int64, next sql.NullString) {
+	t.Helper()
+	if err := svc.store.DB.QueryRowContext(context.Background(),
+		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, id).
+		Scan(&backoff, &next); err != nil {
+		t.Fatalf("read cadence: %v", err)
+	}
+	return backoff, next
+}
+
+// #116: a rehearsed pass settles nothing, so it climbs the backoff ladder and
+// the feed has already consumed what it reported. Switching on has to clear that
+// cadence, or the first real sweep for a rehearsed series is up to a day away.
+func TestUpdateAutomationResetsCadenceWhenSwitchedOn(t *testing.T) {
+	ctx := context.Background()
+	svc := newServiceWith(t, &config.Config{AutomationEnabled: "notify_only"}, nil)
+	id := backedOffSeries(t, svc)
+
+	if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: AutomationOn}); err != nil {
+		t.Fatalf("switch on: %v", err)
+	}
+	backoff, next := searchCadence(t, svc, id)
+	if backoff != 0 || next.Valid {
+		t.Errorf("cadence after switching on = backoff %d, next %v; want cleared", backoff, next)
+	}
+}
+
+// Every other transition leaves the cadence alone: off is the kill switch, which
+// writes no cadence at all, and re-saving the delay while already on must not
+// re-queue the whole library.
+func TestUpdateAutomationLeavesCadenceAloneOtherwise(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct{ from, to AutomationMode }{
+		{AutomationOn, AutomationOn},
+		{AutomationOn, AutomationNotifyOnly},
+		{AutomationNotifyOnly, AutomationOff},
+		{AutomationOff, AutomationNotifyOnly},
+	} {
+		svc := newServiceWith(t, &config.Config{AutomationEnabled: string(tc.from)}, nil)
+		id := backedOffSeries(t, svc)
+
+		if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: tc.to}); err != nil {
+			t.Fatalf("%s -> %s: %v", tc.from, tc.to, err)
+		}
+		if backoff, _ := searchCadence(t, svc, id); backoff != 6 {
+			t.Errorf("%s -> %s reset the cadence (backoff %d); only entering on should",
+				tc.from, tc.to, backoff)
+		}
 	}
 }
 

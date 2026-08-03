@@ -86,7 +86,7 @@ func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
 		e.Fields = append(e.Fields, field{Name: "Release", Value: capValue(ev.ReleaseTitle)})
 	}
 	if ev.Error != "" {
-		e.Fields = append(e.Fields, field{Name: "Error", Value: capValue(ev.Error)})
+		e.Fields = append(e.Fields, field{Name: ev.Kind.DetailLabel(), Value: capValue(ev.Error)})
 	}
 	if ev.Path != "" {
 		e.Fields = append(e.Fields, field{Name: "Path", Value: capValue(ev.Path)})

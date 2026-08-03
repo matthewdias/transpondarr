@@ -14,7 +14,9 @@
 //	}
 //
 // timestamp is the send time, not the event time — delivery has no retry or
-// queueing, so the two coincide, but scripts should treat it as send time.
+// queueing, so the two coincide, but scripts should treat it as send time. On a
+// rehearsal, error carries the outcome ("would have grabbed…") rather than a
+// failure — it is the one event kind where a populated error is not a problem.
 // Requests are sent with Content-Type: application/json and User-Agent:
 // transpondarr; any 2xx response counts as delivered.
 package webhook

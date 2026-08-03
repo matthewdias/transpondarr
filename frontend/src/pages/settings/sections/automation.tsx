@@ -19,7 +19,7 @@ const MODES: { value: Mode; label: string; hint: string }[] = [
   {
     value: "off",
     label: "Off",
-    hint: "The scheduler stops searching and grabbing entirely. Manual search and grab keep working.",
+    hint: "The scheduler stops searching and grabbing entirely. Manual search and grab keep working. This is the default until you turn automation on.",
   },
   {
     value: "notify_only",
@@ -81,11 +81,7 @@ export function AutomationSection({ settings }: { settings: Settings }) {
           Automatic search and grab
         </label>
         <Select value={mode} onValueChange={(v) => setMode(v as Mode)}>
-          <SelectTrigger
-            id="automation-mode-trigger"
-            aria-label="Automatic search and grab"
-            className="w-full"
-          >
+          <SelectTrigger id="automation-mode-trigger" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -96,9 +92,7 @@ export function AutomationSection({ settings }: { settings: Settings }) {
             ))}
           </SelectContent>
         </Select>
-        <p className="text-[11px] text-faint">
-          {current.hint} Off until you turn it on.
-        </p>
+        <p className="text-[11px] text-faint">{current.hint}</p>
       </div>
       <Field
         label="Pinned group delay (hours)"

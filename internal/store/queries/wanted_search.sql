@@ -69,3 +69,12 @@ WHERE id = ? AND search_epoch = ?;
 UPDATE series
 SET search_backoff = 0, next_search_at = NULL, search_epoch = search_epoch + 1
 WHERE id = ?;
+
+-- name: ResetAllSeriesSearchState :exec
+-- The whole library back at the front of the queue. Notify-only rehearses a pass
+-- that settles nothing, so every rehearsed series climbs the backoff ladder to
+-- its daily cap; switching automation on has to undo that or the first real
+-- sweep for a rehearsed series is up to a day away. The due query's LIMIT paces
+-- the resulting queue, so this is a reset, not a burst.
+UPDATE series
+SET search_backoff = 0, next_search_at = NULL, search_epoch = search_epoch + 1;
