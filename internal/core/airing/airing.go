@@ -1,10 +1,11 @@
 // Package airing keeps per-item broadcast times in step with the metadata
-// provider, creating the wanted items a schedule names as it goes — for a
-// long-runner whose episode total AniList never publishes, the schedule is the
-// only source that knows those episodes exist. It is background work rather
-// than part of GetTitle because paging a full schedule costs one request per
-// 50 episodes: unremarkable off the request path, unacceptable behind a user
-// action against a ~30 req/min budget.
+// provider, creating the wanted items a schedule names (and the ones it skips)
+// as it goes — for a long-runner whose episode total AniList never publishes,
+// the schedule is the only source that knows those episodes exist. Paging one
+// is background work rather than part of GetTitle because it costs a request
+// per page: unremarkable off the request path, unacceptable behind a user
+// action against a ~30 req/min budget. GetTitle carries a single in-band page
+// for the add; everything past it is here.
 package airing
 
 import (
@@ -92,8 +93,19 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		return fmt.Errorf("fetch schedule: %w", err)
 	}
 
+	// One transaction, opened after the fetch so no write lock is held across the
+	// network: a never-synced long-runner writes thousands of rows, and in
+	// autocommit each is its own fsync — ~60x the wall clock, spent holding off
+	// the importer and grab paths on busy_timeout.
+	tx, err := s.store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
+	q := s.store.Q.WithTx(tx)
+
 	for _, a := range schedule {
-		if err := s.store.Q.UpsertWantedItemAiring(ctx, db.UpsertWantedItemAiringParams{
+		if err := q.UpsertWantedItemAiring(ctx, db.UpsertWantedItemAiringParams{
 			SeriesID: series.ID,
 			Kind:     string(domain.KindEpisode),
 			Number:   sql.NullInt64{Int64: int64(a.Number), Valid: true},
@@ -103,14 +115,61 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		}
 	}
 
+	var filled int64
+	for _, n := range skipped(schedule, !notYetAired) {
+		rows, err := q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
+			SeriesID: series.ID,
+			Kind:     string(domain.KindEpisode),
+			Number:   sql.NullInt64{Int64: int64(n), Valid: true},
+		})
+		if err != nil {
+			return fmt.Errorf("create item %d for a skipped schedule entry: %w", n, err)
+		}
+		filled += rows
+	}
+	// A filled item has no air date, so it is exactly what airedSince cannot see.
+	if filled > 0 {
+		if err := q.ResetSeriesSearchState(ctx, series.ID); err != nil {
+			return fmt.Errorf("reset search cadence: %w", err)
+		}
+	}
+
 	// Guarded on the stamp read at selection: if the metadata refresh cleared it
 	// mid-sync (the series grew), the clear wins and the next pass re-pages.
-	if err := s.store.Q.SetSeriesAiringSyncedAt(ctx, db.SetSeriesAiringSyncedAtParams{
+	if err := q.SetSeriesAiringSyncedAt(ctx, db.SetSeriesAiringSyncedAtParams{
 		ID:             series.ID,
 		AiringSyncedAt: series.AiringSyncedAt,
 	}); err != nil {
 		return fmt.Errorf("stamp synced: %w", err)
 	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit: %w", err)
+	}
 	s.log.Debug("airing schedule synced", "series", series.ID, "airings", len(schedule), "tail_only", notYetAired)
 	return nil
+}
+
+// skipped lists the item numbers a schedule implies but never names. fromOne
+// widens the fill to the whole numbering, which only a full fetch owns: a tail
+// is a partial view, so it fills gaps inside its own span instead.
+func skipped(schedule []metadata.Airing, fromOne bool) []int {
+	if len(schedule) == 0 {
+		return nil
+	}
+	known := make(map[int]bool, len(schedule))
+	lo, hi := schedule[0].Number, schedule[0].Number
+	for _, a := range schedule {
+		known[a.Number] = true
+		lo, hi = min(lo, a.Number), max(hi, a.Number)
+	}
+	if fromOne {
+		lo = 1
+	}
+	var out []int
+	for n := lo; n <= hi; n++ {
+		if !known[n] {
+			out = append(out, n)
+		}
+	}
+	return out
 }
