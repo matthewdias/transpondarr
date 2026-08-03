@@ -115,6 +115,37 @@ frontend/              Vite + React + TypeScript source
 2. Add/adjust queries in `internal/store/queries`.
 3. Run `make gen` to regenerate `internal/store/db`.
 
+## Changelog
+
+`CHANGELOG.md` is not a summary written at release time — it **is** the release
+notes. `scripts/release-notes.sh` extracts the tag's section verbatim for the
+GitHub Release, and the release workflow fails a tag with no matching section.
+That check proves a section *exists*; only you can make it complete.
+
+So add the entry in the PR that changes the behaviour, under `[Unreleased]`:
+
+- **Which section:** `Added` / `Changed` / `Fixed` / `Security` for anything a
+  user would notice; `Internal` for work that changes no observable behaviour.
+  Refactors, test-only changes and doc edits usually need no entry at all.
+- **Write it for someone who did not read the diff.** Lead with the symptom or
+  the capability, not the mechanism, and say *why* where the reason isn't
+  obvious. Match the surrounding entries: a bolded opening sentence, then the
+  detail.
+- **Add an `Upgrade notes` section** when an existing install changes on its own
+  after upgrading — a migration that rewrites rows, a default that flips, a
+  background pass that now creates data it didn't before. Say what changes, how
+  it will look, what it costs, and how to opt out. These are the entries people
+  are angriest to find out about afterwards.
+
+Before tagging a release, read the whole `[Unreleased]` section back:
+
+1. Check it against `git log` since the last tag — a behaviour change that
+   landed without an entry is invisible from here.
+2. Merge entries that describe one user-visible change across several PRs, and
+   drop anything that turned out to be internal.
+3. Rename the heading to the version and date, and open the release with a short
+   paragraph on the theme — see the `0.5.0` and `0.4.0` entries.
+
 ## Conventions
 
 - Keep new release sources / download clients / library targets behind their

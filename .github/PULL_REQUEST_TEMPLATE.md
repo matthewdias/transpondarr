@@ -22,3 +22,5 @@ Closes #
 - [ ] New indexers / download clients / library targets go behind the existing interfaces
 - [ ] No real scraped release names in test fixtures (use synthetic names)
 - [ ] Docs updated (README / CONTRIBUTING) if behaviour or config changed
+- [ ] `CHANGELOG.md` entry under `[Unreleased]` if a user would notice this —
+      plus an `Upgrade notes` entry if an existing install changes on its own
