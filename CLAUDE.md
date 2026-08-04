@@ -149,13 +149,38 @@ Behaviour changes are test-driven. Work red → green → refactor:
 - **Grab lifecycle (`internal/core/importer`): every status but `grabbed` is
   settled.** `grabbed` → `imported`, `failed` (errored, or absent from the
   download client past the grace period — the item reverts to wanted), or
-  `import_deferred`. A directory payload is *not* automatically deferred:
-  `resolvePayloadFile` resolves it to one episode file at completion time, so
-  `library.Target.Place` stays file-only and `import_deferred` means "we looked
-  and could not pick one file" — a real batch, or a payload nothing could
-  disambiguate. Deferred grabs are never re-imported (the
-  no-infinite-retry property) but stay in the scan for missing-from-client
-  reconciliation, so a vanished payload still frees its item.
+  `import_deferred`. The scan iterates **per info hash, not per row** (#126): a
+  pack is a row per covered episode, and its payload only means anything
+  examined as a whole. `collectPayloadFiles` walks it once and the pure
+  `mapFiles` maps files onto the items the release claimed, so
+  `library.Target.Place` stays file-only while a pack imports episode by
+  episode. `import_deferred` therefore narrows to "*this item's* file could not
+  be picked out". Deferred grabs are never re-imported by the scan (the
+  no-infinite-retry property) but stay in it for missing-from-client
+  reconciliation, so a vanished payload still frees its item; only an explicit
+  `RetryImport` reopens one, optionally naming the file.
+- **The mapping rules are narrow on purpose, because a wrong answer moves a
+  file.** A lone file for a lone item is identity by construction (we chose this
+  release); a file claims a number only when it names exactly one, with
+  season-relative beating absolute when both land inside the release, matching
+  decide's stance; among same-number claimants the higher `Version` wins and
+  `Repack` breaks the tie, and an exact tie is a *conflict* rather than a coin
+  flip, since taking either silently drops the other. Retry overrides are keyed
+  on the payload-relative path and overrule every rule above — being wrong about
+  a filename is the whole reason the escape hatch exists.
+- **A covered item with no file splits by whether a human could fix it.** Files
+  still loose in the payload → defer with the detail naming what is unmatched,
+  fixable from the Activity queue. Nothing left over → `failGrab`, so the item
+  reverts to wanted and the sweep self-heals with a single; it flows through the
+  same `remember()` grouping, so one payload is one step on the blocklist
+  ladder. A payload with *no* video at all keeps deferring — that is #135 (RAR
+  sets), not this. A file for an item the release never claimed is placed too,
+  guarded on the item existing, not being had, and carrying no unsettled grab,
+  and **holding the `acquire` claim** (`TryClaimItems`/`ReleaseClaims`) so a
+  concurrent grab cannot race a copy-mode `Place` that runs for minutes. One
+  registry is the point. `ScanOnce`, `ListPayload` and `RetryImport` share the
+  importer's mutex, which is why `main.go` builds one importer and hands it to
+  both the job runner and `server.New`.
 - **`failed` also means "this release is remembered" (`internal/core/blocklist`,
   #118).** Both `failed` paths record a per-series blocklist entry, because the
   grab row is per wanted item and the next attempt overwrites it — without that
@@ -171,22 +196,26 @@ Behaviour changes are test-driven. Work red → green → refactor:
   filtered, never deleted — the row carries the failure count the ladder reads.
   An *import* failure deliberately records nothing: it stays `grabbed` and
   retries, because its causes are path-mapping gaps rather than bad releases.
-- **A batch is matched but never eligible (#125).** `decide` maps a season pack
-  to the items it covers and then refuses it in `ineligibleReason`, rather than
-  refusing it at matching. Two things follow. Automation skips it through the
-  same gate as every other rule — one guard for the sweep and the feed poll, not
-  a check in either loop — because the importer can only *defer* a true
-  multi-episode payload and deferred is settled, so a grabbed pack parks its
-  season instead of failing it back to wanted. And a human still sees which
-  episodes it holds and can take it (PR #57), which the old unmatched refusal
-  blocked in the UI. The policy is "never automatically", not "last resort":
-  grabbing a pack unattended downloads a season only to park it. #126's per-file
-  import is what lifts this — and once it does, a pack becomes automation's
-  *preferred* choice for a back-catalog add, one grab instead of N.
+- **A batch is matched, eligible, and preferred on coverage (#126).** #125
+  refused a pack in `ineligibleReason` because the importer could only *defer* a
+  multi-episode payload; per-file import removed the reason, so the refusal is
+  gone. Three things follow. The comparator gained a **coverage tier** — `Items`
+  descending, between Pinned and Score — because lifting the refusal alone would
+  make the winner between a pack and a single score- and seeder-arbitrary; a
+  pack covering six wanted items is one grab instead of N. Weekly singles tie at
+  1 and fall through to score unchanged, and the pin stays *above* coverage
+  deliberately: a pin is per-series knowledge ("this group is definitive"), so
+  coverage only decides among equally pinned candidates. And `batchItems` gained
+  the guard it never had: an explicit range past `maxItem` is now **unmatched**
+  with the single-episode path's absolute/season-mismatch reason, so a `01-48`
+  pack no longer claims a 12-item entry's items 1-12. A numberless pack carries
+  no range to check and still fills the entry — that is what a season pack is.
+  Both entry points inherit all of it through the one decision layer, rehearsal
+  included.
 - **Two entry points, one decision layer (#101).** The `feed-poll` job and the
   `wanted-search` sweep both build a `Match` through `Service.evaluate` and act
   on it through `grabPass`, so profile floor, blocklist, pinned-group delay and
-  the batch guard are written once. The feed is only a cheaper *trigger*: it
+  the coverage ranking are written once. The feed is only a cheaper *trigger*: it
   inverts the sweep's lookup (a release title needing a series, rather than a
   series needing releases), which is why it is series × entry — deliberately
   unoptimised, since a page is ~100 entries and the due query already drops any
@@ -359,7 +388,7 @@ none, and prefer a better name or a small helper over an explanation.
   reader would otherwise break.
 - **Package doc comments** are the one place for design stance — a short
   paragraph, stated once, not repeated on the functions inside.
-- Durable rationale (why AniList numbering degrades, why batch import is deferred)
+- Durable rationale (why AniList numbering degrades, why a payload conflict defers)
   belongs in this file, a commit message, or an issue — not stacked above a func.
 
 Concretely, in `internal/core/decide`:
