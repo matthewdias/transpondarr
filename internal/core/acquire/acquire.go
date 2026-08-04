@@ -101,9 +101,10 @@ type Match struct {
 	Candidates []decide.Candidate
 }
 
-// passItem is one wanted item as an entry point hands it to the matcher: the
-// stored item, which a grab needs for its id and kind, plus a candidacy the pass
-// derives — the sweep withholds in-flight and unaired items it does not hold.
+// passItem is where an entry point states candidacy for itself: the stored item,
+// whose Have is the library's answer, beside the pass's own grabbable. This is
+// the one place the two may sit together — deriving either from the other
+// anywhere else is exactly the conflation this type exists to end (#97).
 type passItem struct {
 	domain.WantedItem
 	grabbable bool
@@ -165,8 +166,8 @@ func (s *Service) MatchSeries(ctx context.Context, id int64) (Match, error) {
 }
 
 // loadItems reads a series and every wanted item belonging to it. Outside a
-// sweep the only thing withholding an item is the library, so candidacy is the
-// complement of Have here — and nowhere else.
+// sweep the only thing withholding an item is the library, so this pass' answer
+// is the complement of Have.
 func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passItem, error) {
 	series, err := s.store.Q.GetSeries(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
