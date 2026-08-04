@@ -132,6 +132,44 @@ func TestCollectsNothingFromAPayloadWithoutVideo(t *testing.T) {
 	}
 }
 
+// A token in the only video's name is a word in the title, not an extra --
+// dropping it here would park the episode forever (#135).
+func TestCollectsSoleVideoCarryingAnExtrasToken(t *testing.T) {
+	root := writeTree(t,
+		"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv",
+		"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].nfo",
+		"Subs/[ExampleSubs] Preview Of A Placeholder - 05 [1080p].en.srt",
+	)
+
+	wantCollected(t, collected(t, root), []string{"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv"})
+}
+
+// The standard scene layout: the episode is inside the RAR set and the only
+// video is a truncated sample, which the relaxation must not reach for.
+func TestCollectsNothingFromAnArchivePayloadWithARootSample(t *testing.T) {
+	root := writeTree(t,
+		"placeholder.saga.s01e05.1080p.web.h264-example.rar",
+		"placeholder.saga.s01e05.1080p.web.h264-example.r00",
+		"placeholder.saga.s01e05.1080p.web.h264-example.sfv",
+		"sample-placeholder.saga.s01e05.mkv",
+	)
+
+	if got := collected(t, root); len(got) != 0 {
+		t.Errorf("collected %v, want nothing", got)
+	}
+}
+
+// A sample is not a video at all, so the episode is still the sole one even when
+// its own title carries an extras token.
+func TestCollectsTokenedVideoBesideASample(t *testing.T) {
+	root := writeTree(t,
+		"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv",
+		"sample-preview.of.a.placeholder.05.mkv",
+	)
+
+	wantCollected(t, collected(t, root), []string{"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv"})
+}
+
 // Filtering out extras must not leave the walk reaching for whatever is left.
 func TestCollectsNothingWhenEveryFileIsAnExtra(t *testing.T) {
 	root := writeTree(t,

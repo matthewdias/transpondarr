@@ -46,6 +46,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **A downloaded episode whose filename happens to contain an extras word no
+  longer parks itself.** The payload resolver drops files marked `preview`,
+  `promo`, `nc`, `ncop` and similar so a bundled creditless opening is never
+  mistaken for the episode. When those words appear in the episode's *own* title,
+  a folder holding exactly one video filtered to nothing and the grab settled as
+  deferred — settled for good, with the file sitting right there. A payload whose
+  sole video carries such a word is now imported. A payload where several videos
+  all carry one still defers, since there is nothing to distinguish them, and a
+  file marked `sample` is still never imported however alone it is: it is a
+  truncated copy of the episode, not a title that happens to read that way.
+
 - **A releasing title whose episode count AniList never publishes now adds with
   its episodes.** Such a title previously created a series with *no* wanted
   items and sat at `0 / 0` until a background pass caught up, because the add

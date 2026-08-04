@@ -159,6 +159,15 @@ Behaviour changes are test-driven. Work red → green → refactor:
   no-infinite-retry property) but stay in it for missing-from-client
   reconciliation, so a vanished payload still frees its item; only an explicit
   `RetryImport` reopens one, optionally naming the file.
+- **The walk's extras filter yields to a sole video (#135).** A payload whose
+  only video carries an extras token is collected anyway — identity by
+  construction again: one video and nothing to confuse it with means the token
+  is a word in the title, and dropping it parked the episode with the file
+  sitting right there. `sampleTokens` is the exception that does not qualify (a
+  sample is a truncated copy, never the episode) and so is excluded before the
+  video is counted at all. Downstream the relaxation needs no special case: a
+  one-item group takes it by the lone-file rule, a multi-item group leaves it
+  over and defers.
 - **The mapping rules are narrow on purpose, because a wrong answer moves a
   file.** A lone file for a lone item is identity by construction (we chose this
   release); a file claims a number only when it names exactly one, with
@@ -356,11 +365,17 @@ Behaviour changes are test-driven. Work red → green → refactor:
   gate on manual paths (decided in PR #57).
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
 - **`decide.Match`'s `items` is the numbering basis, not just the candidate set.**
-  `maxItem` spans every item passed (had or not) and drives absolute-numbering
+  `maxItem` spans every item passed (grabbable or not) and drives absolute-numbering
   detection, so narrowing the slice to scope a search silently misreports every
-  release outside that range. Scope with `Have` instead — which in this call
-  means "not a candidate", not library state: the sweep sets it for in-flight and
-  unaired items too (#97 tracks splitting the two, #105 the scoped search).
+  release outside that range. Scope with `decide.Item.Grabbable` instead (#105
+  tracks the scoped search).
+- **Candidacy and possession are two fields, not one.** `decide.Item.Grabbable`
+  is "worth offering a release for"; `domain.WantedItem.Have` is "the library
+  holds a file". They coincide only on the manual path — the sweep withholds
+  in-flight and unaired items it plainly does not hold — so nothing may derive
+  one from the other outside `acquire.passItem`, which is where each entry point
+  states its own. #97's upgrade path is a held item that is grabbable anyway,
+  which is exactly the case the old single `Have` could not express.
 - **Route handlers: group by resource; use a receiver when it earns its keep.**
   Each resource gets a `*_routes.go` file with a `register<Resource>Routes(api,
 deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest.

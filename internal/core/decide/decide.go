@@ -82,6 +82,14 @@ type ScorePart struct {
 	Points int
 }
 
+// Item is a wanted item as the matcher sees it. Grabbable is candidacy, not
+// library state — the sweep also withholds in-flight and unaired items — so a
+// caller derives it per pass, and #97 can set it for an item we already hold.
+type Item struct {
+	Number    int
+	Grabbable bool
+}
+
 // Match evaluates releases against a title. titleVariants are the accepted names
 // for the title (e.g. romaji/english/native) used to filter out releases for
 // other series. Results are ranked matched-first, then eligible-first, then
@@ -89,20 +97,16 @@ type ScorePart struct {
 // score; seeders are only the tie-break between equal scores. A pin is an
 // absolute tier, never a score: it wins only among eligible releases, so it can
 // never bypass a block, exclude, or the floor.
-//
-// An item's Have means only "not a candidate" here, not library state: the sweep
-// also sets it for in-flight and unaired items (#97 must not read it as "held").
-func Match(items []domain.WantedItem, titleVariants []string, releases []indexer.Release, profile domain.QualityProfile, opts ...MatchOpts) []Candidate {
-	// itemSet holds the numbers still worth grabbing. Already-had items are excluded
-	// so a fully-downloaded episode is not re-matched and re-grabbed; maxItem still
-	// spans every item (had or not) so absolute-numbering detection below is unaffected.
+func Match(items []Item, titleVariants []string, releases []indexer.Release, profile domain.QualityProfile, opts ...MatchOpts) []Candidate {
+	// maxItem spans every item, grabbable or not, so however a caller scoped the
+	// pass, absolute-numbering detection below is unaffected.
 	itemSet := make(map[int]bool, len(items))
 	maxItem := 0
 	for _, it := range items {
 		if it.Number > maxItem {
 			maxItem = it.Number
 		}
-		if it.Have {
+		if !it.Grabbable {
 			continue
 		}
 		itemSet[it.Number] = true

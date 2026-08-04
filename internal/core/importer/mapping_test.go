@@ -54,6 +54,17 @@ func TestMapsLoneFileToLoneItem(t *testing.T) {
 	}
 }
 
+// The other half of #135's relaxation: a video the walk kept only because it was
+// the sole one still has to reach the library, not sit as a leftover.
+func TestMapsSoleVideoCarryingAnExtrasToken(t *testing.T) {
+	name := "[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv"
+	res := mapFiles(files(name), coverage(5), nil)
+
+	if got := assignedNames(res); len(got) != 1 || got[5] != name {
+		t.Errorf("assigned = %v, want the sole video placed as item 5", got)
+	}
+}
+
 // Solo identity is exactly that: two covered items means the name has to answer.
 func TestDoesNotGuessALoneFileAcrossTwoItems(t *testing.T) {
 	res := mapFiles(files("b1946ac92492d2347c6235b4d2611184.mkv"), coverage(4, 5), nil)
