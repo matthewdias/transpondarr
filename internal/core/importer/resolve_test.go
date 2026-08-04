@@ -154,6 +154,38 @@ func TestResolvesSoleVideoCarryingAnExtrasToken(t *testing.T) {
 	}
 }
 
+// TestRefusesArchivePayloadWithRootSample: the standard scene layout, where the
+// episode is inside the RAR set and the only video is a truncated sample.
+func TestRefusesArchivePayloadWithRootSample(t *testing.T) {
+	root := writeTree(t,
+		"placeholder.saga.s01e05.1080p.web.h264-example.rar",
+		"placeholder.saga.s01e05.1080p.web.h264-example.r00",
+		"placeholder.saga.s01e05.1080p.web.h264-example.sfv",
+		"sample-placeholder.saga.s01e05.mkv",
+	)
+
+	if _, err := resolvePayloadFile(root, 5); !errors.Is(err, errNoVideoFile) {
+		t.Errorf("err = %v, want errNoVideoFile", err)
+	}
+}
+
+// TestResolvesTokenedVideoBesideSample: a sample never competes, so the episode is
+// still the sole video even when its own title carries an extras token.
+func TestResolvesTokenedVideoBesideSample(t *testing.T) {
+	root := writeTree(t,
+		"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv",
+		"sample-preview.of.a.placeholder.05.mkv",
+	)
+
+	got, err := resolvePayloadFile(root, 5)
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if filepath.Base(got) != "[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv" {
+		t.Errorf("resolved %q, want the episode rather than the sample", got)
+	}
+}
+
 // TestRefusesWhenOnlyCandidateIsAnExtra: filtering out extras must not leave the
 // resolver reaching for whatever is left.
 func TestRefusesWhenOnlyCandidateIsAnExtra(t *testing.T) {
