@@ -23,6 +23,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
@@ -41,8 +42,10 @@ func init() {
 // backs the job-status endpoint. provider is passed in rather than built here so
 // the daemon's background jobs share one — and so share its rate limiter; the
 // blocklist likewise, so its breaker sees every failure path, and acquire so its
-// in-flight claims cover manual grabs and the jobs alike.
-func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider metadata.Provider, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner, blocklistSvc *blocklist.Service, acquireSvc *acquire.Service) http.Handler {
+// in-flight claims cover manual grabs and the jobs alike. importSvc is the very
+// instance the scan job runs on: a manual import fix and the scan serialize on
+// its mutex instead of racing over one payload.
+func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider metadata.Provider, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner, blocklistSvc *blocklist.Service, acquireSvc *acquire.Service, importSvc *importer.Importer) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
@@ -62,6 +65,7 @@ func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider meta
 		jobs:      runner,
 		acquire:   acquireSvc,
 		blocklist: blocklistSvc,
+		importer:  importSvc,
 	})
 
 	r.NotFound(spaHandler())

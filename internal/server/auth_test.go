@@ -17,6 +17,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/blocklist"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/coretest"
@@ -45,9 +46,10 @@ func newAuthServer(t *testing.T, cfg *config.Config) (*httptest.Server, *auth.Se
 		t.Fatalf("auth.New: %v", err)
 	}
 	blocklistSvc := blocklist.New(st, discardLogger())
+	acquireSvc := acquire.New(st, reg, catalog.NewService(st, testProvider()), settingsSvc, discardLogger(), blocklistSvc)
 	ts := httptest.NewServer(server.New(cfg, st, discardLogger(), testProvider(), reg, settingsSvc, authSvc,
-		jobs.New(discardLogger()), blocklistSvc,
-		acquire.New(st, reg, catalog.NewService(st, testProvider()), settingsSvc, discardLogger(), blocklistSvc)))
+		jobs.New(discardLogger()), blocklistSvc, acquireSvc,
+		importer.New(st, reg, discardLogger(), blocklistSvc, acquireSvc)))
 	t.Cleanup(ts.Close)
 	return ts, authSvc
 }

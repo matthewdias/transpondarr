@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/domain"
@@ -83,6 +84,11 @@ type Importer struct {
 	log       *slog.Logger
 	blocklist Recorder
 	claims    ItemClaims
+
+	// mu serializes the 15s scan against a manual retry: both walk the same
+	// payload and settle the same rows, and a retry that reopened one mid-scan
+	// would have it settled twice.
+	mu sync.Mutex
 }
 
 // New builds an Importer. The download client and library target are read from
@@ -95,6 +101,9 @@ func New(st *store.Store, src ClientSource, log *slog.Logger, blocklist Recorder
 // the current clients from the source; if either the download client or the
 // library is unconfigured, there is nothing to do this tick.
 func (im *Importer) ScanOnce(ctx context.Context) error {
+	im.mu.Lock()
+	defer im.mu.Unlock()
+
 	dl := im.clients.Download()
 	target := im.clients.Library()
 	if dl == nil || target == nil {

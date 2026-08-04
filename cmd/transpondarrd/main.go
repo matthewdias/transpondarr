@@ -214,17 +214,20 @@ func run(logger *slog.Logger) error {
 	// The import scan always runs; each scan it reads the current download client
 	// and library from the registry and no-ops when either is unconfigured — so
 	// enabling both via Settings activates importing without a restart.
+	// Built once and shared with the API: the manual import fix must serialize
+	// with the scan, which it does by holding the same importer's mutex.
+	importSvc := importer.New(st, reg, logger, blocklistSvc, acquireSvc)
 	runner.Add(jobs.Job{
 		Name:       "import-scan",
 		Interval:   importPollInterval,
 		RunAtStart: true,
-		Run:        importer.New(st, reg, logger, blocklistSvc, acquireSvc).ScanOnce,
+		Run:        importSvc.ScanOnce,
 	})
 	jobsDone := runner.Start(ctx)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner, blocklistSvc, acquireSvc),
+		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner, blocklistSvc, acquireSvc, importSvc),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

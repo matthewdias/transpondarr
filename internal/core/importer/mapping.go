@@ -31,16 +31,23 @@ func mapFiles(files []candidate, covers map[int]bool, overrides map[string]int) 
 
 	rest := make([]candidate, 0, len(files))
 	for _, f := range files {
-		if n, ok := overrides[f.rel]; ok {
+		n, ok := overrides[f.rel]
+		if !ok {
+			rest = append(rest, f)
+			continue
+		}
+		if covers[n] {
 			res.assigned[n] = f
 			continue
 		}
-		rest = append(rest, f)
+		// An episode this release never claimed still goes through the
+		// out-of-coverage guard, which only the caller can apply.
+		res.leftovers = append(res.leftovers, fileClaim{file: f, number: n})
 	}
 
 	// Identity by construction: we chose this release, so a lone file is the lone
 	// item's episode however unhelpfully it is named.
-	if len(res.assigned) == 0 && len(rest) == 1 && len(covers) == 1 {
+	if len(overrides) == 0 && len(rest) == 1 && len(covers) == 1 {
 		for n := range covers {
 			res.assigned[n] = rest[0]
 		}

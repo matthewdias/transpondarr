@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/matthewdias/transpondarr/internal/core/download"
+	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
@@ -83,7 +85,89 @@ func decodeHistoryCursor(cursor string) (createdAt string, id int64, err error) 
 	return at, id, nil
 }
 
+// payloadFileDTO is one video file in a deferred grab's payload, with what its
+// name parsed to — the evidence a human needs to say which episode it is.
+type payloadFileDTO struct {
+	Path            string `json:"path" doc:"Payload-relative path; the identity an assignment names"`
+	EpisodeStart    int    `json:"episode_start"`
+	EpisodeEnd      int    `json:"episode_end"`
+	AbsoluteEpisode int    `json:"absolute_episode"`
+	Batch           bool   `json:"batch"`
+	Version         int    `json:"version"`
+	Repack          bool   `json:"repack"`
+	SuggestedItem   int    `json:"suggested_item" doc:"What an automatic re-map would claim; 0 when nothing"`
+}
+
+// payloadItemDTO is one grab row sharing the release being fixed.
+type payloadItemDTO struct {
+	GrabID     int64  `json:"grab_id"`
+	ItemNumber int    `json:"item_number"`
+	Status     string `json:"status" enum:"grabbed,imported,import_deferred,failed"`
+}
+
+type queuePayloadInput struct {
+	ID int64 `path:"id" doc:"Grab id from the activity queue"`
+}
+
+type queuePayloadOutput struct {
+	Body struct {
+		ReleaseTitle string           `json:"release_title"`
+		InfoHash     string           `json:"infohash"`
+		Items        []payloadItemDTO `json:"items"`
+		Files        []payloadFileDTO `json:"files"`
+	}
+}
+
+// retryAssignmentDTO is a human answering "this file is episode N".
+type retryAssignmentDTO struct {
+	File       string `json:"file" doc:"Payload-relative path from the payload listing"`
+	ItemNumber int    `json:"item_number" minimum:"1"`
+}
+
+type retryImportInput struct {
+	ID   int64 `path:"id" doc:"Grab id from the activity queue"`
+	Body struct {
+		Assignments []retryAssignmentDTO `json:"assignments,omitempty" doc:"Empty re-runs the automatic mapping"`
+	}
+}
+
+type retryResultDTO struct {
+	ItemNumber int    `json:"item_number"`
+	Outcome    string `json:"outcome" enum:"imported,import_deferred,failed,unchanged"`
+	Detail     string `json:"detail,omitempty"`
+}
+
+type retryImportOutput struct {
+	Body struct {
+		Results []retryResultDTO `json:"results"`
+	}
+}
+
+// activityHandler groups the queue, history and import-fix routes, which share
+// the store and the one importer the scan runs on.
+type activityHandler struct {
+	deps routeDeps
+}
+
 func registerActivityRoutes(api huma.API, deps routeDeps) {
+	h := &activityHandler{deps: deps}
+
+	huma.Register(api, huma.Operation{
+		OperationID: "get-queue-item-payload",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/activity/queue/{id}/payload",
+		Summary:     "What a deferred grab's payload holds, so an import can be fixed by hand",
+		Tags:        []string{"activity"},
+	}, h.getPayload)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "retry-queue-item-import",
+		Method:      http.MethodPost,
+		Path:        "/api/v1/activity/queue/{id}/retry-import",
+		Summary:     "Re-run a deferred grab's import, optionally naming which file is which episode",
+		Tags:        []string{"activity"},
+	}, h.retryImport)
+
 	huma.Register(api, huma.Operation{
 		OperationID: "get-activity-queue",
 		Method:      http.MethodGet,
@@ -213,4 +297,86 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 		}
 		return out, nil
 	})
+}
+
+// getPayload lists a deferred grab's payload for the import-fix dialog.
+func (h *activityHandler) getPayload(ctx context.Context, in *queuePayloadInput) (*queuePayloadOutput, error) {
+	if h.deps.importer == nil {
+		return nil, huma.Error503ServiceUnavailable("the importer is not available")
+	}
+	info, err := h.deps.importer.ListPayload(ctx, in.ID)
+	if err != nil {
+		return nil, importerError(err)
+	}
+
+	out := &queuePayloadOutput{}
+	out.Body.ReleaseTitle = info.ReleaseTitle
+	out.Body.InfoHash = info.InfoHash
+	out.Body.Items = make([]payloadItemDTO, 0, len(info.Items))
+	for _, it := range info.Items {
+		out.Body.Items = append(out.Body.Items, payloadItemDTO{
+			GrabID: it.GrabID, ItemNumber: it.ItemNumber, Status: it.Status,
+		})
+	}
+	out.Body.Files = make([]payloadFileDTO, 0, len(info.Files))
+	for _, f := range info.Files {
+		out.Body.Files = append(out.Body.Files, payloadFileDTO{
+			Path:            f.Path,
+			EpisodeStart:    f.EpisodeStart,
+			EpisodeEnd:      f.EpisodeEnd,
+			AbsoluteEpisode: f.AbsoluteEpisode,
+			Batch:           f.Batch,
+			Version:         f.Version,
+			Repack:          f.Repack,
+			SuggestedItem:   f.SuggestedItem,
+		})
+	}
+	return out, nil
+}
+
+// retryImport re-runs a deferred release's import. It is the only way a deferral
+// reopens: the scan never re-walks bytes it already settled.
+func (h *activityHandler) retryImport(ctx context.Context, in *retryImportInput) (*retryImportOutput, error) {
+	if h.deps.importer == nil {
+		return nil, huma.Error503ServiceUnavailable("the importer is not available")
+	}
+	assignments := make(map[string]int, len(in.Body.Assignments))
+	for _, a := range in.Body.Assignments {
+		if _, dup := assignments[a.File]; dup {
+			return nil, huma.Error422UnprocessableEntity("file " + a.File + " was assigned twice")
+		}
+		assignments[a.File] = a.ItemNumber
+	}
+
+	results, err := h.deps.importer.RetryImport(ctx, in.ID, assignments)
+	if err != nil {
+		return nil, importerError(err)
+	}
+	out := &retryImportOutput{}
+	out.Body.Results = make([]retryResultDTO, 0, len(results))
+	for _, r := range results {
+		out.Body.Results = append(out.Body.Results, retryResultDTO{
+			ItemNumber: r.ItemNumber, Outcome: r.Outcome, Detail: r.Detail,
+		})
+	}
+	return out, nil
+}
+
+// importerError maps the importer's sentinels to status codes. A payload that is
+// gone and a row that is not deferred are both 409: the request was well-formed,
+// the world moved.
+func importerError(err error) error {
+	switch {
+	case errors.Is(err, importer.ErrGrabNotFound):
+		return huma.Error404NotFound("no such grab")
+	case errors.Is(err, importer.ErrNotDeferred):
+		return huma.Error409Conflict("this grab is not awaiting an import fix")
+	case errors.Is(err, importer.ErrPayloadGone):
+		return huma.Error409Conflict("the payload is no longer available: " + err.Error())
+	case errors.Is(err, importer.ErrNoClient):
+		return huma.Error503ServiceUnavailable("no download client or library is configured")
+	case errors.Is(err, importer.ErrBadAssignment):
+		return huma.Error422UnprocessableEntity(err.Error())
+	}
+	return huma.Error500InternalServerError("import retry failed", err)
 }
