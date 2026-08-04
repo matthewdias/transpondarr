@@ -47,9 +47,18 @@ func newAuthServer(t *testing.T, cfg *config.Config) (*httptest.Server, *auth.Se
 	}
 	blocklistSvc := blocklist.New(st, discardLogger())
 	acquireSvc := acquire.New(st, reg, catalog.NewService(st, testProvider()), settingsSvc, discardLogger(), blocklistSvc)
-	ts := httptest.NewServer(server.New(cfg, st, discardLogger(), testProvider(), reg, settingsSvc, authSvc,
-		jobs.New(discardLogger()), blocklistSvc, acquireSvc,
-		importer.New(st, reg, discardLogger(), blocklistSvc, acquireSvc)))
+	ts := httptest.NewServer(server.New(server.Deps{
+		Store:     st,
+		Logger:    discardLogger(),
+		Provider:  testProvider(),
+		Clients:   reg,
+		Settings:  settingsSvc,
+		Auth:      authSvc,
+		Jobs:      jobs.New(discardLogger()),
+		Blocklist: blocklistSvc,
+		Acquire:   acquireSvc,
+		Importer:  importer.New(st, reg, discardLogger(), blocklistSvc, acquireSvc),
+	}))
 	t.Cleanup(ts.Close)
 	return ts, authSvc
 }

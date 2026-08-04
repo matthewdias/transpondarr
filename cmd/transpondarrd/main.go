@@ -226,8 +226,19 @@ func run(logger *slog.Logger) error {
 	jobsDone := runner.Start(ctx)
 
 	srv := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           server.New(cfg, st, logger, provider, reg, settingsSvc, authSvc, runner, blocklistSvc, acquireSvc, importSvc),
+		Addr: cfg.Addr,
+		Handler: server.New(server.Deps{
+			Store:     st,
+			Logger:    logger,
+			Provider:  provider,
+			Clients:   reg,
+			Settings:  settingsSvc,
+			Auth:      authSvc,
+			Jobs:      runner,
+			Blocklist: blocklistSvc,
+			Acquire:   acquireSvc,
+			Importer:  importSvc,
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,

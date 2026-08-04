@@ -90,7 +90,18 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 	// The API shares the scan's importer, so a retry through the routes takes the
 	// same mutex the scan does — the harness must not hand it a second one.
 	importSvc := importer.New(st, reg, discardLogger(), blocklistSvc, acquireSvc)
-	h := server.New(cfg, st, discardLogger(), provider, reg, settingsSvc, authSvc, runner, blocklistSvc, acquireSvc, importSvc)
+	h := server.New(server.Deps{
+		Store:     st,
+		Logger:    discardLogger(),
+		Provider:  provider,
+		Clients:   reg,
+		Settings:  settingsSvc,
+		Auth:      authSvc,
+		Jobs:      runner,
+		Blocklist: blocklistSvc,
+		Acquire:   acquireSvc,
+		Importer:  importSvc,
+	})
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
 	return &harness{ts: ts, store: st, reg: reg, jobs: runner, idx: idx, dl: dl, lib: lib, importer: importSvc}
