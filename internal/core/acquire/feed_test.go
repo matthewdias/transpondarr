@@ -198,22 +198,27 @@ func TestFeedPollHonoursTheProfileFloor(t *testing.T) {
 	}
 }
 
-// #125 is in the shared path, so the feed inherits it: a pack is never taken
-// unattended, whichever entry point saw it.
-func TestFeedPollNeverGrabsASeasonPack(t *testing.T) {
+// Eligibility lives in the shared path, so the feed inherits #126's lift too: a
+// pack is a candidate at either entry point, not just in the sweep.
+func TestFeedPollGrabsASeasonPack(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	pack := packRelease("Placeholder Saga")
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		{Release: pack, GUID: "guid-pack", Published: time.Now()},
 	}, fakeConfig{})
-	seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 1, airsAt: &past}, sweepItem{number: 2, airsAt: &past})
+	id := seedSweep(t, h.st, "Placeholder Saga", true,
+		sweepItem{number: 1, airsAt: &past}, sweepItem{number: 2, airsAt: &past},
+		sweepItem{number: 3, airsAt: &past}, sweepItem{number: 4, airsAt: &past},
+		sweepItem{number: 5, airsAt: &past}, sweepItem{number: 6, airsAt: &past})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
-	if len(h.dl.Adds) != 0 {
-		t.Errorf("feed poll grabbed a season pack: %+v", h.dl.Adds)
+	if len(h.dl.Adds) != 1 {
+		t.Fatalf("download Add called %d times, want 1", len(h.dl.Adds))
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 6 {
+		t.Errorf("grabbed items = %v, want all six under the one pack", got)
 	}
 }
 

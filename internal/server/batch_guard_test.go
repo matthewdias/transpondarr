@@ -3,7 +3,6 @@ package server_test
 import (
 	"fmt"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/core/download"
@@ -11,11 +10,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/coretest"
 )
 
-// The other half of #125: automation skips a pack, but the Releases tab still
-// shows which episodes it covers and a human can take it in one request. Matching
-// is what un-gates the UI's Grab button, so a pack must be matched-but-ineligible
-// rather than unmatched.
-func TestSeasonPackIsMatchedButIneligibleAndStillGrabs(t *testing.T) {
+// #125 showed a pack as matched-but-ineligible; #126's per-file import lifts the
+// refusal, so it is now matched *and* eligible over the API — the Releases tab
+// still names the episodes it covers, and one request still grabs it.
+func TestSeasonPackIsMatchedAndEligibleAndGrabs(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:seasonpack"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
 		{Title: "[Batchers] Placeholder Saga S1 (01-06) [1080p][Batch]", DownloadURL: url, Seeders: 900},
@@ -39,14 +37,14 @@ func TestSeasonPackIsMatchedButIneligibleAndStillGrabs(t *testing.T) {
 		t.Fatalf("results = %+v, want the pack listed", searchOut.Results)
 	}
 	got := searchOut.Results[0]
-	if !got.Matched || got.Eligible {
-		t.Errorf("matched = %v, eligible = %v; want matched but ineligible", got.Matched, got.Eligible)
+	if !got.Matched || !got.Eligible {
+		t.Errorf("matched = %v, eligible = %v; want matched and eligible", got.Matched, got.Eligible)
 	}
 	if len(got.Items) != 6 {
 		t.Errorf("items = %v, want the six episodes the pack covers", got.Items)
 	}
-	if !strings.Contains(got.IneligibleReason, "batch") {
-		t.Errorf("ineligible_reason = %q, want the batch reason", got.IneligibleReason)
+	if got.IneligibleReason != "" {
+		t.Errorf("ineligible_reason = %q, want none", got.IneligibleReason)
 	}
 
 	var grabOut struct {
@@ -57,8 +55,8 @@ func TestSeasonPackIsMatchedButIneligibleAndStillGrabs(t *testing.T) {
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)
 	}
-	if !strings.Contains(grabOut.IneligibleReason, "batch") {
-		t.Errorf("ineligible_reason = %q, want the batch reason reported on the 201", grabOut.IneligibleReason)
+	if grabOut.IneligibleReason != "" {
+		t.Errorf("ineligible_reason = %q, want none on the 201", grabOut.IneligibleReason)
 	}
 	if len(dl.Adds) != 1 {
 		t.Errorf("download Add called %d times, want 1", len(dl.Adds))

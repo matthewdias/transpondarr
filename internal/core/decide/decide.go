@@ -85,9 +85,10 @@ type ScorePart struct {
 // Match evaluates releases against a title. titleVariants are the accepted names
 // for the title (e.g. romaji/english/native) used to filter out releases for
 // other series. Results are ranked matched-first, then eligible-first, then
-// pinned-first, then by profile score; seeders are only the tie-break between
-// equal scores. A pin is an absolute tier, never a score: it wins only among
-// eligible releases, so it can never bypass a block, exclude, or the floor.
+// pinned-first, then by how many still-wanted items they cover, then by profile
+// score; seeders are only the tie-break between equal scores. A pin is an
+// absolute tier, never a score: it wins only among eligible releases, so it can
+// never bypass a block, exclude, or the floor.
 //
 // An item's Have means only "not a candidate" here, not library state: the sweep
 // also sets it for in-flight and unaired items (#97 must not read it as "held").
@@ -139,6 +140,13 @@ func Match(items []domain.WantedItem, titleVariants []string, releases []indexer
 		}
 		if out[a].Pinned != out[b].Pinned {
 			return out[a].Pinned
+		}
+		// Items holds only still-wanted numbers, so wider coverage first is "one
+		// grab instead of N" (#126). Below the pin deliberately: a pin is
+		// per-series knowledge, so coverage only decides among equally pinned
+		// candidates. Weekly singles tie at 1 and fall through to score.
+		if len(out[a].Items) != len(out[b].Items) {
+			return len(out[a].Items) > len(out[b].Items)
 		}
 		if out[a].Score != out[b].Score {
 			return out[a].Score > out[b].Score
@@ -218,13 +226,6 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 	if r := blocked.reason(rel); r != "" {
 		return r
 	}
-	// Automation must not volunteer for a state it cannot finish (#125): the
-	// importer can only defer a true multi-episode payload, and deferred is
-	// settled, so a grabbed pack parks its items instead of failing them back to
-	// wanted. Lifting this is what #126's per-file batch import unlocks.
-	if p.Batch {
-		return "batch / season pack — automatic import cannot split it yet"
-	}
 	if indexFold(profile.BlockedGroups, p.Group) >= 0 {
 		return fmt.Sprintf("group %s is blocked by the profile", p.Group)
 	}
@@ -285,9 +286,15 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 		return c
 	}
 
-	// A pack matches what it covers; refusing it is eligibility's job (#125), so a
-	// human can see which episodes it holds and grab it deliberately.
+	// A pack matches what it covers, and since #126 the importer places it file
+	// by file, so it is a candidate like any other.
 	if p.Batch {
+		if p.EpisodeEnd > maxItem {
+			// Same guess as the single-episode case below: a 01-48 pack against a
+			// 12-item entry is absolute numbering, or another season entirely.
+			c.Reason = "episode range exceeds this entry's range (possible absolute/season mismatch)"
+			return c
+		}
 		if covered := batchItems(p, itemSet, maxItem); len(covered) > 0 {
 			c.Matched, c.Items = true, covered
 			c.Reason = "batch / season pack covers wanted items"
@@ -319,11 +326,9 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 }
 
 // batchItems is what a pack covers: its explicit range, or every item still
-// wanted when it names no numbers at all, which is what a season pack holds.
-// Unlike the single-episode path it has no "exceeds this entry's range" guard, so
-// an absolute-numbered 01-48 pack claims a 12-item entry's items 1-12 — right for
-// a first season, a guess otherwise. Only a manual grab can reach it while packs
-// are ineligible; #126 must add the guard before it lifts that.
+// wanted when it names no numbers at all, which is what a season pack holds. A
+// range past this entry is rejected by the caller, so what reaches here is
+// either bounded by maxItem or numberless.
 func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {
 	start, end := p.EpisodeStart, p.EpisodeEnd
 	if start == 0 {
