@@ -25,8 +25,10 @@ function presentGrabEvent(event: PresentableGrabEvent) {
     case "imported":
       return { verb: "Imported", icon: Check, tone: "bg-have-weak text-have" };
     case "import_deferred":
+      // Since #126 a deferral is one file the importer could not pick out, not a
+      // whole batch it refused — and it is fixable from the queue.
       return {
-        verb: "Downloaded (batch)",
+        verb: "Needs import fix",
         icon: FolderClock,
         tone: "bg-panel-2 text-muted-foreground",
       };
@@ -76,6 +78,11 @@ export function GrabEventRow({
         </div>
         {event.status === "failed" && event.detail && (
           <div className="line-clamp-2 text-[12px] text-destructive">
+            {event.detail}
+          </div>
+        )}
+        {event.status === "import_deferred" && event.detail && (
+          <div className="line-clamp-2 text-[12px] text-muted-foreground">
             {event.detail}
           </div>
         )}

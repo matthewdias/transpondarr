@@ -131,6 +131,10 @@ export type QueueItem = Schemas["QueueItemDTO"];
 export type ActivityEvent = Schemas["ActivityEventDTO"];
 export type ActivityQueue = Schemas["ActivityQueueOutputBody"];
 export type ActivityHistoryPage = Schemas["ActivityHistoryOutputBody"];
+export type QueuePayload = Schemas["QueuePayloadOutputBody"];
+export type PayloadFile = Schemas["PayloadFileDTO"];
+export type RetryAssignment = Schemas["RetryAssignmentDTO"];
+export type RetryResult = Schemas["RetryResultDTO"];
 
 // The read model for a single series with its wanted items. Arrays are
 // non-nullable in the OpenAPI schema (Huma's DefaultArrayNullable is off; the
@@ -298,6 +302,23 @@ export const api = {
         signal,
       })
       .then(unwrap),
+
+  queueItemPayload: (id: number, signal?: AbortSignal) =>
+    client
+      .GET("/api/v1/activity/queue/{id}/payload", {
+        params: { path: { id } },
+        signal,
+      })
+      .then(unwrap),
+
+  retryQueueItemImport: (id: number, assignments: RetryAssignment[]) =>
+    client
+      .POST("/api/v1/activity/queue/{id}/retry-import", {
+        params: { path: { id } },
+        body: { assignments },
+      })
+      .then(unwrap)
+      .then((r) => r.results),
 
   listGrabs: (id: number, signal?: AbortSignal) =>
     client

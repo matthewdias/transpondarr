@@ -208,3 +208,85 @@ describe("ActivityPage", () => {
     expect(screen.queryByText("Paused")).not.toBeInTheDocument();
   });
 });
+
+describe("fixing a deferred import", () => {
+  const payload = {
+    release_title: "[FakeGroup] Signal Anomaly - 01-02 [Batch]",
+    infohash: "cccc",
+    items: [
+      { grab_id: 1, item_number: 1, status: "imported" },
+      { grab_id: 3, item_number: 2, status: "import_deferred" },
+    ],
+    files: [
+      {
+        path: "b1946ac92492d2347c6235b4d2611184.mkv",
+        episode_start: 0,
+        episode_end: 0,
+        absolute_episode: 0,
+        batch: false,
+        version: 0,
+        repack: false,
+        suggested_item: 0,
+      },
+    ],
+  };
+
+  it("offers the fix only on deferred rows and submits the assignment", async () => {
+    let posted: unknown;
+    useHandlers(
+      {
+        client_ok: true,
+        items: [
+          queueItem({ id: 1 }),
+          queueItem({ id: 3, item_number: 2, status: "deferred" }),
+        ],
+      },
+      { "": { events: [] } },
+    );
+    server.use(
+      http.get("/api/v1/activity/queue/3/payload", () =>
+        HttpResponse.json(payload),
+      ),
+      http.post(
+        "/api/v1/activity/queue/3/retry-import",
+        async ({ request }) => {
+          posted = await request.json();
+          return HttpResponse.json({
+            results: [{ item_number: 2, outcome: "imported" }],
+          });
+        },
+      ),
+    );
+
+    renderPage();
+
+    // One button, on the deferred row only — a downloading row has nothing to fix.
+    const fix = await screen.findAllByRole("button", { name: /Fix import/ });
+    expect(fix).toHaveLength(1);
+    await userEvent.click(fix[0]);
+
+    // The file's parse is shown, because "nothing was read" is why it needs a human.
+    expect(
+      await screen.findByText("b1946ac92492d2347c6235b4d2611184.mkv"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("no episode number read")).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("combobox", {
+        name: /Episode for b1946ac92492d2347c6235b4d2611184.mkv/,
+      }),
+    );
+    await userEvent.click(
+      await screen.findByRole("option", { name: /Episode 2/ }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() =>
+      expect(posted).toEqual({
+        assignments: [
+          { file: "b1946ac92492d2347c6235b4d2611184.mkv", item_number: 2 },
+        ],
+      }),
+    );
+  });
+});
