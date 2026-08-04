@@ -116,7 +116,7 @@ func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series d
 		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
 	}
 
-	m, err := s.match(ctx, idx, series, grabbableItems(sweep))
+	m, err := s.match(ctx, idx, series, passItems(sweep))
 	if err != nil {
 		// An indexer outage is the one fault a series is not charged for: every due
 		// series shares it, so backing them all off idles the library on one hiccup.
@@ -154,15 +154,17 @@ func (s *Service) backOffAfterFailure(ctx context.Context, series db.Series, now
 	})
 }
 
-// grabbableItems is the item list the matcher gets. Items not worth grabbing are
-// handed over as Have: decide already excludes had items from the wanted set
-// while maxItem still spans them, so in-flight suppression falls out of the
-// existing matcher and a batch covering an in-flight episode still matches the rest.
-func grabbableItems(sweep []sweepItem) []domain.WantedItem {
-	items := make([]domain.WantedItem, 0, len(sweep))
+// passItems is the item list the matcher gets. In-flight and unaired items are
+// handed over as non-candidates while Have keeps reporting the library alone:
+// decide excludes non-candidates from the wanted set while maxItem still spans
+// them, so in-flight suppression falls out of the existing matcher and a batch
+// covering an in-flight episode still matches the rest.
+func passItems(sweep []sweepItem) []passItem {
+	items := make([]passItem, 0, len(sweep))
 	for _, it := range sweep {
-		items = append(items, domain.WantedItem{
-			ID: it.id, Kind: it.kind, Number: it.number, Have: !it.grabbable,
+		items = append(items, passItem{
+			WantedItem: domain.WantedItem{ID: it.id, Kind: it.kind, Number: it.number, Have: it.had},
+			grabbable:  it.grabbable,
 		})
 	}
 	return items
