@@ -130,6 +130,14 @@ export const activityHistoryQuery = () =>
     getNextPageParam: (last) => last.next_cursor || undefined,
   });
 
+// Enabled by the dialog opening: the read walks the payload on disk, so it must
+// not run for every deferred row merely listed in the queue.
+export const queueItemPayloadQuery = (id: number) =>
+  queryOptions({
+    queryKey: ["queue-payload", id],
+    queryFn: ({ signal }) => api.queueItemPayload(id, signal),
+  });
+
 export const profilesQuery = () =>
   queryOptions({
     queryKey: ["profiles"],

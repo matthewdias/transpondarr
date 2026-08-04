@@ -263,7 +263,7 @@ func TestSeriesHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashA", State: download.StateError}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),

@@ -93,3 +93,35 @@ func TestSendReportsNon2xx(t *testing.T) {
 		t.Errorf("error %q should carry the adapter name and status", err)
 	}
 }
+
+// items is part of the contract: the raw numbers, always an array, so a script
+// reads a multi-episode import without parsing a label.
+func TestSendSerializesItemsAsAnArray(t *testing.T) {
+	var raw map[string]json.RawMessage
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+			t.Errorf("decode body: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(ts.Close)
+
+	if err := New(ts.URL).Send(context.Background(), notify.Event{
+		Kind: notify.KindImported, SeriesTitle: "Placeholder Saga", Items: []int{1, 2, 3},
+	}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if got := string(raw["items"]); got != "[1,2,3]" {
+		t.Errorf("items = %s, want [1,2,3]", got)
+	}
+
+	// A single-item event still carries the key, as an empty array not null.
+	if err := New(ts.URL).Send(context.Background(), notify.Event{
+		Kind: notify.KindImported, SeriesTitle: "Placeholder Saga", ItemNumber: 5,
+	}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if got := string(raw["items"]); got != "[]" {
+		t.Errorf("items = %s, want an empty array", got)
+	}
+}

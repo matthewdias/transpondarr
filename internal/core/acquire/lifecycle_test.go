@@ -45,7 +45,7 @@ func TestSweepThenImportLifecycle(t *testing.T) {
 	}
 	dl.Statuses = []download.Status{{Hash: "swepthash", State: download.StateComplete, ContentPath: src}}
 
-	if err := importer.New(st, reg, discardLogger(), blocklist.New(st, nil)).ScanOnce(ctx); err != nil {
+	if err := importer.New(st, reg, discardLogger(), blocklist.New(st, nil), nil).ScanOnce(ctx); err != nil {
 		t.Fatalf("ScanOnce: %v", err)
 	}
 
@@ -90,7 +90,7 @@ func TestFailedGrabDegradesToTheNextBestReleaseThenToNothing(t *testing.T) {
 
 	ctx := context.Background()
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
-	im := importer.New(st, reg, discardLogger(), blocklist.New(st, nil))
+	im := importer.New(st, reg, discardLogger(), blocklist.New(st, nil), nil)
 	id := seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 
 	// The client accepts every add and then reports the download as errored.

@@ -7,13 +7,16 @@
 //	  "event": "grabbed" | "imported" | "import_stuck" | "grab_failed" | "series_added" | "rehearsal" | "test",
 //	  "series_title": "…",
 //	  "item_number": 0,
+//	  "items": [1, 2, 3],
 //	  "release_title": "…",
 //	  "error": "…",
 //	  "path": "…",
 //	  "timestamp": "RFC 3339"
 //	}
 //
-// timestamp is the send time, not the event time — delivery has no retry or
+// items is the episodes a release covered when one grab landed several
+// (item_number is then 0); it is an empty array otherwise. timestamp is the send
+// time, not the event time — delivery has no retry or
 // queueing, so the two coincide, but scripts should treat it as send time. On a
 // rehearsal, error carries the outcome ("would have grabbed…") rather than a
 // failure — it is the one event kind where a populated error is not a problem.
@@ -55,6 +58,7 @@ type payload struct {
 	Event        string `json:"event"`
 	SeriesTitle  string `json:"series_title"`
 	ItemNumber   int    `json:"item_number"`
+	Items        []int  `json:"items"`
 	ReleaseTitle string `json:"release_title"`
 	Error        string `json:"error"`
 	Path         string `json:"path"`
@@ -63,11 +67,18 @@ type payload struct {
 
 // Send posts ev using the package's documented JSON contract.
 func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
+	// Always an array, never null: the contract is that every key is present and
+	// usable without a nil check.
+	items := ev.Items
+	if items == nil {
+		items = []int{}
+	}
 	body, err := json.Marshal(payload{
 		Application:  "transpondarr",
 		Event:        string(ev.Kind),
 		SeriesTitle:  ev.SeriesTitle,
 		ItemNumber:   ev.ItemNumber,
+		Items:        items,
 		ReleaseTitle: ev.ReleaseTitle,
 		Error:        ev.Error,
 		Path:         ev.Path,

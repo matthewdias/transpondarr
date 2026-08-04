@@ -6,6 +6,44 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Season packs and batches now import episode by episode, and automation
+  prefers them.** A multi-episode payload used to settle every grab row it
+  covered as "downloaded (batch)" — terminal, with the bytes on disk and the
+  filing left to you — and automation was deliberately kept away from packs for
+  exactly that reason. The importer now walks a completed payload once and maps
+  its files onto the episodes the release covered, placing each on its own, so
+  the refusal is gone: a back-catalog series that has both singles and a pack
+  takes the pack, one grab instead of one per episode. Ranking gained a coverage
+  tier to make that happen deliberately rather than by seeder count, below a
+  pinned group, and a weekly single-episode release still ranks purely on your
+  profile score. A pack whose numbering runs past the entry — a `01-48` pack
+  against a 12-episode season — is now refused as a possible absolute/season
+  mismatch instead of silently claiming episodes 1-12.
+- **A payload file for an episode the release never claimed is imported too**,
+  when that episode exists, is still wanted, and has no download of its own —
+  the release titled `03` that ships `03` and `04`.
+- **A stuck import can be fixed by hand from the Activity queue.** "Needs import
+  fix" rows get a *Fix import* action listing every file in the payload with
+  what its name parsed to, and a per-file episode picker preseeded with the
+  importer's own suggestion. Use it when a filename is unreadable and nothing
+  could be matched to it. Automation never reopens a settled import on its own.
+
+### Changed
+
+- **One import notification per release, not one per episode.** A pack landing
+  six episodes now sends a single "Import succeeded" naming the range
+  (`Episodes 1-3, 5`). The generic webhook's payload gains an `items` array
+  carrying the raw numbers — always present, empty for a single-episode import,
+  with `item_number` then `0`.
+- **"Downloaded (batch)" is now "Needs import fix"**, and says which episode had
+  no file and how many files were left unmatched. It means one file could not be
+  picked out of a payload, not that a whole batch was refused. When *nothing* in
+  the payload matched an episode, that episode now goes back to wanted and the
+  release is remembered, so the next search picks a different one instead of
+  parking the item forever.
+
 ### Fixed
 
 - **A downloaded episode whose filename happens to contain an extras word no

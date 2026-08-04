@@ -38,6 +38,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/activity/queue/{id}/payload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What a deferred grab's payload holds, so an import can be fixed by hand */
+        get: operations["get-queue-item-payload"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/activity/queue/{id}/retry-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-run a deferred grab's import, optionally naming which file is which episode */
+        post: operations["retry-queue-item-import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/blocklist": {
         parameters: {
             query?: never;
@@ -1173,6 +1207,33 @@ export interface components {
             token_set: boolean;
             topic: string;
         };
+        PayloadFileDTO: {
+            /** Format: int64 */
+            absolute_episode: number;
+            batch: boolean;
+            /** Format: int64 */
+            episode_end: number;
+            /** Format: int64 */
+            episode_start: number;
+            /** @description Payload-relative path; the identity an assignment names */
+            path: string;
+            repack: boolean;
+            /**
+             * Format: int64
+             * @description What an automatic re-map would claim; 0 when nothing
+             */
+            suggested_item: number;
+            /** Format: int64 */
+            version: number;
+        };
+        PayloadItemDTO: {
+            /** Format: int64 */
+            grab_id: number;
+            /** Format: int64 */
+            item_number: number;
+            /** @enum {string} */
+            status: "grabbed" | "imported" | "import_deferred" | "failed";
+        };
         ProfileBody: {
             /**
              * Format: uri
@@ -1255,6 +1316,18 @@ export interface components {
             /** @enum {string} */
             status: "downloading" | "stuck" | "deferred";
         };
+        QueuePayloadOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/QueuePayloadOutputBody.json
+             */
+            readonly $schema?: string;
+            files: components["schemas"]["PayloadFileDTO"][];
+            infohash: string;
+            items: components["schemas"]["PayloadItemDTO"][];
+            release_title: string;
+        };
         ReleaseDTO: {
             download_url: string;
             indexer: string;
@@ -1264,6 +1337,38 @@ export interface components {
             /** Format: int64 */
             size: number;
             title: string;
+        };
+        RetryAssignmentDTO: {
+            /** @description Payload-relative path from the payload listing */
+            file: string;
+            /** Format: int64 */
+            item_number: number;
+        };
+        RetryImportInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/RetryImportInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Empty re-runs the automatic mapping */
+            assignments?: components["schemas"]["RetryAssignmentDTO"][];
+        };
+        RetryImportOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/RetryImportOutputBody.json
+             */
+            readonly $schema?: string;
+            results: components["schemas"]["RetryResultDTO"][];
+        };
+        RetryResultDTO: {
+            detail?: string;
+            /** Format: int64 */
+            item_number: number;
+            /** @enum {string} */
+            outcome: "imported" | "import_deferred" | "failed" | "unchanged";
         };
         ScorePartDTO: {
             label: string;
@@ -1560,6 +1665,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ActivityQueueOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-queue-item-payload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Grab id from the activity queue */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueuePayloadOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "retry-queue-item-import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Grab id from the activity queue */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetryImportInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryImportOutputBody"];
                 };
             };
             /** @description Error */

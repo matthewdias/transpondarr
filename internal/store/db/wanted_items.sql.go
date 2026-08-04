@@ -45,6 +45,49 @@ func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemPara
 	return i, err
 }
 
+const getWantedItemByNumber = `-- name: GetWantedItemByNumber :one
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, g.status AS grab_status
+FROM wanted_items w
+LEFT JOIN grabs g ON g.wanted_item_id = w.id
+WHERE w.series_id = ? AND w.kind = ? AND w.number = ?
+`
+
+type GetWantedItemByNumberParams struct {
+	SeriesID int64         `json:"series_id"`
+	Kind     string        `json:"kind"`
+	Number   sql.NullInt64 `json:"number"`
+}
+
+type GetWantedItemByNumberRow struct {
+	ID         int64          `json:"id"`
+	SeriesID   int64          `json:"series_id"`
+	Kind       string         `json:"kind"`
+	Number     sql.NullInt64  `json:"number"`
+	Title      sql.NullString `json:"title"`
+	Have       int64          `json:"have"`
+	AirsAt     sql.NullString `json:"airs_at"`
+	GrabStatus sql.NullString `json:"grab_status"`
+}
+
+// One read answers exists / had / already spoken for, which is the whole guard
+// on placing a payload file for an item no grab row claimed. UNIQUE
+// (wanted_item_id) on grabs keeps the join 1:1.
+func (q *Queries) GetWantedItemByNumber(ctx context.Context, arg GetWantedItemByNumberParams) (GetWantedItemByNumberRow, error) {
+	row := q.db.QueryRowContext(ctx, getWantedItemByNumber, arg.SeriesID, arg.Kind, arg.Number)
+	var i GetWantedItemByNumberRow
+	err := row.Scan(
+		&i.ID,
+		&i.SeriesID,
+		&i.Kind,
+		&i.Number,
+		&i.Title,
+		&i.Have,
+		&i.AirsAt,
+		&i.GrabStatus,
+	)
+	return i, err
+}
+
 const listCalendarItems = `-- name: ListCalendarItems :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at,
        s.title         AS series_title,

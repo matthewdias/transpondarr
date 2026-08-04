@@ -3,13 +3,15 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Download,
+  FolderClock,
   History,
   Pause,
   RefreshCw,
   TriangleAlert,
+  Wrench,
 } from "lucide-react";
 import { Link } from "react-router";
 import { ApiError, type QueueItem } from "@/lib/api";
@@ -17,6 +19,7 @@ import { activityHistoryQuery, activityQueueQuery } from "@/lib/queries";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { GrabEventRow } from "@/components/grab-event-row";
+import { RetryImportDialog } from "@/components/retry-import-dialog";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -140,6 +143,8 @@ function queueTone(item: QueueItem) {
     return { icon: TriangleAlert, tone: "bg-destructive/15 text-destructive" };
   if (item.status === "stuck")
     return { icon: TriangleAlert, tone: "bg-destructive/15 text-destructive" };
+  if (item.status === "deferred")
+    return { icon: FolderClock, tone: "bg-panel-2 text-muted-foreground" };
   return { icon: Download, tone: "bg-dl-weak text-dl" };
 }
 
@@ -155,6 +160,7 @@ const clientStateLabel: Record<string, string> = {
 
 function QueueRow({ item }: { item: QueueItem }) {
   const { icon: Icon, tone } = queueTone(item);
+  const [fixing, setFixing] = useState(false);
   return (
     <Item className="gap-3">
       <ItemMedia>
@@ -182,7 +188,19 @@ function QueueRow({ item }: { item: QueueItem }) {
           </div>
         )}
       </ItemContent>
-      <ItemActions className="flex-col items-end gap-0.5">
+      <ItemActions className="flex-col items-end gap-1">
+        {item.status === "deferred" && (
+          <>
+            <Button variant="outline" size="sm" onClick={() => setFixing(true)}>
+              <Wrench className="size-4" /> Fix import
+            </Button>
+            <RetryImportDialog
+              item={item}
+              open={fixing}
+              onOpenChange={setFixing}
+            />
+          </>
+        )}
         {item.client_state && (
           <span className="text-xs font-medium">
             {clientStateLabel[item.client_state] ?? item.client_state}

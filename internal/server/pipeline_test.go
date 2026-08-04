@@ -20,6 +20,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/download"
+	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
@@ -41,6 +42,9 @@ type harness struct {
 	idx   *coretest.FakeIndexer
 	dl    *coretest.FakeDownload
 	lib   *coretest.FakeLibrary
+	// importer is the very one the API holds, so a test drives the scan and the
+	// retry routes against one instance, as the daemon does.
+	importer *importer.Importer
 }
 
 // newHarness stands up server.New over a temp store with the given fake clients.
@@ -83,10 +87,24 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 	runner := jobs.New(discardLogger())
 	blocklistSvc := blocklist.New(st, discardLogger())
 	acquireSvc := acquire.New(st, reg, catalog.NewService(st, provider), settingsSvc, discardLogger(), blocklistSvc)
-	h := server.New(cfg, st, discardLogger(), provider, reg, settingsSvc, authSvc, runner, blocklistSvc, acquireSvc)
+	// The API shares the scan's importer, so a retry through the routes takes the
+	// same mutex the scan does — the harness must not hand it a second one.
+	importSvc := importer.New(st, reg, discardLogger(), blocklistSvc, acquireSvc)
+	h := server.New(server.Deps{
+		Store:     st,
+		Logger:    discardLogger(),
+		Provider:  provider,
+		Clients:   reg,
+		Settings:  settingsSvc,
+		Auth:      authSvc,
+		Jobs:      runner,
+		Blocklist: blocklistSvc,
+		Acquire:   acquireSvc,
+		Importer:  importSvc,
+	})
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
-	return &harness{ts: ts, store: st, reg: reg, jobs: runner, idx: idx, dl: dl, lib: lib}
+	return &harness{ts: ts, store: st, reg: reg, jobs: runner, idx: idx, dl: dl, lib: lib, importer: importSvc}
 }
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

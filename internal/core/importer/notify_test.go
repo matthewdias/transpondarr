@@ -56,7 +56,7 @@ func TestImportDispatchesImportedEvent(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
 	fn := coretest.NewFakeNotifier()
-	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{})
+	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -74,6 +74,66 @@ func TestImportDispatchesImportedEvent(t *testing.T) {
 	}
 }
 
+// A pack landing six episodes is one arrival, not six: one event carrying the
+// numbers, so a season import cannot spam a phone.
+func TestMultiItemImportDispatchesOneEvent(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedBatchGrab(t, st, "abc", 3)
+	dir := writeTree(t,
+		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
+		"[SynthSubs] Placeholder Saga - 02 [1080p].mkv",
+		"[SynthSubs] Placeholder Saga - 03 [1080p].mkv",
+	)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	fn := coretest.NewFakeNotifier()
+	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
+
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	ev := waitEvent(t, fn)
+	if ev.Kind != notify.KindImported {
+		t.Fatalf("kind = %s, want imported", ev.Kind)
+	}
+	if len(ev.Items) != 3 || ev.Items[0] != 1 || ev.Items[2] != 3 {
+		t.Errorf("items = %v, want the three episodes sorted", ev.Items)
+	}
+	if ev.ItemNumber != 0 {
+		t.Errorf("item = %d, want 0 for a multi-item release", ev.ItemNumber)
+	}
+	if ev.Path != "/library" {
+		t.Errorf("path = %q, want the directory the episodes landed in", ev.Path)
+	}
+	expectNoEvent(t, fn)
+}
+
+// A single-item import keeps its shape: one number, the file's own destination.
+func TestSingleItemImportKeepsItsEventShape(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	src := filepath.Join(t.TempDir(), "raw.mkv")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: src},
+	}}
+	fn := coretest.NewFakeNotifier()
+	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
+
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	ev := waitEvent(t, fn)
+	if ev.ItemNumber != 5 || len(ev.Items) != 0 || ev.Path != "/library/placed.mkv" {
+		t.Errorf("event = %+v, want item 5, no items list, the file's destination", ev)
+	}
+}
+
 // A stuck import notifies once per incident — on the no-error → error
 // transition — not once per distinct reason: a flaky mount alternating error
 // strings tick-to-tick must not flap notifications.
@@ -84,7 +144,7 @@ func TestStuckImportNotifiesOncePerIncident(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: "/nonexistent/raw.mkv"},
 	}}
 	fn := coretest.NewFakeNotifier()
-	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{})
+	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -126,7 +186,7 @@ func TestFailedDownloadNotifiesOncePerRelease(t *testing.T) {
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
 	fn := coretest.NewFakeNotifier()
-	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{})
+	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -153,7 +213,7 @@ func TestVanishedDownloadNotifiesGrabFailed(t *testing.T) {
 	backdateMissingSince(t, st, "abc", 10*time.Minute)
 	dl := &coretest.FakeDownload{} // reports nothing for the hash
 	fn := coretest.NewFakeNotifier()
-	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), nil)
+	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), nil, nil)
 
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -182,7 +242,7 @@ func TestErroringNotifierDoesNotFailImport(t *testing.T) {
 	}}
 	fn := coretest.NewFakeNotifier()
 	fn.Err = errors.New("endpoint down")
-	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{})
+	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)

@@ -1,17 +1,12 @@
 package importer
 
 import (
-	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/matthewdias/transpondarr/internal/core/parser"
-)
-
-var (
-	errNoVideoFile      = errors.New("payload contains no video file")
-	errAmbiguousPayload = errors.New("payload contains more than one episode file")
 )
 
 // videoExts are the extensions treated as episode content; every other file in a
@@ -45,21 +40,30 @@ var nonEpisodeTokens = map[string]bool{
 // a better candidate.
 var sampleTokens = map[string]bool{"sample": true, "samples": true}
 
-// candidate is one payload file that could be the episode.
+// candidate is one payload file that could be an episode.
 type candidate struct {
-	path   string
+	path   string // absolute, as handed to the library target
+	rel    string // payload-relative, the identity a retry assignment names
 	parsed parser.Parsed
 }
 
-// resolvePayloadFile returns the one file in a directory payload that is the
-// episode for wantNumber, never a guess. No largest-file fallback: a season pack
-// has a largest file too, and taking it would silently drop the rest of the pack.
-func resolvePayloadFile(root string, wantNumber int) (string, error) {
-	var cands []candidate
-	var soleVideo string
-	var videos int
+// collectPayloadFiles lists every plausible episode file in a payload. A plain
+// file is taken as-is — identity by construction, we chose this release — while
+// a directory is walked past samples, extras and sidecars.
+func collectPayloadFiles(root string) ([]candidate, error) {
+	info, err := os.Stat(root)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() {
+		name := filepath.Base(root)
+		return []candidate{{path: root, rel: name, parsed: parser.Parse(name)}}, nil
+	}
 
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	var cands []candidate
+	var sole candidate
+	var videos int
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -80,71 +84,30 @@ func resolvePayloadFile(root string, wantNumber int) (string, error) {
 		if hasToken(name, sampleTokens) {
 			return nil // a truncated copy of the episode, never the episode
 		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			rel = name
+		}
+		c := candidate{path: path, rel: filepath.ToSlash(rel), parsed: parser.Parse(name)}
 		videos++
 		if videos == 1 {
-			soleVideo = path
+			sole = c
 		}
 		if hasNonEpisodeToken(name) {
 			return nil
 		}
-		cands = append(cands, candidate{path: path, parsed: parser.Parse(name)})
+		cands = append(cands, c)
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	switch len(cands) {
-	case 0:
-		// Same identity-by-construction reasoning: one video and nothing to confuse
-		// it with, so an extras token in its name is a word in the title.
-		if videos == 1 {
-			return soleVideo, nil
-		}
-		return "", errNoVideoFile
-	case 1:
-		// Identity by construction: we chose this release, so the sole video is the
-		// episode however unhelpfully it is named.
-		return cands[0].path, nil
+	// Identity by construction, as for a plain-file payload: one video and nothing
+	// to confuse it with, so an extras token in its name is a word in the title.
+	if len(cands) == 0 && videos == 1 {
+		return []candidate{sole}, nil
 	}
-	return pickByNumber(cands, wantNumber)
-}
-
-// pickByNumber returns the sole candidate claiming wantNumber, refusing as soon
-// as any other plausible episode is present.
-func pickByNumber(cands []candidate, wantNumber int) (string, error) {
-	if wantNumber <= 0 {
-		return "", errAmbiguousPayload // nothing to match against
-	}
-	match := -1
-	for i, c := range cands {
-		if !numbered(c.parsed) {
-			continue // an extra, not a competing episode
-		}
-		if !matchesNumber(c.parsed, wantNumber) {
-			return "", errAmbiguousPayload // another episode is present: a batch
-		}
-		if match >= 0 {
-			return "", errAmbiguousPayload // two files claim the same episode
-		}
-		match = i
-	}
-	if match < 0 {
-		return "", errAmbiguousPayload
-	}
-	return cands[match].path, nil
-}
-
-// numbered reports whether a filename claims an episode number at all.
-func numbered(p parser.Parsed) bool { return p.EpisodeStart > 0 || p.AbsoluteEpisode > 0 }
-
-// matchesNumber reports whether a filename claims exactly the wanted episode; a
-// range or batch marker never does.
-func matchesNumber(p parser.Parsed, want int) bool {
-	if p.Batch || p.EpisodeEnd != p.EpisodeStart {
-		return false
-	}
-	return p.EpisodeStart == want || p.AbsoluteEpisode == want
+	return cands, nil
 }
 
 // hasNonEpisodeToken reports whether a filename is marked as an extra.

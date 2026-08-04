@@ -20,9 +20,34 @@ WHERE w.series_id = ?
 ORDER BY g.created_at DESC;
 
 -- name: ListGrabsByInfoHash :many
-SELECT *
-FROM grabs
-WHERE info_hash = ?;
+-- One release's rows, in episode order: the group the importer settles together.
+SELECT
+    g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
+    g.missing_since, g.last_error,
+    w.number AS item_number,
+    w.kind   AS item_kind,
+    s.id     AS series_id,
+    s.title  AS series_title,
+    s.format AS series_format
+FROM grabs g
+JOIN wanted_items w ON w.id = g.wanted_item_id
+JOIN series s ON s.id = w.series_id
+WHERE g.info_hash = ?
+ORDER BY w.number;
+
+-- name: GetGrabByID :one
+SELECT
+    g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
+    g.missing_since, g.last_error,
+    w.number AS item_number,
+    w.kind   AS item_kind,
+    s.id     AS series_id,
+    s.title  AS series_title,
+    s.format AS series_format
+FROM grabs g
+JOIN wanted_items w ON w.id = g.wanted_item_id
+JOIN series s ON s.id = w.series_id
+WHERE g.id = ?;
 
 -- name: ListGrabsByStatus :many
 SELECT

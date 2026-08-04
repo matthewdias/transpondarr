@@ -9,6 +9,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/store"
@@ -30,6 +31,9 @@ type routeDeps struct {
 	jobs      *jobs.Runner
 	acquire   *acquire.Service
 	blocklist *blocklist.Service
+	// importer is the one the scan job runs on, so a manual import fix and the
+	// 15s scan serialize on its mutex rather than racing over one payload.
+	importer *importer.Importer
 }
 
 // registerRoutes wires every Huma endpoint. Handlers are grouped by resource in

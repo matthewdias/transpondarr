@@ -63,6 +63,9 @@ func body(ev notify.Event) string {
 	if ev.ItemNumber > 0 {
 		lines = append(lines, "Episode "+strconv.Itoa(ev.ItemNumber))
 	}
+	if label := ev.ItemsLabel(); label != "" {
+		lines = append(lines, "Episodes "+label)
+	}
 	if ev.ReleaseTitle != "" {
 		lines = append(lines, ev.ReleaseTitle)
 	}

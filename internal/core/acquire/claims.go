@@ -42,6 +42,14 @@ func (c *claims) Acquire(ids []int64) {
 	}
 }
 
+// TryClaimItems exposes the registry to a collaborator outside this package —
+// the importer, placing a payload file for an item no grab row claimed (#126).
+// One registry is the point: a minutes-long copy must exclude a concurrent grab.
+func (s *Service) TryClaimItems(ids []int64) bool { return s.claims.TryAcquire(ids) }
+
+// ReleaseClaims releases what TryClaimItems took.
+func (s *Service) ReleaseClaims(ids []int64) { s.claims.Release(ids) }
+
 func (c *claims) Release(ids []int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

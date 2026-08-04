@@ -10,30 +10,110 @@ import (
 	"database/sql"
 )
 
-const listGrabsByInfoHash = `-- name: ListGrabsByInfoHash :many
-SELECT id, wanted_item_id, info_hash, release_title, status, created_at, missing_since, last_error
-FROM grabs
-WHERE info_hash = ?
+const getGrabByID = `-- name: GetGrabByID :one
+SELECT
+    g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
+    g.missing_since, g.last_error,
+    w.number AS item_number,
+    w.kind   AS item_kind,
+    s.id     AS series_id,
+    s.title  AS series_title,
+    s.format AS series_format
+FROM grabs g
+JOIN wanted_items w ON w.id = g.wanted_item_id
+JOIN series s ON s.id = w.series_id
+WHERE g.id = ?
 `
 
-func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]Grab, error) {
+type GetGrabByIDRow struct {
+	ID           int64          `json:"id"`
+	WantedItemID int64          `json:"wanted_item_id"`
+	InfoHash     string         `json:"info_hash"`
+	ReleaseTitle string         `json:"release_title"`
+	Status       string         `json:"status"`
+	MissingSince sql.NullString `json:"missing_since"`
+	LastError    sql.NullString `json:"last_error"`
+	ItemNumber   sql.NullInt64  `json:"item_number"`
+	ItemKind     string         `json:"item_kind"`
+	SeriesID     int64          `json:"series_id"`
+	SeriesTitle  string         `json:"series_title"`
+	SeriesFormat string         `json:"series_format"`
+}
+
+func (q *Queries) GetGrabByID(ctx context.Context, id int64) (GetGrabByIDRow, error) {
+	row := q.db.QueryRowContext(ctx, getGrabByID, id)
+	var i GetGrabByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.WantedItemID,
+		&i.InfoHash,
+		&i.ReleaseTitle,
+		&i.Status,
+		&i.MissingSince,
+		&i.LastError,
+		&i.ItemNumber,
+		&i.ItemKind,
+		&i.SeriesID,
+		&i.SeriesTitle,
+		&i.SeriesFormat,
+	)
+	return i, err
+}
+
+const listGrabsByInfoHash = `-- name: ListGrabsByInfoHash :many
+SELECT
+    g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
+    g.missing_since, g.last_error,
+    w.number AS item_number,
+    w.kind   AS item_kind,
+    s.id     AS series_id,
+    s.title  AS series_title,
+    s.format AS series_format
+FROM grabs g
+JOIN wanted_items w ON w.id = g.wanted_item_id
+JOIN series s ON s.id = w.series_id
+WHERE g.info_hash = ?
+ORDER BY w.number
+`
+
+type ListGrabsByInfoHashRow struct {
+	ID           int64          `json:"id"`
+	WantedItemID int64          `json:"wanted_item_id"`
+	InfoHash     string         `json:"info_hash"`
+	ReleaseTitle string         `json:"release_title"`
+	Status       string         `json:"status"`
+	MissingSince sql.NullString `json:"missing_since"`
+	LastError    sql.NullString `json:"last_error"`
+	ItemNumber   sql.NullInt64  `json:"item_number"`
+	ItemKind     string         `json:"item_kind"`
+	SeriesID     int64          `json:"series_id"`
+	SeriesTitle  string         `json:"series_title"`
+	SeriesFormat string         `json:"series_format"`
+}
+
+// One release's rows, in episode order: the group the importer settles together.
+func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]ListGrabsByInfoHashRow, error) {
 	rows, err := q.db.QueryContext(ctx, listGrabsByInfoHash, infoHash)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Grab{}
+	items := []ListGrabsByInfoHashRow{}
 	for rows.Next() {
-		var i Grab
+		var i ListGrabsByInfoHashRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WantedItemID,
 			&i.InfoHash,
 			&i.ReleaseTitle,
 			&i.Status,
-			&i.CreatedAt,
 			&i.MissingSince,
 			&i.LastError,
+			&i.ItemNumber,
+			&i.ItemKind,
+			&i.SeriesID,
+			&i.SeriesTitle,
+			&i.SeriesFormat,
 		); err != nil {
 			return nil, err
 		}

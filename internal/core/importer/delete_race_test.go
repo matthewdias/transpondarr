@@ -33,7 +33,7 @@ func TestScanSurvivesSeriesDeletedMidImport(t *testing.T) {
 			t.Errorf("delete series mid-import: %v", err)
 		}
 	}
-	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{})
+	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil)
 
 	if err := im.ScanOnce(ctx); err != nil {
 		t.Fatalf("ScanOnce: %v — a mid-import delete must not fail the scan", err)

@@ -188,3 +188,22 @@ func TestSendReportsNon2xx(t *testing.T) {
 		t.Errorf("error %q should carry the adapter name and status", err)
 	}
 }
+
+// A multi-item import renders one "Episodes" field, with contiguous numbers
+// folded into runs so a season pack does not print a wall of digits.
+func TestSendRendersMultipleEpisodesAsOneField(t *testing.T) {
+	ts, got := capture(t, http.StatusNoContent)
+	if err := New(ts.URL).Send(context.Background(), notify.Event{
+		Kind: notify.KindImported, SeriesTitle: "Placeholder Saga",
+		Items: []int{1, 2, 3, 5}, Path: "/library/Placeholder Saga/Season 01",
+	}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	v, ok := fieldValue(got.Embeds[0], "Episodes")
+	if !ok || v != "1-3, 5" {
+		t.Errorf("Episodes = %q (present %v), want \"1-3, 5\"", v, ok)
+	}
+	if _, ok := fieldValue(got.Embeds[0], "Episode"); ok {
+		t.Error("a multi-item event must not also render a single Episode field")
+	}
+}

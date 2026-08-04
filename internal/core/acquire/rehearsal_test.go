@@ -104,8 +104,12 @@ func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 // exists to surface.
 func TestNotifyOnlySweepReportsNothingEligible(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
-	h := newRehearsal(t, []indexer.Release{packRelease("Placeholder Saga")},
+	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 1)},
 		fakeConfig{notifyOnly: true})
+	if _, err := h.st.DB.ExecContext(context.Background(),
+		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
+		t.Fatalf("raise the profile floor: %v", err)
+	}
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 1, airsAt: &past}, sweepItem{number: 2, airsAt: &past})
 
@@ -117,8 +121,8 @@ func TestNotifyOnlySweepReportsNothingEligible(t *testing.T) {
 	if ev.Error == "" {
 		t.Fatal("a no-action rehearsal must say why nothing would have been grabbed")
 	}
-	if !strings.Contains(ev.ReleaseTitle, "[Batchers]") {
-		t.Errorf("release = %q, want the refused pack named", ev.ReleaseTitle)
+	if !strings.Contains(ev.ReleaseTitle, "Placeholder Saga") {
+		t.Errorf("release = %q, want the refused release named", ev.ReleaseTitle)
 	}
 	if len(h.dl.Adds) != 0 {
 		t.Errorf("download Add called %d times, want 0", len(h.dl.Adds))
@@ -386,5 +390,36 @@ func drainEvents(fn *coretest.FakeNotifier) {
 		default:
 			return
 		}
+	}
+}
+
+// A pack flows through the same rehearsal walk as any other candidate now that
+// it is eligible (#126): one event naming the whole coverage, zero Adds, zero rows.
+func TestNotifyOnlySweepRehearsesASeasonPack(t *testing.T) {
+	h := newRehearsal(t, []indexer.Release{packRelease("Placeholder Saga")},
+		fakeConfig{notifyOnly: true})
+	id := seedSweep(t, h.st, "Placeholder Saga", true,
+		sweepItem{number: 1}, sweepItem{number: 2}, sweepItem{number: 3},
+		sweepItem{number: 4}, sweepItem{number: 5}, sweepItem{number: 6})
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+
+	ev := wantRehearsalEvent(t, h.fn)
+	if !strings.Contains(ev.ReleaseTitle, "[Batchers]") {
+		t.Errorf("release = %q, want the pack it would have grabbed", ev.ReleaseTitle)
+	}
+	if ev.Error != "would have grabbed" {
+		t.Errorf("outcome = %q, want the would-grab spelled out", ev.Error)
+	}
+	if ev.ItemNumber != 0 {
+		t.Errorf("item = %d, want 0 for a multi-item release", ev.ItemNumber)
+	}
+	if len(h.dl.Adds) != 0 {
+		t.Errorf("download Add called %d times in notify-only, want 0", len(h.dl.Adds))
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
+		t.Errorf("grabs recorded in notify-only: %v", got)
 	}
 }

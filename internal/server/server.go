@@ -16,13 +16,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/auth"
 	"github.com/matthewdias/transpondarr/internal/core/blocklist"
 	"github.com/matthewdias/transpondarr/internal/core/browse"
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
@@ -35,33 +35,47 @@ func init() {
 	huma.DefaultArrayNullable = false
 }
 
-// New builds the top-level HTTP handler. The clients registry supplies the live
-// download/indexer/library clients (any may be nil when unconfigured); settings
-// backs the runtime-config endpoints; auth backs forms login + sessions; runner
-// backs the job-status endpoint. provider is passed in rather than built here so
-// the daemon's background jobs share one — and so share its rate limiter; the
-// blocklist likewise, so its breaker sees every failure path, and acquire so its
-// in-flight claims cover manual grabs and the jobs alike.
-func New(cfg *config.Config, st *store.Store, logger *slog.Logger, provider metadata.Provider, reg *clients.Registry, settingsSvc *settings.Service, authSvc *auth.Service, runner *jobs.Runner, blocklistSvc *blocklist.Service, acquireSvc *acquire.Service) http.Handler {
+// Deps is everything New wires into the HTTP layer. Instances are shared with
+// the daemon's background jobs on purpose: Provider brings its rate limiter,
+// Blocklist its breaker (so it sees every failure path), Acquire its in-flight
+// claims (covering manual grabs and the jobs alike), and Importer is the very
+// instance the scan job runs on — a manual import fix and the scan serialize on
+// its mutex instead of racing over one payload.
+type Deps struct {
+	Store     *store.Store
+	Logger    *slog.Logger
+	Provider  metadata.Provider
+	Clients   *clients.Registry // live download/indexer/library clients; any may be nil when unconfigured
+	Settings  *settings.Service
+	Auth      *auth.Service
+	Jobs      *jobs.Runner
+	Blocklist *blocklist.Service
+	Acquire   *acquire.Service
+	Importer  *importer.Importer
+}
+
+// New builds the top-level HTTP handler.
+func New(d Deps) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
-	r.Use(authMiddleware(authSvc, settingsSvc.APIKey))
+	r.Use(authMiddleware(d.Auth, d.Settings.APIKey))
 
-	logger.Info("auth: forms login", "required", authSvc.Required(), "configured", authSvc.Configured())
-	registerAuthRoutes(r, authSvc, settingsSvc.APIKey)
+	d.Logger.Info("auth: forms login", "required", d.Auth.Required(), "configured", d.Auth.Configured())
+	registerAuthRoutes(r, d.Auth, d.Settings.APIKey)
 
 	api := humachi.New(r, apiConfig())
 	registerRoutes(api, routeDeps{
-		store:     st,
-		catalog:   catalog.NewService(st, provider),
-		browse:    browse.New(st, provider, logger),
-		clients:   reg,
-		settings:  settingsSvc,
-		auth:      authSvc,
-		jobs:      runner,
-		acquire:   acquireSvc,
-		blocklist: blocklistSvc,
+		store:     d.Store,
+		catalog:   catalog.NewService(d.Store, d.Provider),
+		browse:    browse.New(d.Store, d.Provider, d.Logger),
+		clients:   d.Clients,
+		settings:  d.Settings,
+		auth:      d.Auth,
+		jobs:      d.Jobs,
+		acquire:   d.Acquire,
+		blocklist: d.Blocklist,
+		importer:  d.Importer,
 	})
 
 	r.NotFound(spaHandler())
