@@ -67,6 +67,62 @@ func TestListPayloadReportsFilesAndItems(t *testing.T) {
 	}
 }
 
+// The dialog's whole problem with a RAR payload was an empty list: the archive
+// has to be listed, and it must never be assignable to an episode.
+func TestListPayloadReportsArchivesWhenNothingIsImportable(t *testing.T) {
+	st := coretest.NewStore(t)
+	ctx := context.Background()
+	dir := writeTree(t,
+		"placeholder.saga.s01e01.1080p.web.h264-synth.rar",
+		"placeholder.saga.s01e01.1080p.web.h264-synth.r00",
+		"placeholder.saga.s01e01.1080p.web.h264-synth.r01",
+	)
+	im, _, grabID := deferOne(t, st, dir, 1)
+
+	info, err := im.ListPayload(ctx, grabID)
+	if err != nil {
+		t.Fatalf("ListPayload: %v", err)
+	}
+	if len(info.Files) != 0 {
+		t.Errorf("files = %+v, want none from an archive payload", info.Files)
+	}
+	if len(info.Archives) != 1 || info.Archives[0].Parts != 3 ||
+		info.Archives[0].Path != "placeholder.saga.s01e01.1080p.web.h264-synth.rar" {
+		t.Fatalf("archives = %+v, want the one 3-part set named by its .rar", info.Archives)
+	}
+
+	_, err = im.RetryImport(ctx, grabID, map[string]int{
+		"placeholder.saga.s01e01.1080p.web.h264-synth.rar": 1,
+	})
+	if !errors.Is(err, ErrBadAssignment) {
+		t.Errorf("err = %v, want an archive to be unassignable", err)
+	}
+}
+
+// The user journey the dialog now instructs, end to end: extract in place, retry,
+// and the lone file lands on the lone item with no assignment named.
+func TestRetryImportAfterExtractionImports(t *testing.T) {
+	st := coretest.NewStore(t)
+	dir := writeTree(t,
+		"placeholder.saga.s01e01.1080p.web.h264-synth.rar",
+		"placeholder.saga.s01e01.1080p.web.h264-synth.r00",
+	)
+	im, target, grabID := deferOne(t, st, dir, 1)
+
+	writeTreeInto(t, dir, "[SynthSubs] Placeholder Saga - 01 [1080p].mkv")
+
+	results, err := im.RetryImport(context.Background(), grabID, nil)
+	if err != nil {
+		t.Fatalf("RetryImport: %v", err)
+	}
+	if len(results) != 1 || results[0].Outcome != "imported" {
+		t.Fatalf("results = %+v, want the extracted episode imported", results)
+	}
+	if len(target.Placed) != 1 {
+		t.Errorf("Place called %d times, want the extracted file placed once", len(target.Placed))
+	}
+}
+
 // A row that is not awaiting a fix has no payload question to answer.
 func TestListPayloadRefusesANonDeferredGrab(t *testing.T) {
 	st := coretest.NewStore(t)

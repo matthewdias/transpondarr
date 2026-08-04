@@ -168,6 +168,22 @@ Behaviour changes are test-driven. Work red → green → refactor:
   video is counted at all. Downstream the relaxation needs no special case: a
   one-item group takes it by the lone-file rule, a multi-item group leaves it
   over and defers.
+- **Nothing unpacks an archive; the walk names one instead (#135).** Declined
+  deliberately: there is no Usenet client here (qBittorrent only) and RAR
+  packaging is a Usenet/scene convention that anime groups do not use, so a
+  decoder would be the first dependency in the import path and its tests would
+  need committed binary fixtures. So `collectPayloadFiles` returns a `payload`
+  whose `archives` ride *beside* `[]candidate`, never inside it — `mapFiles`
+  stays pure and a `.rar` is unassignable by construction rather than by a guard
+  someone can miss. Volumes are grouped into sets keyed on **dir + stem**, so a
+  12-volume set is one thing to extract and two discs sharing a naming scheme
+  stay two; the deferral reason and the Fix import dialog then say what to
+  extract, and re-importing after extracting in place already works with no new
+  code. Password-protected and corrupt archives are indistinguishable from
+  healthy ones without the reader we declined, and all three defer identically —
+  sound, because deferral is settled either way. A single-file `.rar` payload is
+  an archive too: identity by construction stops here, since hardlinking it into
+  the library as the episode is worse than deferring.
 - **The mapping rules are narrow on purpose, because a wrong answer moves a
   file.** A lone file for a lone item is identity by construction (we chose this
   release); a file claims a number only when it names exactly one, with

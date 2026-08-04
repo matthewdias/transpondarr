@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ApiError, api, type PayloadFile, type QueueItem } from "@/lib/api";
+import {
+  ApiError,
+  api,
+  type PayloadArchive,
+  type PayloadFile,
+  type QueueItem,
+} from "@/lib/api";
 import {
   activityHistoryQuery,
   activityQueueQuery,
@@ -63,6 +69,9 @@ export function RetryImportDialog({
     enabled: open,
   });
 
+  const files = payload.data?.files ?? [];
+  const archives: PayloadArchive[] = payload.data?.archives ?? [];
+
   // What the row shows is what the retry sends: an untouched suggestion left out
   // of the request would be re-derived, and overrides change how mapping runs.
   const selected = (file: PayloadFile) =>
@@ -73,7 +82,7 @@ export function RetryImportDialog({
     mutationFn: () =>
       api.retryQueueItemImport(
         item.id,
-        (payload.data?.files ?? [])
+        files
           .map((file) => ({ file: file.path, choice: selected(file) }))
           .filter(({ choice }) => choice !== SKIP)
           .map(({ file, choice }) => ({ file, item_number: Number(choice) })),
@@ -116,8 +125,9 @@ export function RetryImportDialog({
         <DialogHeader>
           <DialogTitle>Fix import</DialogTitle>
           <DialogDescription>
-            Say which file is which episode. Anything left on “Skip” is not
-            imported.
+            {files.length === 0 && archives.length > 0
+              ? "Nothing here can be imported as it stands."
+              : "Say which file is which episode. Anything left on “Skip” is not imported."}
           </DialogDescription>
         </DialogHeader>
 
@@ -132,50 +142,80 @@ export function RetryImportDialog({
               ? payload.error.message
               : String(payload.error)}
           </p>
-        ) : payload.data?.files.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">
-            This payload holds no video files.
-          </p>
         ) : (
-          <ul className="max-h-[50vh] space-y-2 overflow-y-auto">
-            {payload.data?.files.map((file) => (
-              <li
-                key={file.path}
-                className="flex items-center gap-3 rounded-md border bg-panel-2 px-3 py-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-mono text-[12px]">
-                    {file.path}
+          <div className="max-h-[50vh] space-y-3 overflow-y-auto">
+            {archives.length > 0 ? (
+              <div className="space-y-2 rounded-md border bg-panel-2 px-3 py-2">
+                {archives.map((a) => (
+                  <div key={a.path} className="min-w-0">
+                    <div className="truncate font-mono text-[12px]">
+                      {a.path}
+                    </div>
+                    <div className="text-[12px] text-faint">
+                      {a.parts > 1
+                        ? `archive set · ${a.parts} parts`
+                        : "archive"}
+                    </div>
                   </div>
-                  <div className="text-[12px] text-faint">
-                    {parseSummary(file)}
-                  </div>
-                </div>
-                <Select
-                  value={selected(file)}
-                  onValueChange={(v) =>
-                    setChoices((prev) => ({ ...prev, [file.path]: v }))
-                  }
-                >
-                  <SelectTrigger
-                    size="sm"
-                    aria-label={`Episode for ${file.path}`}
-                    className="w-36"
+                ))}
+                <p className="text-[13px] text-muted-foreground">
+                  Transpondarr does not unpack archives. Extract{" "}
+                  {archives.length > 1 ? "them" : "it"} into the download
+                  folder, then retry — the extracted episode will be listed
+                  here.
+                </p>
+              </div>
+            ) : null}
+
+            {files.length > 0 ? (
+              <ul className="space-y-2">
+                {files.map((file) => (
+                  <li
+                    key={file.path}
+                    className="flex items-center gap-3 rounded-md border bg-panel-2 px-3 py-2"
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={SKIP}>Skip</SelectItem>
-                    {unfilled.map((i) => (
-                      <SelectItem key={i.grab_id} value={String(i.item_number)}>
-                        Episode {i.item_number}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </li>
-            ))}
-          </ul>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-mono text-[12px]">
+                        {file.path}
+                      </div>
+                      <div className="text-[12px] text-faint">
+                        {parseSummary(file)}
+                      </div>
+                    </div>
+                    <Select
+                      value={selected(file)}
+                      onValueChange={(v) =>
+                        setChoices((prev) => ({ ...prev, [file.path]: v }))
+                      }
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        aria-label={`Episode for ${file.path}`}
+                        className="w-36"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={SKIP}>Skip</SelectItem>
+                        {unfilled.map((i) => (
+                          <SelectItem
+                            key={i.grab_id}
+                            value={String(i.item_number)}
+                          >
+                            Episode {i.item_number}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </li>
+                ))}
+              </ul>
+            ) : archives.length === 0 ? (
+              <p className="text-[13px] text-muted-foreground">
+                This payload holds no video files.
+              </p>
+            ) : null}
+          </div>
         )}
 
         <DialogFooter>
@@ -190,7 +230,11 @@ export function RetryImportDialog({
             onClick={() => retry.mutate()}
             disabled={retry.isPending || !payload.data}
           >
-            {retry.isPending ? "Importing…" : "Import"}
+            {retry.isPending
+              ? "Importing…"
+              : files.length === 0
+                ? "Retry import"
+                : "Import"}
           </Button>
         </DialogFooter>
       </DialogContent>

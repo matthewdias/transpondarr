@@ -44,7 +44,24 @@ All notable changes to this project are documented here. The format is based on
   release is remembered, so the next search picks a different one instead of
   parking the item forever.
 
+- **A download that holds only an archive now says so, and can be finished by
+  hand.** Transpondarr does not unpack archives — a scene-style RAR set used to
+  settle with a flat "the payload holds no video file", and *Fix import* then
+  opened on an empty list, which was a dead end. The deferral now names the
+  archive and how many volumes it spans (a 12-volume set counts as one thing to
+  extract, not twelve), and the dialog lists it with what to do: extract it into
+  the download folder and retry, which imports the extracted episode. An archive
+  is listed beside the payload's files and can never be assigned to an episode.
+  Password-protected and corrupt archives are indistinguishable from healthy
+  ones without an unpacker, so all three defer the same way.
+
 ### Fixed
+
+- **A single-file `.rar` download is no longer filed into the library as the
+  episode.** A payload that is one plain file was taken as the episode whatever
+  its extension, so a torrent containing a lone archive was hardlinked into
+  place under an episode's name — a file no player can open, with the episode
+  marked as had. Such a payload now defers as the archive it is.
 
 - **A downloaded episode whose filename happens to contain an extras word no
   longer parks itself.** The payload resolver drops files marked `preview`,

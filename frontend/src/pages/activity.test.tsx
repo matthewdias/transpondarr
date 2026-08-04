@@ -229,6 +229,7 @@ describe("fixing a deferred import", () => {
         suggested_item: 0,
       },
     ],
+    archives: [],
   };
 
   it("offers the fix only on deferred rows and submits the assignment", async () => {
@@ -288,6 +289,59 @@ describe("fixing a deferred import", () => {
         ],
       }),
     );
+  });
+
+  // Nothing unpacks archives, so the dialog has to say what it found and what to
+  // do — an empty file list was the dead end this whole path exists to end.
+  it("names the archive it cannot unpack and still lets the retry run", async () => {
+    let posted: unknown;
+    useHandlers(
+      { client_ok: true, items: [queueItem({ id: 3, status: "deferred" })] },
+      { "": { events: [] } },
+    );
+    server.use(
+      http.get("/api/v1/activity/queue/3/payload", () =>
+        HttpResponse.json({
+          ...payload,
+          items: [{ grab_id: 3, item_number: 2, status: "import_deferred" }],
+          files: [],
+          archives: [
+            {
+              path: "placeholder.saga.s01e02.1080p.web.h264-synth.rar",
+              parts: 3,
+            },
+          ],
+        }),
+      ),
+      http.post(
+        "/api/v1/activity/queue/3/retry-import",
+        async ({ request }) => {
+          posted = await request.json();
+          return HttpResponse.json({
+            results: [{ item_number: 2, outcome: "imported" }],
+          });
+        },
+      ),
+    );
+
+    renderPage();
+    await userEvent.click(
+      (await screen.findAllByRole("button", { name: /Fix import/ }))[0],
+    );
+
+    expect(
+      await screen.findByText(
+        "placeholder.saga.s01e02.1080p.web.h264-synth.rar",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/3 parts/)).toBeInTheDocument();
+    expect(screen.getByText(/does not unpack archives/i)).toBeInTheDocument();
+    // Nothing to assign, so the file picker must not be offered at all.
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+
+    // The point of the dialog: extract in place, then retry re-runs the mapping.
+    await userEvent.click(screen.getByRole("button", { name: "Retry import" }));
+    await waitFor(() => expect(posted).toEqual({ assignments: [] }));
   });
 
   // A preselected suggestion left out of the request would be re-derived, and an

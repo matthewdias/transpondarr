@@ -133,6 +133,7 @@ export type ActivityQueue = Schemas["ActivityQueueOutputBody"];
 export type ActivityHistoryPage = Schemas["ActivityHistoryOutputBody"];
 export type QueuePayload = Schemas["QueuePayloadOutputBody"];
 export type PayloadFile = Schemas["PayloadFileDTO"];
+export type PayloadArchive = Schemas["PayloadArchiveDTO"];
 export type RetryAssignment = Schemas["RetryAssignmentDTO"];
 export type RetryResult = Schemas["RetryResultDTO"];
 

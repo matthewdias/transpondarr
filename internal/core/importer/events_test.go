@@ -78,6 +78,58 @@ func TestDeferAppendsDeferredEventWithDetail(t *testing.T) {
 	}
 }
 
+// Nothing here unpacks a RAR set, so the deferral has to name what it found and
+// what to do with it -- otherwise the row is a dead end.
+func TestDefersAnArchivePayloadNamingTheArchive(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, seriesID := seedGrab(t, st, "abc")
+	dir := writeTree(t,
+		"placeholder.saga.s01e05.1080p.web.h264-example.rar",
+		"placeholder.saga.s01e05.1080p.web.h264-example.r00",
+		"placeholder.saga.s01e05.1080p.web.h264-example.r01",
+		"placeholder.saga.s01e05.1080p.web.h264-example.sfv",
+	)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	events := seriesEvents(t, st, seriesID)
+	if len(events) != 1 || events[0].Event != "import_deferred" {
+		t.Fatalf("events = %+v, want one import_deferred", events)
+	}
+	if !strings.Contains(events[0].Detail, "3-part archive set") {
+		t.Errorf("detail = %q, want it to name the archive set and its size", events[0].Detail)
+	}
+	if !strings.Contains(events[0].Detail, "Fix import") {
+		t.Errorf("detail = %q, want it to point at the manual path", events[0].Detail)
+	}
+}
+
+// The two deferrals stay distinguishable: an empty payload has nothing to
+// extract, so telling a human to extract it would be a wrong instruction.
+func TestDefersAPayloadWithNeitherVideoNorArchive(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, seriesID := seedGrab(t, st, "abc")
+	dir := writeTree(t,
+		"placeholder.saga.s01e05.1080p.web.h264-example.nfo",
+		"placeholder.saga.s01e05.1080p.web.h264-example.sfv",
+	)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	events := seriesEvents(t, st, seriesID)
+	if len(events) != 1 || events[0].Detail != "the payload holds no video file" {
+		t.Fatalf("events = %+v, want the plain no-video deferral", events)
+	}
+}
+
 func TestClientErrorAppendsFailedEventWithDetail(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, seriesID := seedGrab(t, st, "abc")

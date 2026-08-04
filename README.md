@@ -43,7 +43,9 @@ that lives on AniList/AniDB rather than TVDB.
 - **Manual control that's never refused** — search and grab any release by hand;
   profiles inform manual actions but only gate automation.
 - **Seeding-safe library import** — hardlink (or copy) into Plex/Jellyfin-ready
-  naming, without breaking the seeding torrent.
+  naming, without breaking the seeding torrent. Archived payloads aren't
+  unpacked: a RAR-set download says so and names what to extract, and extracting
+  it in place then retrying from **Fix import** completes the import.
 - **Self-hosted, single binary** — embedded web UI, login + API key auth, REST
   API with an OpenAPI spec, observable background jobs, and live-editable
   settings — no restarts.

@@ -379,20 +379,20 @@ func (im *Importer) importGroup(ctx context.Context, target library.Target, acti
 		im.setLastErrors(ctx, active, "source not accessible: "+err.Error())
 		return nil
 	}
-	files, err := collectPayloadFiles(st.ContentPath)
+	p, err := collectPayloadFiles(st.ContentPath)
 	if err != nil {
 		im.log.Warn("importer: payload could not be walked", "hash", st.Hash, "path", st.ContentPath, "err", err)
 		im.setLastErrors(ctx, active, "payload could not be read: "+err.Error())
 		return nil
 	}
-	if len(files) == 0 {
-		// An archive set is #135's problem, not something a later tick resolves.
+	if len(p.files) == 0 {
+		// No unpacker ships, so only a human extracting it moves this on.
 		for _, g := range active {
-			im.settle(ctx, g, statusDeferred, "the payload holds no video file")
+			im.settle(ctx, g, statusDeferred, noVideoReason(p.archives))
 		}
 		return nil
 	}
-	return im.settleGroup(ctx, target, active, files, nil)
+	return im.settleGroup(ctx, target, active, p.files, nil)
 }
 
 // settleGroup places what the mapping matched and settles every row it did not,
