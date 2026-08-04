@@ -40,6 +40,11 @@ var nonEpisodeTokens = map[string]bool{
 	"bonus": true,
 }
 
+// sampleTokens are the subset never plausible as a word in a title, so they hold
+// their file out of the sole-video relaxation below rather than merely losing to
+// a better candidate.
+var sampleTokens = map[string]bool{"sample": true, "samples": true}
+
 // candidate is one payload file that could be the episode.
 type candidate struct {
 	path   string
@@ -51,6 +56,8 @@ type candidate struct {
 // has a largest file too, and taking it would silently drop the rest of the pack.
 func resolvePayloadFile(root string, wantNumber int) (string, error) {
 	var cands []candidate
+	var soleVideo string
+	var videos int
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -70,6 +77,13 @@ func resolvePayloadFile(root string, wantNumber int) (string, error) {
 		if !videoExts[strings.ToLower(filepath.Ext(name))] {
 			return nil
 		}
+		if hasToken(name, sampleTokens) {
+			return nil // a truncated copy of the episode, never the episode
+		}
+		videos++
+		if videos == 1 {
+			soleVideo = path
+		}
 		if hasNonEpisodeToken(name) {
 			return nil
 		}
@@ -82,6 +96,11 @@ func resolvePayloadFile(root string, wantNumber int) (string, error) {
 
 	switch len(cands) {
 	case 0:
+		// Same identity-by-construction reasoning: one video and nothing to confuse
+		// it with, so an extras token in its name is a word in the title.
+		if videos == 1 {
+			return soleVideo, nil
+		}
 		return "", errNoVideoFile
 	case 1:
 		// Identity by construction: we chose this release, so the sole video is the
@@ -129,12 +148,15 @@ func matchesNumber(p parser.Parsed, want int) bool {
 }
 
 // hasNonEpisodeToken reports whether a filename is marked as an extra.
-func hasNonEpisodeToken(name string) bool {
+func hasNonEpisodeToken(name string) bool { return hasToken(name, nonEpisodeTokens) }
+
+// hasToken reports whether a filename carries any of tokens as a whole word.
+func hasToken(name string, tokens map[string]bool) bool {
 	base := strings.TrimSuffix(name, filepath.Ext(name))
 	for _, tok := range strings.FieldsFunc(base, func(r rune) bool {
 		return !isAlphanumeric(r)
 	}) {
-		if nonEpisodeTokens[strings.ToLower(tok)] {
+		if tokens[strings.ToLower(tok)] {
 			return true
 		}
 	}
