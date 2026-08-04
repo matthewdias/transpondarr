@@ -128,6 +128,7 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 
 	// Grabbed rows stay the scan's business; a retry only reopens what settled.
 	deferred := rowsWithStatus(group, statusDeferred)
+	assignments = slashKeys(assignments)
 	if err := im.validateAssignments(ctx, deferred, files, assignments); err != nil {
 		return nil, err
 	}
@@ -197,6 +198,19 @@ func (im *Importer) deferredGroup(ctx context.Context, grabID int64) ([]db.ListG
 	return nil, none, fmt.Errorf("%w: the client no longer reports this torrent", ErrPayloadGone)
 }
 
+// slashKeys restates assignment paths in the slash form a candidate's rel
+// carries, so validation and the override lookup cannot disagree on Windows.
+func slashKeys(in map[string]int) map[string]int {
+	if len(in) == 0 {
+		return in
+	}
+	out := make(map[string]int, len(in))
+	for path, n := range in {
+		out[filepath.ToSlash(path)] = n
+	}
+	return out
+}
+
 // validateAssignments refuses a retry that could not be carried out, rather than
 // half-applying it: an unknown file, a duplicated item, or an item this release
 // does not cover and the out-of-coverage guard would refuse anyway.
@@ -217,7 +231,7 @@ func (im *Importer) validateAssignments(ctx context.Context, deferred []db.ListG
 	}
 	taken := make(map[int]string, len(assignments))
 	for path, n := range assignments {
-		if !known[filepath.ToSlash(path)] {
+		if !known[path] {
 			return fmt.Errorf("%w: %q is not in this payload", ErrBadAssignment, path)
 		}
 		if n <= 0 {

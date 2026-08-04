@@ -180,17 +180,23 @@ type grabGroup struct {
 }
 
 // groupByHash buckets the already-fetched rows, preserving first-seen order so a
-// scan's work is still deterministic.
+// scan's work is still deterministic. Series is part of the key because a group
+// is the unit of numbering and attribution both, and one torrent can back grabs
+// for two series — a manual grab answers to no eligibility rule.
 func groupByHash(grabs []db.ListGrabsByStatusRow) []grabGroup {
-	at := make(map[string]int, len(grabs))
+	type key struct {
+		series int64
+		hash   string
+	}
+	at := make(map[key]int, len(grabs))
 	out := make([]grabGroup, 0, len(grabs))
 	for _, g := range grabs {
-		h := strings.ToLower(g.InfoHash)
-		i, seen := at[h]
+		k := key{g.SeriesID, strings.ToLower(g.InfoHash)}
+		i, seen := at[k]
 		if !seen {
 			i = len(out)
-			at[h] = i
-			out = append(out, grabGroup{hash: h})
+			at[k] = i
+			out = append(out, grabGroup{hash: k.hash})
 		}
 		out[i].rows = append(out[i].rows, g)
 	}
@@ -497,25 +503,27 @@ func (im *Importer) placeUnclaimed(ctx context.Context, target library.Target, g
 			loose = append(loose, lo)
 			continue
 		}
-		item, err := im.store.Q.GetWantedItemByNumber(ctx, db.GetWantedItemByNumberParams{
-			SeriesID: g.SeriesID,
-			Kind:     g.ItemKind,
-			Number:   sql.NullInt64{Int64: int64(lo.number), Valid: true},
-		})
+		item, free, err := im.unclaimedItem(ctx, g, lo.number)
 		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
-				im.log.Error("importer: look up an item for a payload extra", "item", lo.number, "err", err)
-			}
 			loose = append(loose, lo) // no such item: nothing to place it against
 			continue
 		}
 		// Had, or already spoken for: the file is redundant rather than unmatched,
 		// so it must not be counted as a loose end that defers another row.
-		if item.Have == 1 || (item.GrabStatus.Valid && item.GrabStatus.String != statusFailed) {
+		if !free {
 			continue
 		}
 		if !im.claim([]int64{item.ID}) {
 			loose = append(loose, lo) // a grab is in flight for it; don't race a copy
+			continue
+		}
+		// A grab can take the item and release again inside the gap since that read,
+		// so re-check under the claim — the same window acquire's AutoGrab closes.
+		if _, free, err := im.unclaimedItem(ctx, g, lo.number); err != nil || !free {
+			im.release([]int64{item.ID})
+			if err != nil {
+				loose = append(loose, lo)
+			}
 			continue
 		}
 		final, err := im.placeUnclaimedFile(ctx, target, g, item, lo)
@@ -527,6 +535,23 @@ func (im *Importer) placeUnclaimed(ctx context.Context, target library.Target, g
 		imported[lo.number] = final
 	}
 	return loose
+}
+
+// unclaimedItem reads the item a loose file claims and reports whether it is free
+// to take: not had, and carrying no unsettled grab of its own.
+func (im *Importer) unclaimedItem(ctx context.Context, g db.ListGrabsByStatusRow, number int) (db.GetWantedItemByNumberRow, bool, error) {
+	item, err := im.store.Q.GetWantedItemByNumber(ctx, db.GetWantedItemByNumberParams{
+		SeriesID: g.SeriesID,
+		Kind:     g.ItemKind,
+		Number:   sql.NullInt64{Int64: int64(number), Valid: true},
+	})
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			im.log.Error("importer: look up an item for a payload extra", "item", number, "err", err)
+		}
+		return item, false, err
+	}
+	return item, item.Have != 1 && (!item.GrabStatus.Valid || item.GrabStatus.String == statusFailed), nil
 }
 
 // placeUnclaimedFile places one such file and writes its grab row after the

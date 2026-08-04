@@ -63,13 +63,20 @@ export function RetryImportDialog({
     enabled: open,
   });
 
+  // What the row shows is what the retry sends: an untouched suggestion left out
+  // of the request would be re-derived, and overrides change how mapping runs.
+  const selected = (file: PayloadFile) =>
+    choices[file.path] ??
+    (file.suggested_item > 0 ? String(file.suggested_item) : SKIP);
+
   const retry = useMutation({
     mutationFn: () =>
       api.retryQueueItemImport(
         item.id,
-        Object.entries(choices)
-          .filter(([, v]) => v !== SKIP)
-          .map(([file, v]) => ({ file, item_number: Number(v) })),
+        (payload.data?.files ?? [])
+          .map((file) => ({ file: file.path, choice: selected(file) }))
+          .filter(({ choice }) => choice !== SKIP)
+          .map(({ file, choice }) => ({ file, item_number: Number(choice) })),
       ),
     onSuccess: (results) => {
       const imported = results.filter((r) => r.outcome === "imported").length;
@@ -145,12 +152,7 @@ export function RetryImportDialog({
                   </div>
                 </div>
                 <Select
-                  value={
-                    choices[file.path] ??
-                    (file.suggested_item > 0
-                      ? String(file.suggested_item)
-                      : SKIP)
-                  }
+                  value={selected(file)}
                   onValueChange={(v) =>
                     setChoices((prev) => ({ ...prev, [file.path]: v }))
                   }

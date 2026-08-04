@@ -289,4 +289,73 @@ describe("fixing a deferred import", () => {
       }),
     );
   });
+
+  // A preselected suggestion left out of the request would be re-derived, and an
+  // override changes how the mapping runs — so the dialog must send what it shows.
+  it("submits preselected suggestions the user never touched", async () => {
+    let posted: unknown;
+    useHandlers(
+      { client_ok: true, items: [queueItem({ id: 3, status: "deferred" })] },
+      { "": { events: [] } },
+    );
+    server.use(
+      http.get("/api/v1/activity/queue/3/payload", () =>
+        HttpResponse.json({
+          ...payload,
+          items: [
+            { grab_id: 3, item_number: 2, status: "import_deferred" },
+            { grab_id: 4, item_number: 5, status: "import_deferred" },
+          ],
+          files: [
+            ...payload.files,
+            {
+              path: "[SynthSubs] Signal Anomaly - 05 [1080p].mkv",
+              episode_start: 5,
+              episode_end: 5,
+              absolute_episode: 0,
+              batch: false,
+              version: 0,
+              repack: false,
+              suggested_item: 5,
+            },
+          ],
+        }),
+      ),
+      http.post(
+        "/api/v1/activity/queue/3/retry-import",
+        async ({ request }) => {
+          posted = await request.json();
+          return HttpResponse.json({
+            results: [{ item_number: 2, outcome: "imported" }],
+          });
+        },
+      ),
+    );
+
+    renderPage();
+    await userEvent.click(
+      (await screen.findAllByRole("button", { name: /Fix import/ }))[0],
+    );
+    await userEvent.click(
+      await screen.findByRole("combobox", {
+        name: /Episode for b1946ac92492d2347c6235b4d2611184.mkv/,
+      }),
+    );
+    await userEvent.click(
+      await screen.findByRole("option", { name: /Episode 2/ }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() =>
+      expect(posted).toEqual({
+        assignments: [
+          { file: "b1946ac92492d2347c6235b4d2611184.mkv", item_number: 2 },
+          {
+            file: "[SynthSubs] Signal Anomaly - 05 [1080p].mkv",
+            item_number: 5,
+          },
+        ],
+      }),
+    );
+  });
 });

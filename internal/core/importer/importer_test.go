@@ -67,7 +67,45 @@ type refusingClaims struct{}
 func (refusingClaims) TryClaimItems([]int64) bool { return false }
 func (refusingClaims) ReleaseClaims([]int64)      {}
 
+// racingClaims grants the claim, but only after a grab has taken the item and
+// released it again — the gap acquire's AutoGrab documents.
+type racingClaims struct {
+	st     *store.Store
+	itemID int64
+}
+
+func (c racingClaims) TryClaimItems([]int64) bool {
+	_, _ = c.st.Q.UpsertGrab(context.Background(), db.UpsertGrabParams{
+		WantedItemID: c.itemID, InfoHash: "other", ReleaseTitle: "other release", Status: statusGrabbed,
+	})
+	return true
+}
+func (racingClaims) ReleaseClaims([]int64) {}
+
 // --- helpers ----------------------------------------------------------------
+
+// seedSeriesGrab creates a named series with one grabbed item on the given hash.
+func seedSeriesGrab(t *testing.T, st *store.Store, title, hash string, number int) int64 {
+	t.Helper()
+	ctx := context.Background()
+	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: title, Format: "TV", Monitored: 1})
+	if err != nil {
+		t.Fatalf("create series: %v", err)
+	}
+	item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
+		SeriesID: s.ID, Kind: "episode", Number: sql.NullInt64{Int64: int64(number), Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create item: %v", err)
+	}
+	if _, err := st.Q.UpsertGrab(ctx, db.UpsertGrabParams{
+		WantedItemID: item.ID, InfoHash: hash,
+		ReleaseTitle: title + " - pack", Status: statusGrabbed,
+	}); err != nil {
+		t.Fatalf("upsert grab: %v", err)
+	}
+	return s.ID
+}
 
 // seedGrab creates a series + one wanted item + a grab.
 func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, seriesID int64) {
@@ -655,6 +693,76 @@ func TestLeavesAnUnclaimedFileAloneWhileItsItemIsClaimed(t *testing.T) {
 
 	if len(target.Placed) != 1 {
 		t.Errorf("Place called %d times, want only the claimed episode", len(target.Placed))
+	}
+}
+
+// The guard reads grab state and then claims, so a grab that takes the item and
+// releases inside that gap leaves a stale read the claim alone would pass — and
+// the after-the-fact grab row would overwrite an in-flight one.
+func TestLeavesAnUnclaimedFileAloneWhenItsItemIsGrabbedUnderTheClaim(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID, _ := seedBatchGrab(t, st, "abc", 1)
+	extra := addItem(t, st, seriesID, 2)
+	dir := writeTree(t,
+		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
+		"[SynthSubs] Placeholder Saga - 02 [1080p].mkv",
+	)
+
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	target := &coretest.FakeLibrary{}
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, racingClaims{st: st, itemID: extra}).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	if len(target.Placed) != 1 {
+		t.Errorf("Place called %d times, want only the claimed episode", len(target.Placed))
+	}
+	grabs, err := st.Q.ListGrabsBySeries(context.Background(), seriesID)
+	if err != nil {
+		t.Fatalf("list grabs: %v", err)
+	}
+	for _, g := range grabs {
+		if g.WantedItemID != extra {
+			continue
+		}
+		if g.Status != statusGrabbed || g.ReleaseTitle != "other release" {
+			t.Errorf("the in-flight grab reads %q/%q, want it untouched", g.ReleaseTitle, g.Status)
+		}
+	}
+}
+
+// One torrent can back grabs for two series (a manual grab bypasses eligibility),
+// and a group is the unit of both mapping and attribution — so it is per series,
+// not per hash, or one series' rows borrow the other's numbering and title.
+func TestKeepsTwoSeriesSharingAnInfoHashApart(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedBatchGrab(t, st, "abc", 1)
+	seedSeriesGrab(t, st, "Second Saga", "abc", 2)
+	dir := writeTree(t,
+		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
+		"[SynthSubs] Second Saga - 02 [1080p].mkv",
+	)
+
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	fn := coretest.NewFakeNotifier()
+	target := &coretest.FakeLibrary{}
+	if err := New(st, notifyingSource(dl, target, fn), discardLogger(), noRecorder{}, nil).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	got := map[string]int{}
+	for range 2 {
+		ev := waitEvent(t, fn)
+		got[ev.SeriesTitle] = ev.ItemNumber
+	}
+	if got["Placeholder Saga"] != 1 || got["Second Saga"] != 2 {
+		t.Errorf("imports reported as %v, want each series its own episode", got)
 	}
 }
 
