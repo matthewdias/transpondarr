@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,7 +35,7 @@ func TestImportAppendsImportedEvent(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -51,24 +52,29 @@ func TestImportAppendsImportedEvent(t *testing.T) {
 	}
 }
 
-func TestDeferAppendsDeferredEvent(t *testing.T) {
+// A deferral now means one covered item's file could not be picked out, and the
+// event carries the reason a human needs to fix it from the Activity queue.
+func TestDeferAppendsDeferredEventWithDetail(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, seriesID := seedGrab(t, st, "abc")
+	// Nothing claims episode 5, and files are left over: fixable by hand.
 	dir := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
-		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - 06 [1080p].mkv",
 	)
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	events := seriesEvents(t, st, seriesID)
 	if len(events) != 1 || events[0].Event != "import_deferred" {
 		t.Fatalf("events = %+v, want one import_deferred", events)
+	}
+	if !strings.Contains(events[0].Detail, "no file matched episode 5") {
+		t.Errorf("detail = %q, want it to name the episode nothing matched", events[0].Detail)
 	}
 }
 
@@ -78,7 +84,7 @@ func TestClientErrorAppendsFailedEventWithDetail(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -96,7 +102,7 @@ func TestVanishedGrabAppendsFailedEventWithDetail(t *testing.T) {
 	_, seriesID := seedGrab(t, st, "abc")
 	backdateMissingSince(t, st, "abc", time.Hour)
 	dl := &coretest.FakeDownload{} // client reports nothing at all
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -122,7 +128,7 @@ func TestPlaceFailureAppendsNoEvent(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
 	target := &coretest.FakeLibrary{DestErr: errors.New("mkdir /library: permission denied")}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 

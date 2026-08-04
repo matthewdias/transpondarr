@@ -77,7 +77,7 @@ func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec).
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
 		ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestSuppressedRecordLeavesTheSearchQueueAlone(t *testing.T) {
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec).
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
 		ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestBatchFailingOnceEscalatesOneStep(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(),
-		blocklist.New(st, nil)).ScanOnce(context.Background()); err != nil {
+		blocklist.New(st, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -212,7 +212,7 @@ func TestBatchReachesPermanentOverSeparateIncidents(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
-	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), blocklist.New(st, nil))
+	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), blocklist.New(st, nil), nil)
 
 	var last db.ReleaseBlocklist
 	for incident := int64(1); incident <= 3; incident++ {
@@ -272,7 +272,7 @@ func TestDistinctReleasesFailingAcrossItemsStillTripTheBreaker(t *testing.T) {
 	svc := blocklist.New(st, nil)
 	dl := &coretest.FakeDownload{Statuses: statuses}
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc).
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
 		ScanOnce(ctx); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc).
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
 		ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestGrabGoneFromClientRecordsBlocklistEntry(t *testing.T) {
 		{Hash: "zzz", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec).
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
 		ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -351,7 +351,7 @@ func TestBlocklistWriteFailureStillFailsTheGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec).
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
 		ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -360,23 +360,24 @@ func TestBlocklistWriteFailureStillFailsTheGrab(t *testing.T) {
 	}
 }
 
-// A deferred batch is a settled status that is not a release failure: the bytes
-// arrived fine and nothing could pick one file from them. Only failGrab records,
-// so this holds by construction — pinned here because a later refactor that
-// routed deferral through failGrab would blocklist every batch.
+// A deferral is a settled status that is not a release failure: the bytes
+// arrived fine and one file could not be told apart from the rest. Only failGrab
+// records, so this holds by construction — pinned here because a later refactor
+// routing deferral through failGrab would blocklist every fixable payload.
 func TestDeferredBatchDoesNotRecordBlocklistEntry(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
 	rec := &fakeRecorder{}
+	// Two files claim episode 5 and nothing separates them.
 	dir := writeTree(t,
-		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
+		"[OtherGroup] Placeholder Saga - 05 [720p].mkv",
 	)
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec).
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
 		ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -399,7 +400,7 @@ func TestUnplaceableImportDoesNotRecordBlocklistEntry(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: "/nonexistent/path.mkv"},
 	}}
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec).
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
 		ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}

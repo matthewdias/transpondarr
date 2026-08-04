@@ -7,20 +7,24 @@
 // arbitrary release. Adopting externally-added torrents is a later phase (it
 // needs the deferred identification layer).
 //
-// Every grab status but "grabbed" is settled. A directory payload is resolved to
-// a single episode file at completion time, so "import_deferred" means the
-// payload was examined and no one file could be chosen — a real batch, or a
-// payload nothing could disambiguate — and nothing re-walks the same bytes on a
-// later tick. Deferred grabs stay in the scan for missing-from-client
-// reconciliation, so a vanished payload still frees its item.
+// Every grab status but "grabbed" is settled. A completed payload is walked once
+// and its files mapped onto the items the release claimed, so a season pack
+// imports episode by episode (#126). "import_deferred" therefore means a covered
+// item's file could not be picked out — nothing matched it, or two files claimed
+// it — and nothing re-walks the same bytes on a later tick; only an explicit
+// retry, optionally naming the file, reopens one. Deferred grabs stay in the scan
+// for missing-from-client reconciliation, so a vanished payload still frees its item.
 package importer
 
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -61,6 +65,16 @@ type Recorder interface {
 	Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }
 
+// ItemClaims is the in-flight claim registry (satisfied by *acquire.Service).
+// The importer takes a claim only to place a payload file for an item no grab
+// row claimed, so a concurrent grab cannot race a copy-mode Place that runs for
+// minutes. A nil registry means nothing else can be claiming, which is what a
+// unit test wiring the importer alone has.
+type ItemClaims interface {
+	TryClaimItems(ids []int64) bool
+	ReleaseClaims(ids []int64)
+}
+
 // Importer scans the download client for completed grabs and imports them. It
 // runs as a job on the runner, which owns the polling interval.
 type Importer struct {
@@ -68,12 +82,13 @@ type Importer struct {
 	clients   ClientSource
 	log       *slog.Logger
 	blocklist Recorder
+	claims    ItemClaims
 }
 
 // New builds an Importer. The download client and library target are read from
 // src each scan, so either being unconfigured (nil) simply skips that scan.
-func New(st *store.Store, src ClientSource, log *slog.Logger, blocklist Recorder) *Importer {
-	return &Importer{store: st, clients: src, log: log, blocklist: blocklist}
+func New(st *store.Store, src ClientSource, log *slog.Logger, blocklist Recorder, claims ItemClaims) *Importer {
+	return &Importer{store: st, clients: src, log: log, blocklist: blocklist, claims: claims}
 }
 
 // ScanOnce imports every outstanding grab whose torrent has completed. It reads
@@ -105,38 +120,85 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 
 	now := time.Now().UTC()
 	var failed []failedGrab
-	for _, g := range grabs {
+	for _, group := range groupByHash(grabs) {
 		if ctx.Err() != nil {
 			// Settled rows are not retryable next run, so what this scan already
 			// failed is remembered before the shutdown completes.
 			im.remember(context.WithoutCancel(ctx), failed)
 			return ctx.Err() // the rest is retryable next run
 		}
-		st, ok := byHash[strings.ToLower(g.InfoHash)]
+		st, ok := byHash[group.hash]
 		if !ok {
-			failed = append(failed, im.reconcileMissing(ctx, g, now)...)
+			for _, g := range group.rows {
+				failed = append(failed, im.reconcileMissing(ctx, g, now)...)
+			}
 			continue
 		}
-		if g.MissingSince.Valid {
-			// Clear it, so a later absence is measured from itself, not from this one.
-			im.setMissingSince(ctx, g.ID, sql.NullString{})
+		for _, g := range group.rows {
+			if g.MissingSince.Valid {
+				// Clear it, so a later absence is measured from itself, not from this one.
+				im.setMissingSince(ctx, g.ID, sql.NullString{})
+			}
 		}
 		switch st.State {
 		case download.StateError:
-			// Failing frees the item back to wanted, with the failure kept in history.
-			im.log.Warn("importer: download failed in client", "release", g.ReleaseTitle, "hash", g.InfoHash)
-			failed = append(failed, im.failGrab(ctx, g, "the download client reported an error"))
-		case download.StateComplete:
-			if g.Status == statusDeferred {
-				continue // already examined; the same bytes won't resolve differently
+			// Failing frees the items back to wanted, with the failure kept in history.
+			im.log.Warn("importer: download failed in client", "release", group.rows[0].ReleaseTitle, "hash", group.hash)
+			for _, g := range group.rows {
+				failed = append(failed, im.failGrab(ctx, g, "the download client reported an error"))
 			}
-			im.importGrab(ctx, target, g, st)
+		case download.StateComplete:
+			// Deferred rows were already examined; the same bytes won't resolve
+			// differently without a human naming the file.
+			active := rowsWithStatus(group.rows, statusGrabbed)
+			if len(active) == 0 {
+				continue
+			}
+			failed = append(failed, im.importGroup(ctx, target, active, st)...)
 		default:
 			continue // still downloading / stalled / paused
 		}
 	}
 	im.remember(ctx, failed)
 	return nil
+}
+
+// grabGroup is one release's rows. A pack is a row per covered episode sharing
+// an info hash, and its payload only means anything examined as a whole.
+type grabGroup struct {
+	hash string
+	rows []db.ListGrabsByStatusRow
+}
+
+// groupByHash buckets the already-fetched rows, preserving first-seen order so a
+// scan's work is still deterministic.
+func groupByHash(grabs []db.ListGrabsByStatusRow) []grabGroup {
+	at := make(map[string]int, len(grabs))
+	out := make([]grabGroup, 0, len(grabs))
+	for _, g := range grabs {
+		h := strings.ToLower(g.InfoHash)
+		i, seen := at[h]
+		if !seen {
+			i = len(out)
+			at[h] = i
+			out = append(out, grabGroup{hash: h})
+		}
+		out[i].rows = append(out[i].rows, g)
+	}
+	return out
+}
+
+// rowsWithStatus filters a group to one status, in item-number order so a pack
+// imports front to back.
+func rowsWithStatus(rows []db.ListGrabsByStatusRow, status string) []db.ListGrabsByStatusRow {
+	out := make([]db.ListGrabsByStatusRow, 0, len(rows))
+	for _, g := range rows {
+		if g.Status == status {
+			out = append(out, g)
+		}
+	}
+	sort.Slice(out, func(a, b int) bool { return out[a].ItemNumber.Int64 < out[b].ItemNumber.Int64 })
+	return out
 }
 
 // notify dispatches one event through the current dispatcher, if any.
@@ -292,30 +354,95 @@ func (im *Importer) setMissingSince(ctx context.Context, id int64, v sql.NullStr
 	}
 }
 
-// importGrab places a single completed grab's file and marks the item had.
-func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.ListGrabsByStatusRow, st download.Status) {
-	info, err := os.Stat(st.ContentPath)
-	if err != nil {
+// importGroup walks one completed release's payload and imports it file by file.
+// It returns what it failed, for the scan to remember as one incident.
+func (im *Importer) importGroup(ctx context.Context, target library.Target, active []db.ListGrabsByStatusRow, st download.Status) []failedGrab {
+	if _, err := os.Stat(st.ContentPath); err != nil {
 		// Source not reachable from here — commonly a path-mapping gap when the
-		// client runs elsewhere. Leave it grabbed and retry next tick.
-		im.log.Warn("importer: source not accessible", "hash", g.InfoHash, "path", st.ContentPath, "err", err)
-		im.setLastError(ctx, g, "source not accessible: "+err.Error())
-		return
+		// client runs elsewhere. Leave the rows grabbed and retry next tick.
+		im.log.Warn("importer: source not accessible", "hash", st.Hash, "path", st.ContentPath, "err", err)
+		im.setLastErrors(ctx, active, "source not accessible: "+err.Error())
+		return nil
 	}
-
-	// A directory is not a batch by itself: most hold one episode plus extra files.
-	source := st.ContentPath
-	if info.IsDir() {
-		source, err = resolvePayloadFile(st.ContentPath, int(g.ItemNumber.Int64))
-		if err != nil {
-			im.log.Info("importer: cannot resolve a single episode from payload; deferring",
-				"release", g.ReleaseTitle, "path", st.ContentPath, "reason", err)
-			im.settle(ctx, g, statusDeferred, "")
-			return
+	files, err := collectPayloadFiles(st.ContentPath)
+	if err != nil {
+		im.log.Warn("importer: payload could not be walked", "hash", st.Hash, "path", st.ContentPath, "err", err)
+		im.setLastErrors(ctx, active, "payload could not be read: "+err.Error())
+		return nil
+	}
+	if len(files) == 0 {
+		// An archive set is #135's problem, not something a later tick resolves.
+		for _, g := range active {
+			im.settle(ctx, g, statusDeferred, "the payload holds no video file")
 		}
-		im.log.Info("importer: resolved folder-wrapped episode", "release", g.ReleaseTitle, "file", source)
+		return nil
+	}
+	return im.settleGroup(ctx, target, active, files, nil)
+}
+
+// settleGroup places what the mapping matched and settles every row it did not,
+// shared by the scan and the manual retry (which supplies overrides).
+func (im *Importer) settleGroup(ctx context.Context, target library.Target, active []db.ListGrabsByStatusRow, files []candidate, overrides map[string]int) []failedGrab {
+	covers := make(map[int]bool, len(active))
+	for _, g := range active {
+		covers[int(g.ItemNumber.Int64)] = true
+	}
+	res := mapFiles(files, covers, overrides)
+
+	imported := make(map[int]string, len(active))
+	touched := make(map[int64]bool, len(active))
+	stopped := false
+	for _, g := range active {
+		if ctx.Err() != nil {
+			stopped = true
+			break
+		}
+		c, ok := res.assigned[int(g.ItemNumber.Int64)]
+		if !ok {
+			continue
+		}
+		touched[g.ID] = true
+		final, err := im.place(ctx, target, c.path, g)
+		if err != nil {
+			continue // stays grabbed; the remaining rows re-form a smaller group next tick
+		}
+		imported[int(g.ItemNumber.Int64)] = final
 	}
 
+	leftovers := res.leftovers
+	if !stopped {
+		leftovers = im.placeUnclaimed(ctx, target, active[0], leftovers, imported)
+	}
+	im.notifyImported(ctx, active[0], imported)
+	if stopped {
+		return nil
+	}
+
+	var failed []failedGrab
+	for _, g := range active {
+		if touched[g.ID] {
+			continue
+		}
+		n := int(g.ItemNumber.Int64)
+		if detail, ok := res.conflicts[n]; ok {
+			im.settle(ctx, g, statusDeferred, detail)
+			continue
+		}
+		// A file nothing could map is fixable by hand; a payload with nothing left
+		// in it never will be, so the item goes back to wanted and the sweep
+		// self-heals with a single.
+		if len(leftovers) > 0 {
+			im.settle(ctx, g, statusDeferred,
+				fmt.Sprintf("no file matched episode %d; %d unmatched file(s) in the payload", n, len(leftovers)))
+			continue
+		}
+		failed = append(failed, im.failGrab(ctx, g, "the payload held no file for this episode"))
+	}
+	return failed
+}
+
+// place puts one payload file in the library and settles its grab as imported.
+func (im *Importer) place(ctx context.Context, target library.Target, source string, g db.ListGrabsByStatusRow) (string, error) {
 	final, err := target.Place(ctx, library.ImportRequest{
 		SourcePath: source,
 		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat)},
@@ -330,7 +457,7 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 			im.log.Warn("importer: place failed", "release", g.ReleaseTitle, "err", err)
 			im.setLastError(ctx, g, "import failed: "+err.Error())
 		}
-		return // transient — retry next tick
+		return "", err // transient — retry next tick
 	}
 
 	// Past Place is the point of no return: the writes run detached so a shutdown
@@ -343,17 +470,130 @@ func (im *Importer) importGrab(ctx context.Context, target library.Target, g db.
 	// rather than an inconsistency.
 	if err := im.store.Q.SetWantedItemHave(ctx, db.SetWantedItemHaveParams{Have: 1, ID: g.WantedItemID}); err != nil {
 		im.log.Error("importer: set have", "err", err)
-		return
+		return "", err
 	}
 	im.settle(ctx, g, statusImported, "")
 	im.log.Info("importer: imported", "release", g.ReleaseTitle, "item", int(g.ItemNumber.Int64), "dest", final)
-	im.notify(ctx, notify.Event{
+	return final, nil
+}
+
+// placeUnclaimed imports payload files for items this release never claimed —
+// the release titled 03 that ships 03 and 04 — and returns what is still loose.
+// A file is only taken when the item exists, is not had, and carries no
+// unsettled grab of its own; anything else is left alone rather than guessed at.
+func (im *Importer) placeUnclaimed(ctx context.Context, target library.Target, g db.ListGrabsByStatusRow, leftovers []fileClaim, imported map[int]string) []fileClaim {
+	var loose []fileClaim
+	for _, lo := range leftovers {
+		if lo.number <= 0 {
+			loose = append(loose, lo)
+			continue
+		}
+		item, err := im.store.Q.GetWantedItemByNumber(ctx, db.GetWantedItemByNumberParams{
+			SeriesID: g.SeriesID,
+			Kind:     g.ItemKind,
+			Number:   sql.NullInt64{Int64: int64(lo.number), Valid: true},
+		})
+		if err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				im.log.Error("importer: look up an item for a payload extra", "item", lo.number, "err", err)
+			}
+			loose = append(loose, lo) // no such item: nothing to place it against
+			continue
+		}
+		// Had, or already spoken for: the file is redundant rather than unmatched,
+		// so it must not be counted as a loose end that defers another row.
+		if item.Have == 1 || (item.GrabStatus.Valid && item.GrabStatus.String != statusFailed) {
+			continue
+		}
+		if !im.claim([]int64{item.ID}) {
+			loose = append(loose, lo) // a grab is in flight for it; don't race a copy
+			continue
+		}
+		final, err := im.placeUnclaimedFile(ctx, target, g, item, lo)
+		im.release([]int64{item.ID})
+		if err != nil {
+			loose = append(loose, lo)
+			continue
+		}
+		imported[lo.number] = final
+	}
+	return loose
+}
+
+// placeUnclaimedFile places one such file and writes its grab row after the
+// fact, so the item reads as grabbed-and-imported from this release like any other.
+func (im *Importer) placeUnclaimedFile(ctx context.Context, target library.Target, g db.ListGrabsByStatusRow, item db.GetWantedItemByNumberRow, lo fileClaim) (string, error) {
+	final, err := target.Place(ctx, library.ImportRequest{
+		SourcePath: lo.file.path,
+		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat)},
+		Item:       domain.WantedItem{ID: item.ID, Kind: domain.WantedKind(item.Kind), Number: lo.number},
+	})
+	if err != nil {
+		if ctx.Err() == nil {
+			im.log.Warn("importer: place of an unclaimed payload file failed",
+				"release", g.ReleaseTitle, "item", lo.number, "err", err)
+		}
+		return "", err
+	}
+	ctx = context.WithoutCancel(ctx)
+	if err := im.store.Q.SetWantedItemHave(ctx, db.SetWantedItemHaveParams{Have: 1, ID: item.ID}); err != nil {
+		im.log.Error("importer: set have for an unclaimed payload file", "err", err)
+		return "", err
+	}
+	if _, err := im.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
+		WantedItemID: item.ID, InfoHash: g.InfoHash,
+		ReleaseTitle: g.ReleaseTitle, Status: statusImported,
+	}); err != nil {
+		im.log.Error("importer: record a grab for an unclaimed payload file", "err", err)
+		return final, nil
+	}
+	im.appendEvent(ctx, g, item.ID, lo.number, item.Kind, statusGrabbed, "recovered from another grab's payload")
+	im.appendEvent(ctx, g, item.ID, lo.number, item.Kind, statusImported, "")
+	im.log.Info("importer: imported an unclaimed payload file",
+		"release", g.ReleaseTitle, "item", lo.number, "dest", final)
+	return final, nil
+}
+
+// notifyImported reports one release's import as one event: a pack landing six
+// episodes is one arrival, not six.
+func (im *Importer) notifyImported(ctx context.Context, g db.ListGrabsByStatusRow, imported map[int]string) {
+	if len(imported) == 0 {
+		return
+	}
+	nums := make([]int, 0, len(imported))
+	for n := range imported {
+		nums = append(nums, n)
+	}
+	sort.Ints(nums)
+	ev := notify.Event{
 		Kind:         notify.KindImported,
 		SeriesTitle:  g.SeriesTitle,
-		ItemNumber:   int(g.ItemNumber.Int64),
 		ReleaseTitle: g.ReleaseTitle,
-		Path:         final,
-	})
+	}
+	if len(nums) == 1 {
+		ev.ItemNumber, ev.Path = nums[0], imported[nums[0]]
+	} else {
+		ev.Items, ev.Path = nums, filepath.Dir(imported[nums[0]])
+	}
+	im.notify(ctx, ev)
+}
+
+// claim takes the in-flight claim for ids, reporting whether it got them. A nil
+// registry means nothing else can be holding them.
+func (im *Importer) claim(ids []int64) bool {
+	return im.claims == nil || im.claims.TryClaimItems(ids)
+}
+
+func (im *Importer) release(ids []int64) {
+	if im.claims != nil {
+		im.claims.ReleaseClaims(ids)
+	}
+}
+
+func (im *Importer) setLastErrors(ctx context.Context, rows []db.ListGrabsByStatusRow, msg string) {
+	for _, g := range rows {
+		im.setLastError(ctx, g, msg)
+	}
 }
 
 // setLastError records why this attempt could not import (a status transition
@@ -388,17 +628,23 @@ func (im *Importer) settle(ctx context.Context, g db.ListGrabsByStatusRow, statu
 	if err := im.store.Q.SetGrabStatus(ctx, db.SetGrabStatusParams{Status: status, ID: g.ID}); err != nil {
 		im.log.Error("importer: set grab status", "status", status, "err", err)
 	}
+	im.appendEvent(ctx, g, g.WantedItemID, int(g.ItemNumber.Int64), g.ItemKind, status, detail)
+}
+
+// appendEvent records one history row against a release. The item is passed
+// separately because a payload file can land on an item the release never claimed.
+func (im *Importer) appendEvent(ctx context.Context, g db.ListGrabsByStatusRow, itemID int64, number int, kind, event, detail string) {
 	if err := im.store.Q.AppendGrabEvent(ctx, db.AppendGrabEventParams{
 		SeriesID:     g.SeriesID,
-		WantedItemID: g.WantedItemID,
-		ItemNumber:   g.ItemNumber.Int64,
-		ItemKind:     g.ItemKind,
+		WantedItemID: itemID,
+		ItemNumber:   int64(number),
+		ItemKind:     kind,
 		InfoHash:     g.InfoHash,
 		ReleaseTitle: g.ReleaseTitle,
-		Event:        status,
+		Event:        event,
 		Detail:       detail,
 	}); err != nil {
-		im.log.Error("importer: append grab event", "event", status, "err", err)
+		im.log.Error("importer: append grab event", "event", event, "err", err)
 	}
 }
 

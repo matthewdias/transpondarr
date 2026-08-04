@@ -218,7 +218,7 @@ func run(logger *slog.Logger) error {
 		Name:       "import-scan",
 		Interval:   importPollInterval,
 		RunAtStart: true,
-		Run:        importer.New(st, reg, logger, blocklistSvc).ScanOnce,
+		Run:        importer.New(st, reg, logger, blocklistSvc, acquireSvc).ScanOnce,
 	})
 	jobsDone := runner.Start(ctx)
 

@@ -7,6 +7,8 @@ package notify
 import (
 	"context"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -36,9 +38,35 @@ type Event struct {
 	Kind         Kind
 	SeriesTitle  string
 	ItemNumber   int    // 0 when not item-scoped or multi-item
+	Items        []int  // sorted item numbers when one release covered several; nil otherwise
 	ReleaseTitle string // empty when not release-scoped
 	Error        string // stuck/failed reason; on rehearsal, the outcome either way
 	Path         string // library destination on imported
+}
+
+// ItemsLabel renders Items as contiguous runs ("1-3, 5"), so every adapter
+// flattens a multi-item event the same way. Empty when the event is not multi-item.
+func (e Event) ItemsLabel() string {
+	if len(e.Items) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	for i := 0; i < len(e.Items); {
+		j := i
+		for j+1 < len(e.Items) && e.Items[j+1] == e.Items[j]+1 {
+			j++
+		}
+		if b.Len() > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(strconv.Itoa(e.Items[i]))
+		if j > i {
+			b.WriteByte('-')
+			b.WriteString(strconv.Itoa(e.Items[j]))
+		}
+		i = j + 1
+	}
+	return b.String()
 }
 
 // DetailLabel names what Error holds for this kind, so an adapter with labelled

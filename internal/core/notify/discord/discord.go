@@ -82,6 +82,9 @@ func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
 	if ev.ItemNumber > 0 {
 		e.Fields = append(e.Fields, field{Name: "Episode", Value: strconv.Itoa(ev.ItemNumber)})
 	}
+	if label := ev.ItemsLabel(); label != "" {
+		e.Fields = append(e.Fields, field{Name: "Episodes", Value: capValue(label)})
+	}
 	if ev.ReleaseTitle != "" {
 		e.Fields = append(e.Fields, field{Name: "Release", Value: capValue(ev.ReleaseTitle)})
 	}

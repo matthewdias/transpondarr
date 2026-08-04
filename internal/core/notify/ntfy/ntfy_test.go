@@ -112,3 +112,16 @@ func TestSendReportsNon2xx(t *testing.T) {
 		t.Errorf("error %q should carry the adapter name and status", err)
 	}
 }
+
+// A multi-item import flattens to one line naming the run of episodes.
+func TestSendRendersMultipleEpisodesOnOneLine(t *testing.T) {
+	ts, got := capture(t)
+	if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{
+		Kind: notify.KindImported, SeriesTitle: "Placeholder Saga", Items: []int{1, 2, 3, 5},
+	}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if !strings.Contains(got.body, "Episodes 1-3, 5") {
+		t.Errorf("body = %q, want the episode run named", got.body)
+	}
+}

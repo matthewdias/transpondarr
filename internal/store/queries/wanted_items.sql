@@ -16,6 +16,15 @@ INSERT INTO wanted_items (series_id, kind, number, title, have)
 VALUES (?, ?, ?, ?, 0)
 ON CONFLICT (series_id, kind, number) DO NOTHING;
 
+-- name: GetWantedItemByNumber :one
+-- One read answers exists / had / already spoken for, which is the whole guard
+-- on placing a payload file for an item no grab row claimed. UNIQUE
+-- (wanted_item_id) on grabs keeps the join 1:1.
+SELECT w.*, g.status AS grab_status
+FROM wanted_items w
+LEFT JOIN grabs g ON g.wanted_item_id = w.id
+WHERE w.series_id = ? AND w.kind = ? AND w.number = ?;
+
 -- name: SetWantedItemHave :exec
 UPDATE wanted_items SET have = ? WHERE id = ?;
 

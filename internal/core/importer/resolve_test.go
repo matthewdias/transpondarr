@@ -1,9 +1,9 @@
 package importer
 
 import (
-	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 )
 
@@ -30,8 +30,36 @@ func writeTree(t *testing.T, paths ...string) string {
 	return root
 }
 
-// TestResolvesSingleEpisodeAmongSidecars: the usual companions must not defeat resolution.
-func TestResolvesSingleEpisodeAmongSidecars(t *testing.T) {
+// collected returns the payload-relative paths the walk kept, sorted.
+func collected(t *testing.T, root string) []string {
+	t.Helper()
+	cands, err := collectPayloadFiles(root)
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	out := make([]string, 0, len(cands))
+	for _, c := range cands {
+		out = append(out, c.rel)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func wantCollected(t *testing.T, got, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("collected %v, want %v", got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Fatalf("collected %v, want %v", got, want)
+		}
+	}
+}
+
+// The usual companions must not become candidates: a sample descended into is
+// how an obvious payload starts looking like a batch.
+func TestCollectsEpisodeAmongSidecars(t *testing.T) {
 	root := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].nfo",
@@ -41,112 +69,87 @@ func TestResolvesSingleEpisodeAmongSidecars(t *testing.T) {
 		"RARBG.txt",
 	)
 
-	got, err := resolvePayloadFile(root, 5)
-	if err != nil {
-		t.Fatalf("resolve: %v", err)
-	}
-	if filepath.Base(got) != "[ExampleSubs] Placeholder Saga - 05 [1080p].mkv" {
-		t.Errorf("resolved %q, want the episode file", got)
-	}
+	wantCollected(t, collected(t, root), []string{"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv"})
 }
 
-// TestResolvesSampleInPayloadRoot: a sample outside a Sample/ folder is caught by name.
-func TestResolvesSampleInPayloadRoot(t *testing.T) {
+// A sample outside a Sample/ folder is caught by name.
+func TestSkipsSampleInPayloadRoot(t *testing.T) {
 	root := writeTree(t,
 		"Placeholder.Saga.S01E05.1080p.WEB.H264-EXAMPLE.mkv",
 		"sample-placeholder.saga.s01e05.mkv",
 	)
 
-	got, err := resolvePayloadFile(root, 5)
-	if err != nil {
-		t.Fatalf("resolve: %v", err)
-	}
-	if filepath.Base(got) != "Placeholder.Saga.S01E05.1080p.WEB.H264-EXAMPLE.mkv" {
-		t.Errorf("resolved %q, want the episode file", got)
-	}
+	wantCollected(t, collected(t, root), []string{"Placeholder.Saga.S01E05.1080p.WEB.H264-EXAMPLE.mkv"})
 }
 
-// TestResolvesEpisodeAlongsideUnnumberedExtra: an extra that escapes both filters
-// carries no episode number, so it is not competing.
-func TestResolvesEpisodeAlongsideUnnumberedExtra(t *testing.T) {
+// An extra that escapes both filters is still collected: it carries no episode
+// number, so the mapper leaves it over rather than placing it.
+func TestCollectsUnnumberedExtraForTheMapper(t *testing.T) {
 	root := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - Interview With The Director [1080p].mkv",
 	)
 
-	got, err := resolvePayloadFile(root, 5)
-	if err != nil {
-		t.Fatalf("resolve: %v", err)
-	}
-	if filepath.Base(got) != "[ExampleSubs] Placeholder Saga - 05 [1080p].mkv" {
-		t.Errorf("resolved %q, want the numbered episode", got)
-	}
+	wantCollected(t, collected(t, root), []string{
+		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - Interview With The Director [1080p].mkv",
+	})
 }
 
-// TestResolvesUnrecognisableFilename is the identity-by-construction case.
-func TestResolvesUnrecognisableFilename(t *testing.T) {
-	root := writeTree(t, "b1946ac92492d2347c6235b4d2611184.mkv")
-
-	got, err := resolvePayloadFile(root, 5)
-	if err != nil {
-		t.Fatalf("resolve: %v", err)
-	}
-	if filepath.Base(got) != "b1946ac92492d2347c6235b4d2611184.mkv" {
-		t.Errorf("resolved %q", got)
-	}
-}
-
-// TestRefusesMultiEpisodePayload: a season pack contains the wanted episode too,
-// so picking it out would "work" and drop every other episode.
-func TestRefusesMultiEpisodePayload(t *testing.T) {
+// Every episode of a pack is collected -- the whole point of walking once.
+func TestCollectsEveryEpisodeOfAPack(t *testing.T) {
 	root := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - 06 [1080p].mkv",
 	)
 
-	if _, err := resolvePayloadFile(root, 5); !errors.Is(err, errAmbiguousPayload) {
-		t.Errorf("err = %v, want errAmbiguousPayload", err)
-	}
-}
-
-// TestRefusesDuplicateEpisodeFiles: with a v1/v2 pair either could be right, and
-// guessing is not this resolver's job.
-func TestRefusesDuplicateEpisodeFiles(t *testing.T) {
-	root := writeTree(t,
+	wantCollected(t, collected(t, root), []string{
+		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
-		"[OtherGroup] Placeholder Saga - 05 [720p].mkv",
-	)
-
-	if _, err := resolvePayloadFile(root, 5); !errors.Is(err, errAmbiguousPayload) {
-		t.Errorf("err = %v, want errAmbiguousPayload", err)
-	}
+		"[ExampleSubs] Placeholder Saga - 06 [1080p].mkv",
+	})
 }
 
-// TestRefusesPayloadWithoutVideo guards against importing a sidecar as the episode.
-func TestRefusesPayloadWithoutVideo(t *testing.T) {
+// A nested season folder is walked; the relative path is what a retry assignment
+// names, so it must keep the folder.
+func TestCollectsNestedFilesWithTheirRelativePath(t *testing.T) {
+	root := writeTree(t, "Season 01/[ExampleSubs] Placeholder Saga - 05 [1080p].mkv")
+
+	wantCollected(t, collected(t, root), []string{"Season 01/[ExampleSubs] Placeholder Saga - 05 [1080p].mkv"})
+}
+
+// No video at all: nothing to place, and #135 owns unpacking a RAR set.
+func TestCollectsNothingFromAPayloadWithoutVideo(t *testing.T) {
 	root := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].rar",
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].sfv",
 		"Subs/[ExampleSubs] Placeholder Saga - 05 [1080p].en.srt",
 	)
 
-	if _, err := resolvePayloadFile(root, 5); !errors.Is(err, errNoVideoFile) {
-		t.Errorf("err = %v, want errNoVideoFile", err)
+	if got := collected(t, root); len(got) != 0 {
+		t.Errorf("collected %v, want nothing", got)
 	}
 }
 
-// TestRefusesWhenOnlyCandidateIsAnExtra: filtering out extras must not leave the
-// resolver reaching for whatever is left.
-func TestRefusesWhenOnlyCandidateIsAnExtra(t *testing.T) {
+// Filtering out extras must not leave the walk reaching for whatever is left.
+func TestCollectsNothingWhenEveryFileIsAnExtra(t *testing.T) {
 	root := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - NCOP [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - NCED [1080p].mkv",
 	)
 
-	if _, err := resolvePayloadFile(root, 5); !errors.Is(err, errNoVideoFile) {
-		t.Errorf("err = %v, want errNoVideoFile", err)
+	if got := collected(t, root); len(got) != 0 {
+		t.Errorf("collected %v, want nothing", got)
 	}
+}
+
+// A plain-file payload is taken as-is: identity by construction, whatever the
+// extension filter would have said about it.
+func TestCollectsAPlainFilePayload(t *testing.T) {
+	root := writeTree(t, "raw.mkv")
+
+	wantCollected(t, collected(t, filepath.Join(root, "raw.mkv")), []string{"raw.mkv"})
 }
 
 // TestNonEpisodeTokensMatchWholeWords pins the token-not-substring rule.

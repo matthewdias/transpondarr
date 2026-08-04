@@ -54,7 +54,7 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	dl.Statuses = []download.Status{{Hash: "hash3", State: download.StateComplete, ContentPath: src}}
 
 	// Run one importer scan over the same registry the server uses.
-	im := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil))
+	im := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil)
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 		t.Fatalf("stamp missing_since: %v", err)
 	}
 
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -141,9 +141,9 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 	}
 }
 
-// TestDeferredBatchShowsDeferred: a grab settled as import_deferred must not
+// TestAmbiguousPayloadShowsDeferred: a grab settled as import_deferred must not
 // present as "downloading" forever — the detail endpoint reports it distinctly.
-func TestDeferredBatchShowsDeferred(t *testing.T) {
+func TestAmbiguousPayloadShowsDeferred(t *testing.T) {
 	const matchURL = "magnet:?xt=urn:btih:0000000000000000000000000000000000000009"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga S1E09 [1080p]", DownloadURL: matchURL, Seeders: 100},
@@ -158,13 +158,12 @@ func TestDeferredBatchShowsDeferred(t *testing.T) {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
 
-	// The download completes as a batch directory holding none of episode 9's
-	// files, so the importer defers rather than guessing.
+	// The download completes with two files claiming episode 9 and nothing to
+	// tell them apart, so the importer defers rather than guessing.
 	dir := t.TempDir()
 	for _, name := range []string{
-		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
-		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
-		"[ExampleSubs] Placeholder Saga - 06 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - 09 [1080p].mkv",
+		"[OtherSubs] Placeholder Saga - 09 [720p].mkv",
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
@@ -172,7 +171,7 @@ func TestDeferredBatchShowsDeferred(t *testing.T) {
 	}
 	dl.Statuses = []download.Status{{Hash: "hash9", State: download.StateComplete, ContentPath: dir}}
 
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -196,22 +195,22 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 	h := newHarness(t, idx, dl)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
 
-	// First grab turns out to be a batch payload; the importer defers it.
+	// First grab lands a payload nothing can disambiguate; the importer defers it.
 	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
 		map[string]any{"download_url": batchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
 	dir := t.TempDir()
 	for _, name := range []string{
-		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
-		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
+		"[ExampleSubs] Placeholder Saga - 09 [1080p].mkv",
+		"[OtherSubs] Placeholder Saga - 09 [720p].mkv",
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 	dl.Statuses = []download.Status{{Hash: "hashA", State: download.StateComplete, ContentPath: dir}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := itemStatus(t, h, seriesID, 9); got != "deferred" {
@@ -239,7 +238,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 		t.Fatal(err)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashB", State: download.StateComplete, ContentPath: src}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -272,7 +271,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 	// Complete, but at a path Transpondarr cannot see (a path-mapping gap).
 	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete,
 		ContentPath: filepath.Join(t.TempDir(), "unmapped", "raw.mkv")}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -318,7 +317,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 		t.Fatal(err)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete, ContentPath: src}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil)).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
