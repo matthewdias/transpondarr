@@ -55,8 +55,11 @@ that lives on AniList/AniDB rather than TVDB.
 - Per-indexer category filtering, and feed-gap recovery for releases that scroll
   off between polls.
 - Post-1.0: anime movies, AniList account sync (auto-monitor your Watching list),
-  importing a pre-existing library, multiple indexers, and Sonarr-API
-  compatibility for existing dashboard/mobile apps.
+  importing a pre-existing library, more indexers and download clients, and
+  Sonarr-API compatibility for existing dashboard/mobile apps.
+- Post-1.0: first-class handling for series whose releases aren't numbered the way
+  AniList numbers them — continuously-airing long-runners, fan re-cuts, and a
+  per-series override for when the automatic mapping is simply wrong.
 
 ## Install
 
