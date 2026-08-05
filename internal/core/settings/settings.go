@@ -278,7 +278,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 
 	reg.SetDownload(buildDownload(cfg.dl))
 	reg.SetIndexer(buildIndexer(cfg.idx))
-	reg.SetLibrary(buildLibrary(cfg.lib))
+	reg.SetLibrary(buildLibrary(cfg.lib, log))
 	reg.SetNotify(s.buildNotify(cfg.ntf))
 	return s, nil
 }
@@ -494,7 +494,7 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 	next := *s.cur.Load()
 	next.lib = in
 	s.cur.Store(&next)
-	s.reg.SetLibrary(buildLibrary(in))
+	s.reg.SetLibrary(buildLibrary(in, s.log))
 	return nil
 }
 
@@ -783,10 +783,10 @@ func buildIndexer(c IndexerConfig) indexer.Indexer {
 // buildLibrary returns a library.Target (interface) so an unconfigured library
 // is a true nil interface — returning a typed nil *mediaserver.Target would read
 // as non-nil through the interface and defeat the importer's nil check.
-func buildLibrary(c LibraryConfig) library.Target {
+func buildLibrary(c LibraryConfig, log *slog.Logger) library.Target {
 	if strings.TrimSpace(c.Dir) == "" {
 		return nil
 	}
 	c.applyDefaults()
-	return mediaserver.New(c.Dir, c.Mode)
+	return mediaserver.New(c.Dir, c.Mode, log)
 }

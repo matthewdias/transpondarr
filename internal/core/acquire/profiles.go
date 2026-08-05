@@ -19,6 +19,10 @@ func profileFromRows(p db.QualityProfile, groups []db.QualityProfileGroup) (doma
 		PreferDualAudio: p.PreferDualAudio == 1,
 		CodecPref:       p.CodecPref,
 		MinScore:        int(p.MinScore),
+
+		UpgradesEnabled:      p.UpgradesEnabled == 1,
+		CutoffScore:          int(p.CutoffScore),
+		UpgradeV2AboveCutoff: p.UpgradeV2AboveCutoff == 1,
 	}
 	if err := json.Unmarshal([]byte(p.ResolutionOrder), &out.ResolutionOrder); err != nil {
 		return domain.QualityProfile{}, fmt.Errorf("profile %d resolution_order: %w", p.ID, err)

@@ -14,6 +14,9 @@ type ImportRequest struct {
 	SourcePath string
 	Title      domain.Title
 	Item       domain.WantedItem
+	// Replace means this file supersedes one the library already holds (#97), so
+	// a Target must overwrite rather than treat the destination as done.
+	Replace bool
 }
 
 // Target places/organizes an imported file for a downstream media server.

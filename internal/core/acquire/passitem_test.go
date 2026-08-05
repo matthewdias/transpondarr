@@ -2,6 +2,23 @@ package acquire
 
 import "testing"
 
+// A held item reaches the matcher as a candidate carrying what holds it: the
+// case the Have/grabbable split was made for (#97).
+func TestPassItemsCarriesHeldIdentityToTheMatcher(t *testing.T) {
+	const held = "[ExampleSubs] Placeholder Saga - 02 [480p]"
+	got := matchItems(passItems([]sweepItem{
+		{number: 1, had: false, grabbable: true},
+		{number: 2, had: true, grabbable: true, heldTitle: held},
+		{number: 3, had: true, grabbable: false, heldTitle: held}, // withheld: candidacy is grabbable's job
+	}))
+	want := []string{"", held, held}
+	for i, w := range want {
+		if got[i].HeldTitle != w {
+			t.Errorf("item %d: HeldTitle = %q, want %q", got[i].Number, got[i].HeldTitle, w)
+		}
+	}
+}
+
 // The contract the split exists for: grabbable is the pass's answer, Have is the
 // library's. Nothing downstream reads Have off a sweep, so a regression to the
 // old Have: !grabbable would compile and stay invisible until #97 asked.

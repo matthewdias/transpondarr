@@ -331,9 +331,10 @@ func TestStuckImportShowsReason(t *testing.T) {
 }
 
 // TestImportErrorOnlyReportedWhileStuck: import_error is part of the stuck
-// contract. If the item settles as have while a stale last_error lingers (a
-// failed status write after a successful Place), the response must not pair
-// "have" with an import error.
+// contract, so a status that is not stuck must never carry one. Since #97 an
+// item that is had with an open grab reads as an upgrade in flight, which is
+// what this shape -- a failed status write after a successful Place -- now
+// looks like from outside.
 func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 	h := newHarness(t, &coretest.FakeIndexer{}, &coretest.FakeDownload{})
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
@@ -372,11 +373,11 @@ func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 		if it.Number != 4 {
 			continue
 		}
-		if it.Status != "have" {
-			t.Errorf("episode 4 status = %q, want have", it.Status)
+		if it.Status != "downloading" {
+			t.Errorf("episode 4 status = %q, want downloading", it.Status)
 		}
 		if it.ImportError != "" {
-			t.Errorf("episode 4 import_error = %q, want empty on a settled item", it.ImportError)
+			t.Errorf("episode 4 import_error = %q, want empty on a status that is not stuck", it.ImportError)
 		}
 	}
 }

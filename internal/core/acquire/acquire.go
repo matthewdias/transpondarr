@@ -115,13 +115,14 @@ type Match struct {
 type passItem struct {
 	domain.WantedItem
 	grabbable bool
+	heldTitle string
 }
 
 // matchItems is the matcher's view of a pass: numbering basis plus candidacy.
 func matchItems(items []passItem) []decide.Item {
 	out := make([]decide.Item, 0, len(items))
 	for _, it := range items {
-		out = append(out, decide.Item{Number: it.Number, Grabbable: it.grabbable})
+		out = append(out, decide.Item{Number: it.Number, Grabbable: it.grabbable, HeldTitle: it.heldTitle})
 	}
 	return out
 }
@@ -172,9 +173,10 @@ func (s *Service) MatchSeries(ctx context.Context, id int64) (Match, error) {
 	return s.match(ctx, idx, series, items)
 }
 
-// loadItems reads a series and every wanted item belonging to it. Outside a
-// sweep the only thing withholding an item is the library, so this pass' answer
-// is the complement of Have.
+// loadItems reads a series and every wanted item belonging to it. Nothing
+// withholds an item from a manual pass: an item we hold is offered as an
+// upgrade, since profiles inform manual actions and gate only automation
+// (PR #57). A held item with no recorded release matches as a plain one.
 func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passItem, error) {
 	series, err := s.store.Q.GetSeries(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -189,15 +191,19 @@ func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passIte
 	}
 	items := make([]passItem, 0, len(rows))
 	for _, r := range rows {
-		items = append(items, passItem{
+		it := passItem{
 			WantedItem: domain.WantedItem{
 				ID:     r.ID,
 				Kind:   domain.WantedKind(r.Kind),
 				Number: int(r.Number.Int64),
 				Have:   r.Have == 1,
 			},
-			grabbable: r.Have != 1,
-		})
+			grabbable: true,
+		}
+		if it.Have {
+			it.heldTitle = r.HeldReleaseTitle
+		}
+		items = append(items, it)
 	}
 	return series, items, nil
 }

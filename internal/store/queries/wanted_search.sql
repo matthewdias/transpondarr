@@ -26,21 +26,40 @@ LIMIT ?;
 -- Monitored series with something worth grabbing right now, ignoring search
 -- cadence. The feed poll issues no indexer request per series -- one request
 -- answers for every series at once -- so the budget the sweep's LIMIT protects
--- does not apply here. The wanted predicate is deliberately the sweep's,
+-- does not apply here. The wanted half is deliberately the sweep's predicate,
 -- character for character, so both entry points agree on what is grabbable.
+-- The upgrade half is the deliberate divergence (#97): a complete series is
+-- worth re-examining only against a page that cost nothing, so upgrades ride
+-- the feed alone. Score versus cutoff is decided in Go, under the one profile
+-- snapshot that also scores the candidates.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 SELECT s.*
 FROM series s
+JOIN quality_profiles qp ON qp.id = s.quality_profile_id
 WHERE s.monitored = 1
-  AND EXISTS (
-      SELECT 1
-      FROM wanted_items w
-      LEFT JOIN grabs g ON g.wanted_item_id = w.id
-      WHERE w.series_id = s.id
-        AND w.have = 0
-        AND (g.wanted_item_id IS NULL OR g.status = 'failed')
-        AND (w.airs_at IS NULL OR w.airs_at <= ?)
+  AND (
+      EXISTS (
+          SELECT 1
+          FROM wanted_items w
+          LEFT JOIN grabs g ON g.wanted_item_id = w.id
+          WHERE w.series_id = s.id
+            AND w.have = 0
+            AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+            AND (w.airs_at IS NULL OR w.airs_at <= ?)
+      )
+      OR (
+          qp.upgrades_enabled = 1
+          AND EXISTS (
+              SELECT 1
+              FROM wanted_items w
+              JOIN grabs g ON g.wanted_item_id = w.id
+              WHERE w.series_id = s.id
+                AND w.have = 1
+                AND w.held_release_title != ''
+                AND g.status IN ('imported', 'failed')
+          )
+      )
   )
 ORDER BY s.id;
 

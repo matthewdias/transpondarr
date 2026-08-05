@@ -44,17 +44,20 @@ type MetadataCache struct {
 }
 
 type QualityProfile struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`
-	IsDefault       int64  `json:"is_default"`
-	ResolutionOrder string `json:"resolution_order"`
-	PreferredSource string `json:"preferred_source"`
-	SubPref         string `json:"sub_pref"`
-	PreferDualAudio int64  `json:"prefer_dual_audio"`
-	CodecPref       string `json:"codec_pref"`
-	HardExcludes    string `json:"hard_excludes"`
-	MinScore        int64  `json:"min_score"`
-	CreatedAt       string `json:"created_at"`
+	ID                   int64  `json:"id"`
+	Name                 string `json:"name"`
+	IsDefault            int64  `json:"is_default"`
+	ResolutionOrder      string `json:"resolution_order"`
+	PreferredSource      string `json:"preferred_source"`
+	SubPref              string `json:"sub_pref"`
+	PreferDualAudio      int64  `json:"prefer_dual_audio"`
+	CodecPref            string `json:"codec_pref"`
+	HardExcludes         string `json:"hard_excludes"`
+	MinScore             int64  `json:"min_score"`
+	CreatedAt            string `json:"created_at"`
+	UpgradesEnabled      int64  `json:"upgrades_enabled"`
+	CutoffScore          int64  `json:"cutoff_score"`
+	UpgradeV2AboveCutoff int64  `json:"upgrade_v2_above_cutoff"`
 }
 
 type QualityProfileGroup struct {
@@ -117,11 +120,12 @@ type Setting struct {
 }
 
 type WantedItem struct {
-	ID       int64          `json:"id"`
-	SeriesID int64          `json:"series_id"`
-	Kind     string         `json:"kind"`
-	Number   sql.NullInt64  `json:"number"`
-	Title    sql.NullString `json:"title"`
-	Have     int64          `json:"have"`
-	AirsAt   sql.NullString `json:"airs_at"`
+	ID               int64          `json:"id"`
+	SeriesID         int64          `json:"series_id"`
+	Kind             string         `json:"kind"`
+	Number           sql.NullInt64  `json:"number"`
+	Title            sql.NullString `json:"title"`
+	Have             int64          `json:"have"`
+	AirsAt           sql.NullString `json:"airs_at"`
+	HeldReleaseTitle string         `json:"held_release_title"`
 }

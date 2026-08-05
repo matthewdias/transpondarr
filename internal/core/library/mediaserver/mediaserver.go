@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,12 +55,16 @@ func ParseMode(s string) Mode {
 type Target struct {
 	root string
 	mode Mode
+	log  *slog.Logger
 }
 
 // New constructs a media-server layout target rooted at root. mode is
-// auto|hardlink|copy (see ParseMode).
-func New(root, mode string) *Target {
-	return &Target{root: root, mode: ParseMode(mode)}
+// auto|hardlink|copy (see ParseMode). A nil log discards.
+func New(root, mode string, log *slog.Logger) *Target {
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
+	return &Target{root: root, mode: ParseMode(mode), log: log}
 }
 
 func (t *Target) Name() string { return "mediaserver" }
@@ -69,7 +74,8 @@ var _ library.Target = (*Target)(nil)
 // Place transfers a single downloaded file into the library and returns its final
 // path. A directory source (a batch/season pack) is rejected — per-file batch
 // import is a later phase. A destination at least the source's size is already
-// imported; a smaller one is a truncated past import and is re-copied.
+// imported; a smaller one is a truncated past import and is re-copied. A Replace
+// request overwrites whatever size the destination is, and clears its stem-mates.
 func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, error) {
 	info, err := os.Stat(req.SourcePath)
 	if err != nil {
@@ -86,26 +92,89 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 	ext := filepath.Ext(req.SourcePath)
 
 	destDir := filepath.Join(t.root, name, fmt.Sprintf("Season %02d", seasonNumber))
-	filename := fmt.Sprintf("%s - S%02dE%02d%s", name, seasonNumber, req.Item.Number, ext)
-	dest := filepath.Join(destDir, filename)
+	stem := fmt.Sprintf("%s - S%02dE%02d", name, seasonNumber, req.Item.Number)
+	dest := filepath.Join(destDir, stem+ext)
 
+	occupied := false
 	if destInfo, err := os.Stat(dest); err == nil {
-		// Size-checked idempotency only covers open grabs: a settled grab's source is
-		// gone, and nothing calls Place again — that recovery is deliberately out of scope.
-		if destInfo.Size() >= info.Size() {
+		switch {
+		case req.Replace:
+			// A better release can be a smaller file, so an upgrade never asks the
+			// size check whether it is already done.
+			occupied = true
+		case destInfo.Size() >= info.Size():
+			// Size-checked idempotency only covers open grabs: a settled grab's source is
+			// gone, and nothing calls Place again — that recovery is deliberately out of scope.
 			return dest, nil
-		}
-		if err := os.Remove(dest); err != nil { // free the name — link mode can't replace it
-			return "", fmt.Errorf("mediaserver: remove truncated dest: %w", err)
+		default:
+			if err := os.Remove(dest); err != nil { // free the name — link mode can't replace it
+				return "", fmt.Errorf("mediaserver: remove truncated dest: %w", err)
+			}
 		}
 	}
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return "", fmt.Errorf("mediaserver: create dir: %w", err)
 	}
-	if err := t.transfer(ctx, req.SourcePath, dest); err != nil {
+	if occupied {
+		if err := t.replace(ctx, req.SourcePath, dest); err != nil {
+			return "", err
+		}
+	} else if err := t.transfer(ctx, req.SourcePath, dest); err != nil {
 		return "", err
 	}
+	if req.Replace {
+		t.removeStemMates(destDir, stem, dest)
+	}
 	return dest, nil
+}
+
+// replace transfers over a destination the library already holds. Link mode
+// cannot link onto an occupied name, so it links beside it and renames; copy
+// mode's temp-and-rename already is that. Transferring before removing anything
+// is the crash-safe order: the worst case is two files, never none.
+func (t *Target) replace(ctx context.Context, src, dest string) error {
+	if t.mode == ModeCopy {
+		return copyFile(ctx, src, dest)
+	}
+	tmp := dest + ".upgrade"
+	_ = os.Remove(tmp) // a previous attempt's staging link
+	if err := os.Link(src, tmp); err != nil {
+		if t.mode == ModeAuto && isUnsupportedLink(err) {
+			return copyFile(ctx, src, dest)
+		}
+		return fmt.Errorf("mediaserver: hardlink: %w", err)
+	}
+	if err := syncLinked(tmp); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, dest); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("mediaserver: rename upgrade over dest: %w", err)
+	}
+	syncDir(filepath.Dir(dest))
+	return nil
+}
+
+// removeStemMates drops what the superseded release left under this episode's
+// stem — another container, a sidecar — so a media server does not scan two
+// copies of it. Best-effort: the upgrade is already in place, and a stray file
+// is not worth failing an import that otherwise succeeded. The trailing dot is
+// what keeps an upgrade of E10 from removing E100.
+func (t *Target) removeStemMates(dir, stem, keep string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.log.Debug("mediaserver: stem-mate sweep skipped", "dir", dir, "err", err)
+		return
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || name == filepath.Base(keep) || !strings.HasPrefix(name, stem+".") {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, name)); err != nil {
+			t.log.Debug("mediaserver: superseded stem-mate left behind", "path", filepath.Join(dir, name), "err", err)
+		}
+	}
 }
 
 // transfer moves bytes from src to dest according to the configured mode. In auto

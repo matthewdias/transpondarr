@@ -39,13 +39,19 @@ var errItemsTaken = errors.New("acquire: items taken by another grab")
 // any automation grab that committed did so before releasing, and so before this
 // one acquired.
 func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem) (GrabResult, error) {
+	// Automation acts on the take set alone: a grab row is written per covered
+	// item, so grabbing on Items would re-open the held items the upgrade policy
+	// just refused.
+	upgrades := itemIDSet(cand.UpgradeItems, items)
+	cand.Items = cand.TakeItems()
+
 	ids := coveredItemIDs(cand, items)
 	if !s.claims.TryAcquire(ids) {
 		return GrabResult{}, fmt.Errorf("%w: a grab is in flight", errItemsTaken)
 	}
 	defer s.claims.Release(ids)
 
-	if settled, err := s.anySettled(ctx, seriesID, ids); err != nil {
+	if settled, err := s.anySettled(ctx, seriesID, ids, upgrades); err != nil {
 		return GrabResult{}, err
 	} else if settled {
 		return GrabResult{}, fmt.Errorf("%w: settled since the pass read them", errItemsTaken)
@@ -64,10 +70,12 @@ func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Cand
 	return res, err
 }
 
-// anySettled reports whether any of ids already carries a settled grab. Settled
-// is every status but failed, matching what loadSweepItems calls ungrabbable —
-// one definition, so a re-check cannot disagree with the read it is guarding.
-func (s *Service) anySettled(ctx context.Context, seriesID int64, ids []int64) (bool, error) {
+// anySettled reports whether any of ids already carries a grab this pass may not
+// take. Settled is every status but failed, matching what loadSweepItems calls
+// ungrabbable — one definition, so a re-check cannot disagree with the read it
+// is guarding — with the one exception an upgrade is: an imported grab is
+// exactly what an approved upgrade replaces.
+func (s *Service) anySettled(ctx context.Context, seriesID int64, ids []int64, upgrades map[int64]bool) (bool, error) {
 	grabs, err := s.store.Q.ListGrabsBySeries(ctx, seriesID)
 	if err != nil {
 		return false, fmt.Errorf("re-read grab state for series %d: %w", seriesID, err)
@@ -77,11 +85,33 @@ func (s *Service) anySettled(ctx context.Context, seriesID int64, ids []int64) (
 		wanted[id] = true
 	}
 	for _, g := range grabs {
-		if wanted[g.WantedItemID] && g.Status != statusFailed {
-			return true, nil
+		if !wanted[g.WantedItemID] || g.Status == statusFailed {
+			continue
 		}
+		if g.Status == statusImported && upgrades[g.WantedItemID] {
+			continue
+		}
+		return true, nil
 	}
 	return false, nil
+}
+
+// itemIDSet resolves item numbers to the ids a grab is keyed on.
+func itemIDSet(numbers []int, items []domain.WantedItem) map[int64]bool {
+	if len(numbers) == 0 {
+		return nil
+	}
+	byNumber := make(map[int]int64, len(items))
+	for _, it := range items {
+		byNumber[it.Number] = it.ID
+	}
+	out := make(map[int64]bool, len(numbers))
+	for _, n := range numbers {
+		if id, ok := byNumber[n]; ok {
+			out[id] = true
+		}
+	}
+	return out
 }
 
 // coveredItemIDs resolves a candidate's item numbers to ids, the form the

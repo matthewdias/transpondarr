@@ -910,6 +910,10 @@ export interface components {
             /** Format: int64 */
             size: number;
             title: string;
+            /** @description Covered items automation would not replace, and why; a manual grab is not gated by it */
+            upgrade_blocked?: components["schemas"]["UpgradeBlockedDTO"][];
+            /** @description Covered items already in the library that this release may replace */
+            upgrade_items?: number[];
         };
         ClearedOutputBody: {
             /**
@@ -1256,6 +1260,11 @@ export interface components {
             readonly $schema?: string;
             /** @description h264, h265 or av1; empty for no preference */
             codec_pref?: string;
+            /**
+             * Format: int64
+             * @description Ceiling: a held release scoring at least this is good enough; zero means already met
+             */
+            cutoff_score?: number;
             /** @description Ranked group preference, most preferred first */
             groups?: components["schemas"]["ProfileGroupDTO"][];
             /** @description Axis values a release must never carry, e.g. hardsub */
@@ -1273,6 +1282,10 @@ export interface components {
             resolution_order?: string[];
             /** @description softsub or hardsub; empty for no preference */
             sub_pref?: string;
+            /** @description Take the same group's v2/repack of what we hold even above the cutoff */
+            upgrade_v2_above_cutoff?: boolean;
+            /** @description Re-grab a held item while what holds it scores below the cutoff */
+            upgrades_enabled?: boolean;
         };
         ProfileGroupDTO: {
             /** @description Never take this group, at any quality */
@@ -1288,6 +1301,8 @@ export interface components {
              */
             readonly $schema?: string;
             codec_pref: string;
+            /** Format: int64 */
+            cutoff_score: number;
             groups: components["schemas"]["ProfileGroupDTO"][];
             hard_excludes: string[];
             /** Format: int64 */
@@ -1305,6 +1320,8 @@ export interface components {
              */
             series_count: number;
             sub_pref: string;
+            upgrade_v2_above_cutoff: boolean;
+            upgrades_enabled: boolean;
         };
         QueueItemDTO: {
             /**
@@ -1611,6 +1628,11 @@ export interface components {
             /** Format: int64 */
             series_id: number;
             title: string;
+        };
+        UpgradeBlockedDTO: {
+            /** Format: int64 */
+            item: number;
+            reason: string;
         };
         WantedItemDTO: {
             have: boolean;

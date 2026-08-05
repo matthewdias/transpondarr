@@ -14,6 +14,9 @@ export type EditorState = {
   excludes: string[];
   staleExcludes: string[]; // stored tokens no release can carry — surfaced, never dropped
   minScore: number;
+  upgradesEnabled: boolean;
+  cutoffScore: number;
+  upgradeV2AboveCutoff: boolean;
 };
 
 // The parser's height tiers, best first. Only the common anime sizes default
@@ -143,6 +146,11 @@ export function fromProfile(p: QualityProfile | null): EditorState {
     ],
     staleExcludes: stored.flatMap((s) => (s.canonical ? [] : [s.raw])),
     minScore: p?.min_score ?? 0,
+    upgradesEnabled: p?.upgrades_enabled ?? false,
+    cutoffScore: p?.cutoff_score ?? 0,
+    // The carve-out is inert until upgrades are on, and is the default a user
+    // wants once they are — matching the column's own default.
+    upgradeV2AboveCutoff: p?.upgrade_v2_above_cutoff ?? true,
   };
 }
 
@@ -158,6 +166,9 @@ export function toProfileInput(s: EditorState): ProfileInput {
     codec_pref: s.codecPref,
     hard_excludes: [...s.excludes, ...s.staleExcludes],
     min_score: s.minScore,
+    upgrades_enabled: s.upgradesEnabled,
+    cutoff_score: s.cutoffScore,
+    upgrade_v2_above_cutoff: s.upgradeV2AboveCutoff,
     groups: partitionBlocked(s.groups).map((g) => ({
       name: g.name,
       blocked: g.blocked,

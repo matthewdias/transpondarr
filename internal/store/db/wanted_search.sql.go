@@ -159,15 +159,30 @@ func (q *Queries) ListSeriesDueWantedSearch(ctx context.Context, arg ListSeriesD
 const listSeriesWithWantedItems = `-- name: ListSeriesWithWantedItems :many
 SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
 FROM series s
+JOIN quality_profiles qp ON qp.id = s.quality_profile_id
 WHERE s.monitored = 1
-  AND EXISTS (
-      SELECT 1
-      FROM wanted_items w
-      LEFT JOIN grabs g ON g.wanted_item_id = w.id
-      WHERE w.series_id = s.id
-        AND w.have = 0
-        AND (g.wanted_item_id IS NULL OR g.status = 'failed')
-        AND (w.airs_at IS NULL OR w.airs_at <= ?)
+  AND (
+      EXISTS (
+          SELECT 1
+          FROM wanted_items w
+          LEFT JOIN grabs g ON g.wanted_item_id = w.id
+          WHERE w.series_id = s.id
+            AND w.have = 0
+            AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+            AND (w.airs_at IS NULL OR w.airs_at <= ?)
+      )
+      OR (
+          qp.upgrades_enabled = 1
+          AND EXISTS (
+              SELECT 1
+              FROM wanted_items w
+              JOIN grabs g ON g.wanted_item_id = w.id
+              WHERE w.series_id = s.id
+                AND w.have = 1
+                AND w.held_release_title != ''
+                AND g.status IN ('imported', 'failed')
+          )
+      )
   )
 ORDER BY s.id
 `
@@ -175,8 +190,12 @@ ORDER BY s.id
 // Monitored series with something worth grabbing right now, ignoring search
 // cadence. The feed poll issues no indexer request per series -- one request
 // answers for every series at once -- so the budget the sweep's LIMIT protects
-// does not apply here. The wanted predicate is deliberately the sweep's,
+// does not apply here. The wanted half is deliberately the sweep's predicate,
 // character for character, so both entry points agree on what is grabbable.
+// The upgrade half is the deliberate divergence (#97): a complete series is
+// worth re-examining only against a page that cost nothing, so upgrades ride
+// the feed alone. Score versus cutoff is decided in Go, under the one profile
+// snapshot that also scores the candidates.
 // NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 // rune offsets and silently truncates the emitted SQL on a multi-byte character.
 func (q *Queries) ListSeriesWithWantedItems(ctx context.Context, airsAt sql.NullString) ([]Series, error) {
@@ -218,7 +237,7 @@ func (q *Queries) ListSeriesWithWantedItems(ctx context.Context, airsAt sql.Null
 }
 
 const listWantedItemsWithGrabState = `-- name: ListWantedItemsWithGrabState :many
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, g.status AS grab_status
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, w.held_release_title, g.status AS grab_status
 FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ?
@@ -226,14 +245,15 @@ ORDER BY w.number
 `
 
 type ListWantedItemsWithGrabStateRow struct {
-	ID         int64          `json:"id"`
-	SeriesID   int64          `json:"series_id"`
-	Kind       string         `json:"kind"`
-	Number     sql.NullInt64  `json:"number"`
-	Title      sql.NullString `json:"title"`
-	Have       int64          `json:"have"`
-	AirsAt     sql.NullString `json:"airs_at"`
-	GrabStatus sql.NullString `json:"grab_status"`
+	ID               int64          `json:"id"`
+	SeriesID         int64          `json:"series_id"`
+	Kind             string         `json:"kind"`
+	Number           sql.NullInt64  `json:"number"`
+	Title            sql.NullString `json:"title"`
+	Have             int64          `json:"have"`
+	AirsAt           sql.NullString `json:"airs_at"`
+	HeldReleaseTitle string         `json:"held_release_title"`
+	GrabStatus       sql.NullString `json:"grab_status"`
 }
 
 // One grab per item (UNIQUE) keeps the join 1:1, so the sweep can tell an
@@ -255,6 +275,7 @@ func (q *Queries) ListWantedItemsWithGrabState(ctx context.Context, seriesID int
 			&i.Title,
 			&i.Have,
 			&i.AirsAt,
+			&i.HeldReleaseTitle,
 			&i.GrabStatus,
 		); err != nil {
 			return nil, err

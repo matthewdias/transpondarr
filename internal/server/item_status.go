@@ -25,6 +25,10 @@ func deriveItemState(have bool, grab db.Grab, hasGrab bool) itemState {
 	}
 	status := "wanted"
 	switch {
+	case have && grabStatus == "grabbed":
+		// An upgrade in flight over a file we hold (#97). Every other held state
+		// stays "have": a deferred or failed upgrade left the library as it was.
+		status = "downloading"
 	case have:
 		status = "have"
 	case grabStatus == "import_deferred":

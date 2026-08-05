@@ -74,6 +74,7 @@ type feedHarness struct {
 	st   *store.Store
 	feed *coretest.FakeFeed
 	dl   *coretest.FakeDownload
+	reg  *clients.Registry
 	log  *levelRecorder
 }
 
@@ -109,7 +110,7 @@ func newFeedPollWith(t *testing.T, idx indexer.Indexer, cfg fakeConfig, titles a
 	reg.SetDownload(dl)
 	return &feedHarness{
 		svc: acquire.New(st, reg, titles, cfg, slog.New(rec), &fakeRecorder{}),
-		st:  st, dl: dl, log: rec,
+		st:  st, dl: dl, reg: reg, log: rec,
 	}
 }
 
