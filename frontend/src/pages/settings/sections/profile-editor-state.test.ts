@@ -5,6 +5,11 @@ import {
   toProfileInput,
   type EditorState,
 } from "@/pages/settings/sections/profile-editor-state";
+import {
+  DEFAULT_CUTOFF,
+  SCORE_LANDMARKS,
+  landmarkLabel,
+} from "@/lib/score-landmarks";
 import type { QualityProfile } from "@/lib/api";
 
 function profile(overrides: Partial<QualityProfile>): QualityProfile {
@@ -25,6 +30,9 @@ function profile(overrides: Partial<QualityProfile>): QualityProfile {
       { name: "BadRipCo", blocked: true },
     ],
     series_count: 0,
+    upgrades_enabled: false,
+    cutoff_score: 0,
+    upgrade_v2_above_cutoff: true,
     ...overrides,
   };
 }
@@ -176,5 +184,50 @@ describe("fromProfile / toProfileInput", () => {
       "720p",
       "480p",
     ]);
+  });
+});
+
+describe("upgrade policy", () => {
+  it("round-trips the policy a profile stores", () => {
+    const input = toProfileInput(
+      fromProfile(
+        profile({
+          upgrades_enabled: true,
+          cutoff_score: 2400,
+          upgrade_v2_above_cutoff: false,
+        }),
+      ),
+    );
+    expect(input.upgrades_enabled).toBe(true);
+    expect(input.cutoff_score).toBe(2400);
+    expect(input.upgrade_v2_above_cutoff).toBe(false);
+  });
+
+  it("starts a new profile opted out, with the carve-out ready", () => {
+    const state = fromProfile(null);
+    expect(state.upgradesEnabled).toBe(false);
+    expect(state.cutoffScore).toBe(0);
+    // Inert while upgrades are off, and the default a user wants once they are on.
+    expect(state.upgradeV2AboveCutoff).toBe(true);
+  });
+
+  it("keeps a stored cutoff that matches no landmark", () => {
+    const state = fromProfile(
+      profile({ upgrades_enabled: true, cutoff_score: 1234 }),
+    );
+    expect(state.cutoffScore).toBe(1234);
+    expect(toProfileInput(state).cutoff_score).toBe(1234);
+    expect(landmarkLabel(1234)).toBe("Custom (1234)");
+  });
+
+  it("names the landmarks the score weights compose", () => {
+    expect(landmarkLabel(2400)).toBe("Top group, best resolution");
+    expect(landmarkLabel(2000)).toBe("Top-ranked group");
+    expect(SCORE_LANDMARKS.map((l) => l.score)).toEqual([
+      400, 1000, 1400, 2000, 2300, 2400,
+    ]);
+    // The default a first opt-in lands on is the strictest landmark, so
+    // "upgrade until" means "until it is the best this profile describes".
+    expect(DEFAULT_CUTOFF).toBe(2400);
   });
 });

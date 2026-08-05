@@ -8,6 +8,28 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **An episode you already have can be re-grabbed when a better release turns
+  up.** Off by default and enabled per quality profile: *Upgrade until cutoff*
+  in the profile editor, with the cutoff picked from the same landmarks your
+  score weights compose ("top group, best resolution") rather than typed as a
+  bare number. It is a cutoff, not a chase — while what you hold scores below
+  it, any strictly better release replaces it; once it reaches the cutoff, the
+  episode is left alone forever. A second switch keeps taking the same group's
+  v2 or repack of the very file you hold even above the cutoff, since that is a
+  fix for a broken release rather than a better one. Upgrades ride the recent
+  feed, which costs one request for the whole library; the scheduled search
+  never spends a search on a complete series, though a series it searched anyway
+  takes an upgrade it happens to find. A manual search now offers releases for
+  episodes you already have too, and grabs them without asking about the cutoff
+  — profiles inform manual actions and gate only automation. The library file is
+  replaced in place, with anything the superseded release left under the same
+  episode name (a different container, a sidecar) cleared with it; a failed or
+  unresolvable upgrade leaves the episode exactly as it was. Nothing removes the
+  superseded torrent from your download client. Adds migration 00017
+  (`upgrades_enabled`, `cutoff_score`, `upgrade_v2_above_cutoff` on quality
+  profiles, and the release each held episode is holding, backfilled from its
+  import).
+
 - **The indexer can be pointed at specific Newznab categories.** A new
   *Categories* field on the indexer settings (env
   `TRANSPONDARR_TORZNAB_CATEGORIES`) takes a comma-separated list of IDs — anime
@@ -42,6 +64,9 @@ All notable changes to this project are documented here. The format is based on
   could be matched to it. Automation never reopens a settled import on its own.
 
 ### Changed
+
+- **An episode you have with a download in flight now reads as "downloading"**
+  rather than as simply had — the state an upgrade in progress puts it in.
 
 - **One import notification per release, not one per episode.** A pack landing
   six episodes now sends a single "Import succeeded" naming the range

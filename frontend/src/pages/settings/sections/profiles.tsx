@@ -32,6 +32,7 @@ import {
   toProfileInput,
   type EditorState,
 } from "./profile-editor-state";
+import { DEFAULT_CUTOFF, SCORE_LANDMARKS } from "@/lib/score-landmarks";
 import { profilesQuery } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -203,6 +204,87 @@ function ToggleRow({
       </span>
       <Switch checked={checked} onCheckedChange={onChange} />
     </label>
+  );
+}
+
+// Upgrades are cutoff, not chase, so the cutoff is picked from the landmarks the
+// score weights compose rather than typed as a number nobody can rank (#97).
+export function UpgradePolicyFields({
+  upgradesEnabled,
+  cutoffScore,
+  upgradeV2AboveCutoff,
+  onChange,
+}: {
+  upgradesEnabled: boolean;
+  cutoffScore: number;
+  upgradeV2AboveCutoff: boolean;
+  onChange: (
+    patch: Partial<
+      Pick<
+        EditorState,
+        "upgradesEnabled" | "cutoffScore" | "upgradeV2AboveCutoff"
+      >
+    >,
+  ) => void;
+}) {
+  // A stored cutoff no landmark names still needs an item to be selected.
+  const options = SCORE_LANDMARKS.some((l) => l.score === cutoffScore)
+    ? SCORE_LANDMARKS
+    : [
+        ...SCORE_LANDMARKS,
+        { score: cutoffScore, label: `Custom (${cutoffScore})` },
+      ];
+
+  return (
+    <div className="space-y-3 rounded-md border bg-panel-2/40 px-3 py-3">
+      <ToggleRow
+        label="Upgrade until cutoff"
+        hint="Re-grab an episode you already have while what holds it scores below the cutoff."
+        checked={upgradesEnabled}
+        onChange={(v) =>
+          onChange(
+            // Zero means "already met", so opting in at zero would do nothing.
+            v && cutoffScore === 0
+              ? { upgradesEnabled: true, cutoffScore: DEFAULT_CUTOFF }
+              : { upgradesEnabled: v },
+          )
+        }
+      />
+      {upgradesEnabled && (
+        <>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-muted-foreground">
+              Upgrade until
+            </span>
+            <Select
+              value={String(cutoffScore)}
+              onValueChange={(v) => onChange({ cutoffScore: Number(v) })}
+            >
+              <SelectTrigger aria-label="Upgrade until" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((l) => (
+                  <SelectItem key={l.score} value={String(l.score)}>
+                    {l.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="mt-1 block text-[11px] text-faint">
+              Once what you hold reaches this, it is good enough — nothing
+              better is chased.
+            </span>
+          </label>
+          <ToggleRow
+            label="Still take v2s and repacks after cutoff"
+            hint="A re-release of the very file you hold is a fix, not a better release."
+            checked={upgradeV2AboveCutoff}
+            onChange={(v) => onChange({ upgradeV2AboveCutoff: v })}
+          />
+        </>
+      )}
+    </div>
   );
 }
 
@@ -507,6 +589,13 @@ function ProfileEditor({
             hint="Releases scoring below are ineligible — the answer can be “nothing yet”."
           />
         </div>
+
+        <UpgradePolicyFields
+          upgradesEnabled={state.upgradesEnabled}
+          cutoffScore={state.cutoffScore}
+          upgradeV2AboveCutoff={state.upgradeV2AboveCutoff}
+          onChange={(patch) => setState((s) => ({ ...s, ...patch }))}
+        />
 
         <div className="space-y-3 rounded-md border bg-panel-2/40 px-3 py-3">
           <ToggleRow
