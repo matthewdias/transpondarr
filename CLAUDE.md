@@ -252,6 +252,10 @@ Behaviour changes are test-driven. Work red → green → refactor:
   unoptimised, since a page is ~100 entries and the due query already drops any
   series with nothing wanted. It writes no search cadence: nothing was searched,
   and a grab settles its item, so the sweep's `EXISTS` drops the series anyway.
+  The one exception is a poll that catches itself missing a page (#140): it
+  resets the sweep for the series that aired inside the gap, bounded to
+  `seriesPerPass` per gap event so a routine gap on a busy indexer queues no more
+  searches than one pass can spend.
   They divide by what they can see: the feed owns releases published while we
   watch, the sweep owns what already existed and everything when no feed is
   configured. **Cadence follows that division; grab scope deliberately does

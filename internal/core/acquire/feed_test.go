@@ -259,7 +259,8 @@ func TestFeedPollGrabsAnAiredWantedItemWithoutSearching(t *testing.T) {
 	if h.feed.Polls != 1 {
 		t.Errorf("Recent called %d times, want 1", h.feed.Polls)
 	}
-	// The feed is not a search, so it leaves the sweep's cadence alone.
+	// The feed is not a search, so it leaves the sweep's cadence alone — a
+	// detected gap resets it (#140), but a poll that recognised its page had none.
 	if state := readSearchState(t, h.st, id); state.lastSearched.Valid {
 		t.Error("feed poll wrote search state")
 	}
@@ -545,6 +546,138 @@ func TestFeedPollWarnsWhenTheMarkScrolledOff(t *testing.T) {
 	}
 	if !h.log.logged("moved more than one page") {
 		t.Error("no gap warning when the whole page was unrecognised")
+	}
+	if h.log.logged("front of the sweep") {
+		t.Error("the warning claimed a reset when nothing qualified for one")
+	}
+	if !h.log.logged("waits for the sweep's backoff") {
+		t.Error("an empty recovery should say the sweep's backoff still owns the gap")
+	}
+}
+
+// seedGapCadence backs a series off to a long wait, which is what a gap recovery
+// has to undo — and what makes a reset observable at all.
+func seedGapCadence(t *testing.T, st *store.Store, id int64, backoff int, next time.Time) {
+	t.Helper()
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET search_backoff = ?, next_search_at = ? WHERE id = ?`,
+		backoff, store.FormatTimestamp(next), id); err != nil {
+		t.Fatalf("seed cadence on series %d: %v", id, err)
+	}
+}
+
+// pollThenGap runs a first poll to lay down a mark at since, then swaps in a
+// wholly unrecognised page so the next poll reads as a gap.
+func pollThenGap(t *testing.T, h *feedHarness, since time.Time) {
+	t.Helper()
+	h.feed.Entries = []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since)}
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("first PollFeedOnce: %v", err)
+	}
+	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, time.Now())}
+}
+
+// The acceptance criterion of #140: a release that fell through a feed gap is
+// searched materially sooner than the backoff cap, because the poll resets the
+// sweep for the series whose broadcast happened inside the gap.
+func TestFeedPollGapResetsASeriesThatAiredInsideIt(t *testing.T) {
+	now := time.Now()
+	h := newFeedPoll(t, nil, fakeConfig{})
+	pollThenGap(t, h, now.Add(-2*time.Hour))
+
+	aired := now.Add(-time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if !h.log.logged("front of the sweep") {
+		t.Error("no gap warning naming the recovery when a series was reset")
+	}
+	state := readSearchState(t, h.st, id)
+	if state.backoff != 0 || state.nextSearchAt.Valid {
+		t.Errorf("backoff = %d, next_search_at = %+v; want 0 and NULL — the gap must put the series back in the sweep's queue",
+			state.backoff, state.nextSearchAt)
+	}
+}
+
+// The other half of #140's acceptance: a routine gap on a high-volume indexer
+// must not become a library-wide reset, so a series whose broadcast is nowhere
+// near the gap keeps its place on the ladder.
+func TestFeedPollGapLeavesSeriesOutsideTheWindowAlone(t *testing.T) {
+	now := time.Now()
+	h := newFeedPoll(t, nil, fakeConfig{})
+	pollThenGap(t, h, now.Add(-2*time.Hour))
+
+	aired := now.Add(-72 * time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	state := readSearchState(t, h.st, id)
+	if state.backoff != 6 {
+		t.Errorf("backoff = %d, want 6 — a back-catalogue series never fell through this gap", state.backoff)
+	}
+	wantNextSearchNear(t, state.nextSearchAt, now.Add(20*time.Hour))
+}
+
+// A rip is published after its episode airs, so an item that aired shortly
+// before the mark can still have fallen through the gap behind it.
+func TestFeedPollGapResetCoversPublishLagBeforeTheMark(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-2 * time.Hour)
+	h := newFeedPoll(t, nil, fakeConfig{})
+	pollThenGap(t, h, since)
+
+	aired := since.Add(-30 * time.Minute)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if state := readSearchState(t, h.st, id); state.backoff != 0 || state.nextSearchAt.Valid {
+		t.Errorf("backoff = %d, next_search_at = %+v; want 0 and NULL — publish lag puts this item inside the gap",
+			state.backoff, state.nextSearchAt)
+	}
+}
+
+// One gap event resets at most what one sweep pass can search, furthest-
+// postponed first: the gap is routine on a busy aggregating indexer, so an
+// unbounded reset would queue searches the sweep cannot spend.
+func TestFeedPollGapResetIsBoundedToOnePass(t *testing.T) {
+	now := time.Now()
+	h := newFeedPoll(t, nil, fakeConfig{})
+	pollThenGap(t, h, now.Add(-2*time.Hour))
+
+	aired := now.Add(-time.Hour)
+	ids := make([]int64, 7)
+	for i := range ids {
+		ids[i] = seedSweep(t, h.st, fmt.Sprintf("Placeholder Saga %d", i), true,
+			sweepItem{number: 3, airsAt: &aired})
+		seedGapCadence(t, h.st, ids[i], 6, now.Add(time.Duration(i+1)*time.Hour))
+	}
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	var reset int
+	for i, id := range ids {
+		state := readSearchState(t, h.st, id)
+		if state.backoff == 0 && !state.nextSearchAt.Valid {
+			reset++
+			continue
+		}
+		// The two nearest-due series are the ones the ladder makes wait least.
+		if i > 1 {
+			t.Errorf("series %d was left postponed; the furthest-postponed series come first", i)
+		}
+	}
+	if reset != 5 {
+		t.Errorf("reset %d series, want 5 — one gap event may not outrun one sweep pass", reset)
 	}
 }
 

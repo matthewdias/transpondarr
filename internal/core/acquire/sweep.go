@@ -323,14 +323,8 @@ func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, m Matc
 
 // writeSearchState records what the pass found. The write is guarded on the
 // cadence read at selection, so a reset that landed mid-sweep wins.
-//
-// The airing-aimed parts of the cadence — the aired-since reset and the
-// next-broadcast clamp — exist only for the feedless world. They are #100's
-// answer to "a weekly show must be searched at air time", written when the sweep
-// was the only mechanism; with a feed they aim the sweep at precisely the
-// windows the feed already covers, for one search per series. A series whose
-// broadcast the feed then misses is still reached: its stale next_search_at plus
-// the due query's EXISTS make it due, and the backoff ladder caps at a day.
+// The airing-aimed parts of the cadence exist only for the feedless world; with
+// a feed, a missed broadcast is the feed poll's gap reset to recover (#100, #140).
 func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep []sweepItem, now time.Time, grabbed int, held time.Time, hasFeed bool) error {
 	upcoming := nextAiring(sweep, now)
 	if hasFeed {

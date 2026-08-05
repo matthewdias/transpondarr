@@ -10,6 +10,83 @@ import (
 	"database/sql"
 )
 
+const listBackedOffSeriesWantedInWindow = `-- name: ListBackedOffSeriesWantedInWindow :many
+SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
+FROM series s
+WHERE s.monitored = 1
+  AND s.next_search_at IS NOT NULL
+  AND s.next_search_at > ?
+  AND EXISTS (
+      SELECT 1
+      FROM wanted_items w
+      LEFT JOIN grabs g ON g.wanted_item_id = w.id
+      WHERE w.series_id = s.id
+        AND w.have = 0
+        AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+        AND w.airs_at IS NOT NULL AND w.airs_at >= ? AND w.airs_at < ?
+  )
+ORDER BY s.next_search_at DESC, s.id
+LIMIT ?
+`
+
+type ListBackedOffSeriesWantedInWindowParams struct {
+	NextSearchAt sql.NullString `json:"next_search_at"`
+	AirsAt       sql.NullString `json:"airs_at"`
+	AirsAt_2     sql.NullString `json:"airs_at_2"`
+	Limit        int64          `json:"limit"`
+}
+
+// Series the sweep is postponing that had a broadcast inside a window: what the
+// feed poll resets after it detects a gap in its own coverage. Already-due
+// series are excluded because a reset buys them nothing and would spend one of
+// the bounded slots. The wanted predicate is the sweep's, character for
+// character. Furthest-postponed first, since the ladder would keep those
+// waiting longest, and the LIMIT holds the reset to one sweep pass' throughput.
+// NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
+// rune offsets and silently truncates the emitted SQL on a multi-byte character.
+func (q *Queries) ListBackedOffSeriesWantedInWindow(ctx context.Context, arg ListBackedOffSeriesWantedInWindowParams) ([]Series, error) {
+	rows, err := q.db.QueryContext(ctx, listBackedOffSeriesWantedInWindow,
+		arg.NextSearchAt,
+		arg.AirsAt,
+		arg.AirsAt_2,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Series{}
+	for rows.Next() {
+		var i Series
+		if err := rows.Scan(
+			&i.ID,
+			&i.AnilistID,
+			&i.Title,
+			&i.Format,
+			&i.Monitored,
+			&i.CreatedAt,
+			&i.QualityProfileID,
+			&i.AiringSyncedAt,
+			&i.PinnedGroup,
+			&i.LastSearchedAt,
+			&i.SearchBackoff,
+			&i.NextSearchAt,
+			&i.PinDelayHours,
+			&i.SearchEpoch,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSeriesDueWantedSearch = `-- name: ListSeriesDueWantedSearch :many
 SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
 FROM series s

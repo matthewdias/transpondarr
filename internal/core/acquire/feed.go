@@ -20,6 +20,11 @@ import (
 // only ever trips on a feed that publishes no dates at all and pages far deeper.
 const maxFeedMarkIDs = 500
 
+// feedGapAiredSlack widens the recovery window back past the mark: a rip is
+// published after its episode airs, so an item that aired shortly before the
+// mark can still have fallen through the gap.
+const feedGapAiredSlack = time.Hour
+
 // feedMark is what a poll remembers about the last one: the newest publish time
 // it saw and the entries carrying it. Sonarr stores the same pair per indexer
 // (LastRssSyncReleaseInfo) — the timestamp answers "how far did we get", and the
@@ -72,14 +77,13 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 	}
 	fresh := unseenEntries(entries, mark)
 	// Recognising nothing means the mark scrolled off the page: the feed moved
-	// further than one page between polls. Sonarr warns on the same condition. The
-	// sweep is the only thing that will find what fell through, and with a feed
-	// configured it no longer aims at the airing window — so recovery is its
-	// backoff, up to a day, rather than the next tick (#140).
-	if !mark.Latest.IsZero() && len(fresh) == len(entries) {
-		s.log.Warn("the recent feed moved more than one page between polls; anything missed waits for the sweep's backoff",
-			"indexer", idx.Name(), "since", mark.Latest, "poll_shorter_than", len(entries))
-	}
+	// further than one page between polls, so whatever aired in between is the
+	// sweep's to find — and with a feed configured the sweep no longer aims at
+	// the airing window, leaving its backoff ladder to reach it up to a day
+	// later. The poll knows when coverage was lost, so it recovers (#140).
+	// A gap means every entry is fresh, so the quiet-feed return below is never
+	// this path.
+	gap := !mark.Latest.IsZero() && len(fresh) == len(entries)
 	// The whole point of the mark: a quiet feed costs one request and nothing else.
 	if len(fresh) == 0 {
 		return s.saveFeedMark(ctx, idx.Name(), advanceFeedMark(mark, nextFeedMark(entries)))
@@ -89,12 +93,60 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 	for _, e := range fresh {
 		releases = append(releases, e.Release)
 	}
+	// Recovery runs after the page is processed, so anything this poll just
+	// grabbed has settled its item and drops out of the reset set.
+	polled := s.pollSeries(ctx, releases)
+	var recovered error
+	if gap {
+		recovered = s.recoverFeedGap(ctx, idx.Name(), mark.Latest, len(entries))
+	}
 	// The mark advances even when a series failed: those entries were seen, and
 	// re-processing the page would not fix whatever broke.
 	return errors.Join(
-		s.pollSeries(ctx, releases),
+		polled, recovered,
 		s.saveFeedMark(ctx, idx.Name(), advanceFeedMark(mark, nextFeedMark(entries))),
 	)
+}
+
+// recoverFeedGap puts the sweep back on the series whose broadcast happened
+// while the feed was scrolling past us. The set is bounded to one sweep pass'
+// worth of series and ordered furthest-postponed first: the gap fires routinely
+// on a busy aggregating indexer, so resetting everything would queue more
+// searches than the sweep can spend. A failed reset still lets the mark advance
+// — the sweep's ladder remains the fallback it already was.
+func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since time.Time, page int) error {
+	now := time.Now()
+	stale, err := s.store.Q.ListBackedOffSeriesWantedInWindow(ctx,
+		db.ListBackedOffSeriesWantedInWindowParams{
+			NextSearchAt: sql.NullString{String: store.FormatTimestamp(now), Valid: true},
+			AirsAt:       sql.NullString{String: store.FormatTimestamp(since.Add(-feedGapAiredSlack)), Valid: true},
+			AirsAt_2:     sql.NullString{String: store.FormatTimestamp(now), Valid: true},
+			Limit:        seriesPerPass,
+		})
+	if err != nil {
+		return fmt.Errorf("list series that aired inside a feed gap: %w", err)
+	}
+
+	var errs []error
+	reset := 0
+	for _, series := range stale {
+		if ctx.Err() != nil {
+			break
+		}
+		if err := s.store.Q.ResetSeriesSearchState(ctx, series.ID); err != nil {
+			errs = append(errs, fmt.Errorf("reset series %d after a feed gap: %w", series.ID, err))
+			continue
+		}
+		reset++
+	}
+	if reset > 0 {
+		s.log.Warn("the recent feed moved more than one page between polls; series that aired inside the gap go back to the front of the sweep",
+			"indexer", indexerName, "since", since, "poll_shorter_than", page, "reset", reset)
+	} else {
+		s.log.Warn("the recent feed moved more than one page between polls; nothing qualified for a reset, so anything missed waits for the sweep's backoff",
+			"indexer", indexerName, "since", since, "poll_shorter_than", page)
+	}
+	return errors.Join(errs...)
 }
 
 // pollSeries matches one already-fetched page against every series with
