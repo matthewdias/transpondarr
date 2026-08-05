@@ -30,7 +30,13 @@ function settings(automation: Settings["automation"]): Settings {
       password_set: false,
       category: "",
     },
-    indexer: { configured: false, name: "", url: "", apikey_set: false },
+    indexer: {
+      configured: false,
+      name: "",
+      url: "",
+      apikey_set: false,
+      categories: "",
+    },
     library: { configured: false, dir: "", mode: "" },
     automation,
     notifications: {

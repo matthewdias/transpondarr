@@ -46,15 +46,16 @@ const APIKeySettingKey = "api.key"
 
 // Setting keys persisted in the settings table.
 const (
-	keyQbitURL       = "qbit.url"
-	keyQbitUser      = "qbit.user"
-	keyQbitPassword  = "qbit.password"
-	keyQbitCategory  = "qbit.category"
-	keyTorznabName   = "torznab.name"
-	keyTorznabURL    = "torznab.url"
-	keyTorznabAPIKey = "torznab.apikey"
-	keyLibraryDir    = "library.dir"
-	keyLibraryMode   = "library.import_mode"
+	keyQbitURL           = "qbit.url"
+	keyQbitUser          = "qbit.user"
+	keyQbitPassword      = "qbit.password"
+	keyQbitCategory      = "qbit.category"
+	keyTorznabName       = "torznab.name"
+	keyTorznabURL        = "torznab.url"
+	keyTorznabAPIKey     = "torznab.apikey"
+	keyTorznabCategories = "torznab.categories"
+	keyLibraryDir        = "library.dir"
+	keyLibraryMode       = "library.import_mode"
 
 	keyAutomationEnabled  = "automation.enabled"
 	keyAutomationPinDelay = "automation.pin_delay_hours"
@@ -88,11 +89,14 @@ type DownloadConfig struct {
 	Category string
 }
 
-// IndexerConfig is the Torznab indexer configuration.
+// IndexerConfig is the Torznab indexer configuration. Categories is the
+// comma-separated Newznab id list narrowing every request; empty means no
+// filter, and the string stays raw so the value is what cat= wants.
 type IndexerConfig struct {
-	Name   string
-	URL    string
-	APIKey string
+	Name       string
+	URL        string
+	APIKey     string
+	Categories string
 }
 
 // LibraryConfig is the library import target configuration.
@@ -227,7 +231,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 		dbPath:  base.DBPath,
 		addr:    base.Addr,
 		dl:      DownloadConfig{URL: base.QbitURL, User: base.QbitUser, Password: base.QbitPassword, Category: base.QbitCategory},
-		idx:     IndexerConfig{Name: base.TorznabName, URL: base.TorznabURL, APIKey: base.TorznabAPIKey},
+		idx:     IndexerConfig{Name: base.TorznabName, URL: base.TorznabURL, APIKey: base.TorznabAPIKey, Categories: base.TorznabCategories},
 		lib:     LibraryConfig{Dir: base.LibraryDir, Mode: base.ImportMode},
 	}
 
@@ -246,6 +250,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	overlay(m, keyTorznabName, &cfg.idx.Name)
 	overlay(m, keyTorznabURL, &cfg.idx.URL)
 	overlay(m, keyTorznabAPIKey, &cfg.idx.APIKey)
+	overlay(m, keyTorznabCategories, &cfg.idx.Categories)
 	overlay(m, keyLibraryDir, &cfg.lib.Dir)
 	overlay(m, keyLibraryMode, &cfg.lib.Mode)
 	overlay(m, keyNotifyDiscordURL, &cfg.ntf.DiscordURL)
@@ -432,8 +437,16 @@ func (s *Service) UpdateDownload(ctx context.Context, in DownloadConfig) error {
 
 // UpdateIndexer saves the Torznab config and swaps in the rebuilt indexer.
 // An empty APIKey keeps the stored one; an empty URL disables the indexer.
+// Blank categories clear the filter rather than inheriting — they are not a
+// secret, so the form shows what is stored.
 // Persisting before the swap leaves live state untouched if the save fails.
 func (s *Service) UpdateIndexer(ctx context.Context, in IndexerConfig) error {
+	cats, err := NormalizeCategories(in.Categories)
+	if err != nil {
+		return err
+	}
+	in.Categories = cats
+
 	s.updateMu.Lock()
 	defer s.updateMu.Unlock()
 
@@ -444,9 +457,10 @@ func (s *Service) UpdateIndexer(ctx context.Context, in IndexerConfig) error {
 	in.applyDefaults()
 
 	if err := s.persist(ctx, map[string]string{
-		keyTorznabName:   in.Name,
-		keyTorznabURL:    in.URL,
-		keyTorznabAPIKey: in.APIKey,
+		keyTorznabName:       in.Name,
+		keyTorznabURL:        in.URL,
+		keyTorznabAPIKey:     in.APIKey,
+		keyTorznabCategories: in.Categories,
 	}); err != nil {
 		return err
 	}
@@ -655,8 +669,13 @@ func (s *Service) TestIndexer(ctx context.Context, in IndexerConfig) error {
 	if in.APIKey == "" {
 		in.APIKey = s.cur.Load().idx.APIKey
 	}
+	cats, err := NormalizeCategories(in.Categories)
+	if err != nil {
+		return err
+	}
 	in.applyDefaults()
-	_, err := torznab.New(in.Name, in.URL, in.APIKey).Search(ctx, indexer.Query{Term: "test"})
+	// The probe carries the categories so it exercises the request a sweep issues.
+	_, err = torznab.New(in.Name, in.URL, in.APIKey, cats).Search(ctx, indexer.Query{Term: "test"})
 	return err
 }
 
@@ -716,6 +735,26 @@ func (s *Service) persistWith(ctx context.Context, kv map[string]string, also fu
 	return nil
 }
 
+// NormalizeCategories cleans a comma-separated Newznab id list into the exact
+// form cat= wants. Every id — Newznab standard and Jackett custom alike — is a
+// positive integer, so anything else is a typo worth refusing rather than a
+// filter that silently matches nothing.
+func NormalizeCategories(s string) (string, error) {
+	var ids []string
+	for _, part := range strings.Split(s, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil || n <= 0 {
+			return "", fmt.Errorf("invalid category %q (want positive numeric Newznab ids, e.g. 5070)", part)
+		}
+		ids = append(ids, part)
+	}
+	return strings.Join(ids, ","), nil
+}
+
 // ValidImportMode reports whether m is a recognised import mode.
 func ValidImportMode(m string) bool {
 	switch m {
@@ -738,7 +777,7 @@ func buildIndexer(c IndexerConfig) indexer.Indexer {
 		return nil
 	}
 	c.applyDefaults()
-	return torznab.New(c.Name, c.URL, c.APIKey)
+	return torznab.New(c.Name, c.URL, c.APIKey, c.Categories)
 }
 
 // buildLibrary returns a library.Target (interface) so an unconfigured library

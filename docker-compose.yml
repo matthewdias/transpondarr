@@ -38,6 +38,9 @@ services:
       # --- indexer (Prowlarr aggregate or a Jackett feed) ---
       TRANSPONDARR_TORZNAB_URL: "${TORZNAB_URL}"
       TRANSPONDARR_TORZNAB_APIKEY: "${TORZNAB_APIKEY}"
+      # Newznab category IDs narrowing every search and the recent feed; anime is
+      # usually 5070. Empty = no filter.
+      TRANSPONDARR_TORZNAB_CATEGORIES: "${TORZNAB_CATEGORIES:-}"
       # --- library import (must live under the shared /data mount) ---
       TRANSPONDARR_LIBRARY_DIR: "/data/media"
       TRANSPONDARR_IMPORT_MODE: "auto"   # auto | hardlink | copy

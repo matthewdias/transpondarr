@@ -10,8 +10,14 @@ type automationJSON struct {
 	PinDelayHours int    `json:"pin_delay_hours"`
 }
 
+type indexerJSON struct {
+	URL        string `json:"url"`
+	Categories string `json:"categories"`
+}
+
 type settingsJSON struct {
 	Automation automationJSON `json:"automation"`
+	Indexer    indexerJSON    `json:"indexer"`
 }
 
 func getAutomation(t *testing.T, h *harness) automationJSON {
@@ -77,5 +83,35 @@ func TestAutomationSettingsClampsPinDelay(t *testing.T) {
 			t.Errorf("pin_delay_hours %d saved as %d, want %d",
 				tc.send, saved.Automation.PinDelayHours, tc.want)
 		}
+	}
+}
+
+// The category filter (#142) round-trips through the same snapshot the UI
+// renders, and a non-numeric id is a client error rather than a 500.
+func TestIndexerCategoriesRoundTrip(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	var saved settingsJSON
+	code := do(t, h, http.MethodPut, "/api/v1/settings/indexer",
+		map[string]any{"url": "http://prowlarr:9696/1/api", "categories": " 5070, 127720 "}, &saved)
+	if code != http.StatusOK {
+		t.Fatalf("PUT /settings/indexer = %d, want 200", code)
+	}
+	if saved.Indexer.Categories != "5070,127720" {
+		t.Errorf("save returned categories %q, want the normalized 5070,127720", saved.Indexer.Categories)
+	}
+
+	var got settingsJSON
+	if code := do(t, h, http.MethodGet, "/api/v1/settings", nil, &got); code != http.StatusOK {
+		t.Fatalf("GET /settings = %d, want 200", code)
+	}
+	if got.Indexer.Categories != "5070,127720" {
+		t.Errorf("categories after save = %q, want 5070,127720", got.Indexer.Categories)
+	}
+
+	code = do(t, h, http.MethodPut, "/api/v1/settings/indexer",
+		map[string]any{"url": "http://prowlarr:9696/1/api", "categories": "anime"}, nil)
+	if code != http.StatusUnprocessableEntity {
+		t.Fatalf("PUT /settings/indexer with a non-numeric category = %d, want 422", code)
 	}
 }

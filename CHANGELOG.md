@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **The indexer can be pointed at specific Newznab categories.** A new
+  *Categories* field on the indexer settings (env
+  `TRANSPONDARR_TORZNAB_CATEGORIES`) takes a comma-separated list of IDs — anime
+  is usually `5070` — and sends it as `cat=` on every search and on the recent
+  feed. It matters most for the feed: one page is about 100 entries covering the
+  whole endpoint, so on a general-purpose indexer music, books and software eat
+  the window an anime release needs to be seen in. Empty is the default and
+  keeps today's behaviour exactly — every request unfiltered — so nothing
+  changes until you fill it in. A `cat` you baked into a Prowlarr or Jackett
+  feed URL is left alone while the field is empty.
+
 - **Season packs and batches now import episode by episode, and automation
   prefers them.** A multi-episode payload used to settle every grab row it
   covered as "downloaded (batch)" — terminal, with the bytes on disk and the

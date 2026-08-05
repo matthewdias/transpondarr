@@ -16,9 +16,15 @@ export function IndexerSection({ settings }: { settings: Settings }) {
   const [name, setName] = useState(i.name);
   const [url, setUrl] = useState(i.url);
   const [apikey, setApikey] = useState("");
+  const [categories, setCategories] = useState(i.categories);
   const [testState, setTestState] = useState<TestState>(null);
 
-  const body = (): IndexerInput => ({ name, url, apikey: apikey || undefined });
+  const body = (): IndexerInput => ({
+    name,
+    url,
+    apikey: apikey || undefined,
+    categories,
+  });
 
   const test = useMutation({
     mutationFn: () => api.testIndexer(body()),
@@ -61,6 +67,13 @@ export function IndexerSection({ settings }: { settings: Settings }) {
         value={url}
         onChange={(e) => setUrl(e.target.value)}
         hint="A Prowlarr aggregate feed already fans out across trackers."
+      />
+      <Field
+        label="Categories"
+        placeholder="5070"
+        value={categories}
+        onChange={(e) => setCategories(e.target.value)}
+        hint="Comma-separated Newznab category IDs narrowing every search and the recent feed (anime is usually 5070). Leave empty for no filter."
       />
       <Field
         label="API key"

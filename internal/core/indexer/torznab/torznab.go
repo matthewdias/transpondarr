@@ -23,22 +23,25 @@ const (
 )
 
 type Indexer struct {
-	name    string
-	baseURL string
-	apiKey  string
-	http    *http.Client
+	name       string
+	baseURL    string
+	apiKey     string
+	categories string
+	http       *http.Client
 }
 
 // New constructs a Torznab indexer. baseURL is the Torznab feed URL as copied
 // from Prowlarr or Jackett; the "/api" operation path is appended automatically
 // when absent (Prowlarr's URL already ends in /api, Jackett's ends in /torznab/),
-// matching the conventional Torznab default API Path.
-func New(name, baseURL, apiKey string) *Indexer {
+// matching the conventional Torznab default API Path. categories is the
+// comma-separated Newznab id list sent as cat=; empty means no filter.
+func New(name, baseURL, apiKey, categories string) *Indexer {
 	return &Indexer{
-		name:    name,
-		baseURL: baseURL,
-		apiKey:  apiKey,
-		http:    &http.Client{Timeout: httpTimeout},
+		name:       name,
+		baseURL:    baseURL,
+		apiKey:     apiKey,
+		categories: categories,
+		http:       &http.Client{Timeout: httpTimeout},
 	}
 }
 
@@ -111,6 +114,10 @@ func (i *Indexer) searchURL(q indexer.Query) (string, error) {
 	params.Set("limit", strconv.Itoa(defaultLimit))
 	if i.apiKey != "" {
 		params.Set("apikey", i.apiKey)
+	}
+	// Conditional, so an unconfigured field leaves a cat baked into baseURL alone.
+	if i.categories != "" {
+		params.Set("cat", i.categories)
 	}
 	u.RawQuery = params.Encode()
 	return u.String(), nil

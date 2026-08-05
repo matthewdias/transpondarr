@@ -1080,11 +1080,15 @@ export interface components {
             readonly $schema?: string;
             /** @description Leave empty to keep the stored API key */
             apikey?: string;
+            /** @description Comma-separated Newznab category IDs; empty = no filter */
+            categories?: string;
             name?: string;
             url?: string;
         };
         IndexerSettingsDTO: {
             apikey_set: boolean;
+            /** @description Comma-separated Newznab category IDs; empty = no filter */
+            categories: string;
             configured: boolean;
             name: string;
             url: string;
