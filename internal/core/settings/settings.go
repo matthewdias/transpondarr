@@ -750,7 +750,7 @@ func NormalizeCategories(s string) (string, error) {
 		if err != nil || n <= 0 {
 			return "", fmt.Errorf("invalid category %q (want positive numeric Newznab ids, e.g. 5070)", part)
 		}
-		ids = append(ids, part)
+		ids = append(ids, strconv.Itoa(n))
 	}
 	return strings.Join(ids, ","), nil
 }

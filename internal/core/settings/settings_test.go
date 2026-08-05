@@ -124,6 +124,8 @@ func TestNormalizeCategories(t *testing.T) {
 		"5070,,127720":     "5070,127720",
 		"5070,127720,\n":   "5070,127720",
 		"5000,5070,140679": "5000,5070,140679",
+		"+5070":            "5070",
+		"007":              "7",
 	}
 	for in, want := range ok {
 		got, err := NormalizeCategories(in)
