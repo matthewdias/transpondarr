@@ -31,7 +31,7 @@ All notable changes to this project are documented here. The format is based on
   held release scored against it. The specific profile goals a release is not
   hitting are named outright — "group TopSubs (+100) · resolution 1080p
   (+100)" — with goals every episode in a series shares said once on the header
-  ("All want …") and a row adding only what is its own, so a whole season below
+  ("Wanted: …") and a row adding only what is its own, so a whole season below
   cutoff for one reason reads as one line, not thirty. It only ever lists
   series on a profile with upgrades enabled, and re-scores from the stored
   release name, so editing a profile moves the list immediately. On both tabs

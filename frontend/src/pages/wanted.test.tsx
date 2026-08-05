@@ -328,7 +328,7 @@ it("hoists shared goals to the cutoff group header", async () => {
   expect(screen.getByText("Anime HD · cutoff 2300")).toBeInTheDocument();
   // The resolution gap is everyone's, so it is said once on the header...
   expect(
-    screen.getByText("All want resolution 1080p (+100)"),
+    screen.getByText("Wanted: resolution 1080p (+100)"),
   ).toBeInTheDocument();
   // ...and the group gap stays on the one row that has it.
   expect(

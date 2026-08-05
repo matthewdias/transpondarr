@@ -466,7 +466,7 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
       subheader={
         shared.length > 0 && (
           <div className="mt-1 truncate pl-8 text-[11px] text-dl">
-            All want {goalLine(shared)}
+            Wanted: {goalLine(shared)}
           </div>
         )
       }
