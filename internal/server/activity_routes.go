@@ -2,11 +2,8 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
-	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -62,27 +59,6 @@ type activityHistoryOutput struct {
 		Events     []activityEventDTO `json:"events"`
 		NextCursor string             `json:"next_cursor,omitempty" doc:"Absent on the last page"`
 	}
-}
-
-// historyCursor encodes a keyset position as base64("created_at|id").
-func historyCursor(createdAt string, id int64) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(createdAt + "|" + strconv.FormatInt(id, 10)))
-}
-
-func decodeHistoryCursor(cursor string) (createdAt string, id int64, err error) {
-	raw, err := base64.RawURLEncoding.DecodeString(cursor)
-	if err != nil {
-		return "", 0, err
-	}
-	at, idStr, ok := strings.Cut(string(raw), "|")
-	if !ok {
-		return "", 0, fmt.Errorf("cursor missing separator")
-	}
-	id, err = strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		return "", 0, err
-	}
-	return at, id, nil
 }
 
 // payloadFileDTO is one video file in a deferred grab's payload, with what its
@@ -267,7 +243,7 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 				return nil, huma.Error500InternalServerError("failed to list history", err)
 			}
 		} else {
-			at, id, err := decodeHistoryCursor(in.Cursor)
+			at, id, err := decodeKeysetCursor(in.Cursor)
 			if err != nil {
 				return nil, huma.Error400BadRequest("invalid cursor")
 			}
@@ -288,7 +264,7 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 		for i, r := range rows {
 			if i == limit {
 				last := out.Body.Events[len(out.Body.Events)-1]
-				out.Body.NextCursor = historyCursor(last.CreatedAt, last.ID)
+				out.Body.NextCursor = keysetCursor(last.CreatedAt, last.ID)
 				break
 			}
 			out.Body.Events = append(out.Body.Events, activityEventDTO{

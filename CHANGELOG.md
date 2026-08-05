@@ -8,6 +8,32 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Wanted is a real page: every missing episode across the library, and why it
+  is still missing.** Two tabs. *Missing* lists every episode still worth
+  acquiring — the scheduled search's own definition of wanted, so an episode
+  already downloading is Activity's row, not this one's — newest broadcast
+  first, with the back catalogue after it in episode order. Unaired episodes are
+  hidden behind a toggle, since the Calendar owns the forward-looking view, and
+  an unmonitored toggle mirrors the Calendar's. *Cutoff Unmet* lists the
+  episodes you hold that score below their profile's cutoff, with the held
+  release name and its score against that cutoff; it only ever lists series on a
+  profile with upgrades enabled, and re-scores from the stored release name, so
+  editing a profile moves the list immediately. Every row's Search opens the
+  Releases tab already focused on that episode, where the manual grab is
+  unchanged. Each row states the one thing most explaining why it is still
+  missing — not aired, unmonitored, no indexer, automation off or rehearsing,
+  the last grab failed (with the error), releases blocklisted, or where its
+  series sits in the search queue — all read from stored state when you look, so
+  a reason is never a stale record of an earlier pass. "Search selected" and
+  "Search all" put those series back at the front of the search queue and start
+  a run rather than firing one indexer request per series: the per-pass limit
+  that protects your indexer still applies, so a large library drains over
+  several passes, and the confirmation says queued rather than done. Under
+  notify-only it says the run will rehearse and grab nothing. Both lists page as
+  you scroll rather than loading whole, so a fresh library add of several
+  hundred episodes stays responsive. An episode's Releases focus is now
+  addressable as `#/series/<id>?item=<n>`.
+
 - **An episode's Search button now searches for that episode.** It used to hand
   you the series-wide result list and leave you to scan it for the row whose
   Match badge said E7. The Releases tab now opens pre-filtered to the candidates

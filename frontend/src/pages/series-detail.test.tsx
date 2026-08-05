@@ -254,7 +254,7 @@ describe("SeriesDetailPage episode search", () => {
     items,
   });
 
-  function renderPage() {
+  function renderPage(entry = "/series/7") {
     server.use(
       http.get("/api/v1/series/7", () =>
         HttpResponse.json(
@@ -315,7 +315,7 @@ describe("SeriesDetailPage episode search", () => {
     });
     render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/series/7"]}>
+        <MemoryRouter initialEntries={[entry]}>
           <SidebarProvider>
             <Link to="/series/9">Second Saga</Link>
             <Routes>
@@ -382,6 +382,19 @@ describe("SeriesDetailPage episode search", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /covering e2/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  // ?item=N is the same focus reached from another page (#150's Wanted rows),
+  // so the tab has to open already filtered rather than on Episodes.
+  it("opens the Releases tab focused when the URL names an episode", async () => {
+    renderPage("/series/7?item=5");
+
+    expect(
+      await screen.findByText("[GroupA] Placeholder Saga - 05 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("[GroupA] Placeholder Saga - 02 (1080p)"),
     ).not.toBeInTheDocument();
   });
 

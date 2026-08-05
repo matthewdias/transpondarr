@@ -1,0 +1,75 @@
+-- The cross-series wanted queue (issue #150): Missing and Cutoff Unmet, both
+-- keyset-paginated. A missing set is unbounded -- a fresh library add can put
+-- hundreds of items in it at once -- so neither list may load whole.
+-- NOTE: keep comments in this file ASCII-only. sqlc's sqlite codegen miscounts
+-- byte vs. rune offsets and silently truncates the emitted SQL on a multi-byte
+-- character. See CLAUDE.md.
+
+-- name: ListMissingItemsPage :many
+-- Every item still worth acquiring, across all series. The wanted half is the
+-- sweep's predicate character for character (the EXISTS body of
+-- ListSeriesDueWantedSearch), which is what keeps this page honest about what
+-- automation will go after; an in-flight grab is absent by construction, being
+-- Activity's to show. The cadence columns ride along because the reason column
+-- is derived from stored state alone.
+-- Ordered newest broadcast first, undated last: COALESCE sorts a null air date
+-- below every timestamp, and lexicographic compare on the one stored layout is
+-- chronological. Id ascends inside a group deliberately -- a series with no
+-- schedule at all is a back catalogue, and draining one reads forwards, not
+-- backwards. The cursor pair is that same (air date, id), so a first page passes
+-- a sentinel above every stored value and one query serves every page.
+SELECT w.*,
+       s.title            AS series_title,
+       s.monitored        AS series_monitored,
+       s.last_searched_at AS series_last_searched_at,
+       s.next_search_at   AS series_next_search_at,
+       g.status           AS grab_status,
+       g.release_title    AS grab_release_title,
+       g.last_error       AS grab_last_error
+FROM wanted_items w
+JOIN series s ON s.id = w.series_id
+LEFT JOIN grabs g ON g.wanted_item_id = w.id
+WHERE w.have = 0
+  AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+  AND (? = 1 OR s.monitored = 1)
+  AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
+  AND (COALESCE(w.airs_at, '') < ? OR (COALESCE(w.airs_at, '') = ? AND w.id > ?))
+ORDER BY COALESCE(w.airs_at, '') DESC, w.id
+LIMIT ?;
+
+-- name: ListCutoffUnmetPage :many
+-- Held items on an upgrading profile: the candidate set for Cutoff Unmet, whose
+-- membership test (does the held release score below the profile cutoff?) needs
+-- the parser and so is settled in Go. Opt-in is per profile, so a series on a
+-- non-upgrading profile never appears. held_release_title is the scoring input,
+-- and an item without one has nothing to rate. Ordering and cursor match
+-- ListMissingItemsPage.
+SELECT w.*,
+       s.title         AS series_title,
+       s.monitored     AS series_monitored,
+       qp.id           AS profile_id,
+       qp.name         AS profile_name,
+       qp.cutoff_score AS profile_cutoff_score,
+       g.status        AS grab_status,
+       g.release_title AS grab_release_title,
+       g.last_error    AS grab_last_error
+FROM wanted_items w
+JOIN series s ON s.id = w.series_id
+JOIN quality_profiles qp ON qp.id = s.quality_profile_id
+LEFT JOIN grabs g ON g.wanted_item_id = w.id
+WHERE w.have = 1
+  AND w.held_release_title != ''
+  AND qp.upgrades_enabled = 1
+  AND (? = 1 OR s.monitored = 1)
+  AND (COALESCE(w.airs_at, '') < ? OR (COALESCE(w.airs_at, '') = ? AND w.id > ?))
+ORDER BY COALESCE(w.airs_at, '') DESC, w.id
+LIMIT ?;
+
+-- name: ListActiveBlocklistCounts :many
+-- How many releases each series is currently refusing, for the reason column.
+-- Per series rather than per item because that is the blocklist's own scope.
+-- A NULL blocked_until is permanent.
+SELECT series_id, COUNT(*) AS entries
+FROM release_blocklist
+WHERE blocked_until IS NULL OR blocked_until > ?
+GROUP BY series_id;

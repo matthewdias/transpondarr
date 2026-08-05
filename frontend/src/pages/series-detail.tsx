@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pin, TriangleAlert } from "lucide-react";
@@ -52,13 +52,20 @@ type TabKey = "episodes" | "releases" | "history";
 export function SeriesDetailPage() {
   const params = useParams();
   const id = Number(params.id);
-  const [tab, setTab] = useState<TabKey>("episodes");
+  // ?item=N is how another page asks for an episode-targeted search (#150's
+  // Wanted rows); the Episodes tab's own button sets the same state directly.
+  const [search] = useSearchParams();
+  const linkedItem = Number(search.get("item")) || null;
+  const [tab, setTab] = useState<TabKey>(linkedItem ? "releases" : "episodes");
   // Radix unmounts an inactive panel, so the focused episode is the page's to
   // hold, not the Releases tab's.
-  const [focusItem, setFocusItem] = useState<number | null>(null);
+  const [focusItem, setFocusItem] = useState<number | null>(linkedItem);
   // The page survives a series-to-series navigation, and an episode number from
   // the series you left means something else in the one you arrived at.
-  useEffect(() => setFocusItem(null), [id]);
+  useEffect(() => {
+    setFocusItem(linkedItem);
+    if (linkedItem) setTab("releases");
+  }, [id, linkedItem]);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
