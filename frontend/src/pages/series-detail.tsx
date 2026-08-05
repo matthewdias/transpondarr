@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -53,6 +53,12 @@ export function SeriesDetailPage() {
   const params = useParams();
   const id = Number(params.id);
   const [tab, setTab] = useState<TabKey>("episodes");
+  // Radix unmounts an inactive panel, so the focused episode is the page's to
+  // hold, not the Releases tab's.
+  const [focusItem, setFocusItem] = useState<number | null>(null);
+  // The page survives a series-to-series navigation, and an episode number from
+  // the series you left means something else in the one you arrived at.
+  useEffect(() => setFocusItem(null), [id]);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -108,7 +114,14 @@ export function SeriesDetailPage() {
     </div>
   );
 
-  const goSearch = () => setTab("releases");
+  const searchAll = () => {
+    setFocusItem(null);
+    setTab("releases");
+  };
+  const searchItem = (n: number) => {
+    setFocusItem(n);
+    setTab("releases");
+  };
 
   return (
     <>
@@ -156,7 +169,12 @@ export function SeriesDetailPage() {
 
             <Tabs
               value={tab}
-              onValueChange={(v) => setTab(v as TabKey)}
+              // Radix fires this only on a user-driven change, which is exactly
+              // the seam: clicking the tab is the series-wide intent.
+              onValueChange={(v) => {
+                setFocusItem(null);
+                setTab(v as TabKey);
+              }}
               className="mt-1 gap-0"
             >
               <TabsList
@@ -182,10 +200,19 @@ export function SeriesDetailPage() {
               </TabsList>
 
               <TabsContent value="episodes">
-                <EpisodesTab detail={detail} onSearchAll={goSearch} />
+                <EpisodesTab
+                  detail={detail}
+                  onSearchAll={searchAll}
+                  onSearchItem={searchItem}
+                />
               </TabsContent>
               <TabsContent value="releases">
-                <ReleasesTab seriesId={id} active={tab === "releases"} />
+                <ReleasesTab
+                  seriesId={id}
+                  active={tab === "releases"}
+                  focusItem={focusItem}
+                  onClearFocus={() => setFocusItem(null)}
+                />
               </TabsContent>
               <TabsContent value="history">
                 <HistoryTab seriesId={id} active={tab === "history"} />

@@ -5,8 +5,13 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { SeriesDetail } from "@/lib/api";
-import { MemoryRouter } from "react-router";
-import { MonitoringToggle, PinnedGroupChip } from "@/pages/series-detail";
+import { Link, MemoryRouter, Route, Routes } from "react-router";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import {
+  MonitoringToggle,
+  PinnedGroupChip,
+  SeriesDetailPage,
+} from "@/pages/series-detail";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -231,6 +236,175 @@ describe("PinnedGroupChip", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
+  });
+});
+
+describe("SeriesDetailPage episode search", () => {
+  const candidate = (title: string, url: string, items: number[]) => ({
+    title,
+    download_url: url,
+    size: 700_000_000,
+    seeders: 12,
+    dual_audio: false,
+    matched: true,
+    reason: "episode matches a wanted item",
+    score: 1400,
+    eligible: true,
+    pinned: false,
+    items,
+  });
+
+  function renderPage() {
+    server.use(
+      http.get("/api/v1/series/7", () =>
+        HttpResponse.json(
+          detail({
+            items: [
+              { id: 1, number: 2, have: false, status: "wanted" },
+              { id: 2, number: 5, have: false, status: "wanted" },
+            ],
+          }),
+        ),
+      ),
+      http.get("/api/v1/series/9", () =>
+        HttpResponse.json(
+          detail({
+            id: 9,
+            title: "Second Saga",
+            items: [{ id: 3, number: 4, have: false, status: "wanted" }],
+          }),
+        ),
+      ),
+      http.get("/api/v1/settings", () =>
+        HttpResponse.json({ automation: { mode: "on" } }),
+      ),
+      http.get("/api/v1/profiles", () => HttpResponse.json({ profiles: [] })),
+      http.get("/api/v1/series/7/search", () =>
+        HttpResponse.json({
+          series: "Placeholder Saga",
+          results: [
+            candidate(
+              "[GroupA] Placeholder Saga - 02 (1080p)",
+              "magnet:?xt=urn:btih:0002",
+              [2],
+            ),
+            candidate(
+              "[GroupA] Placeholder Saga - 05 (1080p)",
+              "magnet:?xt=urn:btih:0005",
+              [5],
+            ),
+          ],
+        }),
+      ),
+      http.get("/api/v1/series/9/search", () =>
+        HttpResponse.json({
+          series: "Second Saga",
+          results: [
+            candidate(
+              "[GroupA] Second Saga - 04 (1080p)",
+              "magnet:?xt=urn:btih:0004",
+              [4],
+            ),
+          ],
+        }),
+      ),
+    );
+    const user = userEvent.setup();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/series/7"]}>
+          <SidebarProvider>
+            <Link to="/series/9">Second Saga</Link>
+            <Routes>
+              <Route path="/series/:id" element={<SeriesDetailPage />} />
+            </Routes>
+          </SidebarProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    return user;
+  }
+
+  // The switch to Releases is programmatic, so it must not read as the
+  // series-wide intent a direct tab click carries.
+  it("focuses the Releases tab on the searched episode, and a tab click clears it", async () => {
+    const user = renderPage();
+
+    const rows = await screen.findAllByRole("button", { name: "Search" });
+    await user.click(rows[0]);
+
+    expect(
+      await screen.findByText("[GroupA] Placeholder Saga - 02 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /covering e2/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("[GroupA] Placeholder Saga - 05 (1080p)"),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /episodes/i }));
+    await user.click(screen.getByRole("tab", { name: /releases/i }));
+
+    expect(
+      await screen.findByText("[GroupA] Placeholder Saga - 05 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("[GroupA] Placeholder Saga - 02 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /covering e2/i }),
+    ).not.toBeInTheDocument();
+
+    // The header button is the series-wide intent, so it has to drop a focus a
+    // row button set earlier rather than search inside it.
+    await user.click(screen.getByRole("tab", { name: /episodes/i }));
+    await user.click(
+      (await screen.findAllByRole("button", { name: "Search" }))[0],
+    );
+    expect(
+      await screen.findByRole("button", { name: /covering e2/i }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /episodes/i }));
+    await user.click(
+      screen.getByRole("button", { name: /search all wanted/i }),
+    );
+
+    expect(
+      await screen.findByText("[GroupA] Placeholder Saga - 05 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("[GroupA] Placeholder Saga - 02 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /covering e2/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Unreachable today — nothing links series to series — but a focus that
+  // outlived its series would filter the new one on a number from the old.
+  it("drops the focus when the page moves to another series", async () => {
+    const user = renderPage();
+
+    await user.click(
+      (await screen.findAllByRole("button", { name: "Search" }))[0],
+    );
+    expect(
+      await screen.findByRole("button", { name: /covering e2/i }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("link", { name: "Second Saga" }));
+
+    expect(
+      await screen.findByText("[GroupA] Second Saga - 04 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /covering e2/i }),
+    ).not.toBeInTheDocument();
   });
 });
 

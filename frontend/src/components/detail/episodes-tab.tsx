@@ -16,9 +16,11 @@ import {
 export function EpisodesTab({
   detail,
   onSearchAll,
+  onSearchItem,
 }: {
   detail: SeriesDetail;
   onSearchAll: () => void;
+  onSearchItem: (n: number) => void;
 }) {
   const items = detail.items;
   const total = items.length;
@@ -110,7 +112,7 @@ export function EpisodesTab({
             </TableHeader>
             <TableBody>
               {items.map((item) => (
-                <EpisodeRow key={item.id} item={item} onSearch={onSearchAll} />
+                <EpisodeRow key={item.id} item={item} onSearch={onSearchItem} />
               ))}
             </TableBody>
           </Table>
@@ -125,7 +127,7 @@ function EpisodeRow({
   onSearch,
 }: {
   item: WantedItem;
-  onSearch: () => void;
+  onSearch: (n: number) => void;
 }) {
   return (
     <TableRow
@@ -160,7 +162,7 @@ function EpisodeRow({
         {(item.status === "wanted" || item.status === "deferred") && (
           <button
             className="text-sm font-medium text-accent-foreground hover:underline"
-            onClick={onSearch}
+            onClick={() => onSearch(item.number)}
           >
             Search
           </button>

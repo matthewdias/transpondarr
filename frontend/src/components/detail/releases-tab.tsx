@@ -1,9 +1,17 @@
 import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Pin, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import {
+  Loader2,
+  Pin,
+  RefreshCw,
+  Search,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import { api, ApiError, type CandidateRelease } from "@/lib/api";
 import { grabToast } from "./grab-toast";
+import { filterCovering } from "@/lib/release-focus";
 import {
   grabsQuery,
   releasesQuery,
@@ -157,9 +165,13 @@ function MatchCell({ r }: { r: CandidateRelease }) {
 export function ReleasesTab({
   seriesId,
   active,
+  focusItem,
+  onClearFocus,
 }: {
   seriesId: number;
   active: boolean;
+  focusItem: number | null;
+  onClearFocus: () => void;
 }) {
   const isMobile = useIsMobile();
   const queryClient = useQueryClient();
@@ -223,6 +235,10 @@ export function ReleasesTab({
   }
 
   const results = search.data?.results ?? [];
+  // The search itself stays series-wide; focusing narrows what is shown, so a
+  // release covering the episode inside a batch is still on offer.
+  const shown =
+    focusItem == null ? results : filterCovering(results, focusItem);
 
   return (
     <div>
@@ -230,10 +246,30 @@ export function ReleasesTab({
         <h2 className="text-[13px] font-semibold uppercase tracking-wide text-faint">
           Search results
         </h2>
+        {focusItem != null && (
+          <button
+            type="button"
+            onClick={onClearFocus}
+            aria-label={`Covering E${focusItem} — clear filter`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-accent-foreground"
+          >
+            Covering E{focusItem}
+            <X className="size-3" aria-hidden />
+          </button>
+        )}
         <span className="h-px flex-1 bg-border" />
-        <span className="hidden text-xs text-faint sm:inline">
-          matched against wanted items — season &amp; number aware
-        </span>
+        {focusItem == null ? (
+          <span className="hidden text-xs text-faint sm:inline">
+            matched against wanted items — season &amp; number aware
+          </span>
+        ) : (
+          // Focused, the count is the only thing saying how much is hidden, so
+          // it outranks the caption's sm-only budget — and a count before the
+          // search lands would read as a search that found nothing.
+          !search.isLoading && (
+            <span className="text-xs text-faint">{`${shown.length} of ${results.length} results`}</span>
+          )
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -262,7 +298,25 @@ export function ReleasesTab({
         </div>
       )}
 
-      {results.length > 0 && (
+      {results.length > 0 && shown.length === 0 && (
+        <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
+          <h3 className="text-sm font-semibold">{`No releases cover E${focusItem}`}</h3>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            This search found releases for the series, but none of them include
+            this episode.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={onClearFocus}
+          >
+            Show all {results.length} results
+          </Button>
+        </div>
+      )}
+
+      {shown.length > 0 && (
         <TooltipProvider>
           <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
             <div className="overflow-x-auto">
@@ -288,9 +342,11 @@ export function ReleasesTab({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {results.map((r, i) => (
+                  {shown.map((r) => (
                     <TableRow
-                      key={r.download_url || i}
+                      // Never the index: the filter changes what row an index
+                      // names, and the title is stable where a URL is missing.
+                      key={r.download_url || r.title}
                       className={cn(
                         !r.matched && "opacity-60",
                         isMobile && "cursor-pointer",

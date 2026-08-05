@@ -1,8 +1,20 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { HttpResponse, http } from "msw";
+import { setupServer } from "msw/node";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import {
   GroupCell,
+  ReleasesTab,
   ScoreBreakdown,
   ScoreCell,
 } from "@/components/detail/releases-tab";
@@ -181,6 +193,142 @@ describe("ScoreBreakdown", () => {
     expect(screen.getByText(/blocked by the profile/).className).toMatch(
       /text-dl/,
     );
+  });
+});
+
+const server = setupServer();
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+const focusResults = [
+  release({
+    title: "[GroupA] Example Show - 03 (1080p)",
+    download_url: "magnet:?xt=urn:btih:0003",
+    items: [3],
+  }),
+  release({
+    title: "[GroupB] Example Show 01-12 (1080p)",
+    download_url: "magnet:?xt=urn:btih:0112",
+    items: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  }),
+  release({
+    title: "[GroupA] Example Show - 05 (1080p)",
+    download_url: "magnet:?xt=urn:btih:0005",
+    items: [5],
+  }),
+  release({
+    title: "[GroupC] Other Show - 03 (1080p)",
+    download_url: "magnet:?xt=urn:btih:9999",
+    matched: false,
+    reason: "release is for a different series",
+    items: undefined,
+  }),
+];
+
+// A gated handler holds the search in flight so the loading header can be
+// asserted, then lets it land in the same test rather than leaving a dangling
+// request for teardown to reset.
+function renderReleases(focusItem: number | null, gated = false) {
+  let land = () => {};
+  const inFlight = new Promise<void>((resolve) => {
+    land = resolve;
+  });
+  server.use(
+    http.get("/api/v1/series/7/search", async () => {
+      if (gated) await inFlight;
+      return HttpResponse.json({
+        series: "Example Show",
+        results: focusResults,
+      });
+    }),
+  );
+  const onClearFocus = vi.fn();
+  const user = userEvent.setup();
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <ReleasesTab
+        seriesId={7}
+        active
+        focusItem={focusItem}
+        onClearFocus={onClearFocus}
+      />
+    </QueryClientProvider>,
+  );
+  return { onClearFocus, user, land };
+}
+
+describe("ReleasesTab episode focus", () => {
+  it("shows only the releases covering the focused episode", async () => {
+    const { onClearFocus, user } = renderReleases(3);
+
+    expect(
+      await screen.findByText("[GroupA] Example Show - 03 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("[GroupB] Example Show 01-12 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("[GroupA] Example Show - 05 (1080p)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("[GroupC] Other Show - 03 (1080p)"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("2 of 4 results")).toBeInTheDocument();
+
+    // The chip is the way out of the filter, so it has to name the action and
+    // not just the state it reads as on screen.
+    await user.click(
+      screen.getByRole("button", { name: /covering e3.*clear filter/i }),
+    );
+    expect(onClearFocus).toHaveBeenCalledTimes(1);
+  });
+
+  // "0 of 0" during the initial search reads as a finished search that found
+  // nothing, which is the opposite of what is happening.
+  it("withholds the count until the search has landed", async () => {
+    const { land } = renderReleases(3, true);
+
+    expect(await screen.findByText(/searching indexers/i)).toBeInTheDocument();
+    expect(screen.queryByText(/0 of 0 results/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /covering e3.*clear filter/i }),
+    ).toBeInTheDocument();
+
+    land();
+    expect(await screen.findByText("2 of 4 results")).toBeInTheDocument();
+  });
+
+  // Nothing covering the episode is not "nothing found for this series" — the
+  // way out is the filter, so the empty state has to offer it.
+  it("offers the full list when nothing covers the focused episode", async () => {
+    const { onClearFocus, user } = renderReleases(20);
+
+    expect(
+      await screen.findByText(/no releases cover e20/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/no releases found for this series/i),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /show all/i }));
+    expect(onClearFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the series-wide view untouched with no focus", async () => {
+    renderReleases(null);
+
+    expect(
+      await screen.findByText("[GroupA] Example Show - 05 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("[GroupC] Other Show - 03 (1080p)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/covering e/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/of 4 results/)).not.toBeInTheDocument();
   });
 });
 
