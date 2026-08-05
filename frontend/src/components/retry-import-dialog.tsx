@@ -230,9 +230,11 @@ export function RetryImportDialog({
             onClick={() => retry.mutate()}
             disabled={retry.isPending || !payload.data}
           >
+            {/* An unloaded payload has no files yet, which is not the same as
+                having none — deciding before it lands flickers the label. */}
             {retry.isPending
               ? "Importing…"
-              : files.length === 0
+              : !payload.isPending && files.length === 0
                 ? "Retry import"
                 : "Import"}
           </Button>

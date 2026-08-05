@@ -162,12 +162,31 @@ func noVideoReason(archives []archive) string {
 func archiveSummary(archives []archive) string {
 	switch {
 	case len(archives) > 1:
-		return fmt.Sprintf("%d archive sets", len(archives))
+		return fmt.Sprintf("%d archive sets (%s)", len(archives), archiveNames(archives))
 	case archives[0].parts > 1:
 		return fmt.Sprintf("a %d-part archive set (%s)", archives[0].parts, filepath.Base(archives[0].rel))
 	default:
 		return fmt.Sprintf("the archive %q", filepath.Base(archives[0].rel))
 	}
+}
+
+// archiveNames lists what to go and find, capped so a season of rars does not
+// bury the instruction that follows it.
+func archiveNames(archives []archive) string {
+	const cap = 3
+	shown := archives
+	if len(shown) > cap {
+		shown = shown[:cap]
+	}
+	names := make([]string, 0, len(shown))
+	for _, a := range shown {
+		names = append(names, filepath.Base(a.rel))
+	}
+	out := strings.Join(names, ", ")
+	if rest := len(archives) - len(shown); rest > 0 {
+		out += fmt.Sprintf(", and %d more", rest)
+	}
+	return out
 }
 
 func extractAdvice(archives []archive) string {

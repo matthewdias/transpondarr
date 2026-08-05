@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -242,6 +243,19 @@ func TestReportsZipAndSevenZipArchives(t *testing.T) {
 
 	seven := writeTree(t, "payload.7z")
 	wantCollected(t, archivesOf(t, seven), []string{"payload.7z×1"})
+
+	// The ordinary 7z split has no bare .7z head, so the stem-stripping is the
+	// only thing holding its volumes together.
+	sevenSplit := writeTree(t, "payload.7z.001", "payload.7z.002", "payload.7z.003")
+	wantCollected(t, archivesOf(t, sevenSplit), []string{"payload.7z.001×3"})
+}
+
+// A folder whose head volume never arrived still has to be named by a file that
+// exists, or the reason and the dialog point at nothing.
+func TestReportsAHeadlessRarSetBySmallestVolume(t *testing.T) {
+	root := writeTree(t, "payload.r01", "payload.r00")
+
+	wantCollected(t, archivesOf(t, root), []string{"payload.r00×2"})
 }
 
 // Sidecars are not something a human extracts, so "nothing at all" stays
@@ -315,5 +329,25 @@ func TestNonEpisodeTokensMatchWholeWords(t *testing.T) {
 		if got := hasNonEpisodeToken(tc.name); got != tc.want {
 			t.Errorf("hasNonEpisodeToken(%q) = %v, want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+// The multi-set reason is where a name helps most: the user has to go and find
+// them, and a bare count says only that there is more than one.
+func TestNoVideoReasonNamesEveryArchiveItCanFit(t *testing.T) {
+	two := noVideoReason([]archive{{rel: "ep04.rar", parts: 2}, {rel: "ep05.rar", parts: 2}})
+	if !strings.Contains(two, "ep04.rar") || !strings.Contains(two, "ep05.rar") {
+		t.Errorf("reason = %q, want both sets named", two)
+	}
+	// Naming a whole season's worth would bury the instruction that follows.
+	many := noVideoReason([]archive{
+		{rel: "ep01.rar", parts: 2}, {rel: "ep02.rar", parts: 2},
+		{rel: "ep03.rar", parts: 2}, {rel: "ep04.rar", parts: 2},
+	})
+	if !strings.Contains(many, "ep01.rar") || strings.Contains(many, "ep04.rar") {
+		t.Errorf("reason = %q, want the first sets named and the tail summarised", many)
+	}
+	if !strings.Contains(many, "1 more") {
+		t.Errorf("reason = %q, want the unnamed tail counted", many)
 	}
 }
