@@ -117,6 +117,7 @@ func newFeedPollWith(t *testing.T, idx indexer.Indexer, cfg fakeConfig, titles a
 // a test can tell a cache read from a provider fetch.
 type fakeCachedTitles struct {
 	cached      map[int64][]string
+	err         error
 	fetchCalls  int
 	cachedCalls int
 }
@@ -128,6 +129,9 @@ func (f *fakeCachedTitles) TitleVariants(_ context.Context, id int64) ([]string,
 
 func (f *fakeCachedTitles) CachedTitleVariants(_ context.Context, id int64) ([]string, bool, error) {
 	f.cachedCalls++
+	if f.err != nil {
+		return nil, false, f.err
+	}
 	v, ok := f.cached[id]
 	return v, ok, nil
 }
@@ -186,6 +190,31 @@ func TestFeedPollCacheMissStillMatchesStoredTitle(t *testing.T) {
 	}
 	if titles.fetchCalls != 0 {
 		t.Errorf("a cache miss made %d fetching lookups, want 0", titles.fetchCalls)
+	}
+}
+
+// An unreadable cache degrades like a miss, and says so at debug level so a
+// persistently broken read is not silent.
+func TestFeedPollCacheErrorStillMatchesStoredTitle(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	titles := &fakeCachedTitles{err: errors.New("db down")}
+	h := newFeedPollWithTitles(t, []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
+	}, fakeConfig{}, titles)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+	setSeriesAnilistID(t, h.st, id, 42)
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
+		t.Fatalf("grabbed items = %v, want [3] — the stored title still matches", got)
+	}
+	if titles.fetchCalls != 0 {
+		t.Errorf("a cache error made %d fetching lookups, want 0", titles.fetchCalls)
+	}
+	if !h.log.logged("cached title variants unreadable") {
+		t.Error("the degradation was not logged")
 	}
 }
 

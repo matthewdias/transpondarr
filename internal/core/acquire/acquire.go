@@ -236,7 +236,12 @@ func (s *Service) cachedVariants(ctx context.Context, series db.Series) []string
 		return variants
 	}
 	if src, ok := s.titles.(CachedTitleSource); ok {
-		if v, hit, err := src.CachedTitleVariants(ctx, series.AnilistID.Int64); err == nil && hit {
+		v, hit, err := src.CachedTitleVariants(ctx, series.AnilistID.Int64)
+		switch {
+		case err != nil:
+			s.log.Debug("cached title variants unreadable; matching on the stored title alone",
+				"series", series.ID, "err", err)
+		case hit:
 			variants = append(variants, v...)
 		}
 	}
