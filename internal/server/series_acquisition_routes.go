@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net/http"
+	"sort"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -28,6 +29,15 @@ type candidateReleaseDTO struct {
 	Eligible         bool           `json:"eligible"`
 	IneligibleReason string         `json:"ineligible_reason,omitempty" doc:"Why the profile refuses this release; empty when eligible"`
 	Pinned           bool           `json:"pinned" doc:"Release group is the series' pinned group; ranks above profile score when eligible"`
+
+	UpgradeItems   []int               `json:"upgrade_items,omitempty" doc:"Covered items already in the library that this release may replace"`
+	UpgradeBlocked []upgradeBlockedDTO `json:"upgrade_blocked,omitempty" doc:"Covered items automation would not replace, and why; a manual grab is not gated by it"`
+}
+
+// upgradeBlockedDTO is one held item the upgrade policy refused (#97).
+type upgradeBlockedDTO struct {
+	Item   int    `json:"item"`
+	Reason string `json:"reason"`
 }
 
 type scorePartDTO struct {
@@ -122,9 +132,24 @@ func (h *seriesHandler) searchReleases(ctx context.Context, in *searchSeriesInpu
 			Eligible:         c.Eligible,
 			IneligibleReason: c.IneligibleReason,
 			Pinned:           c.Pinned,
+			UpgradeItems:     c.UpgradeItems,
+			UpgradeBlocked:   upgradeBlockedDTOs(c.UpgradeBlocked),
 		})
 	}
 	return out, nil
+}
+
+// upgradeBlockedDTOs renders the refusals in item order, since a map has none.
+func upgradeBlockedDTOs(blocked map[int]string) []upgradeBlockedDTO {
+	if len(blocked) == 0 {
+		return nil
+	}
+	out := make([]upgradeBlockedDTO, 0, len(blocked))
+	for item, reason := range blocked {
+		out = append(out, upgradeBlockedDTO{Item: item, Reason: reason})
+	}
+	sort.Slice(out, func(a, b int) bool { return out[a].Item < out[b].Item })
+	return out
 }
 
 func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*grabSeriesOutput, error) {

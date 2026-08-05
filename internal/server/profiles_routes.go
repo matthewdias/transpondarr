@@ -34,6 +34,10 @@ type qualityProfileDTO struct {
 	MinScore        int64             `json:"min_score"`
 	Groups          []profileGroupDTO `json:"groups"`
 	SeriesCount     int64             `json:"series_count" doc:"How many series are assigned this profile"`
+
+	UpgradesEnabled      bool  `json:"upgrades_enabled"`
+	CutoffScore          int64 `json:"cutoff_score"`
+	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff"`
 }
 
 type profileBody struct {
@@ -46,6 +50,10 @@ type profileBody struct {
 	HardExcludes    []string          `json:"hard_excludes,omitempty" doc:"Axis values a release must never carry, e.g. hardsub"`
 	MinScore        int64             `json:"min_score,omitempty" minimum:"0" doc:"Floor: candidates scoring below are ineligible"`
 	Groups          []profileGroupDTO `json:"groups,omitempty" doc:"Ranked group preference, most preferred first"`
+
+	UpgradesEnabled      bool  `json:"upgrades_enabled,omitempty" doc:"Re-grab a held item while what holds it scores below the cutoff"`
+	CutoffScore          int64 `json:"cutoff_score,omitempty" minimum:"0" doc:"Ceiling: a held release scoring at least this is good enough; zero means already met"`
+	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff,omitempty" doc:"Take the same group's v2/repack of what we hold even above the cutoff"`
 }
 
 type listProfilesOutput struct {
@@ -196,6 +204,10 @@ func profileDTO(p db.QualityProfile, groups []db.QualityProfileGroup, seriesCoun
 		MinScore:        p.MinScore,
 		Groups:          make([]profileGroupDTO, 0, len(groups)),
 		SeriesCount:     seriesCount,
+
+		UpgradesEnabled:      p.UpgradesEnabled == 1,
+		CutoffScore:          p.CutoffScore,
+		UpgradeV2AboveCutoff: p.UpgradeV2AboveCutoff == 1,
 	}
 	if err := json.Unmarshal([]byte(p.ResolutionOrder), &out.ResolutionOrder); err != nil {
 		return out, fmt.Errorf("profile %d resolution_order: %w", p.ID, err)
@@ -286,6 +298,10 @@ func (h *profilesHandler) create(ctx context.Context, in *createProfileInput) (*
 		CodecPref:       in.Body.CodecPref,
 		HardExcludes:    jsonArray(in.Body.HardExcludes),
 		MinScore:        in.Body.MinScore,
+
+		UpgradesEnabled:      boolInt(in.Body.UpgradesEnabled),
+		CutoffScore:          in.Body.CutoffScore,
+		UpgradeV2AboveCutoff: boolInt(in.Body.UpgradeV2AboveCutoff),
 	})
 	if isUniqueNameErr(err) {
 		return nil, huma.Error409Conflict("a profile with that name already exists")
@@ -327,7 +343,12 @@ func (h *profilesHandler) update(ctx context.Context, in *updateProfileInput) (*
 		CodecPref:       in.Body.CodecPref,
 		HardExcludes:    jsonArray(in.Body.HardExcludes),
 		MinScore:        in.Body.MinScore,
-		ID:              in.ID,
+
+		UpgradesEnabled:      boolInt(in.Body.UpgradesEnabled),
+		CutoffScore:          in.Body.CutoffScore,
+		UpgradeV2AboveCutoff: boolInt(in.Body.UpgradeV2AboveCutoff),
+
+		ID: in.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("profile not found")
