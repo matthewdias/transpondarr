@@ -20,20 +20,23 @@ WHERE is_default = 1
 LIMIT 1;
 
 -- name: CreateQualityProfile :one
-INSERT INTO quality_profiles (name, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO quality_profiles (name, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateQualityProfile :one
 UPDATE quality_profiles
-SET name              = ?,
-    resolution_order  = ?,
-    preferred_source  = ?,
-    sub_pref          = ?,
-    prefer_dual_audio = ?,
-    codec_pref        = ?,
-    hard_excludes     = ?,
-    min_score         = ?
+SET name                    = ?,
+    resolution_order        = ?,
+    preferred_source        = ?,
+    sub_pref                = ?,
+    prefer_dual_audio       = ?,
+    codec_pref              = ?,
+    hard_excludes           = ?,
+    min_score               = ?,
+    upgrades_enabled        = ?,
+    cutoff_score            = ?,
+    upgrade_v2_above_cutoff = ?
 WHERE id = ?
 RETURNING *;
 

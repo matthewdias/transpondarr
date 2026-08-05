@@ -54,20 +54,23 @@ func (q *Queries) CountSeriesByProfile(ctx context.Context, qualityProfileID int
 }
 
 const createQualityProfile = `-- name: CreateQualityProfile :one
-INSERT INTO quality_profiles (name, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at
+INSERT INTO quality_profiles (name, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff
 `
 
 type CreateQualityProfileParams struct {
-	Name            string `json:"name"`
-	ResolutionOrder string `json:"resolution_order"`
-	PreferredSource string `json:"preferred_source"`
-	SubPref         string `json:"sub_pref"`
-	PreferDualAudio int64  `json:"prefer_dual_audio"`
-	CodecPref       string `json:"codec_pref"`
-	HardExcludes    string `json:"hard_excludes"`
-	MinScore        int64  `json:"min_score"`
+	Name                 string `json:"name"`
+	ResolutionOrder      string `json:"resolution_order"`
+	PreferredSource      string `json:"preferred_source"`
+	SubPref              string `json:"sub_pref"`
+	PreferDualAudio      int64  `json:"prefer_dual_audio"`
+	CodecPref            string `json:"codec_pref"`
+	HardExcludes         string `json:"hard_excludes"`
+	MinScore             int64  `json:"min_score"`
+	UpgradesEnabled      int64  `json:"upgrades_enabled"`
+	CutoffScore          int64  `json:"cutoff_score"`
+	UpgradeV2AboveCutoff int64  `json:"upgrade_v2_above_cutoff"`
 }
 
 func (q *Queries) CreateQualityProfile(ctx context.Context, arg CreateQualityProfileParams) (QualityProfile, error) {
@@ -80,6 +83,9 @@ func (q *Queries) CreateQualityProfile(ctx context.Context, arg CreateQualityPro
 		arg.CodecPref,
 		arg.HardExcludes,
 		arg.MinScore,
+		arg.UpgradesEnabled,
+		arg.CutoffScore,
+		arg.UpgradeV2AboveCutoff,
 	)
 	var i QualityProfile
 	err := row.Scan(
@@ -94,6 +100,9 @@ func (q *Queries) CreateQualityProfile(ctx context.Context, arg CreateQualityPro
 		&i.HardExcludes,
 		&i.MinScore,
 		&i.CreatedAt,
+		&i.UpgradesEnabled,
+		&i.CutoffScore,
+		&i.UpgradeV2AboveCutoff,
 	)
 	return i, err
 }
@@ -123,7 +132,7 @@ func (q *Queries) DeleteQualityProfile(ctx context.Context, id int64) (int64, er
 }
 
 const getDefaultQualityProfile = `-- name: GetDefaultQualityProfile :one
-SELECT id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at
+SELECT id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff
 FROM quality_profiles
 WHERE is_default = 1
 LIMIT 1
@@ -144,12 +153,15 @@ func (q *Queries) GetDefaultQualityProfile(ctx context.Context) (QualityProfile,
 		&i.HardExcludes,
 		&i.MinScore,
 		&i.CreatedAt,
+		&i.UpgradesEnabled,
+		&i.CutoffScore,
+		&i.UpgradeV2AboveCutoff,
 	)
 	return i, err
 }
 
 const getQualityProfile = `-- name: GetQualityProfile :one
-SELECT id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at
+SELECT id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff
 FROM quality_profiles
 WHERE id = ?
 LIMIT 1
@@ -170,6 +182,9 @@ func (q *Queries) GetQualityProfile(ctx context.Context, id int64) (QualityProfi
 		&i.HardExcludes,
 		&i.MinScore,
 		&i.CreatedAt,
+		&i.UpgradesEnabled,
+		&i.CutoffScore,
+		&i.UpgradeV2AboveCutoff,
 	)
 	return i, err
 }
@@ -212,7 +227,7 @@ func (q *Queries) ListProfileGroups(ctx context.Context, profileID int64) ([]Qua
 
 const listQualityProfiles = `-- name: ListQualityProfiles :many
 
-SELECT id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at
+SELECT id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff
 FROM quality_profiles
 ORDER BY is_default DESC, name
 `
@@ -241,6 +256,9 @@ func (q *Queries) ListQualityProfiles(ctx context.Context) ([]QualityProfile, er
 			&i.HardExcludes,
 			&i.MinScore,
 			&i.CreatedAt,
+			&i.UpgradesEnabled,
+			&i.CutoffScore,
+			&i.UpgradeV2AboveCutoff,
 		); err != nil {
 			return nil, err
 		}
@@ -329,28 +347,34 @@ func (q *Queries) SetSeriesProfile(ctx context.Context, arg SetSeriesProfilePara
 
 const updateQualityProfile = `-- name: UpdateQualityProfile :one
 UPDATE quality_profiles
-SET name              = ?,
-    resolution_order  = ?,
-    preferred_source  = ?,
-    sub_pref          = ?,
-    prefer_dual_audio = ?,
-    codec_pref        = ?,
-    hard_excludes     = ?,
-    min_score         = ?
+SET name                    = ?,
+    resolution_order        = ?,
+    preferred_source        = ?,
+    sub_pref                = ?,
+    prefer_dual_audio       = ?,
+    codec_pref              = ?,
+    hard_excludes           = ?,
+    min_score               = ?,
+    upgrades_enabled        = ?,
+    cutoff_score            = ?,
+    upgrade_v2_above_cutoff = ?
 WHERE id = ?
-RETURNING id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at
+RETURNING id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff
 `
 
 type UpdateQualityProfileParams struct {
-	Name            string `json:"name"`
-	ResolutionOrder string `json:"resolution_order"`
-	PreferredSource string `json:"preferred_source"`
-	SubPref         string `json:"sub_pref"`
-	PreferDualAudio int64  `json:"prefer_dual_audio"`
-	CodecPref       string `json:"codec_pref"`
-	HardExcludes    string `json:"hard_excludes"`
-	MinScore        int64  `json:"min_score"`
-	ID              int64  `json:"id"`
+	Name                 string `json:"name"`
+	ResolutionOrder      string `json:"resolution_order"`
+	PreferredSource      string `json:"preferred_source"`
+	SubPref              string `json:"sub_pref"`
+	PreferDualAudio      int64  `json:"prefer_dual_audio"`
+	CodecPref            string `json:"codec_pref"`
+	HardExcludes         string `json:"hard_excludes"`
+	MinScore             int64  `json:"min_score"`
+	UpgradesEnabled      int64  `json:"upgrades_enabled"`
+	CutoffScore          int64  `json:"cutoff_score"`
+	UpgradeV2AboveCutoff int64  `json:"upgrade_v2_above_cutoff"`
+	ID                   int64  `json:"id"`
 }
 
 func (q *Queries) UpdateQualityProfile(ctx context.Context, arg UpdateQualityProfileParams) (QualityProfile, error) {
@@ -363,6 +387,9 @@ func (q *Queries) UpdateQualityProfile(ctx context.Context, arg UpdateQualityPro
 		arg.CodecPref,
 		arg.HardExcludes,
 		arg.MinScore,
+		arg.UpgradesEnabled,
+		arg.CutoffScore,
+		arg.UpgradeV2AboveCutoff,
 		arg.ID,
 	)
 	var i QualityProfile
@@ -378,6 +405,9 @@ func (q *Queries) UpdateQualityProfile(ctx context.Context, arg UpdateQualityPro
 		&i.HardExcludes,
 		&i.MinScore,
 		&i.CreatedAt,
+		&i.UpgradesEnabled,
+		&i.CutoffScore,
+		&i.UpgradeV2AboveCutoff,
 	)
 	return i, err
 }

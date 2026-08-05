@@ -28,6 +28,11 @@ WHERE w.series_id = ? AND w.kind = ? AND w.number = ?;
 -- name: SetWantedItemHave :exec
 UPDATE wanted_items SET have = ? WHERE id = ?;
 
+-- name: SetWantedItemHeld :exec
+-- The one write point for held identity: what the library holds, and which
+-- release put it there, so an upgrade has something to score against.
+UPDATE wanted_items SET have = ?, held_release_title = ? WHERE id = ?;
+
 -- name: ListCalendarItems :many
 -- Stored timestamps are UTC in one fixed layout, so lexicographic range
 -- compare is chronological. One grab per item (UNIQUE) keeps the join 1:1.
