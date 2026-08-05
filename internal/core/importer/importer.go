@@ -392,17 +392,19 @@ func (im *Importer) importGroup(ctx context.Context, target library.Target, acti
 		}
 		return nil
 	}
-	return im.settleGroup(ctx, target, active, p.files, nil)
+	failed, _ := im.settleGroup(ctx, target, active, p, nil)
+	return failed
 }
 
 // settleGroup places what the mapping matched and settles every row it did not,
-// shared by the scan and the manual retry (which supplies overrides).
-func (im *Importer) settleGroup(ctx context.Context, target library.Target, active []db.ListGrabsByStatusRow, files []candidate, overrides map[string]int) []failedGrab {
+// shared by the scan and the manual retry (which supplies overrides). It reports
+// the reason it settled each row by, which only the event table otherwise keeps.
+func (im *Importer) settleGroup(ctx context.Context, target library.Target, active []db.ListGrabsByStatusRow, p payload, overrides map[string]int) ([]failedGrab, map[int64]string) {
 	covers := make(map[int]bool, len(active))
 	for _, g := range active {
 		covers[int(g.ItemNumber.Int64)] = true
 	}
-	res := mapFiles(files, covers, overrides)
+	res := mapFiles(p.files, covers, overrides)
 
 	imported := make(map[int]string, len(active))
 	touched := make(map[int64]bool, len(active))
@@ -430,30 +432,40 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 	}
 	im.notifyImported(ctx, active[0], imported)
 	if stopped {
-		return nil
+		return nil, nil
 	}
 
 	var failed []failedGrab
+	details := make(map[int64]string, len(active))
+	settle := func(g db.ListGrabsByStatusRow, detail string) {
+		im.settle(ctx, g, statusDeferred, detail)
+		details[g.ID] = detail
+	}
 	for _, g := range active {
 		if touched[g.ID] {
 			continue
 		}
 		n := int(g.ItemNumber.Int64)
 		if detail, ok := res.conflicts[n]; ok {
-			im.settle(ctx, g, statusDeferred, detail)
+			settle(g, detail)
 			continue
 		}
 		// A file nothing could map is fixable by hand; a payload with nothing left
 		// in it never will be, so the item goes back to wanted and the sweep
-		// self-heals with a single.
+		// self-heals with a single. An unextracted archive still holds the episode,
+		// so it counts as something left rather than as an empty payload.
 		if len(leftovers) > 0 {
-			im.settle(ctx, g, statusDeferred,
-				fmt.Sprintf("no file matched episode %d; %d unmatched file(s) in the payload", n, len(leftovers)))
+			settle(g, fmt.Sprintf("no file matched episode %d; %d unmatched file(s) in the payload", n, len(leftovers)))
+			continue
+		}
+		if len(p.archives) > 0 {
+			settle(g, fmt.Sprintf("no file matched episode %d; %s is still packed, so %s",
+				n, archiveSummary(p.archives), extractAdvice(p.archives)))
 			continue
 		}
 		failed = append(failed, im.failGrab(ctx, g, "the payload held no file for this episode"))
 	}
-	return failed
+	return failed, details
 }
 
 // place puts one payload file in the library and settles its grab as imported.

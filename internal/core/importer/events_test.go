@@ -108,6 +108,39 @@ func TestDefersAnArchivePayloadNamingTheArchive(t *testing.T) {
 	}
 }
 
+// A payload holding one loose episode and an archive covering another must not
+// fail the second: the bytes are right there, so it is a human's to fix.
+func TestDefersTheItemAnArchiveCoversBesideALooseFile(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedBatchGrab(t, st, "abc", 2)
+	dir := writeTree(t,
+		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
+		"placeholder.saga.s01e02.1080p.web.h264-synth.rar",
+		"placeholder.saga.s01e02.1080p.web.h264-synth.r00",
+	)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	rows, err := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	if err != nil {
+		t.Fatalf("list grabs: %v", err)
+	}
+	got := map[int64]string{}
+	for _, r := range rows {
+		got[r.ItemNumber.Int64] = r.Status
+	}
+	if got[1] != statusImported {
+		t.Errorf("episode 1 status = %q, want the loose file imported", got[1])
+	}
+	if got[2] != statusDeferred {
+		t.Errorf("episode 2 status = %q, want the archive to hold it deferred", got[2])
+	}
+}
+
 // The two deferrals stay distinguishable: an empty payload has nothing to
 // extract, so telling a human to extract it would be a wrong instruction.
 func TestDefersAPayloadWithNeitherVideoNorArchive(t *testing.T) {

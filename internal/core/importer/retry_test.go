@@ -3,6 +3,7 @@ package importer
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/core/download"
@@ -120,6 +121,40 @@ func TestRetryImportAfterExtractionImports(t *testing.T) {
 	}
 	if len(target.Placed) != 1 {
 		t.Errorf("Place called %d times, want the extracted file placed once", len(target.Placed))
+	}
+}
+
+// Retrying before extracting is the likely misclick, and the archive still holds
+// the episode: the row must stay deferred rather than fail and revert its item.
+func TestRetryImportWithNothingExtractedStaysDeferred(t *testing.T) {
+	st := coretest.NewStore(t)
+	dir := writeTree(t,
+		"placeholder.saga.s01e01.1080p.web.h264-synth.rar",
+		"placeholder.saga.s01e01.1080p.web.h264-synth.r00",
+	)
+	im, target, grabID := deferOne(t, st, dir, 1)
+
+	results, err := im.RetryImport(context.Background(), grabID, nil)
+	if err != nil {
+		t.Fatalf("RetryImport: %v", err)
+	}
+	if len(results) != 1 || results[0].Outcome != statusDeferred {
+		t.Fatalf("results = %+v, want the row still deferred", results)
+	}
+	// Without this the dialog's own instruction loops: retry, "Nothing could be
+	// imported", no reason, no idea that extracting is the missing step.
+	if !strings.Contains(results[0].Detail, "still packed") {
+		t.Errorf("detail = %q, want it to say the archive is still packed", results[0].Detail)
+	}
+	if len(target.Placed) != 0 {
+		t.Errorf("Place called %d times, want nothing placed", len(target.Placed))
+	}
+	row, err := st.Q.GetGrabByID(context.Background(), grabID)
+	if err != nil {
+		t.Fatalf("read back grab: %v", err)
+	}
+	if row.Status != statusDeferred {
+		t.Errorf("grab status = %q, want it to stay deferred", row.Status)
 	}
 }
 

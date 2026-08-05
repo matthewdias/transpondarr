@@ -52,6 +52,10 @@ All notable changes to this project are documented here. The format is based on
   extract, not twelve), and the dialog lists it with what to do: extract it into
   the download folder and retry, which imports the extracted episode. An archive
   is listed beside the payload's files and can never be assigned to an episode.
+  An episode an archive holds stays waiting for you on every path — retrying
+  before you have extracted anything tells you so and leaves the download where
+  it was, and a download holding one loose episode plus an archived one keeps
+  the second waiting instead of giving up on it.
   Password-protected and corrupt archives are indistinguishable from healthy
   ones without an unpacker, so all three defer the same way.
 

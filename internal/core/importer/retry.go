@@ -143,7 +143,8 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 	if err := im.validateAssignments(ctx, deferred, p.files, assignments); err != nil {
 		return nil, err
 	}
-	im.remember(ctx, im.settleGroup(ctx, target, deferred, p.files, assignments))
+	failed, details := im.settleGroup(ctx, target, deferred, p, assignments)
+	im.remember(ctx, failed)
 
 	results := make([]RetryResult, 0, len(deferred))
 	for _, g := range deferred {
@@ -156,10 +157,16 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 			// Left open by a Place that failed; the scan picks it up on its own.
 			outcome = "unchanged"
 		}
+		// A settled row's last_error is cleared by design, so the reason it settled
+		// by is the only thing the toast can say.
+		detail := row.LastError.String
+		if detail == "" {
+			detail = details[g.ID]
+		}
 		results = append(results, RetryResult{
 			ItemNumber: int(row.ItemNumber.Int64),
 			Outcome:    outcome,
-			Detail:     row.LastError.String,
+			Detail:     detail,
 		})
 	}
 	return results, nil

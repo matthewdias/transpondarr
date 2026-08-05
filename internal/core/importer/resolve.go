@@ -151,22 +151,32 @@ func collectPayloadFiles(root string) (payload, error) {
 // what to do rather than only what failed.
 func noVideoReason(archives []archive) string {
 	const prefix = "the payload holds no video file"
-	advice := func(what string) string {
-		return "Transpondarr does not unpack archives, so extract " + what +
-			" into the download folder and use Fix import"
-	}
-	switch {
-	case len(archives) == 0:
+	if len(archives) == 0 {
 		return prefix
-	case len(archives) > 1:
-		return fmt.Sprintf("%s, only %d archive sets; %s", prefix, len(archives), advice("them"))
-	case archives[0].parts > 1:
-		return fmt.Sprintf("%s, only a %d-part archive set (%s); %s",
-			prefix, archives[0].parts, filepath.Base(archives[0].rel), advice("it"))
-	default:
-		return fmt.Sprintf("%s, only the archive %q; %s",
-			prefix, filepath.Base(archives[0].rel), advice("it"))
 	}
+	return fmt.Sprintf("%s, only %s; %s", prefix, archiveSummary(archives), extractAdvice(archives))
+}
+
+// archiveSummary names what a human would extract. Callers guard against an
+// empty set, since "no archive" is never something to describe.
+func archiveSummary(archives []archive) string {
+	switch {
+	case len(archives) > 1:
+		return fmt.Sprintf("%d archive sets", len(archives))
+	case archives[0].parts > 1:
+		return fmt.Sprintf("a %d-part archive set (%s)", archives[0].parts, filepath.Base(archives[0].rel))
+	default:
+		return fmt.Sprintf("the archive %q", filepath.Base(archives[0].rel))
+	}
+}
+
+func extractAdvice(archives []archive) string {
+	what := "it"
+	if len(archives) > 1 {
+		what = "them"
+	}
+	return "Transpondarr does not unpack archives, so extract " + what +
+		" into the download folder and use Fix import"
 }
 
 // archivePart reports the set a filename belongs to and whether it is the volume
