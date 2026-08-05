@@ -14,20 +14,38 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
+type missingItem struct {
+	ID           int64  `json:"id"`
+	Number       int    `json:"number"`
+	AirsAt       string `json:"airs_at"`
+	Reason       string `json:"reason"`
+	ReasonDetail string `json:"reason_detail"`
+}
+
+type missingGroup struct {
+	SeriesID        int64         `json:"series_id"`
+	SeriesTitle     string        `json:"series_title"`
+	Monitored       bool          `json:"monitored"`
+	Reason          string        `json:"reason"`
+	BlockedReleases int           `json:"blocked_releases"`
+	NextSearchAt    string        `json:"next_search_at"`
+	Missing         int           `json:"missing"`
+	Items           []missingItem `json:"items"`
+}
+
 type missingResponse struct {
-	Items []struct {
-		ID              int64  `json:"id"`
-		SeriesID        int64  `json:"series_id"`
-		SeriesTitle     string `json:"series_title"`
-		Monitored       bool   `json:"monitored"`
-		Number          int    `json:"number"`
-		AirsAt          string `json:"airs_at"`
-		Reason          string `json:"reason"`
-		ReasonDetail    string `json:"reason_detail"`
-		BlockedReleases int    `json:"blocked_releases"`
-		NextSearchAt    string `json:"next_search_at"`
-	} `json:"items"`
-	NextCursor string `json:"next_cursor"`
+	GlobalReason string         `json:"global_reason"`
+	Groups       []missingGroup `json:"groups"`
+	NextCursor   string         `json:"next_cursor"`
+}
+
+// items flattens the groups for tests that only care which items are present.
+func (r missingResponse) items() []missingItem {
+	var out []missingItem
+	for _, g := range r.Groups {
+		out = append(out, g.Items...)
+	}
+	return out
 }
 
 type cutoffResponse struct {
@@ -99,23 +117,28 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
-	got := map[int]string{}
-	for _, it := range out.Items {
-		got[it.Number] = it.Reason
+	if len(out.Groups) != 1 {
+		t.Fatalf("groups = %+v, want one for the series", out.Groups)
 	}
-	if len(got) != 2 || got[3] == "" || got[4] == "" {
-		t.Fatalf("items = %+v, want only episodes 3 (failed) and 4 (never grabbed)", out.Items)
+	g := out.Groups[0]
+	if g.SeriesID != seriesID || g.SeriesTitle != "Placeholder Saga" || !g.Monitored || g.Missing != 2 {
+		t.Errorf("group = %+v, want Placeholder Saga with 2 missing", g)
 	}
-	if got[3] != "grab_failed" {
-		t.Errorf("episode 3 reason = %q, want grab_failed", got[3])
+	got := map[int]missingItem{}
+	for _, it := range g.Items {
+		got[it.Number] = it
 	}
-	for _, it := range out.Items {
-		if it.Number == 3 && it.ReasonDetail != "torrent vanished from the client" {
-			t.Errorf("episode 3 detail = %q, want the grab's last error", it.ReasonDetail)
-		}
-		if it.SeriesID != seriesID || it.SeriesTitle != "Placeholder Saga" || !it.Monitored {
-			t.Errorf("item = %+v, want the series joined through", it)
-		}
+	if len(got) != 2 {
+		t.Fatalf("items = %+v, want only episodes 3 (failed) and 4 (never grabbed)", g.Items)
+	}
+	if got[3].Reason != "grab_failed" || got[3].ReasonDetail != "torrent vanished from the client" {
+		t.Errorf("episode 3 = %+v, want grab_failed with the grab's last error", got[3])
+	}
+	if got[4].Reason != "" {
+		t.Errorf("episode 4 reason = %q, want none: the group carries the series' story", got[4].Reason)
+	}
+	if out.GlobalReason != "" {
+		t.Errorf("global_reason = %q, want none: automation is on and an indexer is set", out.GlobalReason)
 	}
 }
 
@@ -133,10 +156,13 @@ func TestMissingUnairedToggle(t *testing.T) {
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
-	if len(out.Items) != 2 {
-		t.Fatalf("items = %+v, want the aired and the unscheduled one", out.Items)
+	if items := out.items(); len(items) != 2 {
+		t.Fatalf("items = %+v, want the aired and the unscheduled one", items)
 	}
-	for _, it := range out.Items {
+	if len(out.Groups) == 1 && out.Groups[0].Missing != 2 {
+		t.Errorf("missing = %d, want the count to honour the filter too", out.Groups[0].Missing)
+	}
+	for _, it := range out.items() {
 		if it.Number == 2 {
 			t.Fatalf("episode 2 airs in the future and must be withheld by default")
 		}
@@ -148,10 +174,10 @@ func TestMissingUnairedToggle(t *testing.T) {
 	if code := h.get(t, "/api/v1/wanted/missing?unaired=true", &out); code != http.StatusOK {
 		t.Fatalf("GET missing?unaired = %d, want 200", code)
 	}
-	if len(out.Items) != 3 {
-		t.Fatalf("items = %+v, want all three once unaired is asked for", out.Items)
+	if items := out.items(); len(items) != 3 {
+		t.Fatalf("items = %+v, want all three once unaired is asked for", items)
 	}
-	for _, it := range out.Items {
+	for _, it := range out.items() {
 		if it.Number == 2 && it.Reason != "unaired" {
 			t.Errorf("episode 2 reason = %q, want unaired", it.Reason)
 		}
@@ -170,14 +196,14 @@ func TestMissingUnmonitoredToggle(t *testing.T) {
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
-	if len(out.Items) != 0 {
-		t.Fatalf("items = %+v, want none: the series is unmonitored", out.Items)
+	if len(out.Groups) != 0 {
+		t.Fatalf("groups = %+v, want none: the series is unmonitored", out.Groups)
 	}
 	if code := h.get(t, "/api/v1/wanted/missing?unmonitored=true", &out); code != http.StatusOK {
 		t.Fatalf("GET missing?unmonitored = %d, want 200", code)
 	}
-	if len(out.Items) != 1 || out.Items[0].Reason != "unmonitored" {
-		t.Fatalf("items = %+v, want the one item reading unmonitored", out.Items)
+	if len(out.Groups) != 1 || out.Groups[0].Reason != "unmonitored" {
+		t.Fatalf("groups = %+v, want the one group reading unmonitored", out.Groups)
 	}
 }
 
@@ -206,9 +232,9 @@ func TestMissingReasonReadsStoredState(t *testing.T) {
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
-	bySeries := map[int64]string{}
-	for _, it := range out.Items {
-		bySeries[it.SeriesID] = it.Reason
+	bySeries := map[int64]missingGroup{}
+	for _, g := range out.Groups {
+		bySeries[g.SeriesID] = g
 	}
 	for _, tc := range []struct {
 		id   int64
@@ -219,53 +245,119 @@ func TestMissingReasonReadsStoredState(t *testing.T) {
 		{due, "search_due"},
 		{blocked, "blocklisted"},
 	} {
-		if bySeries[tc.id] != tc.want {
-			t.Errorf("series %d reason = %q, want %q", tc.id, bySeries[tc.id], tc.want)
+		if bySeries[tc.id].Reason != tc.want {
+			t.Errorf("series %d reason = %q, want %q", tc.id, bySeries[tc.id].Reason, tc.want)
 		}
 	}
-	for _, it := range out.Items {
-		if it.SeriesID == blocked && it.BlockedReleases != 1 {
-			t.Errorf("blocked_releases = %d, want 1", it.BlockedReleases)
-		}
-		if it.SeriesID == backoff && it.NextSearchAt == "" {
-			t.Error("want next_search_at on a backed-off row")
-		}
+	if bySeries[blocked].BlockedReleases != 1 {
+		t.Errorf("blocked_releases = %d, want 1", bySeries[blocked].BlockedReleases)
+	}
+	if bySeries[backoff].NextSearchAt == "" {
+		t.Error("want next_search_at on a backed-off group")
 	}
 }
 
-// Recent gaps first, back catalogue after -- and the back catalogue reads
-// forwards, since a series with no schedule at all is a run to drain in order.
-func TestMissingOrdersRecentFirstThenTheBackCatalogue(t *testing.T) {
+// Groups order by their newest missing broadcast, an all-undated series last;
+// inside a group episodes enumerate forwards regardless of their dates, since
+// that is how a run reads and how a back catalogue drains.
+func TestMissingOrdersRecentGroupsFirstAndEpisodesForwards(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Long Runner", 4)
-	setAirsAt(t, h.store, seriesID, 3, store.FormatTimestamp(time.Now().Add(-24*time.Hour)))
-	setAirsAt(t, h.store, seriesID, 4, store.FormatTimestamp(time.Now().Add(-2*time.Hour)))
-	// episodes 1 and 2 have no air date
+	older := seedSeries(t, h.store, "Older Gap", 1)
+	setAirsAt(t, h.store, older, 1, store.FormatTimestamp(time.Now().Add(-72*time.Hour)))
+	undated := seedSeries(t, h.store, "Back Catalogue", 3)
+	current := seedSeries(t, h.store, "Long Runner", 4)
+	setAirsAt(t, h.store, current, 3, store.FormatTimestamp(time.Now().Add(-24*time.Hour)))
+	setAirsAt(t, h.store, current, 4, store.FormatTimestamp(time.Now().Add(-2*time.Hour)))
+	// Long Runner's episodes 1 and 2 have no air date
 
 	var out missingResponse
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
-	got := make([]int, 0, len(out.Items))
-	for _, it := range out.Items {
-		got = append(got, it.Number)
+	if len(out.Groups) != 3 {
+		t.Fatalf("groups = %+v, want three series", out.Groups)
 	}
-	want := []int{4, 3, 1, 2}
-	if len(got) != len(want) {
-		t.Fatalf("order = %v, want %v", got, want)
+	if out.Groups[0].SeriesID != current || out.Groups[1].SeriesID != older || out.Groups[2].SeriesID != undated {
+		t.Fatalf("group order = %v %v %v, want newest broadcast first and the undated series last",
+			out.Groups[0].SeriesTitle, out.Groups[1].SeriesTitle, out.Groups[2].SeriesTitle)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("order = %v, want %v", got, want)
-		}
+	var numbers []int
+	for _, it := range out.Groups[0].Items {
+		numbers = append(numbers, it.Number)
+	}
+	if len(numbers) != 4 || numbers[0] != 1 || numbers[1] != 2 || numbers[2] != 3 || numbers[3] != 4 {
+		t.Fatalf("episode order = %v, want 1 2 3 4: a group enumerates forwards", numbers)
 	}
 }
 
-// A missing set is unbounded, so it pages: every item appears exactly once
-// across pages and the last page carries no cursor.
-func TestMissingPaginates(t *testing.T) {
+// A group past the cap still reports its full size: the header count is the
+// back-catalog progress display, the listed rows are just the front of the run.
+func TestMissingCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Long Runner", 5)
+	seedSeries(t, h.store, "Very Long Runner", 60)
+
+	var out missingResponse
+	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
+		t.Fatalf("GET missing = %d, want 200", code)
+	}
+	if len(out.Groups) != 1 {
+		t.Fatalf("groups = %+v, want one", out.Groups)
+	}
+	g := out.Groups[0]
+	if g.Missing != 60 || len(g.Items) != 50 {
+		t.Fatalf("missing = %d with %d items, want the count at 60 and the listing capped at 50", g.Missing, len(g.Items))
+	}
+	if g.Items[0].Number != 1 || g.Items[49].Number != 50 {
+		t.Errorf("cap kept %d..%d, want the front of the run", g.Items[0].Number, g.Items[49].Number)
+	}
+}
+
+// The page-level tier: what stops any search running at all is said once, not
+// stamped on every row.
+func TestMissingReportsTheGlobalReason(t *testing.T) {
+	h := wantedHarness(t) // automation on, indexer set
+	seedSeries(t, h.store, "Quiet Library", 1)
+
+	var out missingResponse
+	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
+		t.Fatalf("GET missing = %d, want 200", code)
+	}
+	if out.GlobalReason != "" {
+		t.Errorf("global_reason = %q, want none", out.GlobalReason)
+	}
+
+	if err := h.settings.UpdateAutomation(context.Background(), settings.AutomationConfig{
+		Mode: settings.AutomationNotifyOnly,
+	}); err != nil {
+		t.Fatalf("set notify-only: %v", err)
+	}
+	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
+		t.Fatalf("GET missing = %d, want 200", code)
+	}
+	if out.GlobalReason != "notify_only" {
+		t.Errorf("global_reason = %q, want notify_only", out.GlobalReason)
+	}
+
+	bare := newHarness(t, nil, nil) // no indexer at all
+	seedSeries(t, bare.store, "Unsearchable", 1)
+	if code := bare.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
+		t.Fatalf("GET missing = %d, want 200", code)
+	}
+	if out.GlobalReason != "no_indexer" {
+		t.Errorf("global_reason = %q, want no_indexer to outrank automation state", out.GlobalReason)
+	}
+}
+
+// The pagination unit is the group, so a series never splits across a page
+// boundary: every group appears exactly once, whole, and the last page carries
+// no cursor.
+func TestMissingPaginatesByGroup(t *testing.T) {
+	h := wantedHarness(t)
+	for i, title := range []string{"Alpha", "Beta", "Gamma", "Delta", "Epsilon"} {
+		id := seedSeries(t, h.store, title, 2)
+		// Distinct latest broadcasts keep the group order deterministic.
+		setAirsAt(t, h.store, id, 2, store.FormatTimestamp(time.Now().Add(-time.Duration(i+1)*24*time.Hour)))
+	}
 
 	seen := map[int64]bool{}
 	cursor, pages := "", 0
@@ -278,11 +370,17 @@ func TestMissingPaginates(t *testing.T) {
 		if code := h.get(t, path, &out); code != http.StatusOK {
 			t.Fatalf("GET %s = %d, want 200", path, code)
 		}
-		for _, it := range out.Items {
-			if seen[it.ID] {
-				t.Fatalf("item %d returned on two pages", it.ID)
+		if len(out.Groups) > 2 {
+			t.Fatalf("page of %d groups, want at most the limit", len(out.Groups))
+		}
+		for _, g := range out.Groups {
+			if seen[g.SeriesID] {
+				t.Fatalf("series %d returned on two pages", g.SeriesID)
 			}
-			seen[it.ID] = true
+			seen[g.SeriesID] = true
+			if len(g.Items) != 2 {
+				t.Fatalf("group %s arrived split: %d items, want its whole 2", g.SeriesTitle, len(g.Items))
+			}
 		}
 		pages++
 		if out.NextCursor == "" {
@@ -293,11 +391,8 @@ func TestMissingPaginates(t *testing.T) {
 		}
 		cursor = out.NextCursor
 	}
-	if len(seen) != 5 {
-		t.Fatalf("saw %d distinct items across %d pages, want 5", len(seen), pages)
-	}
-	if seriesID == 0 {
-		t.Fatal("unreachable")
+	if len(seen) != 5 || pages != 3 {
+		t.Fatalf("saw %d distinct groups across %d pages, want 5 across 3", len(seen), pages)
 	}
 
 	var bad missingResponse

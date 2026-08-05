@@ -1248,32 +1248,45 @@ export interface components {
             readonly $schema?: string;
             series: components["schemas"]["SeriesDTO"][];
         };
-        MissingItemDTO: {
-            /** @description Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule */
-            airs_at?: string;
+        MissingGroupDTO: {
             /**
              * Format: int64
              * @description Releases this series is currently refusing (reason blocklisted)
              */
             blocked_releases?: number;
-            /** Format: int64 */
-            id: number;
+            items: components["schemas"]["MissingItemDTO"][];
+            /**
+             * Format: int64
+             * @description Missing items in the whole group; may exceed len(items), which is capped
+             */
+            missing: number;
             monitored: boolean;
-            name?: string;
             /** @description When the sweep next reaches this series (reason search_backoff) */
             next_search_at?: string;
-            /** Format: int64 */
-            number: number;
             /**
-             * @description Why this is still missing, derived from stored state at request time
+             * @description The series' standing in the sweep queue, derived from stored state at request time
              * @enum {string}
              */
-            reason: "unaired" | "unmonitored" | "no_indexer" | "automation_off" | "notify_only" | "grab_failed" | "blocklisted" | "never_searched" | "search_backoff" | "search_due";
-            /** @description Why the last grab failed (reason grab_failed) */
-            reason_detail?: string;
+            reason: "unmonitored" | "blocklisted" | "never_searched" | "search_backoff" | "search_due";
             /** Format: int64 */
             series_id: number;
             series_title: string;
+        };
+        MissingItemDTO: {
+            /** @description Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule */
+            airs_at?: string;
+            /** Format: int64 */
+            id: number;
+            name?: string;
+            /** Format: int64 */
+            number: number;
+            /**
+             * @description This item's own story; absent when the group and page tell it all
+             * @enum {string}
+             */
+            reason?: "unaired" | "grab_failed";
+            /** @description Why the last grab failed (reason grab_failed) */
+            reason_detail?: string;
         };
         MissingOutputBody: {
             /**
@@ -1282,7 +1295,12 @@ export interface components {
              * @example https://example.com/schemas/MissingOutputBody.json
              */
             readonly $schema?: string;
-            items: components["schemas"]["MissingItemDTO"][];
+            /**
+             * @description What stops any search running at all; absent when nothing does
+             * @enum {string}
+             */
+            global_reason?: "no_indexer" | "automation_off" | "notify_only";
+            groups: components["schemas"]["MissingGroupDTO"][];
             /** @description Absent on the last page */
             next_cursor?: string;
         };
@@ -3240,7 +3258,7 @@ export interface operations {
     "list-wanted-cutoff-unmet": {
         parameters: {
             query?: {
-                /** @description Items per page */
+                /** @description Page size: series groups on missing, items on cutoff-unmet */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;
@@ -3278,7 +3296,7 @@ export interface operations {
     "list-wanted-missing": {
         parameters: {
             query?: {
-                /** @description Items per page */
+                /** @description Page size: series groups on missing, items on cutoff-unmet */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;

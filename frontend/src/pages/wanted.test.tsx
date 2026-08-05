@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
-import type { CutoffItem, MissingItem } from "@/lib/api";
+import type { CutoffItem, MissingGroup, MissingItem } from "@/lib/api";
 import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { WantedPage } from "@/pages/wanted";
@@ -17,11 +17,20 @@ afterAll(() => server.close());
 
 const missing = (over: Partial<MissingItem>): MissingItem => ({
   id: 1,
+  number: 4,
+  ...over,
+});
+
+const group = (
+  over: Partial<MissingGroup>,
+  items: MissingItem[],
+): MissingGroup => ({
   series_id: 7,
   series_title: "Signal Anomaly",
   monitored: true,
-  number: 4,
   reason: "search_due",
+  missing: items.length,
+  items,
   ...over,
 });
 
@@ -39,7 +48,11 @@ const cutoff = (over: Partial<CutoffItem>): CutoffItem => ({
   ...over,
 });
 
-type MissingPage = { items: MissingItem[]; next_cursor?: string };
+type MissingPage = {
+  global_reason?: string;
+  groups: MissingGroup[];
+  next_cursor?: string;
+};
 
 function useHandlers(opts: {
   pages?: Record<string, MissingPage>;
@@ -52,7 +65,7 @@ function useHandlers(opts: {
       const query = new URL(request.url).searchParams;
       opts.onMissing?.(query);
       const cursor = query.get("cursor") ?? "";
-      return HttpResponse.json(opts.pages?.[cursor] ?? { items: [] });
+      return HttpResponse.json(opts.pages?.[cursor] ?? { groups: [] });
     }),
     http.get("/api/v1/wanted/cutoff-unmet", () =>
       HttpResponse.json({ items: opts.cutoffItems ?? [] }),
@@ -88,48 +101,79 @@ function renderPage() {
   return client;
 }
 
-// The reason is the page's whole point over a plain list, and per-row Search
-// routes into the episode-targeted Releases tab rather than the series dump.
-it("renders each row's reason and links Search at the episode", async () => {
+// The three reason tiers render together: the series' story on its group
+// header, an item's own story on its row, and rows with nothing to add stay
+// quiet. Per-row Search routes into the episode-targeted Releases tab.
+it("renders group and item reasons on their own tiers", async () => {
   useHandlers({
     pages: {
       "": {
-        items: [
-          missing({ id: 1, number: 4, reason: "never_searched" }),
-          missing({
-            id: 2,
-            number: 5,
-            reason: "grab_failed",
-            reason_detail: "torrent vanished from the client",
-          }),
-          missing({
-            id: 3,
-            number: 6,
-            reason: "blocklisted",
-            blocked_releases: 2,
-          }),
+        groups: [
+          group({ reason: "blocklisted", blocked_releases: 2 }, [
+            missing({ id: 1, number: 4 }),
+            missing({
+              id: 2,
+              number: 5,
+              reason: "grab_failed",
+              reason_detail: "torrent vanished from the client",
+            }),
+          ]),
         ],
       },
     },
   });
   renderPage();
 
-  expect(await screen.findByText("Not searched yet")).toBeInTheDocument();
+  expect(await screen.findByText("Releases blocklisted")).toBeInTheDocument();
+  expect(screen.getByTitle("2 releases")).toBeInTheDocument();
   expect(screen.getByText("Last grab failed")).toBeInTheDocument();
-  expect(screen.getByText("Releases blocklisted")).toBeInTheDocument();
   expect(
     screen.getByTitle("torrent vanished from the client"),
   ).toBeInTheDocument();
-  expect(screen.getByTitle("2 releases")).toBeInTheDocument();
+  expect(screen.getByText("2 episodes missing")).toBeInTheDocument();
 
   const links = screen
     .getAllByRole("link", { name: /search/i })
     .map((a) => a.getAttribute("href"));
-  expect(links).toEqual([
-    "/series/7?item=4",
-    "/series/7?item=5",
-    "/series/7?item=6",
-  ]);
+  expect(links).toEqual(["/series/7?item=4", "/series/7?item=5"]);
+});
+
+// The page tier is a banner said once, not a badge stamped on every row.
+it("shows the global reason as one banner", async () => {
+  useHandlers({
+    pages: {
+      "": {
+        global_reason: "notify_only",
+        groups: [group({}, [missing({ id: 1, number: 1 })])],
+      },
+    },
+  });
+  renderPage();
+
+  expect(
+    await screen.findByText(/automation is rehearsing/i),
+  ).toBeInTheDocument();
+});
+
+// A capped group still states its full size and offers the series page.
+it("links to the series for episodes past the group cap", async () => {
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({ missing: 60 }, [
+            missing({ id: 1, number: 1 }),
+            missing({ id: 2, number: 2 }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  expect(await screen.findByText("60 episodes missing")).toBeInTheDocument();
+  const more = screen.getByRole("link", { name: /58 more episodes/i });
+  expect(more).toHaveAttribute("href", "/series/7");
 });
 
 // The scope filters are one group, not two loose buttons: arrows move between
@@ -137,7 +181,10 @@ it("renders each row's reason and links Search at the episode", async () => {
 // causes, so it fails if the group is focusable but not operable.
 it("moves between the scope chips with arrows and toggles from the keyboard", async () => {
   const seen: URLSearchParams[] = [];
-  useHandlers({ pages: { "": { items: [] } }, onMissing: (q) => seen.push(q) });
+  useHandlers({
+    pages: { "": { groups: [] } },
+    onMissing: (q) => seen.push(q),
+  });
   renderPage();
 
   await waitFor(() => expect(seen).toHaveLength(1));
@@ -155,7 +202,10 @@ it("moves between the scope chips with arrows and toggles from the keyboard", as
 // listing is paginated, so a client-side filter would leave short pages.
 it("sends the unaired and unmonitored toggles to the server", async () => {
   const seen: URLSearchParams[] = [];
-  useHandlers({ pages: { "": { items: [] } }, onMissing: (q) => seen.push(q) });
+  useHandlers({
+    pages: { "": { groups: [] } },
+    onMissing: (q) => seen.push(q),
+  });
   renderPage();
 
   await waitFor(() => expect(seen).toHaveLength(1));
@@ -167,37 +217,44 @@ it("sends the unaired and unmonitored toggles to the server", async () => {
   expect(seen[1].get("unaired")).toBe("true");
 });
 
-it("pages with the cursor the previous page returned", async () => {
+it("pages whole groups with the cursor the previous page returned", async () => {
   useHandlers({
     pages: {
-      "": { items: [missing({ id: 1, number: 1 })], next_cursor: "abc" },
-      abc: { items: [missing({ id: 2, number: 2 })] },
+      "": {
+        groups: [group({}, [missing({ id: 1, number: 1 })])],
+        next_cursor: "abc",
+      },
+      abc: {
+        groups: [
+          group({ series_id: 9, series_title: "Other Show" }, [
+            missing({ id: 2, number: 2 }),
+          ]),
+        ],
+      },
     },
   });
   renderPage();
 
-  expect(await screen.findByText("01")).toBeInTheDocument();
+  expect(await screen.findByText("Signal Anomaly")).toBeInTheDocument();
   await userEvent.click(screen.getByRole("button", { name: /load more/i }));
-  expect(await screen.findByText("02")).toBeInTheDocument();
+  expect(await screen.findByText("Other Show")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
 });
 
-// Search is a queue, not N indexer requests, and selection is per series even
-// though the checkbox is per row.
-it("queues a search for the selected rows' series, deduplicated", async () => {
+// Selection is per group because a search is per series: the sweep's unit.
+it("queues a search for the selected groups' series", async () => {
   const bodies: { series_ids?: number[] }[] = [];
   useHandlers({
     pages: {
       "": {
-        items: [
-          missing({ id: 1, series_id: 7, number: 4 }),
-          missing({ id: 2, series_id: 7, number: 5 }),
-          missing({
-            id: 3,
-            series_id: 9,
-            series_title: "Other Show",
-            number: 1,
-          }),
+        groups: [
+          group({}, [
+            missing({ id: 1, number: 4 }),
+            missing({ id: 2, number: 5 }),
+          ]),
+          group({ series_id: 9, series_title: "Other Show" }, [
+            missing({ id: 3, number: 1 }),
+          ]),
         ],
       },
     },
@@ -205,13 +262,7 @@ it("queues a search for the selected rows' series, deduplicated", async () => {
   });
   renderPage();
 
-  const selected = await screen.findByLabelText(
-    "Select Signal Anomaly episode 4",
-  );
-  await userEvent.click(selected);
-  await userEvent.click(
-    screen.getByLabelText("Select Signal Anomaly episode 5"),
-  );
+  await userEvent.click(await screen.findByLabelText("Select Signal Anomaly"));
   await userEvent.click(
     screen.getByRole("button", { name: /search selected/i }),
   );
@@ -225,7 +276,7 @@ it("queues a search for the selected rows' series, deduplicated", async () => {
 });
 
 it("shows a held release against its profile cutoff on the second tab", async () => {
-  useHandlers({ pages: { "": { items: [] } }, cutoffItems: [cutoff({})] });
+  useHandlers({ pages: { "": { groups: [] } }, cutoffItems: [cutoff({})] });
   renderPage();
 
   await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));

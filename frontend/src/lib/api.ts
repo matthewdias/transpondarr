@@ -110,7 +110,11 @@ export type UnscheduledSeries = Schemas["UnscheduledSeriesDTO"];
 export type Calendar = Schemas["CalendarOutputBody"];
 export type GrabEvent = Schemas["GrabEventDTO"];
 export type MissingItem = Schemas["MissingItemDTO"];
-export type MissingReason = MissingItem["reason"];
+export type MissingGroup = Schemas["MissingGroupDTO"];
+export type SeriesMissingReason = MissingGroup["reason"];
+export type GlobalMissingReason = NonNullable<
+  Schemas["MissingOutputBody"]["global_reason"]
+>;
 export type CutoffItem = Schemas["CutoffItemDTO"];
 export type BlocklistEntry = Schemas["BlocklistEntryDTO"];
 export type BlocklistSummary = Schemas["BlocklistSummaryOutputBody"];

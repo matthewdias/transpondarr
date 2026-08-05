@@ -11,28 +11,33 @@ All notable changes to this project are documented here. The format is based on
 - **Wanted is a real page: every missing episode across the library, and why it
   is still missing.** Two tabs. *Missing* lists every episode still worth
   acquiring — the scheduled search's own definition of wanted, so an episode
-  already downloading is Activity's row, not this one's — newest broadcast
-  first, with the back catalogue after it in episode order. Unaired episodes are
-  hidden behind a toggle, since the Calendar owns the forward-looking view, and
-  an unmonitored toggle mirrors the Calendar's. *Cutoff Unmet* lists the
-  episodes you hold that score below their profile's cutoff, with the held
-  release name and its score against that cutoff; it only ever lists series on a
-  profile with upgrades enabled, and re-scores from the stored release name, so
-  editing a profile moves the list immediately. Every row's Search opens the
-  Releases tab already focused on that episode, where the manual grab is
-  unchanged. Each row states the one thing most explaining why it is still
-  missing — not aired, unmonitored, no indexer, automation off or rehearsing,
-  the last grab failed (with the error), releases blocklisted, or where its
-  series sits in the search queue — all read from stored state when you look, so
-  a reason is never a stale record of an earlier pass. "Search selected" and
-  "Search all" put those series back at the front of the search queue and start
-  a run rather than firing one indexer request per series: the per-pass limit
-  that protects your indexer still applies, so a large library drains over
-  several passes, and the confirmation says queued rather than done. Under
-  notify-only it says the run will rehearse and grab nothing. Both lists page as
-  you scroll rather than loading whole, so a fresh library add of several
-  hundred episodes stays responsive. An episode's Releases focus is now
-  addressable as `#/series/<id>?item=<n>`.
+  already downloading is Activity's row, not this one's — grouped by series,
+  because that is the unit everything else here works in: the newest gap's
+  series first, an all-undated back catalogue last, and episodes counting
+  forwards inside each group. The "why" is told once at each level instead of
+  stamped on every row: a page banner for what blocks everything (no indexer,
+  automation off or rehearsing), the group header for the series' standing (not
+  searched yet, backing off, releases blocklisted, unmonitored), and a row
+  speaks only when it has its own story (not aired yet, last grab failed with
+  its error) — all read from stored state when you look, so a reason is never a
+  stale record of an earlier pass. A group past fifty episodes lists the front
+  of the run and links to the series for the rest; the header's count is the
+  real size either way, which makes it the back-catalog drain's progress
+  display. Unaired episodes hide behind a filter, since the Calendar owns the
+  forward-looking view, and an unmonitored filter matches the Calendar's.
+  *Cutoff Unmet* lists the episodes you hold that score below their profile's
+  cutoff, with the held release name and its score against that cutoff; it only
+  ever lists series on a profile with upgrades enabled, and re-scores from the
+  stored release name, so editing a profile moves the list immediately. Every
+  episode's Search opens the Releases tab already focused on it, where the
+  manual grab is unchanged. Selecting groups and hitting "Search selected" (or
+  "Search all") puts those series back at the front of the search queue and
+  starts a run rather than firing one indexer request per series: the per-pass
+  limit that protects your indexer still applies, so a large library drains
+  over several passes, and the confirmation says queued rather than done —
+  under notify-only, that the run will rehearse and grab nothing. The list
+  pages by whole groups, so a series never arrives split. An episode's Releases
+  focus is now addressable as `#/series/<id>?item=<n>`.
 
 - **An episode's Search button now searches for that episode.** It used to hand
   you the series-wide result list and leave you to scan it for the row whose

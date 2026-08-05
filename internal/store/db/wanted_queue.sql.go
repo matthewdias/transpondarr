@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const listActiveBlocklistCounts = `-- name: ListActiveBlocklistCounts :many
@@ -150,16 +151,96 @@ func (q *Queries) ListCutoffUnmetPage(ctx context.Context, arg ListCutoffUnmetPa
 	return items, nil
 }
 
-const listMissingItemsPage = `-- name: ListMissingItemsPage :many
-
+const listMissingItemsBySeries = `-- name: ListMissingItemsBySeries :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, w.held_release_title,
-       s.title            AS series_title,
-       s.monitored        AS series_monitored,
-       s.last_searched_at AS series_last_searched_at,
-       s.next_search_at   AS series_next_search_at,
-       g.status           AS grab_status,
-       g.release_title    AS grab_release_title,
-       g.last_error       AS grab_last_error
+       g.status        AS grab_status,
+       g.release_title AS grab_release_title,
+       g.last_error    AS grab_last_error
+FROM wanted_items w
+LEFT JOIN grabs g ON g.wanted_item_id = w.id
+WHERE w.series_id IN (/*SLICE:series_ids*/?)
+  AND w.have = 0
+  AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+  AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
+ORDER BY w.series_id, w.number
+`
+
+type ListMissingItemsBySeriesParams struct {
+	SeriesIds []int64        `json:"series_ids"`
+	Column2   interface{}    `json:"column_2"`
+	AirsAt    sql.NullString `json:"airs_at"`
+}
+
+type ListMissingItemsBySeriesRow struct {
+	ID               int64          `json:"id"`
+	SeriesID         int64          `json:"series_id"`
+	Kind             string         `json:"kind"`
+	Number           sql.NullInt64  `json:"number"`
+	Title            sql.NullString `json:"title"`
+	Have             int64          `json:"have"`
+	AirsAt           sql.NullString `json:"airs_at"`
+	HeldReleaseTitle string         `json:"held_release_title"`
+	GrabStatus       sql.NullString `json:"grab_status"`
+	GrabReleaseTitle sql.NullString `json:"grab_release_title"`
+	GrabLastError    sql.NullString `json:"grab_last_error"`
+}
+
+// The items behind one page of groups. Same wanted predicate and unaired filter
+// as the series page, so a group and its items are computed from one reading of
+// the world. Number ascends within a series deliberately: a back catalogue
+// drains forwards, and episodes enumerate forwards however their dates fall.
+func (q *Queries) ListMissingItemsBySeries(ctx context.Context, arg ListMissingItemsBySeriesParams) ([]ListMissingItemsBySeriesRow, error) {
+	query := listMissingItemsBySeries
+	var queryParams []interface{}
+	if len(arg.SeriesIds) > 0 {
+		for _, v := range arg.SeriesIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:series_ids*/?", strings.Repeat(",?", len(arg.SeriesIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:series_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.Column2)
+	queryParams = append(queryParams, arg.AirsAt)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMissingItemsBySeriesRow{}
+	for rows.Next() {
+		var i ListMissingItemsBySeriesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SeriesID,
+			&i.Kind,
+			&i.Number,
+			&i.Title,
+			&i.Have,
+			&i.AirsAt,
+			&i.HeldReleaseTitle,
+			&i.GrabStatus,
+			&i.GrabReleaseTitle,
+			&i.GrabLastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMissingSeriesPage = `-- name: ListMissingSeriesPage :many
+
+SELECT s.id, s.title, s.monitored, s.last_searched_at, s.next_search_at,
+       MAX(COALESCE(w.airs_at, '')) AS latest_missing_air,
+       COUNT(*)                     AS missing
 FROM wanted_items w
 JOIN series s ON s.id = w.series_id
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
@@ -167,12 +248,13 @@ WHERE w.have = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR s.monitored = 1)
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
-  AND (COALESCE(w.airs_at, '') < ? OR (COALESCE(w.airs_at, '') = ? AND w.id > ?))
-ORDER BY COALESCE(w.airs_at, '') DESC, w.id
+GROUP BY s.id
+HAVING MAX(COALESCE(w.airs_at, '')) < ? OR (MAX(COALESCE(w.airs_at, '')) = ? AND s.id > ?)
+ORDER BY MAX(COALESCE(w.airs_at, '')) DESC, s.id
 LIMIT ?
 `
 
-type ListMissingItemsPageParams struct {
+type ListMissingSeriesPageParams struct {
 	Column1  interface{}    `json:"column_1"`
 	Column2  interface{}    `json:"column_2"`
 	AirsAt   sql.NullString `json:"airs_at"`
@@ -182,22 +264,14 @@ type ListMissingItemsPageParams struct {
 	Limit    int64          `json:"limit"`
 }
 
-type ListMissingItemsPageRow struct {
-	ID                   int64          `json:"id"`
-	SeriesID             int64          `json:"series_id"`
-	Kind                 string         `json:"kind"`
-	Number               sql.NullInt64  `json:"number"`
-	Title                sql.NullString `json:"title"`
-	Have                 int64          `json:"have"`
-	AirsAt               sql.NullString `json:"airs_at"`
-	HeldReleaseTitle     string         `json:"held_release_title"`
-	SeriesTitle          string         `json:"series_title"`
-	SeriesMonitored      int64          `json:"series_monitored"`
-	SeriesLastSearchedAt sql.NullString `json:"series_last_searched_at"`
-	SeriesNextSearchAt   sql.NullString `json:"series_next_search_at"`
-	GrabStatus           sql.NullString `json:"grab_status"`
-	GrabReleaseTitle     sql.NullString `json:"grab_release_title"`
-	GrabLastError        sql.NullString `json:"grab_last_error"`
+type ListMissingSeriesPageRow struct {
+	ID               int64          `json:"id"`
+	Title            string         `json:"title"`
+	Monitored        int64          `json:"monitored"`
+	LastSearchedAt   sql.NullString `json:"last_searched_at"`
+	NextSearchAt     sql.NullString `json:"next_search_at"`
+	LatestMissingAir interface{}    `json:"latest_missing_air"`
+	Missing          int64          `json:"missing"`
 }
 
 // The cross-series wanted queue (issue #150): Missing and Cutoff Unmet, both
@@ -206,20 +280,19 @@ type ListMissingItemsPageRow struct {
 // NOTE: keep comments in this file ASCII-only. sqlc's sqlite codegen miscounts
 // byte vs. rune offsets and silently truncates the emitted SQL on a multi-byte
 // character. See CLAUDE.md.
-// Every item still worth acquiring, across all series. The wanted half is the
-// sweep's predicate character for character (the EXISTS body of
-// ListSeriesDueWantedSearch), which is what keeps this page honest about what
-// automation will go after; an in-flight grab is absent by construction, being
-// Activity's to show. The cadence columns ride along because the reason column
-// is derived from stored state alone.
-// Ordered newest broadcast first, undated last: COALESCE sorts a null air date
-// below every timestamp, and lexicographic compare on the one stored layout is
-// chronological. Id ascends inside a group deliberately -- a series with no
-// schedule at all is a back catalogue, and draining one reads forwards, not
-// backwards. The cursor pair is that same (air date, id), so a first page passes
-// a sentinel above every stored value and one query serves every page.
-func (q *Queries) ListMissingItemsPage(ctx context.Context, arg ListMissingItemsPageParams) ([]ListMissingItemsPageRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMissingItemsPage,
+// The Missing tab's pagination unit is the series, so a group can never split
+// across a page boundary. The wanted half is the sweep's predicate character
+// for character (the EXISTS body of ListSeriesDueWantedSearch), which is what
+// keeps this page honest about what automation will go after; an in-flight
+// grab is absent by construction, being Activity's to show. Groups are ordered
+// newest missing broadcast first, all-undated series last: COALESCE sorts a
+// null air date below every timestamp, and lexicographic compare on the one
+// stored layout is chronological. The keyset lives in HAVING because it binds
+// on the aggregate; a first page passes a sentinel above every stored value so
+// one query serves every page. The count is the whole group even when the
+// handler caps the items it returns for one.
+func (q *Queries) ListMissingSeriesPage(ctx context.Context, arg ListMissingSeriesPageParams) ([]ListMissingSeriesPageRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMissingSeriesPage,
 		arg.Column1,
 		arg.Column2,
 		arg.AirsAt,
@@ -232,25 +305,17 @@ func (q *Queries) ListMissingItemsPage(ctx context.Context, arg ListMissingItems
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListMissingItemsPageRow{}
+	items := []ListMissingSeriesPageRow{}
 	for rows.Next() {
-		var i ListMissingItemsPageRow
+		var i ListMissingSeriesPageRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.SeriesID,
-			&i.Kind,
-			&i.Number,
 			&i.Title,
-			&i.Have,
-			&i.AirsAt,
-			&i.HeldReleaseTitle,
-			&i.SeriesTitle,
-			&i.SeriesMonitored,
-			&i.SeriesLastSearchedAt,
-			&i.SeriesNextSearchAt,
-			&i.GrabStatus,
-			&i.GrabReleaseTitle,
-			&i.GrabLastError,
+			&i.Monitored,
+			&i.LastSearchedAt,
+			&i.NextSearchAt,
+			&i.LatestMissingAir,
+			&i.Missing,
 		); err != nil {
 			return nil, err
 		}

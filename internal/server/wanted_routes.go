@@ -19,21 +19,35 @@ import (
 // queued search triggers rather than issuing indexer requests itself.
 const sweepJobName = "wanted-search"
 
+// missingItemsPerGroup caps what one group lists. A back-catalog add can put
+// hundreds of items in one series; the header's count is the progress display,
+// and listing them all past this point adds rows without adding information.
+const missingItemsPerGroup = 50
+
 // missingItemDTO is one item still worth acquiring. It carries no derived status
 // because the listing's predicate admits only wanted ones -- an in-flight grab
-// is Activity's row, not this page's -- so the reason takes that column instead.
+// is Activity's row, not this page's. Its reason covers only what varies row to
+// row; the series' story lives on the group and the page's on global_reason.
 type missingItemDTO struct {
-	ID              int64  `json:"id"`
-	SeriesID        int64  `json:"series_id"`
-	SeriesTitle     string `json:"series_title"`
-	Monitored       bool   `json:"monitored"`
-	Number          int    `json:"number"`
-	Name            string `json:"name,omitempty"`
-	AirsAt          string `json:"airs_at,omitempty" doc:"Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule"`
-	Reason          string `json:"reason" enum:"unaired,unmonitored,no_indexer,automation_off,notify_only,grab_failed,blocklisted,never_searched,search_backoff,search_due" doc:"Why this is still missing, derived from stored state at request time"`
-	ReasonDetail    string `json:"reason_detail,omitempty" doc:"Why the last grab failed (reason grab_failed)"`
-	BlockedReleases int    `json:"blocked_releases,omitempty" doc:"Releases this series is currently refusing (reason blocklisted)"`
-	NextSearchAt    string `json:"next_search_at,omitempty" doc:"When the sweep next reaches this series (reason search_backoff)"`
+	ID           int64  `json:"id"`
+	Number       int    `json:"number"`
+	Name         string `json:"name,omitempty"`
+	AirsAt       string `json:"airs_at,omitempty" doc:"Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule"`
+	Reason       string `json:"reason,omitempty" enum:"unaired,grab_failed" doc:"This item's own story; absent when the group and page tell it all"`
+	ReasonDetail string `json:"reason_detail,omitempty" doc:"Why the last grab failed (reason grab_failed)"`
+}
+
+// missingGroupDTO is one series' missing items. Grouping is the page's shape
+// because the bulk action is per series: a search queues a series, never a row.
+type missingGroupDTO struct {
+	SeriesID        int64            `json:"series_id"`
+	SeriesTitle     string           `json:"series_title"`
+	Monitored       bool             `json:"monitored"`
+	Reason          string           `json:"reason" enum:"unmonitored,blocklisted,never_searched,search_backoff,search_due" doc:"The series' standing in the sweep queue, derived from stored state at request time"`
+	BlockedReleases int              `json:"blocked_releases,omitempty" doc:"Releases this series is currently refusing (reason blocklisted)"`
+	NextSearchAt    string           `json:"next_search_at,omitempty" doc:"When the sweep next reaches this series (reason search_backoff)"`
+	Missing         int              `json:"missing" doc:"Missing items in the whole group; may exceed len(items), which is capped"`
+	Items           []missingItemDTO `json:"items"`
 }
 
 // cutoffItemDTO is one held item whose release scores below its profile's
@@ -55,7 +69,7 @@ type cutoffItemDTO struct {
 }
 
 type wantedPageInput struct {
-	Limit       int    `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Items per page"`
+	Limit       int    `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Page size: series groups on missing, items on cutoff-unmet"`
 	Cursor      string `query:"cursor" doc:"Opaque cursor from the previous page's next_cursor"`
 	Unmonitored bool   `query:"unmonitored" doc:"Include items from unmonitored series"`
 	Unaired     bool   `query:"unaired" doc:"Include items whose broadcast is still ahead; the Calendar owns the forward-looking view"`
@@ -63,8 +77,9 @@ type wantedPageInput struct {
 
 type missingOutput struct {
 	Body struct {
-		Items      []missingItemDTO `json:"items"`
-		NextCursor string           `json:"next_cursor,omitempty" doc:"Absent on the last page"`
+		GlobalReason string            `json:"global_reason,omitempty" enum:"no_indexer,automation_off,notify_only" doc:"What stops any search running at all; absent when nothing does"`
+		Groups       []missingGroupDTO `json:"groups"`
+		NextCursor   string            `json:"next_cursor,omitempty" doc:"Absent on the last page"`
 	}
 }
 
@@ -134,8 +149,12 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	now := h.now().UTC()
 	nowStored := sql.NullString{String: store.FormatTimestamp(now), Valid: true}
 
+	out := &missingOutput{}
+	out.Body.GlobalReason = globalReason(h.deps.clients.Indexer() != nil,
+		h.deps.settings.Snapshot().Automation.Mode)
+
 	// One past the page, to learn whether a next page exists.
-	rows, err := h.deps.store.Q.ListMissingItemsPage(ctx, db.ListMissingItemsPageParams{
+	seriesRows, err := h.deps.store.Q.ListMissingSeriesPage(ctx, db.ListMissingSeriesPageParams{
 		Column1:  boolParam(in.Unmonitored),
 		Column2:  boolParam(in.Unaired),
 		AirsAt:   nowStored,
@@ -145,53 +164,90 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		Limit:    int64(in.Limit) + 1,
 	})
 	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list missing series", err)
+	}
+	if len(seriesRows) > in.Limit {
+		last := seriesRows[in.Limit-1]
+		out.Body.NextCursor = keysetCursor(aggregateString(last.LatestMissingAir), last.ID)
+		seriesRows = seriesRows[:in.Limit]
+	}
+	out.Body.Groups = make([]missingGroupDTO, 0, len(seriesRows))
+	if len(seriesRows) == 0 {
+		return out, nil
+	}
+
+	ids := make([]int64, 0, len(seriesRows))
+	for _, s := range seriesRows {
+		ids = append(ids, s.ID)
+	}
+	itemRows, err := h.deps.store.Q.ListMissingItemsBySeries(ctx, db.ListMissingItemsBySeriesParams{
+		SeriesIds: ids,
+		Column2:   boolParam(in.Unaired),
+		AirsAt:    nowStored,
+	})
+	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list missing items", err)
+	}
+	itemsBySeries := make(map[int64][]missingItemDTO, len(seriesRows))
+	for _, r := range itemRows {
+		if len(itemsBySeries[r.SeriesID]) == missingItemsPerGroup {
+			continue
+		}
+		item := missingItemDTO{
+			ID:     r.ID,
+			Number: int(r.Number.Int64),
+			Name:   r.Title.String,
+			AirsAt: storedTimeRFC3339(r.AirsAt),
+			Reason: itemReason(itemFacts{
+				AirsAt: storedTime(r.AirsAt), GrabFailed: r.GrabStatus.Valid,
+			}, now),
+		}
+		if item.Reason == reasonGrabFailed {
+			item.ReasonDetail = r.GrabLastError.String
+		}
+		itemsBySeries[r.SeriesID] = append(itemsBySeries[r.SeriesID], item)
 	}
 
 	blocked, err := h.blockedCounts(ctx, nowStored)
 	if err != nil {
 		return nil, err
 	}
-	automation := h.deps.settings.Snapshot().Automation.Mode
-	indexerReady := h.deps.clients.Indexer() != nil
-
-	out := &missingOutput{}
-	out.Body.Items = make([]missingItemDTO, 0, min(len(rows), in.Limit))
-	for i, r := range rows {
-		if i == in.Limit {
-			out.Body.NextCursor = encodeCursor(acquire.QueueCursor{AirsAt: rows[i-1].AirsAt.String, ID: rows[i-1].ID})
-			break
+	for _, s := range seriesRows {
+		items := itemsBySeries[s.ID]
+		if len(items) == 0 {
+			// The two queries are not one transaction; a grab settling between
+			// them empties a group, and an empty group is a lie about a count.
+			continue
 		}
-		facts := missingFacts{
-			AirsAt:          storedTime(r.AirsAt),
-			Monitored:       r.SeriesMonitored == 1,
-			GrabFailed:      r.GrabStatus.Valid,
-			BlockedReleases: int(blocked[r.SeriesID]),
-			LastSearchedAt:  storedTime(r.SeriesLastSearchedAt),
-			NextSearchAt:    storedTime(r.SeriesNextSearchAt),
-			IndexerReady:    indexerReady,
-			Automation:      automation,
+		facts := seriesFacts{
+			Monitored:       s.Monitored == 1,
+			BlockedReleases: int(blocked[s.ID]),
+			LastSearchedAt:  storedTime(s.LastSearchedAt),
+			NextSearchAt:    storedTime(s.NextSearchAt),
 		}
-		item := missingItemDTO{
-			ID:           r.ID,
-			SeriesID:     r.SeriesID,
-			SeriesTitle:  r.SeriesTitle,
-			Monitored:    facts.Monitored,
-			Number:       int(r.Number.Int64),
-			Name:         r.Title.String,
-			AirsAt:       storedTimeRFC3339(r.AirsAt),
-			Reason:       missingReason(facts, now),
-			NextSearchAt: storedTimeRFC3339(r.SeriesNextSearchAt),
+		group := missingGroupDTO{
+			SeriesID:    s.ID,
+			SeriesTitle: s.Title,
+			Monitored:   facts.Monitored,
+			Reason:      seriesReason(facts, now),
+			Missing:     int(s.Missing),
+			Items:       items,
 		}
-		switch item.Reason {
-		case reasonGrabFailed:
-			item.ReasonDetail = r.GrabLastError.String
+		switch group.Reason {
 		case reasonBlocklisted:
-			item.BlockedReleases = facts.BlockedReleases
+			group.BlockedReleases = facts.BlockedReleases
+		case reasonSearchBackoff:
+			group.NextSearchAt = storedTimeRFC3339(s.NextSearchAt)
 		}
-		out.Body.Items = append(out.Body.Items, item)
+		out.Body.Groups = append(out.Body.Groups, group)
 	}
 	return out, nil
+}
+
+// aggregateString reads a text aggregate sqlc could only type as interface{}.
+func aggregateString(v any) string {
+	s, _ := v.(string)
+	return s
 }
 
 func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput) (*cutoffOutput, error) {

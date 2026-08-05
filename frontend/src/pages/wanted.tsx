@@ -18,8 +18,10 @@ import {
   api,
   ApiError,
   type CutoffItem,
+  type GlobalMissingReason,
+  type MissingGroup,
   type MissingItem,
-  type MissingReason,
+  type SeriesMissingReason,
 } from "@/lib/api";
 import { wantedCutoffQuery, wantedMissingQuery } from "@/lib/queries";
 import { airDate, countdownOrDate, pad2, plural } from "@/lib/format";
@@ -34,28 +36,29 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type WantedTab = "missing" | "cutoff";
 
-// The reason column's vocabulary, rendered from the enum the server derives.
-// Tone separates "you have to do something" from "the queue is working".
-const reasonLabel: Record<MissingReason, string> = {
-  unaired: "Not aired yet",
-  unmonitored: "Series unmonitored",
-  no_indexer: "No indexer configured",
-  automation_off: "Automation off",
-  notify_only: "Automation rehearsing",
-  grab_failed: "Last grab failed",
+// The reason tiers' vocabulary (#150): the page says what blocks everything,
+// a group header says where its series stands in the sweep queue, and a row
+// speaks only when it has its own story. Tone separates "you have to do
+// something" from "the queue is working".
+const globalReasonText: Record<GlobalMissingReason, string> = {
+  no_indexer:
+    "No indexer is configured, so nothing here can be searched for. Add one under Settings.",
+  automation_off:
+    "Automation is off: nothing here will be grabbed on its own. Searches you trigger still run.",
+  notify_only:
+    "Automation is rehearsing: decisions are notified, but nothing reaches the download client.",
+};
+
+const seriesReasonLabel: Record<SeriesMissingReason, string> = {
+  unmonitored: "Unmonitored",
   blocklisted: "Releases blocklisted",
   never_searched: "Not searched yet",
   search_backoff: "Search backing off",
   search_due: "Queued for search",
 };
 
-const reasonTone: Record<MissingReason, string> = {
-  unaired: "border-border bg-panel-2 text-faint",
+const seriesReasonTone: Record<SeriesMissingReason, string> = {
   unmonitored: "border-border bg-panel-2 text-faint",
-  no_indexer: "border-destructive/40 text-destructive",
-  automation_off: "border-destructive/40 text-destructive",
-  notify_only: "border-dl/40 text-dl",
-  grab_failed: "border-destructive/40 text-destructive",
   blocklisted: "border-dl/40 text-dl",
   never_searched: "border-border bg-panel-2 text-muted-foreground",
   search_backoff: "border-border bg-panel-2 text-muted-foreground",
@@ -139,19 +142,14 @@ function MissingTab({
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery(wantedMissingQuery(unaired, unmonitored));
-  const items = data?.pages.flatMap((p) => p.items) ?? [];
+  const groups = data?.pages.flatMap((p) => p.groups) ?? [];
+  const globalReason = data?.pages[0]?.global_reason;
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  // Selection is per series, because a search is per series: the sweep's unit is
-  // a series, and one item's row is how you name it.
-  const selectedSeries = [
-    ...new Set(items.filter((i) => selected.has(i.id)).map((i) => i.series_id)),
-  ];
-
-  const toggle = (id: number) =>
+  const toggle = (seriesId: number) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      if (!next.delete(id)) next.add(id);
+      if (!next.delete(seriesId)) next.add(seriesId);
       return next;
     });
 
@@ -163,11 +161,19 @@ function MissingTab({
 
   return (
     <>
+      {globalReason && (
+        <div className="mb-3 flex items-center gap-2.5 rounded-lg border border-dl/30 bg-dl-weak/40 px-3.5 py-2.5">
+          <TriangleAlert className="size-4 shrink-0 text-dl" />
+          <p className="text-[13px] text-foreground/90">
+            {globalReasonText[globalReason]}
+          </p>
+        </div>
+      )}
       <SearchActions
-        selectedSeries={selectedSeries}
+        selectedSeries={[...selected]}
         onDone={() => setSelected(new Set())}
       />
-      {items.length === 0 ? (
+      {groups.length === 0 ? (
         <EmptyState
           title="Nothing missing"
           blurb={
@@ -177,13 +183,13 @@ function MissingTab({
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
-          {items.map((item) => (
-            <MissingRow
-              key={item.id}
-              item={item}
-              selected={selected.has(item.id)}
-              onToggle={() => toggle(item.id)}
+        <div className="space-y-3">
+          {groups.map((group) => (
+            <MissingGroupCard
+              key={group.series_id}
+              group={group}
+              selected={selected.has(group.series_id)}
+              onToggle={() => toggle(group.series_id)}
             />
           ))}
         </div>
@@ -197,48 +203,75 @@ function MissingTab({
   );
 }
 
-function MissingRow({
-  item,
+function MissingGroupCard({
+  group,
   selected,
   onToggle,
 }: {
-  item: MissingItem;
+  group: MissingGroup;
   selected: boolean;
   onToggle: () => void;
 }) {
+  const hidden = group.missing - group.items.length;
   return (
-    <div className="flex items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0 hover:bg-panel-2/40">
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={onToggle}
-        className="size-3.5 accent-primary"
-        aria-label={`Select ${item.series_title} episode ${item.number}`}
-      />
+    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+      <header className="flex items-center gap-3 border-b bg-panel-2/50 px-3.5 py-2.5">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          className="size-3.5 accent-primary"
+          aria-label={`Select ${group.series_title}`}
+        />
+        <Link
+          to={`/series/${group.series_id}`}
+          className="min-w-0 flex-1 truncate text-sm font-semibold hover:underline"
+        >
+          {group.series_title}
+        </Link>
+        <span className="text-xs text-faint tabular-nums">
+          {plural(group.missing, "episode")} missing
+        </span>
+        <SeriesReasonBadge group={group} />
+      </header>
+      {group.items.map((item) => (
+        <MissingRow key={item.id} seriesId={group.series_id} item={item} />
+      ))}
+      {hidden > 0 && (
+        <Link
+          to={`/series/${group.series_id}`}
+          className="block px-3.5 py-2 text-xs text-muted-foreground hover:bg-panel-2/40 hover:text-foreground"
+        >
+          …and {plural(hidden, "more episode")} — open the series
+        </Link>
+      )}
+    </section>
+  );
+}
+
+function MissingRow({
+  seriesId,
+  item,
+}: {
+  seriesId: number;
+  item: MissingItem;
+}) {
+  return (
+    <div className="flex items-center gap-3 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40">
       <span className="w-8 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
         {pad2(item.number)}
       </span>
-      <div className="min-w-0 flex-1">
-        <Link
-          to={`/series/${item.series_id}`}
-          className="block truncate text-sm font-medium hover:underline"
-        >
-          {item.series_title}
-        </Link>
-        {item.name && (
-          <div className="truncate text-xs text-muted-foreground">
-            {item.name}
-          </div>
-        )}
-      </div>
+      <span className="min-w-0 flex-1 truncate text-sm text-foreground/90">
+        {item.name || `Episode ${item.number}`}
+      </span>
       <span className="hidden w-28 shrink-0 text-right text-xs text-faint sm:block">
         {airDate(item.airs_at)}
       </span>
-      <ReasonBadge item={item} />
+      <ItemReasonBadge item={item} />
       <Button variant="outline" size="sm" asChild>
         {/* #105's episode-targeted search: the Releases tab opens filtered to
             this episode, where the unchanged manual grab lives. */}
-        <Link to={`/series/${item.series_id}?item=${item.number}`}>
+        <Link to={`/series/${seriesId}?item=${item.number}`}>
           <Search className="size-4" /> Search
         </Link>
       </Button>
@@ -246,24 +279,41 @@ function MissingRow({
   );
 }
 
-function ReasonBadge({ item }: { item: MissingItem }) {
+function SeriesReasonBadge({ group }: { group: MissingGroup }) {
   const detail =
-    item.reason === "grab_failed"
-      ? item.reason_detail
-      : item.reason === "blocklisted"
-        ? plural(item.blocked_releases ?? 0, "release")
-        : item.reason === "search_backoff"
-          ? `Next search ${countdownOrDate(item.next_search_at)}`
-          : undefined;
+    group.reason === "blocklisted"
+      ? plural(group.blocked_releases ?? 0, "release")
+      : group.reason === "search_backoff"
+        ? `Next search ${countdownOrDate(group.next_search_at)}`
+        : undefined;
   return (
     <span
       title={detail || undefined}
       className={cn(
         "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap md:inline-flex",
-        reasonTone[item.reason],
+        seriesReasonTone[group.reason],
       )}
     >
-      {reasonLabel[item.reason]}
+      {seriesReasonLabel[group.reason]}
+    </span>
+  );
+}
+
+// A row speaks only when it has its own story; most rows are told by their
+// group and stay quiet.
+function ItemReasonBadge({ item }: { item: MissingItem }) {
+  if (!item.reason) return null;
+  return (
+    <span
+      title={item.reason === "grab_failed" ? item.reason_detail : undefined}
+      className={cn(
+        "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap md:inline-flex",
+        item.reason === "grab_failed"
+          ? "border-destructive/40 text-destructive"
+          : "border-border bg-panel-2 text-faint",
+      )}
+    >
+      {item.reason === "grab_failed" ? "Last grab failed" : "Not aired yet"}
     </span>
   );
 }

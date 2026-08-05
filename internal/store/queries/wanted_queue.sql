@@ -5,27 +5,21 @@
 -- byte vs. rune offsets and silently truncates the emitted SQL on a multi-byte
 -- character. See CLAUDE.md.
 
--- name: ListMissingItemsPage :many
--- Every item still worth acquiring, across all series. The wanted half is the
--- sweep's predicate character for character (the EXISTS body of
--- ListSeriesDueWantedSearch), which is what keeps this page honest about what
--- automation will go after; an in-flight grab is absent by construction, being
--- Activity's to show. The cadence columns ride along because the reason column
--- is derived from stored state alone.
--- Ordered newest broadcast first, undated last: COALESCE sorts a null air date
--- below every timestamp, and lexicographic compare on the one stored layout is
--- chronological. Id ascends inside a group deliberately -- a series with no
--- schedule at all is a back catalogue, and draining one reads forwards, not
--- backwards. The cursor pair is that same (air date, id), so a first page passes
--- a sentinel above every stored value and one query serves every page.
-SELECT w.*,
-       s.title            AS series_title,
-       s.monitored        AS series_monitored,
-       s.last_searched_at AS series_last_searched_at,
-       s.next_search_at   AS series_next_search_at,
-       g.status           AS grab_status,
-       g.release_title    AS grab_release_title,
-       g.last_error       AS grab_last_error
+-- name: ListMissingSeriesPage :many
+-- The Missing tab's pagination unit is the series, so a group can never split
+-- across a page boundary. The wanted half is the sweep's predicate character
+-- for character (the EXISTS body of ListSeriesDueWantedSearch), which is what
+-- keeps this page honest about what automation will go after; an in-flight
+-- grab is absent by construction, being Activity's to show. Groups are ordered
+-- newest missing broadcast first, all-undated series last: COALESCE sorts a
+-- null air date below every timestamp, and lexicographic compare on the one
+-- stored layout is chronological. The keyset lives in HAVING because it binds
+-- on the aggregate; a first page passes a sentinel above every stored value so
+-- one query serves every page. The count is the whole group even when the
+-- handler caps the items it returns for one.
+SELECT s.id, s.title, s.monitored, s.last_searched_at, s.next_search_at,
+       MAX(COALESCE(w.airs_at, '')) AS latest_missing_air,
+       COUNT(*)                     AS missing
 FROM wanted_items w
 JOIN series s ON s.id = w.series_id
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
@@ -33,9 +27,27 @@ WHERE w.have = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR s.monitored = 1)
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
-  AND (COALESCE(w.airs_at, '') < ? OR (COALESCE(w.airs_at, '') = ? AND w.id > ?))
-ORDER BY COALESCE(w.airs_at, '') DESC, w.id
+GROUP BY s.id
+HAVING MAX(COALESCE(w.airs_at, '')) < ? OR (MAX(COALESCE(w.airs_at, '')) = ? AND s.id > ?)
+ORDER BY MAX(COALESCE(w.airs_at, '')) DESC, s.id
 LIMIT ?;
+
+-- name: ListMissingItemsBySeries :many
+-- The items behind one page of groups. Same wanted predicate and unaired filter
+-- as the series page, so a group and its items are computed from one reading of
+-- the world. Number ascends within a series deliberately: a back catalogue
+-- drains forwards, and episodes enumerate forwards however their dates fall.
+SELECT w.*,
+       g.status        AS grab_status,
+       g.release_title AS grab_release_title,
+       g.last_error    AS grab_last_error
+FROM wanted_items w
+LEFT JOIN grabs g ON g.wanted_item_id = w.id
+WHERE w.series_id IN (sqlc.slice('series_ids'))
+  AND w.have = 0
+  AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+  AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
+ORDER BY w.series_id, w.number;
 
 -- name: ListCutoffUnmetPage :many
 -- Held items on an upgrading profile: the candidate set for Cutoff Unmet, whose
