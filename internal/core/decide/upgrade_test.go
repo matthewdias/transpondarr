@@ -165,12 +165,37 @@ func TestUpgradePolicy(t *testing.T) {
 }
 
 // A matched held item reads as an upgrade rather than as an ordinary wanted
-// episode, so the Releases tab does not claim we are missing it.
+// episode, so the Releases tab does not claim we are missing it — on the batch
+// path as much as the single-episode one.
 func TestUpgradeMatchReason(t *testing.T) {
-	got := Match(heldItems(held480), []string{"Placeholder Saga"},
-		[]indexer.Release{{Title: "[TopSubs] Placeholder Saga - 03 [1080p]"}}, upgradeProfile(2400))
-	if r := got[0].Reason; !strings.Contains(r, "upgrade") {
-		t.Errorf("reason = %q, want it to say the release upgrades a held item", r)
+	cases := []struct {
+		name    string
+		items   func() []Item
+		release string
+		want    string
+	}{
+		{"single", func() []Item { return heldItems(held480) },
+			"[TopSubs] Placeholder Saga - 03 [1080p]", "upgrades a held item"},
+		{"batch all held", func() []Item {
+			its := items(2)
+			its[0].HeldTitle = "[TopSubs] Placeholder Saga - 01 [480p]"
+			its[1].HeldTitle = "[TopSubs] Placeholder Saga - 02 [480p]"
+			return its
+		}, "[TopSubs] Placeholder Saga - 01-02 [1080p]", "upgrades held items"},
+		{"batch mixed", func() []Item {
+			its := items(2)
+			its[0].HeldTitle = "[TopSubs] Placeholder Saga - 01 [480p]"
+			return its
+		}, "[TopSubs] Placeholder Saga - 01-02 [1080p]", "upgrades held"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Match(tc.items(), []string{"Placeholder Saga"},
+				[]indexer.Release{{Title: tc.release}}, upgradeProfile(2400))
+			if r := got[0].Reason; !strings.Contains(r, tc.want) {
+				t.Errorf("reason = %q, want it to mention %q", r, tc.want)
+			}
+		})
 	}
 }
 
@@ -223,6 +248,12 @@ func TestScoreLandmarksArePinned(t *testing.T) {
 	}
 	if scoreGroupBase+scoreResBase != 2400 {
 		t.Errorf("top group at best resolution = %d, want 2400", scoreGroupBase+scoreResBase)
+	}
+	if scoreGroupMin != 1000 {
+		t.Errorf("scoreGroupMin = %d, want 1000 (the any-ranked-group landmark)", scoreGroupMin)
+	}
+	if scoreResStep != 100 {
+		t.Errorf("scoreResStep = %d, want 100 (anchors the second-best-resolution landmark)", scoreResStep)
 	}
 }
 

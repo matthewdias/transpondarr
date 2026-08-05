@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -54,12 +55,16 @@ func ParseMode(s string) Mode {
 type Target struct {
 	root string
 	mode Mode
+	log  *slog.Logger
 }
 
 // New constructs a media-server layout target rooted at root. mode is
-// auto|hardlink|copy (see ParseMode).
-func New(root, mode string) *Target {
-	return &Target{root: root, mode: ParseMode(mode)}
+// auto|hardlink|copy (see ParseMode). A nil log discards.
+func New(root, mode string, log *slog.Logger) *Target {
+	if log == nil {
+		log = slog.New(slog.DiscardHandler)
+	}
+	return &Target{root: root, mode: ParseMode(mode), log: log}
 }
 
 func (t *Target) Name() string { return "mediaserver" }
@@ -118,7 +123,7 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 		return "", err
 	}
 	if req.Replace {
-		removeStemMates(destDir, stem, dest)
+		t.removeStemMates(destDir, stem, dest)
 	}
 	return dest, nil
 }
@@ -155,9 +160,10 @@ func (t *Target) replace(ctx context.Context, src, dest string) error {
 // copies of it. Best-effort: the upgrade is already in place, and a stray file
 // is not worth failing an import that otherwise succeeded. The trailing dot is
 // what keeps an upgrade of E10 from removing E100.
-func removeStemMates(dir, stem, keep string) {
+func (t *Target) removeStemMates(dir, stem, keep string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
+		t.log.Debug("mediaserver: stem-mate sweep skipped", "dir", dir, "err", err)
 		return
 	}
 	for _, e := range entries {
@@ -165,7 +171,9 @@ func removeStemMates(dir, stem, keep string) {
 		if e.IsDir() || name == filepath.Base(keep) || !strings.HasPrefix(name, stem+".") {
 			continue
 		}
-		_ = os.Remove(filepath.Join(dir, name))
+		if err := os.Remove(filepath.Join(dir, name)); err != nil {
+			t.log.Debug("mediaserver: superseded stem-mate left behind", "path", filepath.Join(dir, name), "err", err)
+		}
 	}
 }
 

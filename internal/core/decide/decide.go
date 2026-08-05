@@ -410,7 +410,20 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 		}
 		if covered := batchItems(p, itemSet, maxItem); len(covered) > 0 {
 			c.Matched, c.Items = true, covered
-			c.Reason = "batch / season pack covers wanted items"
+			heldCount := 0
+			for _, n := range covered {
+				if _, ok := held[n]; ok {
+					heldCount++
+				}
+			}
+			switch heldCount {
+			case 0:
+				c.Reason = "batch / season pack covers wanted items"
+			case len(covered):
+				c.Reason = "batch / season pack upgrades held items"
+			default:
+				c.Reason = "batch / season pack covers wanted and upgrades held items"
+			}
 			return c
 		}
 		c.Reason = "batch / season pack covers nothing still wanted"
