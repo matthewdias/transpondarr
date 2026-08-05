@@ -168,6 +168,26 @@ Behaviour changes are test-driven. Work red → green → refactor:
   video is counted at all. Downstream the relaxation needs no special case: a
   one-item group takes it by the lone-file rule, a multi-item group leaves it
   over and defers.
+- **Nothing unpacks an archive; the walk names one instead (#135).** Declined
+  deliberately: there is no Usenet client here (qBittorrent only) and RAR
+  packaging is a Usenet/scene convention that anime groups do not use, so a
+  decoder would be the first dependency in the import path and its tests would
+  need committed binary fixtures. So `collectPayloadFiles` returns a `payload`
+  whose `archives` ride *beside* `[]candidate`, never inside it — `mapFiles`
+  stays pure and a `.rar` is unassignable by construction rather than by a guard
+  someone can miss. Volumes are grouped into sets keyed on **dir + stem**, so a
+  12-volume set is one thing to extract and two discs sharing a naming scheme
+  stay two; the deferral reason and the Fix import dialog then say what to
+  extract, and re-importing after extracting in place already works with no new
+  code. **An archive keeps its item deferred on every path**, including a retry
+  clicked before extracting and a mixed payload whose loose file covers only some
+  items — failing there would revert the item, blocklist the release and drop the
+  row from the queue, with the episode sitting in the payload the whole time.
+  Password-protected and corrupt archives are indistinguishable from healthy ones
+  without the reader we declined, and all three defer identically — sound,
+  because deferral is settled either way. A single-file `.rar` payload is an
+  archive too: identity by construction stops here, since hardlinking it into
+  the library as the episode is worse than deferring.
 - **The mapping rules are narrow on purpose, because a wrong answer moves a
   file.** A lone file for a lone item is identity by construction (we chose this
   release); a file claims a number only when it names exactly one, with
@@ -179,11 +199,13 @@ Behaviour changes are test-driven. Work red → green → refactor:
   a filename is the whole reason the escape hatch exists.
 - **A covered item with no file splits by whether a human could fix it.** Files
   still loose in the payload → defer with the detail naming what is unmatched,
-  fixable from the Activity queue. Nothing left over → `failGrab`, so the item
-  reverts to wanted and the sweep self-heals with a single; it flows through the
-  same `remember()` grouping, so one payload is one step on the blocklist
-  ladder. A payload with *no* video at all keeps deferring — that is #135 (RAR
-  sets), not this. A file for an item the release never claimed is placed too,
+  fixable from the Activity queue. **An unextracted archive counts as still
+  loose** — it holds the episode, so it is a human's to fix — which is why
+  `settleGroup` takes the whole `payload` rather than its files. Nothing left
+  over at all → `failGrab`, so the item reverts to wanted and the sweep
+  self-heals with a single; it flows through the same `remember()` grouping, so
+  one payload is one step on the blocklist ladder. A file for an item the
+  release never claimed is placed too,
   guarded on the item existing, not being had, and carrying no unsettled grab,
   and **holding the `acquire` claim** (`TryClaimItems`/`ReleaseClaims`) so a
   concurrent grab cannot race a copy-mode `Place` that runs for minutes. One

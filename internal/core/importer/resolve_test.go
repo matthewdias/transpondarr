@@ -1,9 +1,11 @@
 package importer
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -12,6 +14,14 @@ import (
 func writeTree(t *testing.T, paths ...string) string {
 	t.Helper()
 	root := t.TempDir()
+	writeTreeInto(t, root, paths...)
+	return root
+}
+
+// writeTreeInto adds to a payload already on disk, the way extracting an archive
+// into the download folder does.
+func writeTreeInto(t *testing.T, root string, paths ...string) {
+	t.Helper()
 	for _, p := range paths {
 		full := filepath.Join(root, filepath.FromSlash(p))
 		if p[len(p)-1] == '/' {
@@ -27,21 +37,38 @@ func writeTree(t *testing.T, paths ...string) string {
 			t.Fatal(err)
 		}
 	}
-	return root
 }
 
 // collected returns the payload-relative paths the walk kept, sorted.
 func collected(t *testing.T, root string) []string {
 	t.Helper()
-	cands, err := collectPayloadFiles(root)
+	p, err := collectPayloadFiles(root)
 	if err != nil {
 		t.Fatalf("collect: %v", err)
 	}
-	out := make([]string, 0, len(cands))
-	for _, c := range cands {
+	out := make([]string, 0, len(p.files))
+	for _, c := range p.files {
 		out = append(out, c.rel)
 	}
 	sort.Strings(out)
+	return out
+}
+
+// archivesOf returns the archive sets the walk reported, as "rel×parts" in the
+// order the walk found them.
+func archivesOf(t *testing.T, root string) []string {
+	t.Helper()
+	p, err := collectPayloadFiles(root)
+	if err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	if len(p.files) != 0 {
+		t.Fatalf("collected %+v, want no candidate from an archive payload", p.files)
+	}
+	out := make([]string, 0, len(p.archives))
+	for _, a := range p.archives {
+		out = append(out, fmt.Sprintf("%s×%d", a.rel, a.parts))
+	}
 	return out
 }
 
@@ -119,7 +146,8 @@ func TestCollectsNestedFilesWithTheirRelativePath(t *testing.T) {
 	wantCollected(t, collected(t, root), []string{"Season 01/[ExampleSubs] Placeholder Saga - 05 [1080p].mkv"})
 }
 
-// No video at all: nothing to place, and #135 owns unpacking a RAR set.
+// No video at all: nothing to place, and the RAR set is reported rather than
+// opened -- see the archive tests below.
 func TestCollectsNothingFromAPayloadWithoutVideo(t *testing.T) {
 	root := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].rar",
@@ -144,8 +172,9 @@ func TestCollectsSoleVideoCarryingAnExtrasToken(t *testing.T) {
 	wantCollected(t, collected(t, root), []string{"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv"})
 }
 
-// The standard scene layout: the episode is inside the RAR set and the only
-// video is a truncated sample, which the relaxation must not reach for.
+// The standard scene layout: the episode is inside the RAR set, which nothing
+// here opens, and the only video is a truncated sample the relaxation must not
+// reach for.
 func TestCollectsNothingFromAnArchivePayloadWithARootSample(t *testing.T) {
 	root := writeTree(t,
 		"placeholder.saga.s01e05.1080p.web.h264-example.rar",
@@ -157,6 +186,100 @@ func TestCollectsNothingFromAnArchivePayloadWithARootSample(t *testing.T) {
 	if got := collected(t, root); len(got) != 0 {
 		t.Errorf("collected %v, want nothing", got)
 	}
+}
+
+// The whole set is one thing to extract, so a 3-volume release is one archive
+// and not three -- the deferral names it, and the dialog lists it.
+func TestReportsAMultipartRarSetAsOneArchive(t *testing.T) {
+	root := writeTree(t,
+		"placeholder.saga.s01e05.1080p.web.h264-example.rar",
+		"placeholder.saga.s01e05.1080p.web.h264-example.r00",
+		"placeholder.saga.s01e05.1080p.web.h264-example.r01",
+		"placeholder.saga.s01e05.1080p.web.h264-example.sfv",
+		"sample-placeholder.saga.s01e05.mkv",
+	)
+
+	wantCollected(t, archivesOf(t, root),
+		[]string{"placeholder.saga.s01e05.1080p.web.h264-example.rar×3"})
+}
+
+// The other multipart scheme: the head is partNN with NN == 1, not the shortest name.
+func TestReportsPartVolumesAsOneArchive(t *testing.T) {
+	root := writeTree(t,
+		"placeholder.saga.s01e05.1080p.web.h264-example.part01.rar",
+		"placeholder.saga.s01e05.1080p.web.h264-example.part02.rar",
+		"placeholder.saga.s01e05.1080p.web.h264-example.part03.rar",
+	)
+
+	wantCollected(t, archivesOf(t, root),
+		[]string{"placeholder.saga.s01e05.1080p.web.h264-example.part01.rar×3"})
+}
+
+// Two single-volume archives are two things to extract; merging them would
+// understate the work and name only one of them.
+func TestReportsTwoArchiveSetsSeparately(t *testing.T) {
+	root := writeTree(t,
+		"[ExampleSubs] Placeholder Saga - 04 [1080p].rar",
+		"[ExampleSubs] Placeholder Saga - 05 [1080p].rar",
+	)
+
+	wantCollected(t, archivesOf(t, root), []string{
+		"[ExampleSubs] Placeholder Saga - 04 [1080p].rar×1",
+		"[ExampleSubs] Placeholder Saga - 05 [1080p].rar×1",
+	})
+}
+
+// Sets are keyed on the folder as well as the stem, or two discs sharing a
+// naming scheme merge into one set with twice the parts.
+func TestReportsSameNamedArchivesInTwoFoldersSeparately(t *testing.T) {
+	root := writeTree(t, "Disc1/payload.rar", "Disc2/payload.rar")
+
+	wantCollected(t, archivesOf(t, root), []string{"Disc1/payload.rar×1", "Disc2/payload.rar×1"})
+}
+
+func TestReportsZipAndSevenZipArchives(t *testing.T) {
+	split := writeTree(t, "payload.zip", "payload.z01")
+	wantCollected(t, archivesOf(t, split), []string{"payload.zip×2"})
+
+	seven := writeTree(t, "payload.7z")
+	wantCollected(t, archivesOf(t, seven), []string{"payload.7z×1"})
+
+	// The ordinary 7z split has no bare .7z head, so the stem-stripping is the
+	// only thing holding its volumes together.
+	sevenSplit := writeTree(t, "payload.7z.001", "payload.7z.002", "payload.7z.003")
+	wantCollected(t, archivesOf(t, sevenSplit), []string{"payload.7z.001×3"})
+}
+
+// A folder whose head volume never arrived still has to be named by a file that
+// exists, or the reason and the dialog point at nothing.
+func TestReportsAHeadlessRarSetBySmallestVolume(t *testing.T) {
+	root := writeTree(t, "payload.r01", "payload.r00")
+
+	wantCollected(t, archivesOf(t, root), []string{"payload.r00×2"})
+}
+
+// Sidecars are not something a human extracts, so "nothing at all" stays
+// distinguishable from "an archive we decline to open".
+func TestReportsNoArchiveForSidecarsAlone(t *testing.T) {
+	root := writeTree(t,
+		"placeholder.saga.s01e05.1080p.web.h264-example.nfo",
+		"placeholder.saga.s01e05.1080p.web.h264-example.sfv",
+		"Subs/placeholder.saga.s01e05.en.srt",
+		"RARBG.txt",
+	)
+
+	if got := archivesOf(t, root); len(got) != 0 {
+		t.Errorf("archives = %v, want none", got)
+	}
+}
+
+// Identity by construction stops at an archive: hardlinking a .rar into the
+// library as the episode is worse than deferring it.
+func TestPlainArchiveFilePayloadIsNotACandidate(t *testing.T) {
+	root := writeTree(t, "placeholder.saga.s01e05.1080p.web.h264-example.rar")
+
+	wantCollected(t, archivesOf(t, filepath.Join(root, "placeholder.saga.s01e05.1080p.web.h264-example.rar")),
+		[]string{"placeholder.saga.s01e05.1080p.web.h264-example.rar×1"})
 }
 
 // A sample is not a video at all, so the episode is still the sole one even when
@@ -206,5 +329,25 @@ func TestNonEpisodeTokensMatchWholeWords(t *testing.T) {
 		if got := hasNonEpisodeToken(tc.name); got != tc.want {
 			t.Errorf("hasNonEpisodeToken(%q) = %v, want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+// The multi-set reason is where a name helps most: the user has to go and find
+// them, and a bare count says only that there is more than one.
+func TestNoVideoReasonNamesEveryArchiveItCanFit(t *testing.T) {
+	two := noVideoReason([]archive{{rel: "ep04.rar", parts: 2}, {rel: "ep05.rar", parts: 2}})
+	if !strings.Contains(two, "ep04.rar") || !strings.Contains(two, "ep05.rar") {
+		t.Errorf("reason = %q, want both sets named", two)
+	}
+	// Naming a whole season's worth would bury the instruction that follows.
+	many := noVideoReason([]archive{
+		{rel: "ep01.rar", parts: 2}, {rel: "ep02.rar", parts: 2},
+		{rel: "ep03.rar", parts: 2}, {rel: "ep04.rar", parts: 2},
+	})
+	if !strings.Contains(many, "ep01.rar") || strings.Contains(many, "ep04.rar") {
+		t.Errorf("reason = %q, want the first sets named and the tail summarised", many)
+	}
+	if !strings.Contains(many, "1 more") {
+		t.Errorf("reason = %q, want the unnamed tail counted", many)
 	}
 }

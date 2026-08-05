@@ -25,6 +25,10 @@ type payloadJSON struct {
 		EpisodeStart  int    `json:"episode_start"`
 		SuggestedItem int    `json:"suggested_item"`
 	} `json:"files"`
+	Archives []struct {
+		Path  string `json:"path"`
+		Parts int    `json:"parts"`
+	} `json:"archives"`
 }
 
 type retryJSON struct {
@@ -76,6 +80,62 @@ func deferredRelease(t *testing.T, h *harness) (seriesID, deferredGrabID, import
 		t.Fatalf("grabs = %+v, want one imported and one deferred", rows)
 	}
 	return seriesID, deferredGrabID, importedGrabID
+}
+
+// deferredArchiveRelease is the same state over a payload nothing can read: a
+// RAR set, which the dialog has to render or it is a dead end.
+func deferredArchiveRelease(t *testing.T, h *harness) (deferredGrabID int64) {
+	t.Helper()
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 6)
+	seedOpenGrab(t, h.store, seriesID, 1, "rarhash", "placeholder.saga.s01e01.1080p.web.h264-synth", "grabbed")
+
+	dir := t.TempDir()
+	for _, name := range []string{
+		"placeholder.saga.s01e01.1080p.web.h264-synth.rar",
+		"placeholder.saga.s01e01.1080p.web.h264-synth.r00",
+		"placeholder.saga.s01e01.1080p.web.h264-synth.r01",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h.dl.Statuses = []download.Status{
+		{Hash: "rarhash", State: download.StateComplete, ContentPath: dir},
+	}
+	if err := h.importer.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	rows, err := h.store.Q.ListGrabsByInfoHash(context.Background(), "rarhash")
+	if err != nil {
+		t.Fatalf("list grabs: %v", err)
+	}
+	for _, g := range rows {
+		if g.Status == "import_deferred" {
+			return g.ID
+		}
+	}
+	t.Fatalf("grabs = %+v, want the archive payload deferred", rows)
+	return 0
+}
+
+// An empty file list was the dead end; the archive is what the dialog renders
+// instead, and it is listed beside the files rather than among them.
+func TestQueueItemPayloadListsArchivesItCannotUnpack(t *testing.T) {
+	h := newHarness(t, nil, &coretest.FakeDownload{})
+	deferredID := deferredArchiveRelease(t, h)
+
+	var out payloadJSON
+	if code := h.get(t, fmt.Sprintf("/api/v1/activity/queue/%d/payload", deferredID), &out); code != http.StatusOK {
+		t.Fatalf("payload status = %d, want 200", code)
+	}
+	if len(out.Files) != 0 {
+		t.Errorf("files = %+v, want none from an archive payload", out.Files)
+	}
+	if len(out.Archives) != 1 || out.Archives[0].Parts != 3 ||
+		out.Archives[0].Path != "placeholder.saga.s01e01.1080p.web.h264-synth.rar" {
+		t.Fatalf("archives = %+v, want the one 3-part set", out.Archives)
+	}
 }
 
 func TestQueueItemPayloadListsTheFilesAndItems(t *testing.T) {

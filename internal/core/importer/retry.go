@@ -43,12 +43,20 @@ type PayloadItem struct {
 	Status     string
 }
 
+// PayloadArchive is one archive set in a deferred payload. Nothing can place it
+// in the library, so it is listed beside the files and never among them.
+type PayloadArchive struct {
+	Path  string
+	Parts int
+}
+
 // PayloadInfo is a deferred release's payload as the retry dialog sees it.
 type PayloadInfo struct {
 	ReleaseTitle string
 	InfoHash     string
 	Items        []PayloadItem
 	Files        []PayloadFile
+	Archives     []PayloadArchive
 }
 
 // RetryResult is one row's outcome from a retry.
@@ -69,7 +77,7 @@ func (im *Importer) ListPayload(ctx context.Context, grabID int64) (PayloadInfo,
 	if err != nil {
 		return PayloadInfo{}, err
 	}
-	files, err := collectPayloadFiles(st.ContentPath)
+	p, err := collectPayloadFiles(st.ContentPath)
 	if err != nil {
 		return PayloadInfo{}, fmt.Errorf("%w: %w", ErrPayloadGone, err)
 	}
@@ -86,12 +94,12 @@ func (im *Importer) ListPayload(ctx context.Context, grabID int64) (PayloadInfo,
 	}
 	// Suggestions come from the same mapper the retry will run, so the dialog
 	// preselects what an automatic re-map would do rather than a second opinion.
-	res := mapFiles(files, covers, nil)
+	res := mapFiles(p.files, covers, nil)
 	suggested := make(map[string]int, len(res.assigned))
 	for n, c := range res.assigned {
 		suggested[c.rel] = n
 	}
-	for _, f := range files {
+	for _, f := range p.files {
 		info.Files = append(info.Files, PayloadFile{
 			Path:            f.rel,
 			EpisodeStart:    f.parsed.EpisodeStart,
@@ -102,6 +110,9 @@ func (im *Importer) ListPayload(ctx context.Context, grabID int64) (PayloadInfo,
 			Repack:          f.parsed.Repack,
 			SuggestedItem:   suggested[f.rel],
 		})
+	}
+	for _, a := range p.archives {
+		info.Archives = append(info.Archives, PayloadArchive{Path: a.rel, Parts: a.parts})
 	}
 	return info, nil
 }
@@ -121,7 +132,7 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 	if target == nil {
 		return nil, ErrNoClient
 	}
-	files, err := collectPayloadFiles(st.ContentPath)
+	p, err := collectPayloadFiles(st.ContentPath)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrPayloadGone, err)
 	}
@@ -129,10 +140,11 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 	// Grabbed rows stay the scan's business; a retry only reopens what settled.
 	deferred := rowsWithStatus(group, statusDeferred)
 	assignments = slashKeys(assignments)
-	if err := im.validateAssignments(ctx, deferred, files, assignments); err != nil {
+	if err := im.validateAssignments(ctx, deferred, p.files, assignments); err != nil {
 		return nil, err
 	}
-	im.remember(ctx, im.settleGroup(ctx, target, deferred, files, assignments))
+	failed, details := im.settleGroup(ctx, target, deferred, p, assignments)
+	im.remember(ctx, failed)
 
 	results := make([]RetryResult, 0, len(deferred))
 	for _, g := range deferred {
@@ -145,10 +157,16 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 			// Left open by a Place that failed; the scan picks it up on its own.
 			outcome = "unchanged"
 		}
+		// A settled row's last_error is cleared by design, so the reason it settled
+		// by is the only thing the toast can say.
+		detail := row.LastError.String
+		if detail == "" {
+			detail = details[g.ID]
+		}
 		results = append(results, RetryResult{
 			ItemNumber: int(row.ItemNumber.Int64),
 			Outcome:    outcome,
-			Detail:     row.LastError.String,
+			Detail:     detail,
 		})
 	}
 	return results, nil

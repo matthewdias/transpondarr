@@ -1207,6 +1207,15 @@ export interface components {
             token_set: boolean;
             topic: string;
         };
+        PayloadArchiveDTO: {
+            /**
+             * Format: int64
+             * @description Volumes the set spans
+             */
+            parts: number;
+            /** @description Payload-relative path of the volume to extract */
+            path: string;
+        };
         PayloadFileDTO: {
             /** Format: int64 */
             absolute_episode: number;
@@ -1323,6 +1332,7 @@ export interface components {
              * @example https://example.com/schemas/QueuePayloadOutputBody.json
              */
             readonly $schema?: string;
+            archives: components["schemas"]["PayloadArchiveDTO"][];
             files: components["schemas"]["PayloadFileDTO"][];
             infohash: string;
             items: components["schemas"]["PayloadItemDTO"][];

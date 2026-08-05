@@ -98,6 +98,13 @@ type payloadFileDTO struct {
 	SuggestedItem   int    `json:"suggested_item" doc:"What an automatic re-map would claim; 0 when nothing"`
 }
 
+// payloadArchiveDTO is one archive set in the payload. Nothing can place it in
+// the library, so it is listed beside the files and never among them.
+type payloadArchiveDTO struct {
+	Path  string `json:"path" doc:"Payload-relative path of the volume to extract"`
+	Parts int    `json:"parts" doc:"Volumes the set spans"`
+}
+
 // payloadItemDTO is one grab row sharing the release being fixed.
 type payloadItemDTO struct {
 	GrabID     int64  `json:"grab_id"`
@@ -111,10 +118,11 @@ type queuePayloadInput struct {
 
 type queuePayloadOutput struct {
 	Body struct {
-		ReleaseTitle string           `json:"release_title"`
-		InfoHash     string           `json:"infohash"`
-		Items        []payloadItemDTO `json:"items"`
-		Files        []payloadFileDTO `json:"files"`
+		ReleaseTitle string              `json:"release_title"`
+		InfoHash     string              `json:"infohash"`
+		Items        []payloadItemDTO    `json:"items"`
+		Files        []payloadFileDTO    `json:"files"`
+		Archives     []payloadArchiveDTO `json:"archives"`
 	}
 }
 
@@ -330,6 +338,10 @@ func (h *activityHandler) getPayload(ctx context.Context, in *queuePayloadInput)
 			Repack:          f.Repack,
 			SuggestedItem:   f.SuggestedItem,
 		})
+	}
+	out.Body.Archives = make([]payloadArchiveDTO, 0, len(info.Archives))
+	for _, a := range info.Archives {
+		out.Body.Archives = append(out.Body.Archives, payloadArchiveDTO{Path: a.Path, Parts: a.Parts})
 	}
 	return out, nil
 }

@@ -78,6 +78,91 @@ func TestDeferAppendsDeferredEventWithDetail(t *testing.T) {
 	}
 }
 
+// Nothing here unpacks a RAR set, so the deferral has to name what it found and
+// what to do with it -- otherwise the row is a dead end.
+func TestDefersAnArchivePayloadNamingTheArchive(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, seriesID := seedGrab(t, st, "abc")
+	dir := writeTree(t,
+		"placeholder.saga.s01e05.1080p.web.h264-example.rar",
+		"placeholder.saga.s01e05.1080p.web.h264-example.r00",
+		"placeholder.saga.s01e05.1080p.web.h264-example.r01",
+		"placeholder.saga.s01e05.1080p.web.h264-example.sfv",
+	)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	events := seriesEvents(t, st, seriesID)
+	if len(events) != 1 || events[0].Event != "import_deferred" {
+		t.Fatalf("events = %+v, want one import_deferred", events)
+	}
+	if !strings.Contains(events[0].Detail, "3-part archive set") {
+		t.Errorf("detail = %q, want it to name the archive set and its size", events[0].Detail)
+	}
+	if !strings.Contains(events[0].Detail, "Fix import") {
+		t.Errorf("detail = %q, want it to point at the manual path", events[0].Detail)
+	}
+}
+
+// A payload holding one loose episode and an archive covering another must not
+// fail the second: the bytes are right there, so it is a human's to fix.
+func TestDefersTheItemAnArchiveCoversBesideALooseFile(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedBatchGrab(t, st, "abc", 2)
+	dir := writeTree(t,
+		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
+		"placeholder.saga.s01e02.1080p.web.h264-synth.rar",
+		"placeholder.saga.s01e02.1080p.web.h264-synth.r00",
+	)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	rows, err := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	if err != nil {
+		t.Fatalf("list grabs: %v", err)
+	}
+	got := map[int64]string{}
+	for _, r := range rows {
+		got[r.ItemNumber.Int64] = r.Status
+	}
+	if got[1] != statusImported {
+		t.Errorf("episode 1 status = %q, want the loose file imported", got[1])
+	}
+	if got[2] != statusDeferred {
+		t.Errorf("episode 2 status = %q, want the archive to hold it deferred", got[2])
+	}
+}
+
+// The two deferrals stay distinguishable: an empty payload has nothing to
+// extract, so telling a human to extract it would be a wrong instruction.
+func TestDefersAPayloadWithNeitherVideoNorArchive(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, seriesID := seedGrab(t, st, "abc")
+	dir := writeTree(t,
+		"placeholder.saga.s01e05.1080p.web.h264-example.nfo",
+		"placeholder.saga.s01e05.1080p.web.h264-example.sfv",
+	)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	events := seriesEvents(t, st, seriesID)
+	if len(events) != 1 || events[0].Detail != "the payload holds no video file" {
+		t.Fatalf("events = %+v, want the plain no-video deferral", events)
+	}
+}
+
 func TestClientErrorAppendsFailedEventWithDetail(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, seriesID := seedGrab(t, st, "abc")
