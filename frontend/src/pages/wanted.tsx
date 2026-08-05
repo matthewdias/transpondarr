@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import {
   CalendarClock,
+  ChevronDown,
   ChevronRight,
   EyeOff,
   ListChecks,
@@ -18,6 +19,7 @@ import {
 import {
   api,
   ApiError,
+  type CutoffGroup,
   type CutoffItem,
   type GlobalMissingReason,
   type MissingGroup,
@@ -27,6 +29,7 @@ import {
 import { wantedCutoffQuery, wantedMissingQuery } from "@/lib/queries";
 import { airDate, countdownOrDate, pad2, plural } from "@/lib/format";
 import { searchQueuedToast } from "@/lib/search-queued-toast";
+import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 import { cn } from "@/lib/utils";
 import { ItemStatusBadge } from "@/components/badges";
 import { Topbar } from "@/components/topbar";
@@ -204,6 +207,71 @@ function MissingTab({
   );
 }
 
+// GroupSection is the collapsible card both tabs' groups share. No
+// overflow-hidden on the section -- it would become the sticky containing
+// block and pin the header to the card instead of the viewport -- so the
+// rounding is carried by the header and last row themselves. The header's
+// background is the opaque panel token: rows scroll under it while stuck.
+function GroupSection({
+  title,
+  header,
+  subheader,
+  children,
+}: {
+  title: string;
+  header: React.ReactNode;
+  subheader?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const [collapsed, setCollapsed] = useState(false);
+  return (
+    <section className="rounded-lg border bg-card shadow-sm [&>*:last-child]:rounded-b-lg">
+      <header
+        className={cn(
+          // 49px is the sticky Topbar's height; group headers stack under it.
+          "sticky top-[49px] z-[5] rounded-t-[7px] bg-panel-2 px-3.5 py-2.5",
+          !collapsed && "border-b",
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            aria-label={`Collapse ${title}`}
+            onClick={() => setCollapsed((c) => !c)}
+            className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-panel-2 hover:text-foreground"
+          >
+            <ChevronDown
+              className={cn(
+                "size-4 transition-transform",
+                collapsed && "-rotate-90",
+              )}
+            />
+          </button>
+          {header}
+        </div>
+        {subheader}
+      </header>
+      {!collapsed && children}
+    </section>
+  );
+}
+
+// overflowRow links to the series for what the group cap left out.
+function OverflowRow({ seriesId, label }: { seriesId: number; label: string }) {
+  return (
+    <Link
+      to={`/series/${seriesId}`}
+      className="flex items-center justify-between px-3.5 py-2 text-xs hover:bg-panel-2/40"
+    >
+      <span className="text-faint">{label}</span>
+      <span className="inline-flex items-center gap-1 font-medium text-primary">
+        Go to series <ChevronRight className="size-3.5" />
+      </span>
+    </Link>
+  );
+}
+
 function MissingGroupCard({
   group,
   selected,
@@ -215,43 +283,40 @@ function MissingGroupCard({
 }) {
   const hidden = group.missing - group.items.length;
   return (
-    <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
-      <header className="flex items-center gap-3 border-b bg-panel-2/50 px-3.5 py-2.5">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={onToggle}
-          className="size-3.5 accent-primary"
-          aria-label={`Select ${group.series_title}`}
-        />
-        <Link
-          to={`/series/${group.series_id}`}
-          className="min-w-0 flex-1 truncate text-sm font-semibold hover:underline"
-        >
-          {group.series_title}
-        </Link>
-        <span className="text-xs text-faint tabular-nums">
-          {plural(group.missing, "episode")} missing
-        </span>
-        <SeriesReasonBadge group={group} />
-      </header>
+    <GroupSection
+      title={group.series_title}
+      header={
+        <>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            className="size-3.5 accent-primary"
+            aria-label={`Select ${group.series_title}`}
+          />
+          <Link
+            to={`/series/${group.series_id}`}
+            className="min-w-0 flex-1 truncate text-sm font-semibold hover:underline"
+          >
+            {group.series_title}
+          </Link>
+          <span className="text-xs text-faint tabular-nums">
+            {plural(group.missing, "episode")} missing
+          </span>
+          <SeriesReasonBadge group={group} />
+        </>
+      }
+    >
       {group.items.map((item) => (
         <MissingRow key={item.id} seriesId={group.series_id} item={item} />
       ))}
       {hidden > 0 && (
-        <Link
-          to={`/series/${group.series_id}`}
-          className="flex items-center justify-between px-3.5 py-2 text-xs hover:bg-panel-2/40"
-        >
-          <span className="text-faint">
-            {plural(hidden, "more episode")} not shown
-          </span>
-          <span className="inline-flex items-center gap-1 font-medium text-primary">
-            Go to series <ChevronRight className="size-3.5" />
-          </span>
-        </Link>
+        <OverflowRow
+          seriesId={group.series_id}
+          label={`${plural(hidden, "more episode")} not shown`}
+        />
       )}
-    </section>
+    </GroupSection>
   );
 }
 
@@ -342,12 +407,12 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
     hasNextPage,
     isFetchingNextPage,
   } = useInfiniteQuery(wantedCutoffQuery(unmonitored));
-  const items = data?.pages.flatMap((p) => p.items) ?? [];
+  const groups = data?.pages.flatMap((p) => p.groups) ?? [];
 
   if (isLoading || isPaused) return <ListSkeleton />;
   if (isError)
     return <ListError what="the cutoff list" error={error} onRetry={refetch} />;
-  if (items.length === 0) {
+  if (groups.length === 0) {
     return (
       <EmptyState
         title="Nothing below cutoff"
@@ -358,9 +423,9 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
 
   return (
     <>
-      <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
-        {items.map((item) => (
-          <CutoffRow key={item.id} item={item} />
+      <div className="space-y-3">
+        {groups.map((group) => (
+          <CutoffGroupCard key={group.series_id} group={group} />
         ))}
       </div>
       <LoadMore
@@ -372,42 +437,92 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
   );
 }
 
-function CutoffRow({ item }: { item: CutoffItem }) {
+function CutoffGroupCard({ group }: { group: CutoffGroup }) {
+  // Goals every item shares are said once here; a row keeps only its own.
+  const shared = sharedGoals(group.items);
+  const hidden = group.below - group.items.length;
   return (
-    <div className="flex items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0 hover:bg-panel-2/40">
+    <GroupSection
+      title={group.series_title}
+      header={
+        <>
+          <Link
+            to={`/series/${group.series_id}`}
+            className="min-w-0 flex-1 truncate text-sm font-semibold hover:underline"
+          >
+            {group.series_title}
+          </Link>
+          <span className="text-xs text-faint tabular-nums">
+            {plural(group.below, "episode")} below cutoff
+          </span>
+          <span
+            className="hidden shrink-0 items-center rounded-full border border-border bg-panel-2 px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap text-muted-foreground md:inline-flex"
+            title={`The ${group.profile_name} profile's cutoff`}
+          >
+            {group.profile_name} · cutoff {group.cutoff_score}
+          </span>
+        </>
+      }
+      subheader={
+        shared.length > 0 && (
+          <div className="mt-1 truncate pl-8 text-[11px] text-dl">
+            All want {goalLine(shared)}
+          </div>
+        )
+      }
+    >
+      {group.items.map((item) => (
+        <CutoffRow
+          key={item.id}
+          seriesId={group.series_id}
+          cutoff={group.cutoff_score}
+          item={item}
+          shared={shared}
+        />
+      ))}
+      {hidden > 0 && (
+        <OverflowRow
+          seriesId={group.series_id}
+          label={`${plural(hidden, "more episode")} not shown`}
+        />
+      )}
+    </GroupSection>
+  );
+}
+
+function CutoffRow({
+  seriesId,
+  cutoff,
+  item,
+  shared,
+}: {
+  seriesId: number;
+  cutoff: number;
+  item: CutoffItem;
+  shared: { label: string; points: number }[];
+}) {
+  const own = ownGoals(item, shared);
+  return (
+    <div className="flex items-center gap-3 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40">
       <span className="w-8 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
         {pad2(item.number)}
       </span>
       <div className="min-w-0 flex-1">
-        <Link
-          to={`/series/${item.series_id}`}
-          className="block truncate text-sm font-medium hover:underline"
-        >
-          {item.series_title}
-        </Link>
         <div className="truncate font-mono text-[12px] text-faint">
           {item.held_release}
         </div>
-        {(item.unmet_goals?.length ?? 0) > 0 && (
-          // The gap, not the earnings: the axes the profile still wants that
-          // this release is not, each with the points it would add.
+        {own.length > 0 && (
           <div className="truncate text-[11px] text-dl">
-            Wants{" "}
-            {item
-              .unmet_goals!.map((g) => `${g.label} (+${g.points})`)
-              .join(" · ")}
+            Also wants {goalLine(own)}
           </div>
         )}
       </div>
-      <span
-        className="hidden w-32 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:block"
-        title={`Scored under the ${item.profile_name} profile`}
-      >
-        {item.score} / {item.cutoff_score}
+      <span className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:block">
+        {item.score} / {cutoff}
       </span>
       <ItemStatusBadge status={item.status} error={item.upgrade_error} />
       <Button variant="outline" size="sm" asChild>
-        <Link to={`/series/${item.series_id}?item=${item.number}`}>
+        <Link to={`/series/${seriesId}?item=${item.number}`}>
           <Search className="size-4" /> Search
         </Link>
       </Button>

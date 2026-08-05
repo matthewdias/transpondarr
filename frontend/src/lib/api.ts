@@ -116,6 +116,7 @@ export type GlobalMissingReason = NonNullable<
   Schemas["MissingOutputBody"]["global_reason"]
 >;
 export type CutoffItem = Schemas["CutoffItemDTO"];
+export type CutoffGroup = Schemas["CutoffGroupDTO"];
 export type BlocklistEntry = Schemas["BlocklistEntryDTO"];
 export type BlocklistSummary = Schemas["BlocklistSummaryOutputBody"];
 export type GrabResult = Schemas["GrabSeriesOutputBody"];

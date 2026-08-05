@@ -52,22 +52,29 @@ type missingGroupDTO struct {
 }
 
 // cutoffItemDTO is one held item whose release scores below its profile's
-// cutoff, with the numbers behind that claim.
+// cutoff, with the numbers behind that claim. The cutoff itself lives on the
+// group, being the profile's rather than any one item's.
 type cutoffItemDTO struct {
 	ID           int64          `json:"id"`
-	SeriesID     int64          `json:"series_id"`
-	SeriesTitle  string         `json:"series_title"`
-	Monitored    bool           `json:"monitored"`
 	Number       int            `json:"number"`
 	Name         string         `json:"name,omitempty"`
 	AirsAt       string         `json:"airs_at,omitempty" format:"date-time"`
 	Status       string         `json:"status" enum:"have,downloading,stuck,deferred,wanted" doc:"Derived acquisition state; downloading while an upgrade is in flight"`
 	HeldRelease  string         `json:"held_release" doc:"What the library holds, and what the score below rates"`
 	Score        int            `json:"score"`
-	CutoffScore  int            `json:"cutoff_score"`
 	UnmetGoals   []scorePartDTO `json:"unmet_goals,omitempty" doc:"Profile axes the held release scores below its best on, each with the points still available"`
-	ProfileName  string         `json:"profile_name"`
 	UpgradeError string         `json:"upgrade_error,omitempty" doc:"Why the last upgrade attempt failed"`
+}
+
+// cutoffGroupDTO is one series' sub-cutoff items, the listing's pagination unit.
+type cutoffGroupDTO struct {
+	SeriesID    int64           `json:"series_id"`
+	SeriesTitle string          `json:"series_title"`
+	Monitored   bool            `json:"monitored"`
+	ProfileName string          `json:"profile_name"`
+	CutoffScore int             `json:"cutoff_score"`
+	Below       int             `json:"below" doc:"Items below the cutoff in the whole series; may exceed len(items), which is capped"`
+	Items       []cutoffItemDTO `json:"items"`
 }
 
 type wantedPageInput struct {
@@ -87,8 +94,8 @@ type missingOutput struct {
 
 type cutoffOutput struct {
 	Body struct {
-		Items      []cutoffItemDTO `json:"items"`
-		NextCursor string          `json:"next_cursor,omitempty" doc:"Absent on the last page"`
+		Groups     []cutoffGroupDTO `json:"groups"`
+		NextCursor string           `json:"next_cursor,omitempty" doc:"Absent on the last page"`
 	}
 }
 
@@ -148,6 +155,9 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid cursor")
 	}
+	if cursor == (acquire.QueueCursor{}) {
+		cursor = acquire.QueueCursorTop()
+	}
 	now := h.now().UTC()
 	nowStored := sql.NullString{String: store.FormatTimestamp(now), Valid: true}
 
@@ -160,8 +170,8 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		Column1:  boolParam(in.Unmonitored),
 		Column2:  boolParam(in.Unaired),
 		AirsAt:   nowStored,
-		AirsAt_2: sql.NullString{String: cursor.AirsAt, Valid: true},
-		AirsAt_3: sql.NullString{String: cursor.AirsAt, Valid: true},
+		AirsAt_2: sql.NullString{String: cursor.Key, Valid: true},
+		AirsAt_3: sql.NullString{String: cursor.Key, Valid: true},
 		ID:       cursor.ID,
 		Limit:    int64(in.Limit) + 1,
 	})
@@ -267,6 +277,8 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 	if h.deps.acquire == nil {
 		return nil, huma.Error503ServiceUnavailable("the acquisition service is not available")
 	}
+	// The zero cursor is this listing's natural top: it ascends by title, so
+	// every row is past ("", 0) already.
 	cursor, err := pageCursor(in.Cursor)
 	if err != nil {
 		return nil, huma.Error400BadRequest("invalid cursor")
@@ -281,25 +293,32 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 	}
 
 	out := &cutoffOutput{}
-	out.Body.Items = make([]cutoffItemDTO, 0, len(page.Items))
-	for _, it := range page.Items {
-		state := deriveItemState(true, it.Grab, it.HasGrab)
-		out.Body.Items = append(out.Body.Items, cutoffItemDTO{
-			ID:           it.ID,
-			SeriesID:     it.SeriesID,
-			SeriesTitle:  it.SeriesTitle,
-			Monitored:    it.Monitored,
-			Number:       it.Number,
-			Name:         it.Name,
-			AirsAt:       storedTimeRFC3339(sql.NullString{String: it.AirsAt, Valid: it.AirsAt != ""}),
-			Status:       state.Status,
-			HeldRelease:  it.HeldReleaseTitle,
-			Score:        it.Score,
-			CutoffScore:  it.CutoffScore,
-			UnmetGoals:   scorePartDTOs(it.UnmetGoals),
-			ProfileName:  it.ProfileName,
-			UpgradeError: state.ImportError,
-		})
+	out.Body.Groups = make([]cutoffGroupDTO, 0, len(page.Groups))
+	for _, g := range page.Groups {
+		group := cutoffGroupDTO{
+			SeriesID:    g.SeriesID,
+			SeriesTitle: g.SeriesTitle,
+			Monitored:   g.Monitored,
+			ProfileName: g.ProfileName,
+			CutoffScore: g.CutoffScore,
+			Below:       g.Below,
+			Items:       make([]cutoffItemDTO, 0, len(g.Items)),
+		}
+		for _, it := range g.Items {
+			state := deriveItemState(true, it.Grab, it.HasGrab)
+			group.Items = append(group.Items, cutoffItemDTO{
+				ID:           it.ID,
+				Number:       it.Number,
+				Name:         it.Name,
+				AirsAt:       storedTimeRFC3339(sql.NullString{String: it.AirsAt, Valid: it.AirsAt != ""}),
+				Status:       state.Status,
+				HeldRelease:  it.HeldReleaseTitle,
+				Score:        it.Score,
+				UnmetGoals:   scorePartDTOs(it.UnmetGoals),
+				UpgradeError: state.ImportError,
+			})
+		}
+		out.Body.Groups = append(out.Body.Groups, group)
 	}
 	if page.NextCursor != (acquire.QueueCursor{}) {
 		out.Body.NextCursor = encodeCursor(page.NextCursor)
@@ -359,18 +378,21 @@ func (h *wantedHandler) blockedCounts(ctx context.Context, now sql.NullString) (
 }
 
 // pageCursor decodes a page cursor, an empty one meaning the top of the listing.
+// pageCursor decodes a page cursor; an empty one returns the zero cursor, and
+// each listing supplies its own top -- Missing descends from QueueCursorTop,
+// Cutoff Unmet ascends so its top is the zero cursor itself.
 func pageCursor(encoded string) (acquire.QueueCursor, error) {
 	if encoded == "" {
-		return acquire.QueueCursorTop(), nil
+		return acquire.QueueCursor{}, nil
 	}
 	at, id, err := decodeKeysetCursor(encoded)
 	if err != nil {
 		return acquire.QueueCursor{}, err
 	}
-	return acquire.QueueCursor{AirsAt: at, ID: id}, nil
+	return acquire.QueueCursor{Key: at, ID: id}, nil
 }
 
-func encodeCursor(c acquire.QueueCursor) string { return keysetCursor(c.AirsAt, c.ID) }
+func encodeCursor(c acquire.QueueCursor) string { return keysetCursor(c.Key, c.ID) }
 
 // boolParam renders a filter flag for a SQL "? = 1 OR ..." predicate.
 func boolParam(on bool) int64 {

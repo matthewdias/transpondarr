@@ -5,7 +5,12 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
-import type { CutoffItem, MissingGroup, MissingItem } from "@/lib/api";
+import type {
+  CutoffGroup,
+  CutoffItem,
+  MissingGroup,
+  MissingItem,
+} from "@/lib/api";
 import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { WantedPage } from "@/pages/wanted";
@@ -36,15 +41,24 @@ const group = (
 
 const cutoff = (over: Partial<CutoffItem>): CutoffItem => ({
   id: 11,
-  series_id: 7,
-  series_title: "Signal Anomaly",
-  monitored: true,
   number: 2,
   status: "have",
   held_release: "[FakeGroup] Signal Anomaly - 02 [720p]",
   score: 2100,
-  cutoff_score: 2300,
+  ...over,
+});
+
+const cutoffGroup = (
+  over: Partial<CutoffGroup>,
+  items: CutoffItem[],
+): CutoffGroup => ({
+  series_id: 7,
+  series_title: "Signal Anomaly",
+  monitored: true,
   profile_name: "Anime HD",
+  cutoff_score: 2300,
+  below: items.length,
+  items,
   ...over,
 });
 
@@ -56,7 +70,7 @@ type MissingPage = {
 
 function useHandlers(opts: {
   pages?: Record<string, MissingPage>;
-  cutoffItems?: CutoffItem[];
+  cutoffGroups?: CutoffGroup[];
   onSearch?: (body: { series_ids?: number[] }) => void;
   onMissing?: (query: URLSearchParams) => void;
 }) {
@@ -68,7 +82,7 @@ function useHandlers(opts: {
       return HttpResponse.json(opts.pages?.[cursor] ?? { groups: [] });
     }),
     http.get("/api/v1/wanted/cutoff-unmet", () =>
-      HttpResponse.json({ items: opts.cutoffItems ?? [] }),
+      HttpResponse.json({ groups: opts.cutoffGroups ?? [] }),
     ),
     http.post("/api/v1/wanted/search", async ({ request }) => {
       const body = (await request.json()) as { series_ids?: number[] };
@@ -279,31 +293,70 @@ it("queues a search for the selected groups' series", async () => {
   expect(bodies[1].series_ids).toEqual([]);
 });
 
-it("shows a held release against its profile cutoff on the second tab", async () => {
+// Goals shared by every item hoist to the group header; a row keeps only what
+// is its own, and the profile and cutoff live on the header outright.
+it("hoists shared goals to the cutoff group header", async () => {
   useHandlers({
     pages: { "": { groups: [] } },
-    cutoffItems: [
-      cutoff({
-        unmet_goals: [
-          { label: "group FakeTop", points: 100 },
-          { label: "resolution 1080p", points: 100 },
-        ],
-      }),
+    cutoffGroups: [
+      cutoffGroup({}, [
+        cutoff({
+          id: 11,
+          number: 2,
+          unmet_goals: [
+            { label: "group FakeTop", points: 100 },
+            { label: "resolution 1080p", points: 100 },
+          ],
+        }),
+        cutoff({
+          id: 12,
+          number: 3,
+          held_release: "[FakeTop] Signal Anomaly - 03 [720p]",
+          score: 2200,
+          unmet_goals: [{ label: "resolution 1080p", points: 100 }],
+        }),
+      ]),
     ],
   });
   renderPage();
 
   await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
-  const row = await screen.findByText("[FakeGroup] Signal Anomaly - 02 [720p]");
-  expect(row).toBeInTheDocument();
+  expect(
+    await screen.findByText("[FakeGroup] Signal Anomaly - 02 [720p]"),
+  ).toBeInTheDocument();
+  expect(screen.getByText("2 episodes below cutoff")).toBeInTheDocument();
+  expect(screen.getByText("Anime HD · cutoff 2300")).toBeInTheDocument();
+  // The resolution gap is everyone's, so it is said once on the header...
+  expect(
+    screen.getByText("All want resolution 1080p (+100)"),
+  ).toBeInTheDocument();
+  // ...and the group gap stays on the one row that has it.
+  expect(
+    screen.getByText("Also wants group FakeTop (+100)"),
+  ).toBeInTheDocument();
   expect(screen.getByText("2100 / 2300")).toBeInTheDocument();
-  expect(
-    screen.getByTitle("Scored under the Anime HD profile"),
-  ).toBeInTheDocument();
-  // The specific goals the profile is not hitting, as points still available.
-  expect(
-    screen.getByText("Wants group FakeTop (+100) · resolution 1080p (+100)"),
-  ).toBeInTheDocument();
+  expect(screen.getByText("2200 / 2300")).toBeInTheDocument();
+});
+
+// Both tabs' groups collapse from the header, keeping the header's summary.
+it("collapses a group to its header", async () => {
+  useHandlers({
+    pages: {
+      "": { groups: [group({}, [missing({ id: 1, number: 4 })])] },
+    },
+  });
+  renderPage();
+
+  expect(await screen.findByText("Episode 4")).toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Collapse Signal Anomaly" }),
+  );
+  expect(screen.queryByText("Episode 4")).toBeNull();
+  expect(screen.getByText("1 episode missing")).toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Collapse Signal Anomaly" }),
+  );
+  expect(screen.getByText("Episode 4")).toBeInTheDocument();
 });
 
 // The endpoint queues; saying it searched would be wrong, and under notify-only

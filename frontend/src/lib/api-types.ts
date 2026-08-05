@@ -982,25 +982,33 @@ export interface components {
              */
             cleared: number;
         };
+        CutoffGroupDTO: {
+            /**
+             * Format: int64
+             * @description Items below the cutoff in the whole series; may exceed len(items), which is capped
+             */
+            below: number;
+            /** Format: int64 */
+            cutoff_score: number;
+            items: components["schemas"]["CutoffItemDTO"][];
+            monitored: boolean;
+            profile_name: string;
+            /** Format: int64 */
+            series_id: number;
+            series_title: string;
+        };
         CutoffItemDTO: {
             /** Format: date-time */
             airs_at?: string;
-            /** Format: int64 */
-            cutoff_score: number;
             /** @description What the library holds, and what the score below rates */
             held_release: string;
             /** Format: int64 */
             id: number;
-            monitored: boolean;
             name?: string;
             /** Format: int64 */
             number: number;
-            profile_name: string;
             /** Format: int64 */
             score: number;
-            /** Format: int64 */
-            series_id: number;
-            series_title: string;
             /**
              * @description Derived acquisition state; downloading while an upgrade is in flight
              * @enum {string}
@@ -1018,7 +1026,7 @@ export interface components {
              * @example https://example.com/schemas/CutoffOutputBody.json
              */
             readonly $schema?: string;
-            items: components["schemas"]["CutoffItemDTO"][];
+            groups: components["schemas"]["CutoffGroupDTO"][];
             /** @description Absent on the last page */
             next_cursor?: string;
         };

@@ -49,21 +49,24 @@ func (r missingResponse) items() []missingItem {
 }
 
 type cutoffResponse struct {
-	Items []struct {
-		ID          int64  `json:"id"`
+	Groups []struct {
 		SeriesID    int64  `json:"series_id"`
 		SeriesTitle string `json:"series_title"`
-		Number      int    `json:"number"`
-		Status      string `json:"status"`
-		HeldRelease string `json:"held_release"`
-		Score       int    `json:"score"`
-		CutoffScore int    `json:"cutoff_score"`
 		ProfileName string `json:"profile_name"`
-		UnmetGoals  []struct {
-			Label  string `json:"label"`
-			Points int    `json:"points"`
-		} `json:"unmet_goals"`
-	} `json:"items"`
+		CutoffScore int    `json:"cutoff_score"`
+		Below       int    `json:"below"`
+		Items       []struct {
+			ID          int64  `json:"id"`
+			Number      int    `json:"number"`
+			Status      string `json:"status"`
+			HeldRelease string `json:"held_release"`
+			Score       int    `json:"score"`
+			UnmetGoals  []struct {
+				Label  string `json:"label"`
+				Points int    `json:"points"`
+			} `json:"unmet_goals"`
+		} `json:"items"`
+	} `json:"groups"`
 	NextCursor string `json:"next_cursor"`
 }
 
@@ -437,15 +440,22 @@ func TestCutoffUnmetRoute(t *testing.T) {
 	if code := h.get(t, "/api/v1/wanted/cutoff-unmet", &out); code != http.StatusOK {
 		t.Fatalf("GET cutoff-unmet = %d, want 200", code)
 	}
-	if len(out.Items) != 1 {
-		t.Fatalf("items = %+v, want only the sub-cutoff item", out.Items)
+	if len(out.Groups) != 1 {
+		t.Fatalf("groups = %+v, want one for the series", out.Groups)
 	}
-	got := out.Items[0]
-	if got.Number != 1 || got.Status != "have" || got.ProfileName != "Upgrading" {
-		t.Errorf("item = %+v, want episode 1, held, on the Upgrading profile", got)
+	g := out.Groups[0]
+	if g.SeriesID != seriesID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
+		t.Errorf("group = %+v, want the profile and cutoff hoisted to the header", g)
 	}
-	if got.Score >= got.CutoffScore || got.CutoffScore != 2300 {
-		t.Errorf("score %d vs cutoff %d, want a score below a cutoff of 2300", got.Score, got.CutoffScore)
+	if len(g.Items) != 1 {
+		t.Fatalf("items = %+v, want only the sub-cutoff item", g.Items)
+	}
+	got := g.Items[0]
+	if got.Number != 1 || got.Status != "have" {
+		t.Errorf("item = %+v, want episode 1, held", got)
+	}
+	if got.Score >= g.CutoffScore {
+		t.Errorf("score %d vs cutoff %d, want a score below the cutoff", got.Score, g.CutoffScore)
 	}
 	if got.HeldRelease == "" {
 		t.Error("want the held release title carried through")

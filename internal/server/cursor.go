@@ -20,13 +20,15 @@ func decodeKeysetCursor(cursor string) (sortKey string, id int64, err error) {
 	if err != nil {
 		return "", 0, err
 	}
-	key, idStr, ok := strings.Cut(string(raw), "|")
-	if !ok {
+	// The LAST separator, because the sort key may itself contain one -- the
+	// cutoff listing keys on series titles -- while the id never does.
+	i := strings.LastIndexByte(string(raw), '|')
+	if i < 0 {
 		return "", 0, fmt.Errorf("cursor missing separator")
 	}
-	id, err = strconv.ParseInt(idStr, 10, 64)
+	id, err = strconv.ParseInt(string(raw)[i+1:], 10, 64)
 	if err != nil {
 		return "", 0, err
 	}
-	return key, id, nil
+	return string(raw)[:i], id, nil
 }

@@ -49,77 +49,54 @@ func (q *Queries) ListActiveBlocklistCounts(ctx context.Context, blockedUntil sq
 	return items, nil
 }
 
-const listCutoffUnmetPage = `-- name: ListCutoffUnmetPage :many
+const listCutoffItemsBySeries = `-- name: ListCutoffItemsBySeries :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, w.held_release_title,
-       s.title         AS series_title,
-       s.monitored     AS series_monitored,
-       qp.id           AS profile_id,
-       qp.name         AS profile_name,
-       qp.cutoff_score AS profile_cutoff_score,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
        g.last_error    AS grab_last_error
 FROM wanted_items w
-JOIN series s ON s.id = w.series_id
-JOIN quality_profiles qp ON qp.id = s.quality_profile_id
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
-WHERE w.have = 1
+WHERE w.series_id IN (/*SLICE:series_ids*/?)
+  AND w.have = 1
   AND w.held_release_title != ''
-  AND qp.upgrades_enabled = 1
-  AND (? = 1 OR s.monitored = 1)
-  AND (COALESCE(w.airs_at, '') < ? OR (COALESCE(w.airs_at, '') = ? AND w.id > ?))
-ORDER BY COALESCE(w.airs_at, '') DESC, w.id
-LIMIT ?
+ORDER BY w.series_id, w.number
 `
 
-type ListCutoffUnmetPageParams struct {
-	Column1  interface{}    `json:"column_1"`
-	AirsAt   sql.NullString `json:"airs_at"`
-	AirsAt_2 sql.NullString `json:"airs_at_2"`
-	ID       int64          `json:"id"`
-	Limit    int64          `json:"limit"`
+type ListCutoffItemsBySeriesRow struct {
+	ID               int64          `json:"id"`
+	SeriesID         int64          `json:"series_id"`
+	Kind             string         `json:"kind"`
+	Number           sql.NullInt64  `json:"number"`
+	Title            sql.NullString `json:"title"`
+	Have             int64          `json:"have"`
+	AirsAt           sql.NullString `json:"airs_at"`
+	HeldReleaseTitle string         `json:"held_release_title"`
+	GrabStatus       sql.NullString `json:"grab_status"`
+	GrabReleaseTitle sql.NullString `json:"grab_release_title"`
+	GrabLastError    sql.NullString `json:"grab_last_error"`
 }
 
-type ListCutoffUnmetPageRow struct {
-	ID                 int64          `json:"id"`
-	SeriesID           int64          `json:"series_id"`
-	Kind               string         `json:"kind"`
-	Number             sql.NullInt64  `json:"number"`
-	Title              sql.NullString `json:"title"`
-	Have               int64          `json:"have"`
-	AirsAt             sql.NullString `json:"airs_at"`
-	HeldReleaseTitle   string         `json:"held_release_title"`
-	SeriesTitle        string         `json:"series_title"`
-	SeriesMonitored    int64          `json:"series_monitored"`
-	ProfileID          int64          `json:"profile_id"`
-	ProfileName        string         `json:"profile_name"`
-	ProfileCutoffScore int64          `json:"profile_cutoff_score"`
-	GrabStatus         sql.NullString `json:"grab_status"`
-	GrabReleaseTitle   sql.NullString `json:"grab_release_title"`
-	GrabLastError      sql.NullString `json:"grab_last_error"`
-}
-
-// Held items on an upgrading profile: the candidate set for Cutoff Unmet, whose
-// membership test (does the held release score below the profile cutoff?) needs
-// the parser and so is settled in Go. Opt-in is per profile, so a series on a
-// non-upgrading profile never appears. held_release_title is the scoring input,
-// and an item without one has nothing to rate. Ordering and cursor match
-// ListMissingItemsPage.
-func (q *Queries) ListCutoffUnmetPage(ctx context.Context, arg ListCutoffUnmetPageParams) ([]ListCutoffUnmetPageRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCutoffUnmetPage,
-		arg.Column1,
-		arg.AirsAt,
-		arg.AirsAt_2,
-		arg.ID,
-		arg.Limit,
-	)
+// Every rateable held item behind one page of candidate groups; scoring and the
+// cutoff test happen in Go under the one profile snapshot per series.
+func (q *Queries) ListCutoffItemsBySeries(ctx context.Context, seriesIds []int64) ([]ListCutoffItemsBySeriesRow, error) {
+	query := listCutoffItemsBySeries
+	var queryParams []interface{}
+	if len(seriesIds) > 0 {
+		for _, v := range seriesIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:series_ids*/?", strings.Repeat(",?", len(seriesIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:series_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListCutoffUnmetPageRow{}
+	items := []ListCutoffItemsBySeriesRow{}
 	for rows.Next() {
-		var i ListCutoffUnmetPageRow
+		var i ListCutoffItemsBySeriesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.SeriesID,
@@ -129,14 +106,86 @@ func (q *Queries) ListCutoffUnmetPage(ctx context.Context, arg ListCutoffUnmetPa
 			&i.Have,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
-			&i.SeriesTitle,
-			&i.SeriesMonitored,
-			&i.ProfileID,
-			&i.ProfileName,
-			&i.ProfileCutoffScore,
 			&i.GrabStatus,
 			&i.GrabReleaseTitle,
 			&i.GrabLastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCutoffSeriesPage = `-- name: ListCutoffSeriesPage :many
+SELECT s.id, s.title, s.monitored,
+       qp.id           AS profile_id,
+       qp.name         AS profile_name,
+       qp.cutoff_score AS profile_cutoff_score
+FROM series s
+JOIN quality_profiles qp ON qp.id = s.quality_profile_id
+WHERE qp.upgrades_enabled = 1
+  AND (? = 1 OR s.monitored = 1)
+  AND EXISTS (
+      SELECT 1 FROM wanted_items w
+      WHERE w.series_id = s.id AND w.have = 1 AND w.held_release_title != ''
+  )
+  AND (s.title > ? OR (s.title = ? AND s.id > ?))
+ORDER BY s.title, s.id
+LIMIT ?
+`
+
+type ListCutoffSeriesPageParams struct {
+	Column1 interface{} `json:"column_1"`
+	Title   string      `json:"title"`
+	Title_2 string      `json:"title_2"`
+	ID      int64       `json:"id"`
+	Limit   int64       `json:"limit"`
+}
+
+type ListCutoffSeriesPageRow struct {
+	ID                 int64  `json:"id"`
+	Title              string `json:"title"`
+	Monitored          int64  `json:"monitored"`
+	ProfileID          int64  `json:"profile_id"`
+	ProfileName        string `json:"profile_name"`
+	ProfileCutoffScore int64  `json:"profile_cutoff_score"`
+}
+
+// Candidate groups for Cutoff Unmet: series on an upgrading profile holding
+// anything rateable. Whether a held release actually scores below the cutoff
+// needs the parser and is settled in Go, so a series here may contribute no
+// group and the caller scans on. Ordered by title -- this listing is an
+// inventory, not a queue, so alphabetical reads best -- with the id tie-break
+// ascending and a zero cursor as the natural top.
+func (q *Queries) ListCutoffSeriesPage(ctx context.Context, arg ListCutoffSeriesPageParams) ([]ListCutoffSeriesPageRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCutoffSeriesPage,
+		arg.Column1,
+		arg.Title,
+		arg.Title_2,
+		arg.ID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCutoffSeriesPageRow{}
+	for rows.Next() {
+		var i ListCutoffSeriesPageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Monitored,
+			&i.ProfileID,
+			&i.ProfileName,
+			&i.ProfileCutoffScore,
 		); err != nil {
 			return nil, err
 		}

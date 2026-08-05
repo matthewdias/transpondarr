@@ -49,33 +49,42 @@ WHERE w.series_id IN (sqlc.slice('series_ids'))
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
 ORDER BY w.series_id, w.number;
 
--- name: ListCutoffUnmetPage :many
--- Held items on an upgrading profile: the candidate set for Cutoff Unmet, whose
--- membership test (does the held release score below the profile cutoff?) needs
--- the parser and so is settled in Go. Opt-in is per profile, so a series on a
--- non-upgrading profile never appears. held_release_title is the scoring input,
--- and an item without one has nothing to rate. Ordering and cursor match
--- ListMissingItemsPage.
-SELECT w.*,
-       s.title         AS series_title,
-       s.monitored     AS series_monitored,
+-- name: ListCutoffSeriesPage :many
+-- Candidate groups for Cutoff Unmet: series on an upgrading profile holding
+-- anything rateable. Whether a held release actually scores below the cutoff
+-- needs the parser and is settled in Go, so a series here may contribute no
+-- group and the caller scans on. Ordered by title -- this listing is an
+-- inventory, not a queue, so alphabetical reads best -- with the id tie-break
+-- ascending and a zero cursor as the natural top.
+SELECT s.id, s.title, s.monitored,
        qp.id           AS profile_id,
        qp.name         AS profile_name,
-       qp.cutoff_score AS profile_cutoff_score,
+       qp.cutoff_score AS profile_cutoff_score
+FROM series s
+JOIN quality_profiles qp ON qp.id = s.quality_profile_id
+WHERE qp.upgrades_enabled = 1
+  AND (? = 1 OR s.monitored = 1)
+  AND EXISTS (
+      SELECT 1 FROM wanted_items w
+      WHERE w.series_id = s.id AND w.have = 1 AND w.held_release_title != ''
+  )
+  AND (s.title > ? OR (s.title = ? AND s.id > ?))
+ORDER BY s.title, s.id
+LIMIT ?;
+
+-- name: ListCutoffItemsBySeries :many
+-- Every rateable held item behind one page of candidate groups; scoring and the
+-- cutoff test happen in Go under the one profile snapshot per series.
+SELECT w.*,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
        g.last_error    AS grab_last_error
 FROM wanted_items w
-JOIN series s ON s.id = w.series_id
-JOIN quality_profiles qp ON qp.id = s.quality_profile_id
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
-WHERE w.have = 1
+WHERE w.series_id IN (sqlc.slice('series_ids'))
+  AND w.have = 1
   AND w.held_release_title != ''
-  AND qp.upgrades_enabled = 1
-  AND (? = 1 OR s.monitored = 1)
-  AND (COALESCE(w.airs_at, '') < ? OR (COALESCE(w.airs_at, '') = ? AND w.id > ?))
-ORDER BY COALESCE(w.airs_at, '') DESC, w.id
-LIMIT ?;
+ORDER BY w.series_id, w.number;
 
 -- name: ListActiveBlocklistCounts :many
 -- How many releases each series is currently refusing, for the reason column.

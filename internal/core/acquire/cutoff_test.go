@@ -78,7 +78,8 @@ func cutoffService(t *testing.T, st *store.Store) *acquire.Service {
 
 // Membership is exact: a held release scoring below its profile's cutoff is in,
 // one at or above it is out, and a series on a non-upgrading profile never
-// appears at all.
+// appears at all. The cutoff and profile name live on the group, being the
+// profile's rather than any one item's.
 func TestCutoffUnmetMembership(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
@@ -102,70 +103,78 @@ func TestCutoffUnmetMembership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CutoffUnmet: %v", err)
 	}
-	if len(page.Items) != 1 {
-		t.Fatalf("items = %+v, want only the sub-cutoff item on the upgrading profile", page.Items)
+	if len(page.Groups) != 1 {
+		t.Fatalf("groups = %+v, want only the upgrading series", page.Groups)
 	}
-	got := page.Items[0]
-	if got.Number != 2 || got.SeriesID != seriesID {
-		t.Errorf("item = %+v, want episode 2 of Placeholder Saga", got)
+	g := page.Groups[0]
+	if g.SeriesID != seriesID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
+		t.Errorf("group = %+v, want Placeholder Saga on Upgrading at 2300 with 1 below", g)
 	}
-	if got.Score >= got.CutoffScore {
-		t.Errorf("score %d, cutoff %d: a listed item must score below its cutoff", got.Score, got.CutoffScore)
+	if len(g.Items) != 1 || g.Items[0].Number != 2 {
+		t.Fatalf("items = %+v, want only episode 2", g.Items)
 	}
-	if got.ProfileName != "Upgrading" || got.HeldReleaseTitle == "" {
-		t.Errorf("item = %+v, want the profile name and held release carried through", got)
+	got := g.Items[0]
+	if got.Score >= g.CutoffScore {
+		t.Errorf("score %d, cutoff %d: a listed item must score below its cutoff", got.Score, g.CutoffScore)
+	}
+	if got.HeldReleaseTitle == "" || len(got.UnmetGoals) == 0 {
+		t.Errorf("item = %+v, want the held release and its unmet goals carried through", got)
 	}
 }
 
-// A page is filled to its limit even though membership is decided in Go: the
-// scan reads past the rows it rejects, so "load more" is never a page of
-// nothing with a cursor attached.
-func TestCutoffUnmetPageIsFilledPastRejects(t *testing.T) {
+// A page of groups is filled by scanning past series whose held releases all
+// meet their cutoff, and a series never splits across pages.
+func TestCutoffUnmetPagesGroupsPastMetSeries(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, "Placeholder Saga", 12)
-	putOnProfile(t, st, seriesID, upgradingProfile(t, st, "Upgrading", 2300))
-	// Every odd item meets the cutoff, so a single fetch of limit+1 rows would
-	// hand back half a page.
-	for n := 1; n <= 12; n++ {
-		res, group := "720p", "MidSubs"
-		if n%2 == 1 {
-			res, group = "1080p", "TopSubs"
-		}
-		hold(t, st, seriesID, n, "["+group+"] Placeholder Saga - "+strconv.Itoa(n)+" ["+res+"]")
-	}
-
 	ctx := context.Background()
-	svc := cutoffService(t, st)
-	page, err := svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 4})
-	if err != nil {
-		t.Fatalf("CutoffUnmet: %v", err)
-	}
-	if len(page.Items) != 4 {
-		t.Fatalf("items = %d, want a full page of 4", len(page.Items))
-	}
-	if page.NextCursor == (acquire.QueueCursor{}) {
-		t.Fatal("want a cursor: two unmet items remain")
+	profileID := upgradingProfile(t, st, "Upgrading", 2300)
+	// Titles sort A..F; the even ones hold sub-cutoff releases, the odd ones are
+	// fully met and must be scanned over without becoming groups.
+	titles := []string{"Alpha Saga", "Bravo Saga", "Charlie Saga", "Delta Saga", "Echo Saga", "Foxtrot Saga"}
+	wantSeries := map[string]bool{"Bravo Saga": true, "Delta Saga": true, "Foxtrot Saga": true}
+	for i, title := range titles {
+		id := seedSeries(t, st, title, 2)
+		putOnProfile(t, st, id, profileID)
+		for n := 1; n <= 2; n++ {
+			res, group := "1080p", "TopSubs"
+			if wantSeries[title] {
+				res, group = "720p", "MidSubs"
+			}
+			hold(t, st, id, n, "["+group+"] "+title+" - "+strconv.Itoa(n)+" ["+res+"]")
+		}
+		_ = i
 	}
 
-	rest, err := svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 4, Cursor: page.NextCursor})
-	if err != nil {
-		t.Fatalf("CutoffUnmet page 2: %v", err)
-	}
-	if len(rest.Items) != 2 {
-		t.Fatalf("page 2 items = %d, want the remaining 2", len(rest.Items))
-	}
-	if rest.NextCursor != (acquire.QueueCursor{}) {
-		t.Errorf("next_cursor = %+v, want none on the last page", rest.NextCursor)
-	}
-	seen := map[int]bool{}
-	for _, it := range append(page.Items, rest.Items...) {
-		if seen[it.Number] {
-			t.Fatalf("item %d listed twice across pages", it.Number)
+	svc := cutoffService(t, st)
+	seen := map[string]int{}
+	cursor, pages := acquire.QueueCursor{}, 0
+	for {
+		page, err := svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 2, Cursor: cursor})
+		if err != nil {
+			t.Fatalf("CutoffUnmet: %v", err)
 		}
-		seen[it.Number] = true
+		for _, g := range page.Groups {
+			seen[g.SeriesTitle] += len(g.Items)
+			if len(g.Items) != 2 || g.Below != 2 {
+				t.Fatalf("group %s arrived split: %+v", g.SeriesTitle, g)
+			}
+		}
+		pages++
+		if page.NextCursor == (acquire.QueueCursor{}) {
+			break
+		}
+		if pages > 6 {
+			t.Fatal("pagination did not terminate")
+		}
+		cursor = page.NextCursor
 	}
-	if len(seen) != 6 {
-		t.Fatalf("distinct items = %d, want the 6 even-numbered ones", len(seen))
+	if len(seen) != 3 {
+		t.Fatalf("saw %v, want exactly the three sub-cutoff series", seen)
+	}
+	for title := range wantSeries {
+		if seen[title] != 2 {
+			t.Errorf("series %s items = %d, want its whole 2", title, seen[title])
+		}
 	}
 }
 
@@ -186,14 +195,40 @@ func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CutoffUnmet: %v", err)
 	}
-	if len(page.Items) != 0 {
-		t.Fatalf("items = %+v, want none: the series is unmonitored", page.Items)
+	if len(page.Groups) != 0 {
+		t.Fatalf("groups = %+v, want none: the series is unmonitored", page.Groups)
 	}
 	page, err = svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20, IncludeUnmonitored: true})
 	if err != nil {
 		t.Fatalf("CutoffUnmet unmonitored: %v", err)
 	}
-	if len(page.Items) != 1 {
-		t.Fatalf("items = %+v, want the unmonitored item once asked for", page.Items)
+	if len(page.Groups) != 1 || page.Groups[0].Monitored {
+		t.Fatalf("groups = %+v, want the unmonitored group once asked for", page.Groups)
+	}
+}
+
+// A group past the cap still reports its full size: Below is the truth, Items
+// is the front of the run.
+func TestCutoffUnmetCapsItemsPerGroupButNotTheCount(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, "Very Held Saga", 60)
+	putOnProfile(t, st, seriesID, upgradingProfile(t, st, "Upgrading", 2300))
+	for n := 1; n <= 60; n++ {
+		hold(t, st, seriesID, n, "[MidSubs] Very Held Saga - "+strconv.Itoa(n)+" [720p]")
+	}
+
+	page, err := cutoffService(t, st).CutoffUnmet(context.Background(), acquire.CutoffUnmetParams{Limit: 5})
+	if err != nil {
+		t.Fatalf("CutoffUnmet: %v", err)
+	}
+	if len(page.Groups) != 1 {
+		t.Fatalf("groups = %+v, want one", page.Groups)
+	}
+	g := page.Groups[0]
+	if g.Below != 60 || len(g.Items) != 50 {
+		t.Fatalf("below = %d with %d items, want the count at 60 and the listing capped at 50", g.Below, len(g.Items))
+	}
+	if g.Items[0].Number != 1 || g.Items[49].Number != 50 {
+		t.Errorf("cap kept %d..%d, want the front of the run", g.Items[0].Number, g.Items[49].Number)
 	}
 }
