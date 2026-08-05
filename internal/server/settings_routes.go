@@ -30,6 +30,7 @@ type indexerSettingsDTO struct {
 	Name       string `json:"name"`
 	URL        string `json:"url"`
 	APIKeySet  bool   `json:"apikey_set"`
+	Categories string `json:"categories" doc:"Comma-separated Newznab category IDs; empty = no filter"`
 }
 
 type librarySettingsDTO struct {
@@ -113,6 +114,7 @@ func indexerDTO(c settings.IndexerConfig) indexerSettingsDTO {
 		Name:       c.Name,
 		URL:        c.URL,
 		APIKeySet:  c.APIKey != "",
+		Categories: c.Categories,
 	}
 }
 
@@ -192,6 +194,8 @@ type indexerInput struct {
 		Name   string `json:"name,omitempty"`
 		URL    string `json:"url,omitempty"`
 		APIKey string `json:"apikey,omitempty" doc:"Leave empty to keep the stored API key"`
+		// Unlike the API key, empty clears the filter: this is not a secret.
+		Categories string `json:"categories,omitempty" doc:"Comma-separated Newznab category IDs; empty = no filter"`
 	}
 }
 
@@ -435,10 +439,14 @@ func (h *settingsHandler) testDownload(ctx context.Context, in *downloadInput) (
 }
 
 func (h *settingsHandler) updateIndexer(ctx context.Context, in *indexerInput) (*settingsOutput, error) {
+	if _, err := settings.NormalizeCategories(in.Body.Categories); err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
 	if err := h.settings.UpdateIndexer(ctx, settings.IndexerConfig{
-		Name:   in.Body.Name,
-		URL:    in.Body.URL,
-		APIKey: in.Body.APIKey,
+		Name:       in.Body.Name,
+		URL:        in.Body.URL,
+		APIKey:     in.Body.APIKey,
+		Categories: in.Body.Categories,
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to save indexer settings", err)
 	}
@@ -446,10 +454,14 @@ func (h *settingsHandler) updateIndexer(ctx context.Context, in *indexerInput) (
 }
 
 func (h *settingsHandler) testIndexer(ctx context.Context, in *indexerInput) (*testOutput, error) {
+	if _, err := settings.NormalizeCategories(in.Body.Categories); err != nil {
+		return nil, huma.Error422UnprocessableEntity(err.Error())
+	}
 	if err := h.settings.TestIndexer(ctx, settings.IndexerConfig{
-		Name:   in.Body.Name,
-		URL:    in.Body.URL,
-		APIKey: in.Body.APIKey,
+		Name:       in.Body.Name,
+		URL:        in.Body.URL,
+		APIKey:     in.Body.APIKey,
+		Categories: in.Body.Categories,
 	}); err != nil {
 		return nil, huma.Error502BadGateway("indexer test failed", err)
 	}

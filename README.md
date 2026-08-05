@@ -129,6 +129,7 @@ are simply disabled — the server still starts.
 | `TRANSPONDARR_TORZNAB_URL`                 | —                         | Torznab feed (Prowlarr/Jackett); unset ⇒ no indexer.                                                      |
 | `TRANSPONDARR_TORZNAB_APIKEY`              | —                         | Torznab API key.                                                                                          |
 | `TRANSPONDARR_TORZNAB_NAME`                | `torznab`                 | Display name for the indexer.                                                                             |
+| `TRANSPONDARR_TORZNAB_CATEGORIES`          | —                         | Comma-separated Newznab category IDs sent as `cat=` on every search and the recent feed (anime is usually `5070`); unset ⇒ no filter. |
 | `TRANSPONDARR_LIBRARY_DIR`                 | —                         | Library root for imports; unset ⇒ import disabled.                                                        |
 | `TRANSPONDARR_IMPORT_MODE`                 | `auto`                    | `auto` (hardlink, copy across filesystems) \| `hardlink` \| `copy`.                                       |
 | `TRANSPONDARR_AUTOMATION_ENABLED`          | `false`                   | `off` \| `notify_only` \| `on` (bools also accepted). `notify_only` rehearses: it reports what automation would grab, without grabbing. |

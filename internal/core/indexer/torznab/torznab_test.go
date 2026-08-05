@@ -124,7 +124,7 @@ func TestSizeFallsBackToEnclosureLength(t *testing.T) {
 }
 
 func TestSearchURL(t *testing.T) {
-	i := New("prowlarr", "http://prowlarr:9696/1/api", "SECRETKEY")
+	i := New("prowlarr", "http://prowlarr:9696/1/api", "SECRETKEY", "")
 	raw, err := i.searchURL(indexer.Query{Term: "placeholder saga 01"})
 	if err != nil {
 		t.Fatalf("searchURL: %v", err)
@@ -176,7 +176,7 @@ func TestEnsureAPIPath(t *testing.T) {
 // A Jackett feed URL (no /api) must produce a request URL with /api appended and
 // the query intact.
 func TestSearchURLJackettAppendsAPI(t *testing.T) {
-	i := New("jackett", "http://localhost:9117/api/v2.0/indexers/all/results/torznab/", "KEY")
+	i := New("jackett", "http://localhost:9117/api/v2.0/indexers/all/results/torznab/", "KEY", "")
 	raw, err := i.searchURL(indexer.Query{Term: "x"})
 	if err != nil {
 		t.Fatalf("searchURL: %v", err)
@@ -193,7 +193,7 @@ func TestSearchURLJackettAppendsAPI(t *testing.T) {
 // searchURL must preserve params already present in the base URL (Prowlarr bakes
 // per-indexer settings into the feed URL).
 func TestSearchURLPreservesBaseParams(t *testing.T) {
-	i := New("prowlarr", "http://prowlarr:9696/api?extra=keep", "")
+	i := New("prowlarr", "http://prowlarr:9696/api?extra=keep", "", "")
 	raw, err := i.searchURL(indexer.Query{Term: "x"})
 	if err != nil {
 		t.Fatalf("searchURL: %v", err)
@@ -204,6 +204,51 @@ func TestSearchURLPreservesBaseParams(t *testing.T) {
 	}
 	if u.Query().Get("apikey") != "" {
 		t.Error("apikey should be absent when not configured")
+	}
+}
+
+// Categories are indexer configuration, not query state, so every request
+// carries them; unconfigured leaves the request as it was before #142.
+func TestSearchURLCategories(t *testing.T) {
+	i := New("prowlarr", "http://prowlarr:9696/1/api", "k", "5070,127720")
+	raw, err := i.searchURL(indexer.Query{Term: "x"})
+	if err != nil {
+		t.Fatalf("searchURL: %v", err)
+	}
+	u, _ := url.Parse(raw)
+	if got := u.Query().Get("cat"); got != "5070,127720" {
+		t.Errorf("cat = %q, want %q", got, "5070,127720")
+	}
+
+	raw, err = New("prowlarr", "http://prowlarr:9696/1/api", "k", "").searchURL(indexer.Query{Term: "x"})
+	if err != nil {
+		t.Fatalf("searchURL: %v", err)
+	}
+	u, _ = url.Parse(raw)
+	if _, ok := u.Query()["cat"]; ok {
+		t.Errorf("cat should be absent when unconfigured: %q", raw)
+	}
+}
+
+// A cat baked into the feed URL survives an empty field — which is what makes
+// the set conditional — and an explicit configuration overrides it.
+func TestSearchURLBakedInCategories(t *testing.T) {
+	raw, err := New("prowlarr", "http://prowlarr:9696/1/api?cat=5070", "k", "").searchURL(indexer.Query{Term: "x"})
+	if err != nil {
+		t.Fatalf("searchURL: %v", err)
+	}
+	u, _ := url.Parse(raw)
+	if got := u.Query().Get("cat"); got != "5070" {
+		t.Errorf("baked-in cat = %q, want it preserved as 5070", got)
+	}
+
+	raw, err = New("prowlarr", "http://prowlarr:9696/1/api?cat=5070", "k", "127720").searchURL(indexer.Query{Term: "x"})
+	if err != nil {
+		t.Fatalf("searchURL: %v", err)
+	}
+	u, _ = url.Parse(raw)
+	if got := u.Query().Get("cat"); got != "127720" {
+		t.Errorf("cat = %q, want the configured 127720 to win", got)
 	}
 }
 
@@ -218,7 +263,7 @@ func TestSearchHTTP(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	i := New("prowlarr", srv.URL, "k")
+	i := New("prowlarr", srv.URL, "k", "")
 	got, err := i.Search(context.Background(), indexer.Query{Term: "placeholder"})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
@@ -241,7 +286,7 @@ func TestRecentHTTPUsesAnEmptyTerm(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := New("prowlarr", srv.URL, "k").Recent(context.Background())
+	got, err := New("prowlarr", srv.URL, "k", "").Recent(context.Background())
 	if err != nil {
 		t.Fatalf("Recent: %v", err)
 	}
@@ -256,6 +301,25 @@ func TestRecentHTTPUsesAnEmptyTerm(t *testing.T) {
 	}
 	if got[0].Published.IsZero() {
 		t.Error("published not parsed from pubDate")
+	}
+}
+
+// The recent feed is #142's strongest case — a 100-entry page diluted by other
+// categories is a smaller window — so the filter is pinned at the HTTP level.
+func TestRecentHTTPCarriesCategories(t *testing.T) {
+	var gotCat string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotCat = r.URL.Query().Get("cat")
+		w.Header().Set("Content-Type", "application/rss+xml")
+		_, _ = w.Write([]byte(sampleFeed))
+	}))
+	defer srv.Close()
+
+	if _, err := New("prowlarr", srv.URL, "k", "5070,127720").Recent(context.Background()); err != nil {
+		t.Fatalf("Recent: %v", err)
+	}
+	if gotCat != "5070,127720" {
+		t.Errorf("recent request cat = %q, want %q", gotCat, "5070,127720")
 	}
 }
 
@@ -315,7 +379,7 @@ func TestSearchHTTPErrorStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	i := New("prowlarr", srv.URL, "k")
+	i := New("prowlarr", srv.URL, "k", "")
 	if _, err := i.Search(context.Background(), indexer.Query{Term: "x"}); err == nil {
 		t.Fatal("expected an error on HTTP 500")
 	}

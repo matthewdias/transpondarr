@@ -41,6 +41,9 @@ type Config struct {
 	TorznabName   string // display name, defaults to "torznab"
 	TorznabURL    string // Torznab API endpoint (Prowlarr/Jackett feed URL)
 	TorznabAPIKey string
+	// TorznabCategories is the comma-separated Newznab id list sent as cat= on
+	// every search and recent-feed request. Empty means no filter.
+	TorznabCategories string
 
 	// Library import (optional). When LibraryDir is empty, completed downloads are
 	// not imported (the pipeline still grabs). ImportMode is auto|hardlink|copy;
@@ -87,6 +90,7 @@ func Load() (*Config, error) {
 	c.TorznabName = getenv("TRANSPONDARR_TORZNAB_NAME", "torznab")
 	c.TorznabURL = os.Getenv("TRANSPONDARR_TORZNAB_URL")
 	c.TorznabAPIKey = os.Getenv("TRANSPONDARR_TORZNAB_APIKEY")
+	c.TorznabCategories = os.Getenv("TRANSPONDARR_TORZNAB_CATEGORIES")
 
 	c.LibraryDir = os.Getenv("TRANSPONDARR_LIBRARY_DIR")
 	c.ImportMode = getenv("TRANSPONDARR_IMPORT_MODE", "auto")
