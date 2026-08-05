@@ -17,6 +17,7 @@ const unitTests = [
   "src/lib/chart.test.ts",
   "src/lib/format.test.ts",
   "src/lib/queries.test.ts",
+  "src/lib/release-focus.test.ts",
   "src/lib/season.test.ts",
   "src/pages/settings/sections/profile-editor-state.test.ts",
 ];
