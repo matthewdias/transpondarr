@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Link } from "react-router";
 import {
   useInfiniteQuery,
@@ -30,7 +30,7 @@ import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Toggle } from "@/components/ui/toggle";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type WantedTab = "missing" | "cutoff";
 
@@ -64,8 +64,12 @@ const reasonTone: Record<MissingReason, string> = {
 
 export function WantedPage() {
   const [tab, setTab] = useState<WantedTab>("missing");
-  const [unaired, setUnaired] = useState(false);
-  const [unmonitored, setUnmonitored] = useState(false);
+  // One group of independent filters, so the state is the set that is on. The
+  // two flags below are what the queries take; nothing else sees the set.
+  const [scope, setScope] = useState<string[]>([]);
+  const unaired = scope.includes("unaired");
+  const unmonitored = scope.includes("unmonitored");
+  const includeId = useId();
 
   return (
     <>
@@ -82,27 +86,26 @@ export function WantedPage() {
               <TabsTrigger value="cutoff">Cutoff Unmet</TabsTrigger>
             </TabsList>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Include</span>
-              {tab === "missing" && (
-                <Toggle
-                  variant="chip"
-                  size="chip"
-                  pressed={unaired}
-                  onPressedChange={setUnaired}
-                  aria-label="Show unaired episodes"
-                >
-                  <CalendarClock /> Unaired
-                </Toggle>
-              )}
-              <Toggle
+              <span id={includeId} className="text-xs text-muted-foreground">
+                Include
+              </span>
+              <ToggleGroup
+                type="multiple"
                 variant="chip"
                 size="chip"
-                pressed={unmonitored}
-                onPressedChange={setUnmonitored}
-                aria-label="Show unmonitored series"
+                value={scope}
+                onValueChange={setScope}
+                aria-labelledby={includeId}
               >
-                <EyeOff /> Unmonitored
-              </Toggle>
+                {tab === "missing" && (
+                  <ToggleGroupItem value="unaired">
+                    <CalendarClock /> Unaired
+                  </ToggleGroupItem>
+                )}
+                <ToggleGroupItem value="unmonitored">
+                  <EyeOff /> Unmonitored
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
           </div>
 

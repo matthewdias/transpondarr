@@ -132,6 +132,25 @@ it("renders each row's reason and links Search at the episode", async () => {
   ]);
 });
 
+// The scope filters are one group, not two loose buttons: arrows move between
+// chips and the keyboard toggles them. Asserted through the request the toggle
+// causes, so it fails if the group is focusable but not operable.
+it("moves between the scope chips with arrows and toggles from the keyboard", async () => {
+  const seen: URLSearchParams[] = [];
+  useHandlers({ pages: { "": { items: [] } }, onMissing: (q) => seen.push(q) });
+  renderPage();
+
+  await waitFor(() => expect(seen).toHaveLength(1));
+  screen.getByRole("button", { name: "Unaired" }).focus();
+  await userEvent.keyboard("{ArrowRight}");
+  expect(screen.getByRole("button", { name: "Unmonitored" })).toHaveFocus();
+
+  await userEvent.keyboard("{Enter}");
+  await waitFor(() => expect(seen).toHaveLength(2));
+  expect(seen[1].get("unmonitored")).toBe("true");
+  expect(seen[1].get("unaired")).toBe("false");
+});
+
 // Both toggles reach the server rather than filtering what already arrived: the
 // listing is paginated, so a client-side filter would leave short pages.
 it("sends the unaired and unmonitored toggles to the server", async () => {
@@ -143,7 +162,7 @@ it("sends the unaired and unmonitored toggles to the server", async () => {
   expect(seen[0].get("unaired")).toBe("false");
   expect(seen[0].get("unmonitored")).toBe("false");
 
-  await userEvent.click(screen.getByLabelText("Show unaired episodes"));
+  await userEvent.click(screen.getByRole("button", { name: "Unaired" }));
   await waitFor(() => expect(seen).toHaveLength(2));
   expect(seen[1].get("unaired")).toBe("true");
 });
