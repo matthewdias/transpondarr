@@ -42,6 +42,20 @@ func (s *Service) TitleVariants(ctx context.Context, providerID int64) ([]string
 	return dedupeNonEmpty(meta.Titles.Romaji, meta.Titles.English, meta.Titles.Native), nil
 }
 
+// CachedTitleVariants is TitleVariants answered only from the metadata cache;
+// ok=false (an unwrapped provider, or no snapshot) costs no provider request.
+func (s *Service) CachedTitleVariants(ctx context.Context, providerID int64) ([]string, bool, error) {
+	reader, ok := s.provider.(metadata.CachedTitleReader)
+	if !ok {
+		return nil, false, nil
+	}
+	meta, _, hit, err := reader.TitleFromCache(ctx, providerID)
+	if err != nil || !hit {
+		return nil, false, err
+	}
+	return dedupeNonEmpty(meta.Titles.Romaji, meta.Titles.English, meta.Titles.Native), true, nil
+}
+
 func dedupeNonEmpty(vals ...string) []string {
 	seen := make(map[string]bool, len(vals))
 	out := make([]string, 0, len(vals))

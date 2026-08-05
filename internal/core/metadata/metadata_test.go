@@ -232,6 +232,84 @@ func TestFresh(t *testing.T) {
 	}
 }
 
+// A snapshot past its TTL is still served: the caller wants names, which do not
+// go bad the way the episode count the TTL protects does.
+func TestTitleFromCacheServesStaleSnapshotWithoutProvider(t *testing.T) {
+	prov := &fakeProvider{meta: TitleMeta{ProviderID: 99}} // must NOT be returned
+	cache := &fakeCache{
+		snap:      CachedTitle{Title: TitleMeta{ProviderID: 5, Status: "RELEASING"}, Items: []ItemMeta{{Number: 1}}},
+		fetchedAt: time.Now().Add(-24 * time.Hour), // past RELEASING's 6h TTL
+		ok:        true,
+	}
+	reader, ok := Cached(prov, cache).(CachedTitleReader)
+	if !ok {
+		t.Fatal("Cached does not read its own cache")
+	}
+
+	meta, items, hit, err := reader.TitleFromCache(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("TitleFromCache: %v", err)
+	}
+	if !hit {
+		t.Fatal("stale snapshot reported as a miss")
+	}
+	if meta.ProviderID != 5 || len(items) != 1 {
+		t.Errorf("returned %+v / %d items, want the stale cached snapshot", meta, len(items))
+	}
+	if prov.getCalls != 0 {
+		t.Errorf("provider called %d times, want 0 — the whole point is spending no request", prov.getCalls)
+	}
+}
+
+func TestTitleFromCacheMissDoesNotFetch(t *testing.T) {
+	prov := &fakeProvider{meta: TitleMeta{ProviderID: 5}}
+	reader := Cached(prov, &fakeCache{ok: false}).(CachedTitleReader)
+
+	_, _, hit, err := reader.TitleFromCache(context.Background(), 5)
+	if err != nil {
+		t.Fatalf("a miss is not an error, got: %v", err)
+	}
+	if hit {
+		t.Error("an empty cache reported a hit")
+	}
+	if prov.getCalls != 0 {
+		t.Errorf("provider called %d times on a miss, want 0", prov.getCalls)
+	}
+}
+
+func TestTitleFromCacheCacheErrorDoesNotFetch(t *testing.T) {
+	prov := &fakeProvider{meta: TitleMeta{ProviderID: 5}}
+	reader := Cached(prov, &fakeCache{getErr: errors.New("db down")}).(CachedTitleReader)
+
+	_, _, hit, err := reader.TitleFromCache(context.Background(), 5)
+	if err == nil {
+		t.Fatal("expected the cache read error to surface")
+	}
+	if hit {
+		t.Error("a failed cache read reported a hit")
+	}
+	if prov.getCalls != 0 {
+		t.Errorf("provider called %d times after a cache error, want 0", prov.getCalls)
+	}
+}
+
+// Every wrapper shape genuinely holds a cache, so the capability must survive the
+// embedding Cached picks per inner provider.
+func TestEveryCachedWrapperReadsTheCache(t *testing.T) {
+	for name, prov := range map[string]Provider{
+		"plain":  &fakeProvider{},
+		"airing": &fakeAiringProvider{},
+		"browse": &fakeBrowseProvider{},
+		"both":   &fakeFullProvider{},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, ok := Cached(prov, &fakeCache{}).(CachedTitleReader); !ok {
+				t.Error("Cached wrapper cannot read its own cache")
+			}
+		})
+	}
+}
+
 // fakeAiringProvider is a provider that also publishes a schedule.
 type fakeAiringProvider struct {
 	fakeProvider

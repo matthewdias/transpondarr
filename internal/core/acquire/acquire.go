@@ -73,6 +73,13 @@ type TitleSource interface {
 	TitleVariants(ctx context.Context, providerID int64) ([]string, error)
 }
 
+// CachedTitleSource is an optional TitleSource capability: variants answered from
+// the local metadata cache, spending no provider request (satisfied by
+// *catalog.Service).
+type CachedTitleSource interface {
+	CachedTitleVariants(ctx context.Context, providerID int64) ([]string, bool, error)
+}
+
 // Recorder remembers a release automation could not use, so it is not re-ranked
 // first next pass. Satisfied by *blocklist.Service, which must be the instance
 // the importer holds: false means its breaker refused to blame the release.
@@ -214,6 +221,22 @@ func (s *Service) variants(ctx context.Context, series db.Series) []string {
 	variants := []string{series.Title}
 	if series.AnilistID.Valid {
 		if v, err := s.titles.TitleVariants(ctx, series.AnilistID.Int64); err == nil {
+			variants = append(variants, v...)
+		}
+	}
+	return variants
+}
+
+// cachedVariants is variants for the unbounded feed path (#139). A missing
+// capability or snapshot degrades to the stored title — never to the fetching
+// path, which would silently reintroduce the unbounded provider spend.
+func (s *Service) cachedVariants(ctx context.Context, series db.Series) []string {
+	variants := []string{series.Title}
+	if !series.AnilistID.Valid {
+		return variants
+	}
+	if src, ok := s.titles.(CachedTitleSource); ok {
+		if v, hit, err := src.CachedTitleVariants(ctx, series.AnilistID.Int64); err == nil && hit {
 			variants = append(variants, v...)
 		}
 	}

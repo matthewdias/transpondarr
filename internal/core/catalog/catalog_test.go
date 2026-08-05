@@ -35,6 +35,76 @@ func (f *fakeProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, []m
 	return f.meta, f.items, nil
 }
 
+// fakeCachedProvider is a provider carrying metadata's cache-read capability.
+type fakeCachedProvider struct {
+	fakeProvider
+	cachedMeta metadata.TitleMeta
+	cachedOK   bool
+	cacheCalls int
+}
+
+func (f *fakeCachedProvider) TitleFromCache(context.Context, int64) (metadata.TitleMeta, []metadata.ItemMeta, bool, error) {
+	f.cacheCalls++
+	if !f.cachedOK {
+		return metadata.TitleMeta{}, nil, false, nil
+	}
+	return f.cachedMeta, nil, true, nil
+}
+
+func TestCachedTitleVariantsHitCostsNoProviderRequest(t *testing.T) {
+	prov := &fakeCachedProvider{
+		cachedMeta: metadata.TitleMeta{Titles: metadata.Titles{
+			Romaji: "Cowboy Bebop", English: "Cowboy Bebop", Native: "カウボーイビバップ",
+		}},
+		cachedOK: true,
+	}
+	svc := NewService(coretest.NewStore(t), prov)
+
+	got, ok, err := svc.CachedTitleVariants(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("CachedTitleVariants: %v", err)
+	}
+	if !ok {
+		t.Fatal("a cached snapshot reported as a miss")
+	}
+	if len(got) != 2 || got[0] != "Cowboy Bebop" || got[1] != "カウボーイビバップ" {
+		t.Errorf("variants = %v, want the deduped romaji and native", got)
+	}
+	if prov.getCalls != 0 {
+		t.Errorf("provider GetTitle called %d times, want 0", prov.getCalls)
+	}
+	if prov.cacheCalls != 1 {
+		t.Errorf("cache read called %d times, want 1", prov.cacheCalls)
+	}
+}
+
+func TestCachedTitleVariantsMissDoesNotFallThroughToProvider(t *testing.T) {
+	prov := &fakeCachedProvider{cachedOK: false}
+	svc := NewService(coretest.NewStore(t), prov)
+
+	got, ok, err := svc.CachedTitleVariants(context.Background(), 42)
+	if err != nil || ok || got != nil {
+		t.Fatalf("got %v / %v / %v, want nil / false / nil on a miss", got, ok, err)
+	}
+	if prov.getCalls != 0 {
+		t.Errorf("provider GetTitle called %d times on a miss, want 0", prov.getCalls)
+	}
+}
+
+// A provider without the capability is a supported configuration, not an error.
+func TestCachedTitleVariantsWithoutCacheCapability(t *testing.T) {
+	prov := &fakeProvider{}
+	svc := NewService(coretest.NewStore(t), prov)
+
+	got, ok, err := svc.CachedTitleVariants(context.Background(), 42)
+	if err != nil || ok || got != nil {
+		t.Fatalf("got %v / %v / %v, want nil / false / nil without the capability", got, ok, err)
+	}
+	if prov.getCalls != 0 {
+		t.Errorf("provider GetTitle called %d times, want 0", prov.getCalls)
+	}
+}
+
 func TestAddSeriesPersistsTitleAndItems(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := &fakeProvider{

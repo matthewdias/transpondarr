@@ -92,6 +92,15 @@ All notable changes to this project are documented here. The format is based on
   here) and resets the series' search cadence, so it is looked for on the next
   pass instead of waiting out an accumulated backoff.
 
+- **The feed poll no longer spends AniList requests on title variants.** Every
+  poll resolved each wanted series' name variants through the metadata provider,
+  and currently-airing titles — exactly the ones carrying wanted items — expire
+  from the cache every 6 hours, so a library of airing shows could blow AniList's
+  budget on a single 15-minute tick. The poll now reads variants from the local
+  metadata cache only, serving even a stale snapshot (names don't go bad the way
+  episode counts do); a series with no snapshot still matches on its stored
+  title, and the bounded sweep covers it with full variants.
+
 ### Upgrade notes
 
 - **A long-running series already in your library will gain its full back
