@@ -20,10 +20,11 @@ import (
 // sweepItem describes one wanted item to seed: its number, whether it is had,
 // its air time (nil = the provider published none), and any grab against it.
 type sweepItem struct {
-	number int
-	have   bool
-	airsAt *time.Time
-	grab   string
+	number    int
+	have      bool
+	airsAt    *time.Time
+	grab      string
+	heldTitle string // the release the library holds, for an upgrade pass (#97)
 }
 
 // seedSweep inserts a series with the given items and returns its id.
@@ -55,6 +56,12 @@ func seedSweep(t *testing.T, st *store.Store, title string, monitored bool, item
 			if _, err := st.DB.ExecContext(ctx, `UPDATE wanted_items SET airs_at = ? WHERE id = ?`,
 				store.FormatTimestamp(*it.airsAt), row.ID); err != nil {
 				t.Fatalf("set airs_at on item %d: %v", it.number, err)
+			}
+		}
+		if it.heldTitle != "" {
+			if _, err := st.DB.ExecContext(ctx, `UPDATE wanted_items SET held_release_title = ? WHERE id = ?`,
+				it.heldTitle, row.ID); err != nil {
+				t.Fatalf("set held_release_title on item %d: %v", it.number, err)
 			}
 		}
 		if it.grab != "" {

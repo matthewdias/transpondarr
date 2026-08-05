@@ -21,8 +21,12 @@ import (
 // next tick rather than queued behind a backlog.
 const seriesPerPass = 5
 
-// statusFailed is the one settled grab status that leaves an item wanted again.
-const statusFailed = "failed"
+// Settled grab statuses the pass reasons about: failed leaves an item wanted
+// again, imported is what an upgrade re-opens.
+const (
+	statusFailed   = "failed"
+	statusImported = "imported"
+)
 
 // maxAddFailures ends a series' pass once the download client has refused this
 // many releases: past a couple, the client is unwell rather than the releases.
@@ -63,6 +67,7 @@ type sweepItem struct {
 	had       bool
 	airsAt    time.Time // zero when the provider published none
 	grabbable bool
+	heldTitle string // what the library holds, when this item is in the upgrade pool
 }
 
 // SweepOnce searches every series due one and grabs what it can, and is what the
@@ -165,6 +170,7 @@ func passItems(sweep []sweepItem) []passItem {
 		items = append(items, passItem{
 			WantedItem: domain.WantedItem{ID: it.id, Kind: it.kind, Number: it.number, Have: it.had},
 			grabbable:  it.grabbable,
+			heldTitle:  it.heldTitle,
 		})
 	}
 	return items
@@ -196,20 +202,24 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 	var grabbed, failed int
 	var held time.Time
 	for _, c := range m.Candidates {
-		// Eligibility is enforcement here, unlike a manual grab (PR #57).
-		if !c.Matched || !c.Eligible || len(c.Items) == 0 || anyCovered(covered, c.Items) {
+		// Eligibility is enforcement here, unlike a manual grab (PR #57). The take
+		// set is Items minus the held items the upgrade policy refused; a blocked
+		// item is deliberately left uncovered, so a lower-ranked release that does
+		// qualify -- its own group's v2 -- is still reached this pass.
+		take := c.TakeItems()
+		if !c.Matched || !c.Eligible || len(take) == 0 || anyCovered(covered, take) {
 			continue
 		}
-		if until, ok := s.pinHold(series, c, airs, now); ok {
+		if until, ok := s.pinHold(series, c, take, airs, now); ok {
 			if held.IsZero() || until.Before(held) {
 				held = until
 			}
 			// Marking the whole release covered holds items whose own window has
 			// long closed, when a batch's anchor is its newest episode. Deliberate:
 			// taking an old episode separately and the batch later is worse.
-			markCovered(covered, c.Items)
+			markCovered(covered, take)
 			if notifyOnly {
-				s.dispatchRehearsal(ctx, series, c.Items, c.Release.Title,
+				s.dispatchRehearsal(ctx, series, take, c.Release.Title,
 					fmt.Sprintf("would have waited: held %s for the pinned group %q",
 						until.Sub(now).Round(time.Minute), series.PinnedGroup.String))
 			}
@@ -217,9 +227,9 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 		}
 		if notifyOnly {
 			s.log.Info("rehearsal: would have grabbed a release",
-				"source", string(source), "series", series.ID, "release", c.Release.Title, "items", c.Items)
-			s.dispatchRehearsal(ctx, series, c.Items, c.Release.Title, "would have grabbed")
-			markCovered(covered, c.Items)
+				"source", string(source), "series", series.ID, "release", c.Release.Title, "items", take)
+			s.dispatchRehearsal(ctx, series, take, c.Release.Title, "would have grabbed")
+			markCovered(covered, take)
 			grabbed++
 			continue
 		}
@@ -246,11 +256,11 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			continue
 		}
 		s.log.Info("grabbed a release",
-			"source", string(source), "series", series.ID, "release", c.Release.Title, "items", c.Items)
+			"source", string(source), "series", series.ID, "release", c.Release.Title, "items", take)
 		if d := s.clients.Notify(); d != nil {
 			item := 0
-			if len(c.Items) == 1 {
-				item = c.Items[0]
+			if len(take) == 1 {
+				item = take[0]
 			}
 			d.Dispatch(ctx, notify.Event{
 				Kind:         notify.KindGrabbed,
@@ -259,7 +269,7 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 				ReleaseTitle: c.Release.Title,
 			})
 		}
-		markCovered(covered, c.Items)
+		markCovered(covered, take)
 		grabbed++
 	}
 	if notifyOnly {
@@ -397,7 +407,15 @@ func (s *Service) loadSweepItems(ctx context.Context, seriesID int64, now time.T
 			}
 		}
 		settled := r.GrabStatus.Valid && r.GrabStatus.String != statusFailed
-		it.grabbable = !it.had && !settled && (it.airsAt.IsZero() || !it.airsAt.After(now))
+		// The upgrade pool, mirroring the feed's due predicate: a held item whose
+		// release is known and whose grab is settled either way an upgrade can
+		// re-open. An unextracted deferral and an in-flight grab stay out.
+		pool := it.had && r.HeldReleaseTitle != "" && r.GrabStatus.Valid &&
+			(r.GrabStatus.String == statusImported || r.GrabStatus.String == statusFailed)
+		if pool {
+			it.heldTitle = r.HeldReleaseTitle
+		}
+		it.grabbable = pool || (!it.had && !settled && (it.airsAt.IsZero() || !it.airsAt.After(now)))
 		out = append(out, it)
 	}
 	return out, nil
@@ -479,7 +497,7 @@ func nullTimestamp(t time.Time) sql.NullString {
 // window since the latest covered broadcast is still open — a covered item with
 // no air date makes that window unmeasurable, so the delay does not apply rather
 // than anchoring to now, which would restart the wait on every process restart.
-func (s *Service) pinHold(series db.Series, c decide.Candidate, airs map[int]time.Time, now time.Time) (time.Time, bool) {
+func (s *Service) pinHold(series db.Series, c decide.Candidate, items []int, airs map[int]time.Time, now time.Time) (time.Time, bool) {
 	if !series.PinnedGroup.Valid || series.PinnedGroup.String == "" || c.Pinned {
 		return time.Time{}, false
 	}
@@ -492,7 +510,7 @@ func (s *Service) pinHold(series db.Series, c decide.Candidate, airs map[int]tim
 	}
 
 	var anchor time.Time
-	for _, n := range c.Items {
+	for _, n := range items {
 		at, ok := airs[n]
 		if !ok {
 			return time.Time{}, false
