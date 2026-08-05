@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   CalendarDays,
   CalendarOff,
+  EyeOff,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
@@ -27,8 +28,8 @@ import { ItemStatusBadge } from "@/components/badges";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Toggle } from "@/components/ui/toggle";
 
 const statusDot: Record<ItemStatus, string> = {
   have: "bg-have",
@@ -108,14 +109,16 @@ export function CalendarPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Switch
-                checked={unmonitored}
-                onCheckedChange={setUnmonitored}
-                aria-label="Show unmonitored series"
-              />
-              Unmonitored
-            </label>
+            <span className="text-xs text-muted-foreground">Include</span>
+            <Toggle
+              variant="chip"
+              size="chip"
+              pressed={unmonitored}
+              onPressedChange={setUnmonitored}
+              aria-label="Show unmonitored series"
+            >
+              <EyeOff /> Unmonitored
+            </Toggle>
             <Tabs
               value={view}
               onValueChange={(v) => setView(v as CalendarView)}

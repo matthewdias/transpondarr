@@ -101,6 +101,13 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- **The Calendar's "Unmonitored" control is now a filter chip rather than a
+  switch.** A switch says you are changing a stored preference — which is what
+  Monitored on a series is — and using the same control for a view filter made
+  both mean less. It now reads "Include: Unmonitored" as a pill that lights up
+  when on, matching the new Wanted page. Same behaviour, same keyboard and
+  screen-reader semantics.
+
 - **An episode you have with a download in flight now reads as "downloading"**
   rather than as simply had — the state an upgrade in progress puts it in.
 

@@ -6,7 +6,14 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ListChecks, RefreshCw, Search, TriangleAlert } from "lucide-react";
+import {
+  CalendarClock,
+  EyeOff,
+  ListChecks,
+  RefreshCw,
+  Search,
+  TriangleAlert,
+} from "lucide-react";
 import {
   api,
   ApiError,
@@ -22,8 +29,8 @@ import { ItemStatusBadge } from "@/components/badges";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Toggle } from "@/components/ui/toggle";
 
 type WantedTab = "missing" | "cutoff";
 
@@ -74,25 +81,28 @@ export function WantedPage() {
               <TabsTrigger value="missing">Missing</TabsTrigger>
               <TabsTrigger value="cutoff">Cutoff Unmet</TabsTrigger>
             </TabsList>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">Include</span>
               {tab === "missing" && (
-                <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Switch
-                    checked={unaired}
-                    onCheckedChange={setUnaired}
-                    aria-label="Show unaired episodes"
-                  />
-                  Unaired
-                </label>
+                <Toggle
+                  variant="chip"
+                  size="chip"
+                  pressed={unaired}
+                  onPressedChange={setUnaired}
+                  aria-label="Show unaired episodes"
+                >
+                  <CalendarClock /> Unaired
+                </Toggle>
               )}
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Switch
-                  checked={unmonitored}
-                  onCheckedChange={setUnmonitored}
-                  aria-label="Show unmonitored series"
-                />
-                Unmonitored
-              </label>
+              <Toggle
+                variant="chip"
+                size="chip"
+                pressed={unmonitored}
+                onPressedChange={setUnmonitored}
+                aria-label="Show unmonitored series"
+              >
+                <EyeOff /> Unmonitored
+              </Toggle>
             </div>
           </div>
 
