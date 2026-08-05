@@ -81,18 +81,25 @@ type feedHarness struct {
 // side answers with the same releases, as one real endpoint serving both would.
 func newFeedPoll(t *testing.T, entries []indexer.FeedEntry, cfg fakeConfig) *feedHarness {
 	t.Helper()
+	return newFeedPollWithTitles(t, entries, cfg, fakeTitles{})
+}
+
+// newFeedPollWithTitles is newFeedPoll over a chosen title source, so a test can
+// vary how (and whether) variants are answered.
+func newFeedPollWithTitles(t *testing.T, entries []indexer.FeedEntry, cfg fakeConfig, titles acquire.TitleSource) *feedHarness {
+	t.Helper()
 	feed := &coretest.FakeFeed{Entries: entries}
 	for _, e := range entries {
 		feed.Releases = append(feed.Releases, e.Release)
 	}
-	h := newFeedPollWith(t, feed, cfg)
+	h := newFeedPollWith(t, feed, cfg, titles)
 	h.feed = feed
 	return h
 }
 
 // newFeedPollWith takes the indexer directly, so a test can supply one with no
 // recent-feed capability at all.
-func newFeedPollWith(t *testing.T, idx indexer.Indexer, cfg fakeConfig) *feedHarness {
+func newFeedPollWith(t *testing.T, idx indexer.Indexer, cfg fakeConfig, titles acquire.TitleSource) *feedHarness {
 	t.Helper()
 	st := coretest.NewStore(t)
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "polled", Outcome: download.AddSuccess}}
@@ -101,8 +108,132 @@ func newFeedPollWith(t *testing.T, idx indexer.Indexer, cfg fakeConfig) *feedHar
 	reg.SetIndexer(idx)
 	reg.SetDownload(dl)
 	return &feedHarness{
-		svc: acquire.New(st, reg, fakeTitles{}, cfg, slog.New(rec), &fakeRecorder{}),
+		svc: acquire.New(st, reg, titles, cfg, slog.New(rec), &fakeRecorder{}),
 		st:  st, dl: dl, log: rec,
+	}
+}
+
+// fakeCachedTitles answers variants from a fixed snapshot, counting each route so
+// a test can tell a cache read from a provider fetch.
+type fakeCachedTitles struct {
+	cached      map[int64][]string
+	err         error
+	fetchCalls  int
+	cachedCalls int
+}
+
+func (f *fakeCachedTitles) TitleVariants(_ context.Context, id int64) ([]string, error) {
+	f.fetchCalls++
+	return f.cached[id], nil
+}
+
+func (f *fakeCachedTitles) CachedTitleVariants(_ context.Context, id int64) ([]string, bool, error) {
+	f.cachedCalls++
+	if f.err != nil {
+		return nil, false, f.err
+	}
+	v, ok := f.cached[id]
+	return v, ok, nil
+}
+
+// setSeriesAnilistID gives a seeded series a provider id, which is what makes the
+// variant lookup reachable at all.
+func setSeriesAnilistID(t *testing.T, st *store.Store, seriesID, anilistID int64) {
+	t.Helper()
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET anilist_id = ? WHERE id = ?`, anilistID, seriesID); err != nil {
+		t.Fatalf("set anilist_id on series %d: %v", seriesID, err)
+	}
+}
+
+// The acceptance criterion of #139: the poll matches on a variant it read from the
+// metadata cache, and spends no provider request doing it.
+func TestFeedPollMatchesOnCachedVariantWithoutFetching(t *testing.T) {
+	const english = "Fixture of the Sky"
+	past := time.Now().Add(-2 * time.Hour)
+	titles := &fakeCachedTitles{cached: map[int64][]string{42: {english}}}
+	h := newFeedPollWithTitles(t, []indexer.FeedEntry{
+		feedEntry(english, 3, time.Now().Add(-10*time.Minute)),
+	}, fakeConfig{}, titles)
+	id := seedSweep(t, h.st, "Sora no Fixture", true, sweepItem{number: 3, airsAt: &past})
+	setSeriesAnilistID(t, h.st, id, 42)
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
+		t.Fatalf("grabbed items = %v, want [3] — the cached variant should match", got)
+	}
+	if titles.fetchCalls != 0 {
+		t.Errorf("poll made %d fetching variant lookups, want 0", titles.fetchCalls)
+	}
+	if titles.cachedCalls != 1 {
+		t.Errorf("poll made %d cache-only variant lookups, want 1", titles.cachedCalls)
+	}
+}
+
+// No snapshot degrades to the stored title, never to the fetching path.
+func TestFeedPollCacheMissStillMatchesStoredTitle(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	titles := &fakeCachedTitles{}
+	h := newFeedPollWithTitles(t, []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
+	}, fakeConfig{}, titles)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+	setSeriesAnilistID(t, h.st, id, 42)
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
+		t.Fatalf("grabbed items = %v, want [3] — the stored title still matches", got)
+	}
+	if titles.fetchCalls != 0 {
+		t.Errorf("a cache miss made %d fetching lookups, want 0", titles.fetchCalls)
+	}
+}
+
+// An unreadable cache degrades like a miss, and says so at debug level so a
+// persistently broken read is not silent.
+func TestFeedPollCacheErrorStillMatchesStoredTitle(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	titles := &fakeCachedTitles{err: errors.New("db down")}
+	h := newFeedPollWithTitles(t, []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
+	}, fakeConfig{}, titles)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+	setSeriesAnilistID(t, h.st, id, 42)
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
+		t.Fatalf("grabbed items = %v, want [3] — the stored title still matches", got)
+	}
+	if titles.fetchCalls != 0 {
+		t.Errorf("a cache error made %d fetching lookups, want 0", titles.fetchCalls)
+	}
+	if !h.log.logged("cached title variants unreadable") {
+		t.Error("the degradation was not logged")
+	}
+}
+
+// A title source without the cache capability degrades the same way: the
+// cross-language match waits for the bounded sweep rather than spending a request.
+func TestFeedPollWithoutCacheCapabilityUsesStoredTitleOnly(t *testing.T) {
+	const english = "Fixture of the Sky"
+	past := time.Now().Add(-2 * time.Hour)
+	h := newFeedPollWithTitles(t, []indexer.FeedEntry{
+		feedEntry(english, 3, time.Now().Add(-10*time.Minute)),
+	}, fakeConfig{}, fakeTitles{variants: map[int64][]string{42: {english}}})
+	id := seedSweep(t, h.st, "Sora no Fixture", true, sweepItem{number: 3, airsAt: &past})
+	setSeriesAnilistID(t, h.st, id, 42)
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
+		t.Errorf("grabbed items = %v, want none — the variant must not be fetched", got)
 	}
 }
 
@@ -283,7 +414,7 @@ func TestFeedPollDedupesAFeedWithoutPublishDates(t *testing.T) {
 func TestFeedPollWithoutTheCapabilityIsAQuietNoOp(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{episodeRelease("Placeholder Saga", 3)}}
-	h := newFeedPollWith(t, idx, fakeConfig{})
+	h := newFeedPollWith(t, idx, fakeConfig{}, fakeTitles{})
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {

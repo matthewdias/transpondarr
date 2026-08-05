@@ -121,6 +121,12 @@ type Cache interface {
 	Put(ctx context.Context, provider string, id int64, snap CachedTitle) error
 }
 
+// CachedTitleReader is an optional Provider capability: a composed provider that
+// can answer GetTitle from a local snapshot without spending a request.
+type CachedTitleReader interface {
+	TitleFromCache(ctx context.Context, id int64) (TitleMeta, []ItemMeta, bool, error)
+}
+
 // Cached wraps a provider in a read-through title cache. The wrapper carries an
 // optional capability (AiringProvider, BrowseProvider) only when inner implements
 // it, so asserting a capability on a composed provider still answers for the
@@ -202,6 +208,16 @@ func (c *cached) GetTitle(ctx context.Context, id int64) (TitleMeta, []ItemMeta,
 	// Best-effort: a cache write failure must not fail the fetch.
 	_ = c.cache.Put(ctx, c.inner.Name(), id, CachedTitle{Title: meta, Items: items})
 	return meta, items, nil
+}
+
+// TitleFromCache deliberately ignores the TTL: applying it would miss on exactly
+// the airing titles this exists to serve, and names outlive the counts fresh guards.
+func (c *cached) TitleFromCache(ctx context.Context, id int64) (TitleMeta, []ItemMeta, bool, error) {
+	snap, _, ok, err := c.cache.Get(ctx, c.inner.Name(), id)
+	if err != nil || !ok {
+		return TitleMeta{}, nil, false, err
+	}
+	return snap.Title, snap.Items, true, nil
 }
 
 const shortTTL = 6 * time.Hour
