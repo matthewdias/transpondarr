@@ -8,6 +8,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **An episode's Search button now searches for that episode.** It used to hand
+  you the series-wide result list and leave you to scan it for the row whose
+  Match badge said E7. The Releases tab now opens pre-filtered to the candidates
+  that cover the episode you asked about — a single or the batch that contains
+  it — with a dismissible chip naming the focus and a count of what is hidden.
+  Nothing covering it says so, and offers the full list in one click. The search
+  itself is unchanged and still series-wide: *Search all wanted* and clicking
+  the Releases tab directly both stay that way, and a grab is still decided by
+  the server.
+
 - **An episode you already have can be re-grabbed when a better release turns
   up.** Off by default and enabled per quality profile: *Upgrade until cutoff*
   in the profile editor, with the cutoff picked from the same landmarks your

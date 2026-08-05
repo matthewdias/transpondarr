@@ -53,6 +53,9 @@ export function SeriesDetailPage() {
   const params = useParams();
   const id = Number(params.id);
   const [tab, setTab] = useState<TabKey>("episodes");
+  // Radix unmounts an inactive panel, so the focused episode is the page's to
+  // hold, not the Releases tab's.
+  const [focusItem, setFocusItem] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -108,7 +111,14 @@ export function SeriesDetailPage() {
     </div>
   );
 
-  const goSearch = () => setTab("releases");
+  const searchAll = () => {
+    setFocusItem(null);
+    setTab("releases");
+  };
+  const searchItem = (n: number) => {
+    setFocusItem(n);
+    setTab("releases");
+  };
 
   return (
     <>
@@ -156,7 +166,12 @@ export function SeriesDetailPage() {
 
             <Tabs
               value={tab}
-              onValueChange={(v) => setTab(v as TabKey)}
+              // Radix fires this only on a user-driven change, which is exactly
+              // the seam: clicking the tab is the series-wide intent.
+              onValueChange={(v) => {
+                setFocusItem(null);
+                setTab(v as TabKey);
+              }}
               className="mt-1 gap-0"
             >
               <TabsList
@@ -182,10 +197,19 @@ export function SeriesDetailPage() {
               </TabsList>
 
               <TabsContent value="episodes">
-                <EpisodesTab detail={detail} onSearchAll={goSearch} />
+                <EpisodesTab
+                  detail={detail}
+                  onSearchAll={searchAll}
+                  onSearchItem={searchItem}
+                />
               </TabsContent>
               <TabsContent value="releases">
-                <ReleasesTab seriesId={id} active={tab === "releases"} />
+                <ReleasesTab
+                  seriesId={id}
+                  active={tab === "releases"}
+                  focusItem={focusItem}
+                  onClearFocus={() => setFocusItem(null)}
+                />
               </TabsContent>
               <TabsContent value="history">
                 <HistoryTab seriesId={id} active={tab === "history"} />
