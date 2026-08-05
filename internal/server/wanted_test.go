@@ -59,6 +59,10 @@ type cutoffResponse struct {
 		Score       int    `json:"score"`
 		CutoffScore int    `json:"cutoff_score"`
 		ProfileName string `json:"profile_name"`
+		UnmetGoals  []struct {
+			Label  string `json:"label"`
+			Points int    `json:"points"`
+		} `json:"unmet_goals"`
 	} `json:"items"`
 	NextCursor string `json:"next_cursor"`
 }
@@ -445,6 +449,15 @@ func TestCutoffUnmetRoute(t *testing.T) {
 	}
 	if got.HeldRelease == "" {
 		t.Error("want the held release title carried through")
+	}
+	// The held [MidSubs] 720p under TopSubs>MidSubs at 1080p>720p leaves the top
+	// group and top resolution unearned, 100 points each.
+	goals := map[string]int{}
+	for _, g := range got.UnmetGoals {
+		goals[g.Label] = g.Points
+	}
+	if len(goals) != 2 || goals["group TopSubs"] != 100 || goals["resolution 1080p"] != 100 {
+		t.Errorf("unmet_goals = %v, want the group and resolution gaps at 100 each", goals)
 	}
 }
 

@@ -1006,6 +1006,8 @@ export interface components {
              * @enum {string}
              */
             status: "have" | "downloading" | "stuck" | "deferred" | "wanted";
+            /** @description Profile axes the held release scores below its best on, each with the points still available */
+            unmet_goals?: components["schemas"]["ScorePartDTO"][];
             /** @description Why the last upgrade attempt failed */
             upgrade_error?: string;
         };

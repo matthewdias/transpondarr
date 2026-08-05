@@ -131,6 +131,9 @@ it("renders group and item reasons on their own tiers", async () => {
     screen.getByTitle("torrent vanished from the client"),
   ).toBeInTheDocument();
   expect(screen.getByText("2 episodes missing")).toBeInTheDocument();
+  // An absent broadcast time is named, not left as a dash that could mean
+  // anything from "loading" to "unknown column".
+  expect(screen.getAllByText("No air date")).toHaveLength(2);
 
   const links = screen
     .getAllByRole("link", { name: /search/i })
@@ -172,8 +175,9 @@ it("links to the series for episodes past the group cap", async () => {
   renderPage();
 
   expect(await screen.findByText("60 episodes missing")).toBeInTheDocument();
-  const more = screen.getByRole("link", { name: /58 more episodes/i });
+  const more = screen.getByRole("link", { name: /go to series/i });
   expect(more).toHaveAttribute("href", "/series/7");
+  expect(more).toHaveTextContent("58 more episodes not shown");
 });
 
 // The scope filters are one group, not two loose buttons: arrows move between
@@ -276,7 +280,17 @@ it("queues a search for the selected groups' series", async () => {
 });
 
 it("shows a held release against its profile cutoff on the second tab", async () => {
-  useHandlers({ pages: { "": { groups: [] } }, cutoffItems: [cutoff({})] });
+  useHandlers({
+    pages: { "": { groups: [] } },
+    cutoffItems: [
+      cutoff({
+        unmet_goals: [
+          { label: "group FakeTop", points: 100 },
+          { label: "resolution 1080p", points: 100 },
+        ],
+      }),
+    ],
+  });
   renderPage();
 
   await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
@@ -285,6 +299,10 @@ it("shows a held release against its profile cutoff on the second tab", async ()
   expect(screen.getByText("2100 / 2300")).toBeInTheDocument();
   expect(
     screen.getByTitle("Scored under the Anime HD profile"),
+  ).toBeInTheDocument();
+  // The specific goals the profile is not hitting, as points still available.
+  expect(
+    screen.getByText("Wants group FakeTop (+100) · resolution 1080p (+100)"),
   ).toBeInTheDocument();
 });
 

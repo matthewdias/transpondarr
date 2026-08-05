@@ -229,6 +229,46 @@ const (
 	scoreFix       = 25
 )
 
+// UnmetGoals is Score's complement: the axes a release scores below the
+// profile's best on, each carrying the points still available. It lives here so
+// the gap and the earnings can never disagree about what an axis is worth
+// (#150's Cutoff Unmet reads it; the fix bonus is a repair, not a goal).
+func UnmetGoals(p parser.Parsed, profile domain.QualityProfile) []ScorePart {
+	var goals []ScorePart
+	gap := func(label string, best, earned int) {
+		if best > earned {
+			goals = append(goals, ScorePart{Label: label, Points: best - earned})
+		}
+	}
+	if len(profile.Groups) > 0 {
+		earned := 0
+		if i := indexFold(profile.Groups, p.Group); i >= 0 {
+			earned = stepped(scoreGroupBase, scoreGroupStep, scoreGroupMin, i)
+		}
+		gap("group "+profile.Groups[0], scoreGroupBase, earned)
+	}
+	if len(profile.ResolutionOrder) > 0 {
+		earned := 0
+		if i := indexFold(profile.ResolutionOrder, p.Resolution); i >= 0 {
+			earned = stepped(scoreResBase, scoreResStep, scoreResMin, i)
+		}
+		gap("resolution "+profile.ResolutionOrder[0], scoreResBase, earned)
+	}
+	if profile.PreferredSource != "" && !strings.EqualFold(p.Source, profile.PreferredSource) {
+		gap("source "+profile.PreferredSource, scoreSource, 0)
+	}
+	if profile.PreferDualAudio && !p.DualAudio {
+		gap("dual audio", scoreDualAudio, 0)
+	}
+	if profile.SubPref != "" && !strings.EqualFold(p.Subs, profile.SubPref) {
+		gap("subs "+profile.SubPref, scoreSubs, 0)
+	}
+	if profile.CodecPref != "" && !strings.EqualFold(p.Codec, profile.CodecPref) {
+		gap("codec "+profile.CodecPref, scoreCodec, 0)
+	}
+	return goals
+}
+
 // Score rates a release against a profile. It is deliberately pure — no store
 // or network — so the ranking that decides what lands in a library can be
 // tested exhaustively.

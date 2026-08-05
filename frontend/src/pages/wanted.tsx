@@ -8,6 +8,7 @@ import {
 import { toast } from "sonner";
 import {
   CalendarClock,
+  ChevronRight,
   EyeOff,
   ListChecks,
   RefreshCw,
@@ -240,9 +241,14 @@ function MissingGroupCard({
       {hidden > 0 && (
         <Link
           to={`/series/${group.series_id}`}
-          className="block px-3.5 py-2 text-xs text-muted-foreground hover:bg-panel-2/40 hover:text-foreground"
+          className="flex items-center justify-between px-3.5 py-2 text-xs hover:bg-panel-2/40"
         >
-          …and {plural(hidden, "more episode")} — open the series
+          <span className="text-faint">
+            {plural(hidden, "more episode")} not shown
+          </span>
+          <span className="inline-flex items-center gap-1 font-medium text-primary">
+            Go to series <ChevronRight className="size-3.5" />
+          </span>
         </Link>
       )}
     </section>
@@ -265,7 +271,13 @@ function MissingRow({
         {item.name || `Episode ${item.number}`}
       </span>
       <span className="hidden w-28 shrink-0 text-right text-xs text-faint sm:block">
-        {airDate(item.airs_at)}
+        {item.airs_at ? (
+          airDate(item.airs_at)
+        ) : (
+          <span title="AniList publishes no broadcast time for this episode">
+            No air date
+          </span>
+        )}
       </span>
       <ItemReasonBadge item={item} />
       <Button variant="outline" size="sm" asChild>
@@ -376,6 +388,16 @@ function CutoffRow({ item }: { item: CutoffItem }) {
         <div className="truncate font-mono text-[12px] text-faint">
           {item.held_release}
         </div>
+        {(item.unmet_goals?.length ?? 0) > 0 && (
+          // The gap, not the earnings: the axes the profile still wants that
+          // this release is not, each with the points it would add.
+          <div className="truncate text-[11px] text-dl">
+            Wants{" "}
+            {item
+              .unmet_goals!.map((g) => `${g.label} (+${g.points})`)
+              .join(" · ")}
+          </div>
+        )}
       </div>
       <span
         className="hidden w-32 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:block"

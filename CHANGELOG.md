@@ -26,9 +26,12 @@ All notable changes to this project are documented here. The format is based on
   display. Unaired episodes hide behind a filter, since the Calendar owns the
   forward-looking view, and an unmonitored filter matches the Calendar's.
   *Cutoff Unmet* lists the episodes you hold that score below their profile's
-  cutoff, with the held release name and its score against that cutoff; it only
-  ever lists series on a profile with upgrades enabled, and re-scores from the
-  stored release name, so editing a profile moves the list immediately. Every
+  cutoff, with the held release name, its score against that cutoff, and the
+  specific profile goals it is not hitting — "Wants group TopSubs (+100) ·
+  resolution 1080p (+100)" — so the row says what an upgrade would actually
+  change, not just that one is owed; it only ever lists series on a profile
+  with upgrades enabled, and re-scores from the stored release name, so editing
+  a profile moves the list immediately. Every
   episode's Search opens the Releases tab already focused on it, where the
   manual grab is unchanged. Selecting groups and hitting "Search selected" (or
   "Search all") puts those series back at the front of the search queue and

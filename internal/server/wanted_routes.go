@@ -10,6 +10,7 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
+	"github.com/matthewdias/transpondarr/internal/core/decide"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -53,19 +54,20 @@ type missingGroupDTO struct {
 // cutoffItemDTO is one held item whose release scores below its profile's
 // cutoff, with the numbers behind that claim.
 type cutoffItemDTO struct {
-	ID           int64  `json:"id"`
-	SeriesID     int64  `json:"series_id"`
-	SeriesTitle  string `json:"series_title"`
-	Monitored    bool   `json:"monitored"`
-	Number       int    `json:"number"`
-	Name         string `json:"name,omitempty"`
-	AirsAt       string `json:"airs_at,omitempty" format:"date-time"`
-	Status       string `json:"status" enum:"have,downloading,stuck,deferred,wanted" doc:"Derived acquisition state; downloading while an upgrade is in flight"`
-	HeldRelease  string `json:"held_release" doc:"What the library holds, and what the score below rates"`
-	Score        int    `json:"score"`
-	CutoffScore  int    `json:"cutoff_score"`
-	ProfileName  string `json:"profile_name"`
-	UpgradeError string `json:"upgrade_error,omitempty" doc:"Why the last upgrade attempt failed"`
+	ID           int64          `json:"id"`
+	SeriesID     int64          `json:"series_id"`
+	SeriesTitle  string         `json:"series_title"`
+	Monitored    bool           `json:"monitored"`
+	Number       int            `json:"number"`
+	Name         string         `json:"name,omitempty"`
+	AirsAt       string         `json:"airs_at,omitempty" format:"date-time"`
+	Status       string         `json:"status" enum:"have,downloading,stuck,deferred,wanted" doc:"Derived acquisition state; downloading while an upgrade is in flight"`
+	HeldRelease  string         `json:"held_release" doc:"What the library holds, and what the score below rates"`
+	Score        int            `json:"score"`
+	CutoffScore  int            `json:"cutoff_score"`
+	UnmetGoals   []scorePartDTO `json:"unmet_goals,omitempty" doc:"Profile axes the held release scores below its best on, each with the points still available"`
+	ProfileName  string         `json:"profile_name"`
+	UpgradeError string         `json:"upgrade_error,omitempty" doc:"Why the last upgrade attempt failed"`
 }
 
 type wantedPageInput struct {
@@ -250,6 +252,17 @@ func aggregateString(v any) string {
 	return s
 }
 
+func scorePartDTOs(parts []decide.ScorePart) []scorePartDTO {
+	if len(parts) == 0 {
+		return nil
+	}
+	out := make([]scorePartDTO, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, scorePartDTO{Label: p.Label, Points: p.Points})
+	}
+	return out
+}
+
 func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput) (*cutoffOutput, error) {
 	if h.deps.acquire == nil {
 		return nil, huma.Error503ServiceUnavailable("the acquisition service is not available")
@@ -283,6 +296,7 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 			HeldRelease:  it.HeldReleaseTitle,
 			Score:        it.Score,
 			CutoffScore:  it.CutoffScore,
+			UnmetGoals:   scorePartDTOs(it.UnmetGoals),
 			ProfileName:  it.ProfileName,
 			UpgradeError: state.ImportError,
 		})

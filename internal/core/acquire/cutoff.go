@@ -53,9 +53,12 @@ type CutoffUnmetItem struct {
 	HeldReleaseTitle string
 	Score            int
 	CutoffScore      int
-	ProfileName      string
-	Grab             db.Grab
-	HasGrab          bool
+	// UnmetGoals is what the profile still wants that the held release is not:
+	// the axes scoring below their best, with the points each leaves unearned.
+	UnmetGoals  []decide.ScorePart
+	ProfileName string
+	Grab        db.Grab
+	HasGrab     bool
 }
 
 // CutoffUnmetPage is one page of that listing; a zero NextCursor is the end.
@@ -103,11 +106,14 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 				}
 				profiles[r.ProfileID] = profile
 			}
-			score, _ := decide.Score(parser.Parse(r.HeldReleaseTitle), indexer.Release{}, profile)
+			parsed := parser.Parse(r.HeldReleaseTitle)
+			score, _ := decide.Score(parsed, indexer.Release{}, profile)
 			if score >= profile.CutoffScore {
 				continue
 			}
-			out.Items = append(out.Items, cutoffItem(r, score, profile.CutoffScore))
+			item := cutoffItem(r, score, profile.CutoffScore)
+			item.UnmetGoals = decide.UnmetGoals(parsed, profile)
+			out.Items = append(out.Items, item)
 			if len(out.Items) == p.Limit {
 				out.NextCursor = cursor
 				return out, nil
