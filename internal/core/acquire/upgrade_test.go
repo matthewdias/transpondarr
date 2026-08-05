@@ -2,10 +2,18 @@ package acquire_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
+	"github.com/matthewdias/transpondarr/internal/core/blocklist"
+	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/download"
+	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
+	"github.com/matthewdias/transpondarr/internal/core/library/mediaserver"
 	"github.com/matthewdias/transpondarr/internal/core/notify"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
@@ -260,4 +268,88 @@ func containsInt(list []int, n int) bool {
 		}
 	}
 	return false
+}
+
+// The feature end to end, over a real library layout: a held 480p file, a better
+// release off the feed, and the same file replaced in place with the store now
+// naming what holds it. The last poll proves it converges — the upgraded item
+// meets the cutoff, so a page offering the same release again buys nothing.
+func TestUpgradeLifecycleReplacesTheHeldFile(t *testing.T) {
+	ctx := context.Background()
+	st := coretest.NewStore(t)
+	root := t.TempDir()
+	dir := filepath.Join(root, "Placeholder Saga", "Season 01")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	libFile := filepath.Join(dir, "Placeholder Saga - S01E03.mkv")
+	if err := os.WriteFile(libFile, make([]byte, 4096), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	entry := feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute))
+	feed := &coretest.FakeFeed{Entries: []indexer.FeedEntry{entry}}
+	feed.Releases = []indexer.Release{entry.Release}
+	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "upgrade", Outcome: download.AddSuccess}}
+	reg := clients.New()
+	reg.SetIndexer(feed)
+	reg.SetDownload(dl)
+	reg.SetLibrary(mediaserver.New(root, "copy"))
+
+	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
+	enableUpgrades(t, st, 400)
+	id := seedSweep(t, st, "Placeholder Saga", true,
+		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "imported"})
+
+	if err := svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if len(dl.Adds) != 1 {
+		t.Fatalf("download Add called %d times, want the upgrade", len(dl.Adds))
+	}
+
+	// The upgrade completes: a smaller file, which is exactly what the size check
+	// would otherwise refuse to import.
+	src := filepath.Join(t.TempDir(), "upgrade.mkv")
+	if err := os.WriteFile(src, make([]byte, 128), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dl.Statuses = []download.Status{{Hash: "upgrade", State: download.StateComplete, ContentPath: src}}
+	if err := importer.New(st, reg, discardLogger(), blocklist.New(st, nil), nil).ScanOnce(ctx); err != nil {
+		t.Fatalf("ScanOnce: %v", err)
+	}
+
+	info, err := os.Stat(libFile)
+	if err != nil {
+		t.Fatalf("the library file is gone: %v", err)
+	}
+	if info.Size() != 128 {
+		t.Errorf("library file size = %d, want the upgrade in its place", info.Size())
+	}
+	if release, status := grabFor(t, st, id, 3); status != "imported" || release != entry.Release.Title {
+		t.Errorf("grab = %q/%q, want the upgrade imported", release, status)
+	}
+	if got := heldTitleOf(t, st, id); got != entry.Release.Title {
+		t.Errorf("held release = %q, want the release that just landed", got)
+	}
+	var have int64
+	if err := st.DB.QueryRowContext(ctx,
+		`SELECT have FROM wanted_items WHERE series_id = ?`, id).Scan(&have); err != nil {
+		t.Fatalf("read have: %v", err)
+	}
+	if have != 1 {
+		t.Errorf("have = %d, want the item still in the library", have)
+	}
+
+	// Forget the page, so what stops a second grab is the cutoff rather than the
+	// feed's dedupe.
+	if _, err := st.DB.ExecContext(ctx, `DELETE FROM settings WHERE key LIKE 'feed.seen.%'`); err != nil {
+		t.Fatalf("clear the feed mark: %v", err)
+	}
+	if err := svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if len(dl.Adds) != 1 {
+		t.Errorf("download Add called %d times, want the upgraded item to have converged", len(dl.Adds))
+	}
 }
