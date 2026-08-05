@@ -36,6 +36,13 @@ const scanBatches = 20
 // whole truth either way.
 const cutoffItemsPerGroup = 50
 
+// PageItemBudget closes a wanted-queue page early once it carries this many
+// items across its groups. The group limit bounds the seasonal shape (many
+// tiny groups); this bounds the back-catalog shape (few groups at their item
+// cap), where a full page of capped groups would otherwise paint thousands of
+// rows. A page always ships at least one group, however large its cap.
+const PageItemBudget = 200
+
 // CutoffUnmetParams selects a page of series groups holding sub-cutoff releases.
 type CutoffUnmetParams struct {
 	Limit              int
@@ -95,6 +102,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 
 	profiles := map[int64]domain.QualityProfile{}
 	out := CutoffUnmetPage{Groups: make([]CutoffGroup, 0, p.Limit)}
+	itemSum := 0
 	for range scanBatches {
 		series, err := s.store.Q.ListCutoffSeriesPage(ctx, db.ListCutoffSeriesPageParams{
 			Column1: unmonitored,
@@ -125,6 +133,9 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 		for _, sr := range series {
 			// The cursor advances per series examined, not per group kept, so a
 			// resume never re-scores a series whose releases all met the cutoff.
+			// prev survives one iteration for the budget close below, which must
+			// resume AT this series rather than after it.
+			prev := cursor
 			cursor = QueueCursor{Key: sr.Title, ID: sr.ID}
 			profile, ok := profiles[sr.ProfileID]
 			if !ok {
@@ -169,6 +180,13 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 			if group.Below == 0 {
 				continue
 			}
+			// The item budget closes the page before this group when taking it
+			// would overweigh the page; the first group always ships.
+			if len(out.Groups) > 0 && itemSum+len(group.Items) > PageItemBudget {
+				out.NextCursor = prev
+				return out, nil
+			}
+			itemSum += len(group.Items)
 			out.Groups = append(out.Groups, group)
 			if len(out.Groups) == p.Limit {
 				out.NextCursor = cursor

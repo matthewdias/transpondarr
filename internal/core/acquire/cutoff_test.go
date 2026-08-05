@@ -207,6 +207,47 @@ func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 	}
 }
 
+// A page also closes on the item budget: groups of capped size stop stacking
+// at about 200 items, and the cursor resumes at the excluded series rather
+// than after it, so nothing is skipped.
+func TestCutoffUnmetPageClosesOnTheItemBudget(t *testing.T) {
+	st := coretest.NewStore(t)
+	profileID := upgradingProfile(t, st, "Upgrading", 2300)
+	// Five series of 50 sub-cutoff holds each: the budget admits four (200).
+	titles := []string{"Bulk A", "Bulk B", "Bulk C", "Bulk D", "Bulk E"}
+	for _, title := range titles {
+		id := seedSeries(t, st, title, 50)
+		putOnProfile(t, st, id, profileID)
+		for n := 1; n <= 50; n++ {
+			hold(t, st, id, n, "[MidSubs] "+title+" - "+strconv.Itoa(n)+" [720p]")
+		}
+	}
+
+	svc := cutoffService(t, st)
+	ctx := context.Background()
+	page, err := svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20})
+	if err != nil {
+		t.Fatalf("CutoffUnmet: %v", err)
+	}
+	if len(page.Groups) != 4 {
+		t.Fatalf("page 1 groups = %d, want the budget to close at 4", len(page.Groups))
+	}
+	if page.NextCursor == (acquire.QueueCursor{}) {
+		t.Fatal("want a cursor: one group remains")
+	}
+
+	rest, err := svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20, Cursor: page.NextCursor})
+	if err != nil {
+		t.Fatalf("CutoffUnmet page 2: %v", err)
+	}
+	if len(rest.Groups) != 1 || rest.Groups[0].SeriesTitle != "Bulk E" {
+		t.Fatalf("page 2 groups = %+v, want exactly the excluded Bulk E", rest.Groups)
+	}
+	if rest.NextCursor != (acquire.QueueCursor{}) {
+		t.Errorf("next_cursor = %+v, want none on the last page", rest.NextCursor)
+	}
+}
+
 // A group past the cap still reports its full size: Below is the truth, Items
 // is the front of the run.
 func TestCutoffUnmetCapsItemsPerGroupButNotTheCount(t *testing.T) {

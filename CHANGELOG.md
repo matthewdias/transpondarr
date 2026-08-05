@@ -44,7 +44,10 @@ All notable changes to this project are documented here. The format is based on
   limit that protects your indexer still applies, so a large library drains
   over several passes, and the confirmation says queued rather than done —
   under notify-only, that the run will rehearse and grab nothing. The list
-  pages by whole groups, so a series never arrives split. An episode's Releases
+  pages by whole groups, so a series never arrives split, and a page closes
+  early once its groups would list about 200 episodes — the group count bounds
+  the many-small-groups shape, the episode budget bounds the few-huge-groups
+  one, so a run of capped back-catalog series cannot stack into one giant page. An episode's Releases
   focus is now addressable as `#/series/<id>?item=<n>`.
 
 - **An episode's Search button now searches for that episode.** It used to hand

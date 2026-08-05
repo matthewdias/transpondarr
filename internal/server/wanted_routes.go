@@ -78,7 +78,7 @@ type cutoffGroupDTO struct {
 }
 
 type wantedPageInput struct {
-	Limit       int    `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Page size: series groups on missing, items on cutoff-unmet"`
+	Limit       int    `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Page size: series groups on missing, items on cutoff-unmet; a page may close below it once it lists about 200 items"`
 	Cursor      string `query:"cursor" doc:"Opaque cursor from the previous page's next_cursor"`
 	Unmonitored bool   `query:"unmonitored" doc:"Include items from unmonitored series"`
 	Unaired     bool   `query:"unaired" doc:"Include items whose broadcast is still ahead; the Calendar owns the forward-looking view"`
@@ -178,10 +178,27 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list missing series", err)
 	}
-	if len(seriesRows) > in.Limit {
-		last := seriesRows[in.Limit-1]
-		out.Body.NextCursor = keysetCursor(aggregateString(last.LatestMissingAir), last.ID)
+	hasMore := len(seriesRows) > in.Limit
+	if hasMore {
 		seriesRows = seriesRows[:in.Limit]
+	}
+	// The page's weight is rows, not groups, so it also closes on an item
+	// budget. The aggregate already says what each group will list, so the
+	// budget is applied before any items are fetched; the first group always
+	// ships, however large its cap.
+	itemSum := 0
+	for i, s := range seriesRows {
+		shown := min(int(s.Missing), missingItemsPerGroup)
+		if i > 0 && itemSum+shown > acquire.PageItemBudget {
+			seriesRows = seriesRows[:i]
+			hasMore = true
+			break
+		}
+		itemSum += shown
+	}
+	if hasMore {
+		last := seriesRows[len(seriesRows)-1]
+		out.Body.NextCursor = keysetCursor(aggregateString(last.LatestMissingAir), last.ID)
 	}
 	out.Body.Groups = make([]missingGroupDTO, 0, len(seriesRows))
 	if len(seriesRows) == 0 {

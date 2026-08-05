@@ -3268,7 +3268,7 @@ export interface operations {
     "list-wanted-cutoff-unmet": {
         parameters: {
             query?: {
-                /** @description Page size: series groups on missing, items on cutoff-unmet */
+                /** @description Page size: series groups on missing, items on cutoff-unmet; a page may close below it once it lists about 200 items */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;
@@ -3306,7 +3306,7 @@ export interface operations {
     "list-wanted-missing": {
         parameters: {
             query?: {
-                /** @description Page size: series groups on missing, items on cutoff-unmet */
+                /** @description Page size: series groups on missing, items on cutoff-unmet; a page may close below it once it lists about 200 items */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;

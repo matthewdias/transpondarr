@@ -319,6 +319,53 @@ func TestMissingCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	}
 }
 
+// A page's weight is rows, not groups: it closes early once its groups would
+// list about 200 items, so a run of capped back-catalog groups cannot stack
+// into one giant paint. The cursor resumes without a skip or an overlap.
+func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
+	h := wantedHarness(t)
+	// Six series of 50 missing items each: the budget admits four (200 shown),
+	// well under the 50-group limit.
+	for _, title := range []string{"Bulk A", "Bulk B", "Bulk C", "Bulk D", "Bulk E", "Bulk F"} {
+		seedSeries(t, h.store, title, 50)
+	}
+
+	seen := map[int64]bool{}
+	cursor, pages := "", 0
+	for {
+		var out missingResponse
+		path := "/api/v1/wanted/missing"
+		if cursor != "" {
+			path += "?cursor=" + cursor
+		}
+		if code := h.get(t, path, &out); code != http.StatusOK {
+			t.Fatalf("GET %s = %d, want 200", path, code)
+		}
+		shown := 0
+		for _, g := range out.Groups {
+			if seen[g.SeriesID] {
+				t.Fatalf("series %d returned on two pages", g.SeriesID)
+			}
+			seen[g.SeriesID] = true
+			shown += len(g.Items)
+		}
+		if shown > 200 {
+			t.Fatalf("page lists %d items, want the budget to hold it to 200", shown)
+		}
+		pages++
+		if out.NextCursor == "" {
+			break
+		}
+		if pages > 4 {
+			t.Fatal("pagination did not terminate")
+		}
+		cursor = out.NextCursor
+	}
+	if len(seen) != 6 || pages != 2 {
+		t.Fatalf("saw %d groups across %d pages, want all 6 across 2", len(seen), pages)
+	}
+}
+
 // The page-level tier: what stops any search running at all is said once, not
 // stamped on every row.
 func TestMissingReportsTheGlobalReason(t *testing.T) {
