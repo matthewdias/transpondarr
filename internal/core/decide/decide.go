@@ -37,6 +37,39 @@ type Candidate struct {
 	Eligible         bool
 	IneligibleReason string // non-empty exactly when !Eligible
 	Pinned           bool   // release group equals the series' pinned group
+
+	UpgradeItems   []int          // covered items we hold that this release may replace
+	UpgradeBlocked map[int]string // covered held items the upgrade policy refused, by reason
+}
+
+// TakeItems is what automation may act on: Items minus the held items the
+// upgrade policy refused. Manual paths keep reading Items, mirroring how they
+// read a candidate that is matched but ineligible (PR #57).
+func (c Candidate) TakeItems() []int {
+	if len(c.UpgradeBlocked) == 0 {
+		return c.Items
+	}
+	out := make([]int, 0, len(c.Items))
+	for _, n := range c.Items {
+		if _, blocked := c.UpgradeBlocked[n]; !blocked {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+// takeCount is TakeItems' length without its allocation, for the comparator.
+func (c Candidate) takeCount() int {
+	if len(c.UpgradeBlocked) == 0 {
+		return len(c.Items)
+	}
+	n := 0
+	for _, it := range c.Items {
+		if _, blocked := c.UpgradeBlocked[it]; !blocked {
+			n++
+		}
+	}
+	return n
 }
 
 // MatchOpts carries per-series knobs that are neither profile nor title data.
@@ -85,9 +118,18 @@ type ScorePart struct {
 // Item is a wanted item as the matcher sees it. Grabbable is candidacy, not
 // library state — the sweep also withholds in-flight and unaired items — so a
 // caller derives it per pass, and #97 can set it for an item we already hold.
+// HeldTitle names what the library holds, making a grabbable item an upgrade.
 type Item struct {
 	Number    int
 	Grabbable bool
+	HeldTitle string
+}
+
+// heldRelease is what a held item holds, parsed and scored once per pass so the
+// incumbent and every candidate are rated under one profile snapshot.
+type heldRelease struct {
+	parsed parser.Parsed
+	score  int
 }
 
 // Match evaluates releases against a title. titleVariants are the accepted names
@@ -101,6 +143,7 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 	// maxItem spans every item, grabbable or not, so however a caller scoped the
 	// pass, absolute-numbering detection below is unaffected.
 	itemSet := make(map[int]bool, len(items))
+	held := make(map[int]heldRelease)
 	maxItem := 0
 	for _, it := range items {
 		if it.Number > maxItem {
@@ -110,6 +153,12 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 			continue
 		}
 		itemSet[it.Number] = true
+		if it.HeldTitle == "" {
+			continue
+		}
+		p := parser.Parse(it.HeldTitle)
+		score, _ := Score(p, indexer.Release{}, profile)
+		held[it.Number] = heldRelease{parsed: p, score: score}
 	}
 	pin := ""
 	var blocked BlockedSet
@@ -126,11 +175,12 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 
 	out := make([]Candidate, 0, len(releases))
 	for _, rel := range releases {
-		c := evaluate(rel, variants, expectedSeason, itemSet, maxItem)
+		c := evaluate(rel, variants, expectedSeason, itemSet, maxItem, held)
 		c.Score, c.ScoreParts = Score(c.Parsed, c.Release, profile)
 		c.IneligibleReason = ineligibleReason(c.Release, c.Parsed, profile, blocked, c.Score)
 		c.Eligible = c.IneligibleReason == ""
 		c.Pinned = pin != "" && strings.EqualFold(c.Parsed.Group, pin)
+		applyUpgradePolicy(&c, held, profile)
 		out = append(out, c)
 	}
 
@@ -145,12 +195,14 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 		if out[a].Pinned != out[b].Pinned {
 			return out[a].Pinned
 		}
-		// Items holds only still-wanted numbers, so wider coverage first is "one
-		// grab instead of N" (#126). Below the pin deliberately: a pin is
-		// per-series knowledge, so coverage only decides among equally pinned
-		// candidates. Weekly singles tie at 1 and fall through to score.
-		if len(out[a].Items) != len(out[b].Items) {
-			return len(out[a].Items) > len(out[b].Items)
+		// Wider coverage first is "one grab instead of N" (#126), counted on what
+		// automation may take so a pack whose held coverage is all cutoff-blocked
+		// cannot outrank a single covering a genuinely wanted item. Below the pin
+		// deliberately: a pin is per-series knowledge, so coverage only decides
+		// among equally pinned candidates. Weekly singles tie at 1 and fall
+		// through to score.
+		if out[a].takeCount() != out[b].takeCount() {
+			return out[a].takeCount() > out[b].takeCount()
 		}
 		if out[a].Score != out[b].Score {
 			return out[a].Score > out[b].Score
@@ -250,6 +302,63 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 	return ""
 }
 
+// applyUpgradePolicy splits a candidate's held coverage into what automation may
+// replace and what it must leave alone, first refusal winning. It is cutoff, not
+// chase: below the cutoff any strictly higher score is taken, and at or above it
+// only a v2/repack of the very release we hold gets through, that being a fix
+// for a broken file rather than a better one.
+func applyUpgradePolicy(c *Candidate, held map[int]heldRelease, profile domain.QualityProfile) {
+	if len(held) == 0 || !c.Matched {
+		return
+	}
+	for _, n := range c.Items {
+		h, ok := held[n]
+		if !ok {
+			continue
+		}
+		if reason := upgradeRefusal(*c, h, profile); reason != "" {
+			if c.UpgradeBlocked == nil {
+				c.UpgradeBlocked = make(map[int]string, 1)
+			}
+			c.UpgradeBlocked[n] = reason
+			continue
+		}
+		c.UpgradeItems = append(c.UpgradeItems, n)
+	}
+}
+
+// upgradeRefusal reports why this candidate may not replace a held release, or
+// "" when it may.
+func upgradeRefusal(c Candidate, h heldRelease, profile domain.QualityProfile) string {
+	if !profile.UpgradesEnabled {
+		return "upgrades are not enabled for this profile"
+	}
+	if isFixOf(c.Parsed, h.parsed, profile) {
+		return ""
+	}
+	if h.score >= profile.CutoffScore {
+		return fmt.Sprintf("the held release already meets the profile cutoff (score %d >= %d)",
+			h.score, profile.CutoffScore)
+	}
+	if c.Score <= h.score {
+		return fmt.Sprintf("score %d does not beat the held release (score %d)", c.Score, h.score)
+	}
+	return ""
+}
+
+// isFixOf reports whether a release is the same group's re-release of the very
+// file we hold: a v2 or a repack, at the same resolution. Anything else is a
+// different release, and above the cutoff we are not chasing those.
+func isFixOf(c, h parser.Parsed, profile domain.QualityProfile) bool {
+	if !profile.UpgradeV2AboveCutoff {
+		return false
+	}
+	if c.Group == "" || !strings.EqualFold(c.Group, h.Group) || !strings.EqualFold(c.Resolution, h.Resolution) {
+		return false
+	}
+	return c.Version > h.Version || (c.Repack && !h.Repack)
+}
+
 func stepped(base, step, min, idx int) int {
 	if v := base - idx*step; v > min {
 		return v
@@ -269,7 +378,7 @@ func indexFold(list []string, v string) int {
 	return -1
 }
 
-func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSet map[int]bool, maxItem int) Candidate {
+func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSet map[int]bool, maxItem int, held map[int]heldRelease) Candidate {
 	p := parser.Parse(rel.Title)
 	// Enrich the release with parsed attributes (the fields the indexer left blank).
 	rel.ReleaseGroup = p.Group
@@ -313,6 +422,9 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 		if itemSet[p.EpisodeStart] {
 			c.Matched, c.Items = true, []int{p.EpisodeStart}
 			c.Reason = "episode matches a wanted item"
+			if _, ok := held[p.EpisodeStart]; ok {
+				c.Reason = "episode upgrades a held item"
+			}
 			return c
 		}
 		if p.EpisodeStart > maxItem {
