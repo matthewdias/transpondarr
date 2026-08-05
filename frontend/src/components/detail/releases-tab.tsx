@@ -250,6 +250,7 @@ export function ReleasesTab({
           <button
             type="button"
             onClick={onClearFocus}
+            aria-label={`Covering E${focusItem} — clear filter`}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-accent-foreground"
           >
             Covering E{focusItem}
@@ -257,11 +258,18 @@ export function ReleasesTab({
           </button>
         )}
         <span className="h-px flex-1 bg-border" />
-        <span className="hidden text-xs text-faint sm:inline">
-          {focusItem == null
-            ? "matched against wanted items — season & number aware"
-            : `${shown.length} of ${results.length} results`}
-        </span>
+        {focusItem == null ? (
+          <span className="hidden text-xs text-faint sm:inline">
+            matched against wanted items — season &amp; number aware
+          </span>
+        ) : (
+          // Focused, the count is the only thing saying how much is hidden, so
+          // it outranks the caption's sm-only budget — and a count before the
+          // search lands would read as a search that found nothing.
+          !search.isLoading && (
+            <span className="text-xs text-faint">{`${shown.length} of ${results.length} results`}</span>
+          )
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -334,9 +342,11 @@ export function ReleasesTab({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {shown.map((r, i) => (
+                  {shown.map((r) => (
                     <TableRow
-                      key={r.download_url || i}
+                      // Never the index: the filter changes what row an index
+                      // names, and the title is stable where a URL is missing.
+                      key={r.download_url || r.title}
                       className={cn(
                         !r.matched && "opacity-60",
                         isMobile && "cursor-pointer",

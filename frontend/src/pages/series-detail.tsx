@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -56,6 +56,9 @@ export function SeriesDetailPage() {
   // Radix unmounts an inactive panel, so the focused episode is the page's to
   // hold, not the Releases tab's.
   const [focusItem, setFocusItem] = useState<number | null>(null);
+  // The page survives a series-to-series navigation, and an episode number from
+  // the series you left means something else in the one you arrived at.
+  useEffect(() => setFocusItem(null), [id]);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 

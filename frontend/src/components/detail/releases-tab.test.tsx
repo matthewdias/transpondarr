@@ -226,13 +226,25 @@ const focusResults = [
   }),
 ];
 
-function renderReleases(focusItem: number | null) {
+// A gated handler holds the search in flight so the loading header can be
+// asserted, then lets it land in the same test rather than leaving a dangling
+// request for teardown to reset.
+function renderReleases(focusItem: number | null, gated = false) {
+  let land = () => {};
+  const inFlight = new Promise<void>((resolve) => {
+    land = resolve;
+  });
   server.use(
-    http.get("/api/v1/series/7/search", () =>
-      HttpResponse.json({ series: "Example Show", results: focusResults }),
-    ),
+    http.get("/api/v1/series/7/search", async () => {
+      if (gated) await inFlight;
+      return HttpResponse.json({
+        series: "Example Show",
+        results: focusResults,
+      });
+    }),
   );
   const onClearFocus = vi.fn();
+  const user = userEvent.setup();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -246,7 +258,7 @@ function renderReleases(focusItem: number | null) {
       />
     </QueryClientProvider>,
   );
-  return { onClearFocus, user: userEvent.setup() };
+  return { onClearFocus, user, land };
 }
 
 describe("ReleasesTab episode focus", () => {
@@ -267,8 +279,27 @@ describe("ReleasesTab episode focus", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("2 of 4 results")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /covering e3/i }));
+    // The chip is the way out of the filter, so it has to name the action and
+    // not just the state it reads as on screen.
+    await user.click(
+      screen.getByRole("button", { name: /covering e3.*clear filter/i }),
+    );
     expect(onClearFocus).toHaveBeenCalledTimes(1);
+  });
+
+  // "0 of 0" during the initial search reads as a finished search that found
+  // nothing, which is the opposite of what is happening.
+  it("withholds the count until the search has landed", async () => {
+    const { land } = renderReleases(3, true);
+
+    expect(await screen.findByText(/searching indexers/i)).toBeInTheDocument();
+    expect(screen.queryByText(/0 of 0 results/)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /covering e3.*clear filter/i }),
+    ).toBeInTheDocument();
+
+    land();
+    expect(await screen.findByText("2 of 4 results")).toBeInTheDocument();
   });
 
   // Nothing covering the episode is not "nothing found for this series" — the
