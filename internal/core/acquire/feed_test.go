@@ -547,6 +547,12 @@ func TestFeedPollWarnsWhenTheMarkScrolledOff(t *testing.T) {
 	if !h.log.logged("moved more than one page") {
 		t.Error("no gap warning when the whole page was unrecognised")
 	}
+	if h.log.logged("front of the sweep") {
+		t.Error("the warning claimed a reset when nothing qualified for one")
+	}
+	if !h.log.logged("waits for the sweep's backoff") {
+		t.Error("an empty recovery should say the sweep's backoff still owns the gap")
+	}
 }
 
 // seedGapCadence backs a series off to a long wait, which is what a gap recovery
@@ -586,8 +592,8 @@ func TestFeedPollGapResetsASeriesThatAiredInsideIt(t *testing.T) {
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
-	if !h.log.logged("moved more than one page") {
-		t.Error("no gap warning when the whole page was unrecognised")
+	if !h.log.logged("front of the sweep") {
+		t.Error("no gap warning naming the recovery when a series was reset")
 	}
 	state := readSearchState(t, h.st, id)
 	if state.backoff != 0 || state.nextSearchAt.Valid {

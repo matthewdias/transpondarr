@@ -139,8 +139,13 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 		}
 		reset++
 	}
-	s.log.Warn("the recent feed moved more than one page between polls; resetting the sweep for series that aired inside the gap",
-		"indexer", indexerName, "since", since, "poll_shorter_than", page, "reset", reset)
+	if reset > 0 {
+		s.log.Warn("the recent feed moved more than one page between polls; series that aired inside the gap go back to the front of the sweep",
+			"indexer", indexerName, "since", since, "poll_shorter_than", page, "reset", reset)
+	} else {
+		s.log.Warn("the recent feed moved more than one page between polls; nothing qualified for a reset, so anything missed waits for the sweep's backoff",
+			"indexer", indexerName, "since", since, "poll_shorter_than", page)
+	}
 	return errors.Join(errs...)
 }
 
