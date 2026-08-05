@@ -44,6 +44,32 @@ WHERE s.monitored = 1
   )
 ORDER BY s.id;
 
+-- name: ListBackedOffSeriesWantedInWindow :many
+-- Series the sweep is postponing that had a broadcast inside a window: what the
+-- feed poll resets after it detects a gap in its own coverage. Already-due
+-- series are excluded because a reset buys them nothing and would spend one of
+-- the bounded slots. The wanted predicate is the sweep's, character for
+-- character. Furthest-postponed first, since the ladder would keep those
+-- waiting longest, and the LIMIT holds the reset to one sweep pass' throughput.
+-- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
+-- rune offsets and silently truncates the emitted SQL on a multi-byte character.
+SELECT s.*
+FROM series s
+WHERE s.monitored = 1
+  AND s.next_search_at IS NOT NULL
+  AND s.next_search_at > ?
+  AND EXISTS (
+      SELECT 1
+      FROM wanted_items w
+      LEFT JOIN grabs g ON g.wanted_item_id = w.id
+      WHERE w.series_id = s.id
+        AND w.have = 0
+        AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+        AND w.airs_at IS NOT NULL AND w.airs_at >= ? AND w.airs_at < ?
+  )
+ORDER BY s.next_search_at DESC, s.id
+LIMIT ?;
+
 -- name: ListWantedItemsWithGrabState :many
 -- One grab per item (UNIQUE) keeps the join 1:1, so the sweep can tell an
 -- in-flight episode from a wanted one in a single query per series.

@@ -329,8 +329,10 @@ func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, m Matc
 // answer to "a weekly show must be searched at air time", written when the sweep
 // was the only mechanism; with a feed they aim the sweep at precisely the
 // windows the feed already covers, for one search per series. A series whose
-// broadcast the feed then misses is still reached: its stale next_search_at plus
-// the due query's EXISTS make it due, and the backoff ladder caps at a day.
+// broadcast the feed then misses is still reached: a poll that catches itself
+// missing a page resets the series that aired inside the gap (#140), and outside
+// a detected gap the stale next_search_at plus the due query's EXISTS make it
+// due, with the backoff ladder capped at a day.
 func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep []sweepItem, now time.Time, grabbed int, held time.Time, hasFeed bool) error {
 	upcoming := nextAiring(sweep, now)
 	if hasFeed {

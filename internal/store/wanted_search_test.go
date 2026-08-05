@@ -168,6 +168,131 @@ func TestListSeriesDueWantedSearchOrdersNeverSearchedFirstAndLimits(t *testing.T
 	}
 }
 
+// setNextSearchAt postpones a series, which is the state a gap recovery undoes.
+func setNextSearchAt(t *testing.T, st *Store, id int64, at time.Time) {
+	t.Helper()
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET search_backoff = 6, next_search_at = ? WHERE id = ?`,
+		FormatTimestamp(at), id); err != nil {
+		t.Fatalf("set next_search_at on series %d: %v", id, err)
+	}
+}
+
+func gapTitles(t *testing.T, st *Store, now, lo, hi time.Time, limit int64) []string {
+	t.Helper()
+	rows, err := st.Q.ListBackedOffSeriesWantedInWindow(context.Background(),
+		db.ListBackedOffSeriesWantedInWindowParams{
+			NextSearchAt: sql.NullString{String: FormatTimestamp(now), Valid: true},
+			AirsAt:       sql.NullString{String: FormatTimestamp(lo), Valid: true},
+			AirsAt_2:     sql.NullString{String: FormatTimestamp(hi), Valid: true},
+			Limit:        limit,
+		})
+	if err != nil {
+		t.Fatalf("list backed-off series wanted in window: %v", err)
+	}
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.Title)
+	}
+	return out
+}
+
+// The gap-recovery set is the sweep's wanted predicate narrowed to a broadcast
+// window and to series the ladder is actually postponing: a reset buys a due
+// series nothing, and would spend one of the bounded slots.
+func TestListBackedOffSeriesWantedInWindowPredicate(t *testing.T) {
+	st := tempStore(t)
+	now := time.Now()
+	lo, hi := now.Add(-3*time.Hour), now
+	inside := now.Add(-1 * time.Hour)
+	later := now.Add(20 * time.Hour)
+
+	// Included: postponed, with an aired-inside-the-window item still wanted.
+	setNextSearchAt(t, st, mustSeed(t, st, "in-window", 1, 1, 0, &inside), later)
+	// Included: a previous grab that failed leaves the item wanted again.
+	failed := mustSeed(t, st, "failed-grab", 1, 1, 0, &inside)
+	seedSearchGrab(t, st, itemOf(t, st, failed), "failed")
+	setNextSearchAt(t, st, failed, later)
+
+	// Excluded: unmonitored.
+	setNextSearchAt(t, st, mustSeed(t, st, "unmonitored", 0, 1, 0, &inside), later)
+	// Excluded: already due -- the sweep reaches it on the next tick regardless.
+	setNextSearchAt(t, st, mustSeed(t, st, "already-due", 1, 1, 0, &inside), now.Add(-time.Minute))
+	// Excluded: never searched, so it is at the front of the queue already.
+	mustSeed(t, st, "never-searched", 1, 1, 0, &inside)
+	// Excluded: aired before the window opened -- the feed never owed it.
+	setNextSearchAt(t, st, mustSeed(t, st, "aired-before", 1, 1, 0, ptr(now.Add(-5*time.Hour))), later)
+	// Excluded: the window is half-open, so a broadcast at hi belongs to the next one.
+	setNextSearchAt(t, st, mustSeed(t, st, "aired-at-hi", 1, 1, 0, &hi), later)
+	// Excluded: not broadcast yet.
+	setNextSearchAt(t, st, mustSeed(t, st, "aired-after", 1, 1, 0, ptr(now.Add(time.Hour))), later)
+	// Excluded: no air date at all -- nothing places it inside the gap.
+	setNextSearchAt(t, st, mustSeed(t, st, "unscheduled", 1, 1, 0, nil), later)
+	// Excluded: already in the library.
+	setNextSearchAt(t, st, mustSeed(t, st, "all-had", 1, 1, 1, &inside), later)
+	// Excluded: a settled grab holds the item.
+	settled := mustSeed(t, st, "in-flight", 1, 1, 0, &inside)
+	seedSearchGrab(t, st, itemOf(t, st, settled), "grabbed")
+	setNextSearchAt(t, st, settled, later)
+
+	got := gapTitles(t, st, now, lo, hi, 100)
+	for _, want := range []string{"in-window", "failed-grab"} {
+		if !contains(got, want) {
+			t.Errorf("gap set %v is missing %q", got, want)
+		}
+	}
+	if len(got) != 2 {
+		t.Errorf("gap set = %v, want exactly the two series a reset helps", got)
+	}
+}
+
+// Furthest-postponed first, because the ladder would keep those waiting longest
+// -- and the limit is what keeps a routine gap from resetting more series than
+// the sweep can search.
+func TestListBackedOffSeriesWantedInWindowOrdersFurthestFirstAndLimits(t *testing.T) {
+	st := tempStore(t)
+	now := time.Now()
+	inside := now.Add(-1 * time.Hour)
+
+	for i, name := range []string{"soonest", "middle", "furthest"} {
+		setNextSearchAt(t, st, mustSeed(t, st, name, 1, 1, 0, &inside),
+			now.Add(time.Duration(i+1)*4*time.Hour))
+	}
+
+	got := gapTitles(t, st, now, now.Add(-3*time.Hour), now, 100)
+	want := []string{"furthest", "middle", "soonest"}
+	for i := range want {
+		if i >= len(got) || got[i] != want[i] {
+			t.Fatalf("gap order = %v, want %v", got, want)
+		}
+	}
+	limited := gapTitles(t, st, now, now.Add(-3*time.Hour), now, 2)
+	if len(limited) != 2 || limited[0] != "furthest" || limited[1] != "middle" {
+		t.Errorf("limited gap set = %v, want the two furthest-postponed series", limited)
+	}
+}
+
+// mustSeed inserts a series with one wanted item and returns the series id.
+func mustSeed(t *testing.T, st *Store, title string, monitored int64, number int, have int64, airsAt *time.Time) int64 {
+	t.Helper()
+	id := seedSearchSeries(t, st, title, monitored)
+	seedSearchItem(t, st, id, number, have, airsAt)
+	return id
+}
+
+// itemOf returns the only wanted item of a series seeded by mustSeed.
+func itemOf(t *testing.T, st *Store, seriesID int64) int64 {
+	t.Helper()
+	var id int64
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT id FROM wanted_items WHERE series_id = ?`, seriesID).Scan(&id); err != nil {
+		t.Fatalf("read item of series %d: %v", seriesID, err)
+	}
+	return id
+}
+
+func ptr(t time.Time) *time.Time { return &t }
+
 // The write is guarded on the value read at selection so a concurrent reset — a
 // series that just grew, or was re-monitored — wins over a stale backoff.
 // The guard has to survive the case that motivated it: a due series carries

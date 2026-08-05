@@ -112,6 +112,20 @@ All notable changes to this project are documented here. The format is based on
   episode counts do); a series with no snapshot still matches on its stored
   title, and the bounded sweep covers it with full variants.
 
+- **An episode that fell through a gap in the recent feed is now searched
+  within the next sweep, not up to a day later.** When a busy indexer publishes
+  more than one page of releases between two polls, the poll recognises nothing
+  on the page it fetches and knows its coverage was broken — but it only warned,
+  leaving whatever aired in the meantime to the scheduled search, which with a
+  feed configured no longer aims at broadcast times and can be a full day away.
+  Such a poll now puts the affected series back at the front of the search
+  queue: monitored series still missing an episode that aired inside the gap
+  (plus an hour of slack before it, since a rip is published after it airs).
+  The reset is deliberately capped at five series per gap event — the same
+  number one scheduled pass searches — and skips series already due, so a
+  routine gap on a high-volume indexer never queues more searching than the
+  schedule can spend.
+
 ### Upgrade notes
 
 - **A long-running series already in your library will gain its full back
