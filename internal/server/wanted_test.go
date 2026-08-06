@@ -553,8 +553,15 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 		t.Errorf("the endpoint issued %d indexer searches; it must only queue", len(h.idx.Queries))
 	}
 
-	// No ids means the whole library, which is what "Search all" sends.
-	if code := h.postJSON(t, "/api/v1/wanted/search", struct{}{}, &out); code != http.StatusAccepted {
+	// An explicit empty array means the whole library, which is what "Search
+	// all" sends. Omitting the field entirely is rejected instead, so a
+	// mis-serialized request cannot discard every series' backoff by accident.
+	if code := h.postJSON(t, "/api/v1/wanted/search", struct{}{}, &out); code != http.StatusUnprocessableEntity {
+		t.Fatalf("POST wanted/search with no series_ids = %d, want 422", code)
+	}
+	if code := h.postJSON(t, "/api/v1/wanted/search", struct {
+		SeriesIDs []int64 `json:"series_ids"`
+	}{SeriesIDs: []int64{}}, &out); code != http.StatusAccepted {
 		t.Fatalf("POST wanted/search (all) = %d, want 202", code)
 	}
 	if out.SeriesQueued != -1 {
@@ -567,11 +574,17 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 		t.Fatalf("series one vanished: %v", err)
 	}
 
+	// An unknown id in the selection rejects the whole request, and the reset is
+	// one transaction, so a partial selection is never left half-queued.
+	searchedAt(t, h.store, one, store.FormatTimestamp(time.Now()), future)
 	var missing queueSearchResponse
 	if code := h.postJSON(t, "/api/v1/wanted/search", struct {
 		SeriesIDs []int64 `json:"series_ids"`
-	}{SeriesIDs: []int64{9999}}, &missing); code != http.StatusNotFound {
-		t.Errorf("POST wanted/search for an unknown series = %d, want 404", code)
+	}{SeriesIDs: []int64{one, 9999}}, &missing); code != http.StatusNotFound {
+		t.Errorf("POST wanted/search with an unknown series = %d, want 404", code)
+	}
+	if got := nextSearchAt(t, h.store, one); got == "" {
+		t.Error("the known series in a rejected selection must keep its backoff")
 	}
 }
 
@@ -587,7 +600,9 @@ func TestQueueSearchReportsNotifyOnly(t *testing.T) {
 	seedSeries(t, h.store, "Rehearsed", 1)
 
 	var out queueSearchResponse
-	if code := h.postJSON(t, "/api/v1/wanted/search", struct{}{}, &out); code != http.StatusAccepted {
+	if code := h.postJSON(t, "/api/v1/wanted/search", struct {
+		SeriesIDs []int64 `json:"series_ids"`
+	}{SeriesIDs: []int64{}}, &out); code != http.StatusAccepted {
 		t.Fatalf("POST wanted/search = %d, want 202", code)
 	}
 	if out.Automation != "notify_only" {

@@ -101,8 +101,16 @@ ORDER BY w.series_id, w.number;
 -- name: ListActiveBlocklistCounts :many
 -- How many releases each series is currently refusing, for the reason column.
 -- Per series rather than per item because that is the blocklist's own scope.
--- A NULL blocked_until is permanent.
+-- Scoped to the page's series, like the item fetches beside it: the whole table
+-- was aggregated to read out at most one page's worth. A NULL blocked_until is
+-- permanent.
 SELECT series_id, COUNT(*) AS entries
 FROM release_blocklist
-WHERE blocked_until IS NULL OR blocked_until > ?
+WHERE series_id IN (sqlc.slice('series_ids'))
+  AND (blocked_until IS NULL OR blocked_until > ?)
 GROUP BY series_id;
+
+-- name: CountSeriesByIDs :one
+-- How many of these ids are real series, so a bulk action can reject an unknown
+-- one in a single round trip rather than a lookup per id.
+SELECT COUNT(*) FROM series WHERE id IN (sqlc.slice('ids'));

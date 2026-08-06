@@ -1013,11 +1013,9 @@ export interface components {
              * @description Derived acquisition state; downloading while an upgrade is in flight
              * @enum {string}
              */
-            status: "have" | "downloading" | "stuck" | "deferred" | "wanted";
+            status: "have" | "downloading";
             /** @description Profile axes the held release scores below its best on, each with the points still available */
             unmet_goals?: components["schemas"]["ScorePartDTO"][];
-            /** @description Why the last upgrade attempt failed */
-            upgrade_error?: string;
         };
         CutoffOutputBody: {
             /**
@@ -1524,8 +1522,8 @@ export interface components {
              * @example https://example.com/schemas/QueueSearchInputBody.json
              */
             readonly $schema?: string;
-            /** @description Series to put back at the front of the sweep queue; empty means the whole library */
-            series_ids?: number[];
+            /** @description Series to put back at the front of the sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident */
+            series_ids: number[];
         };
         QueueSearchOutputBody: {
             /**
@@ -3268,7 +3266,7 @@ export interface operations {
     "list-wanted-cutoff-unmet": {
         parameters: {
             query?: {
-                /** @description Page size: series groups on missing, items on cutoff-unmet; a page may close below it once it lists about 200 items */
+                /** @description Series groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;
@@ -3306,7 +3304,7 @@ export interface operations {
     "list-wanted-missing": {
         parameters: {
             query?: {
-                /** @description Page size: series groups on missing, items on cutoff-unmet; a page may close below it once it lists about 200 items */
+                /** @description Series groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;

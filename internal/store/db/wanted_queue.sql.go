@@ -11,12 +11,41 @@ import (
 	"strings"
 )
 
+const countSeriesByIDs = `-- name: CountSeriesByIDs :one
+SELECT COUNT(*) FROM series WHERE id IN (/*SLICE:ids*/?)
+`
+
+// How many of these ids are real series, so a bulk action can reject an unknown
+// one in a single round trip rather than a lookup per id.
+func (q *Queries) CountSeriesByIDs(ctx context.Context, ids []int64) (int64, error) {
+	query := countSeriesByIDs
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	row := q.db.QueryRowContext(ctx, query, queryParams...)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const listActiveBlocklistCounts = `-- name: ListActiveBlocklistCounts :many
 SELECT series_id, COUNT(*) AS entries
 FROM release_blocklist
-WHERE blocked_until IS NULL OR blocked_until > ?
+WHERE series_id IN (/*SLICE:series_ids*/?)
+  AND (blocked_until IS NULL OR blocked_until > ?)
 GROUP BY series_id
 `
+
+type ListActiveBlocklistCountsParams struct {
+	SeriesIds    []int64        `json:"series_ids"`
+	BlockedUntil sql.NullString `json:"blocked_until"`
+}
 
 type ListActiveBlocklistCountsRow struct {
 	SeriesID int64 `json:"series_id"`
@@ -25,9 +54,22 @@ type ListActiveBlocklistCountsRow struct {
 
 // How many releases each series is currently refusing, for the reason column.
 // Per series rather than per item because that is the blocklist's own scope.
-// A NULL blocked_until is permanent.
-func (q *Queries) ListActiveBlocklistCounts(ctx context.Context, blockedUntil sql.NullString) ([]ListActiveBlocklistCountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listActiveBlocklistCounts, blockedUntil)
+// Scoped to the page's series, like the item fetches beside it: the whole table
+// was aggregated to read out at most one page's worth. A NULL blocked_until is
+// permanent.
+func (q *Queries) ListActiveBlocklistCounts(ctx context.Context, arg ListActiveBlocklistCountsParams) ([]ListActiveBlocklistCountsRow, error) {
+	query := listActiveBlocklistCounts
+	var queryParams []interface{}
+	if len(arg.SeriesIds) > 0 {
+		for _, v := range arg.SeriesIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:series_ids*/?", strings.Repeat(",?", len(arg.SeriesIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:series_ids*/?", "NULL", 1)
+	}
+	queryParams = append(queryParams, arg.BlockedUntil)
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
 	}

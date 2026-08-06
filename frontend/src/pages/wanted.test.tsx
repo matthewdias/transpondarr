@@ -378,10 +378,35 @@ it("collapses a group to its header", async () => {
   );
   expect(screen.queryByText("Episode 4")).toBeNull();
   expect(screen.getByText("1 episode missing")).toBeInTheDocument();
+  // The accessible name follows the state rather than contradicting it.
   await userEvent.click(
-    screen.getByRole("button", { name: "Collapse Signal Anomaly" }),
+    screen.getByRole("button", { name: "Expand Signal Anomaly" }),
   );
   expect(screen.getByText("Episode 4")).toBeInTheDocument();
+});
+
+// A selection the user can no longer see must not still be queued: changing
+// scope reloads the list, so it drops the selection with it.
+it("clears the selection when the scope filters change", async () => {
+  const bodies: { series_ids?: number[] }[] = [];
+  useHandlers({
+    pages: {
+      "": { groups: [group({}, [missing({ id: 1, number: 4 })])] },
+    },
+    onSearch: (body) => bodies.push(body),
+  });
+  renderPage();
+
+  await userEvent.click(await screen.findByLabelText("Select Signal Anomaly"));
+  expect(
+    screen.getByRole("button", { name: /search selected \(1\)/i }),
+  ).toBeEnabled();
+
+  await userEvent.click(screen.getByRole("button", { name: "Unaired" }));
+  const button = await screen.findByRole("button", {
+    name: /search selected$/i,
+  });
+  expect(button).toBeDisabled();
 });
 
 // The endpoint queues; saying it searched would be wrong, and under notify-only

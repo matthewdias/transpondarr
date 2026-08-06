@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Link } from "react-router";
 import {
   useInfiniteQuery,
@@ -149,6 +149,9 @@ function MissingTab({
   const groups = data?.pages.flatMap((p) => p.groups) ?? [];
   const globalReason = data?.pages[0]?.global_reason;
   const [selected, setSelected] = useState<Set<number>>(new Set());
+  // Changing scope changes which series are listed at all, and a selection the
+  // user can no longer see would still be queued by "Search selected".
+  useEffect(() => setSelected(new Set()), [unaired, unmonitored]);
 
   const toggle = (seriesId: number) =>
     setSelected((prev) => {
@@ -237,7 +240,7 @@ function GroupSection({
           <button
             type="button"
             aria-expanded={!collapsed}
-            aria-label={`Collapse ${title}`}
+            aria-label={`${collapsed ? "Expand" : "Collapse"} ${title}`}
             onClick={() => setCollapsed((c) => !c)}
             className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-panel-2 hover:text-foreground"
           >
@@ -532,7 +535,7 @@ function CutoffRow({
       <span className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:block">
         {item.score} / {cutoff}
       </span>
-      <ItemStatusBadge status={item.status} error={item.upgrade_error} />
+      <ItemStatusBadge status={item.status} />
       <Button variant="outline" size="sm" asChild>
         <Link to={`/series/${seriesId}?item=${item.number}`}>
           <Search className="size-4" /> Search

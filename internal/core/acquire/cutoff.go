@@ -30,11 +30,18 @@ func QueueCursorTop() QueueCursor { return QueueCursor{Key: "~", ID: 0} }
 // scanning; without a cap a library where nearly everything is at cutoff would
 // turn one request into a full-table walk. Hitting it returns a short page with
 // a cursor, which is correct, just not full.
+//
+// It bounds the response, not the work: a batch parses and scores every held
+// item of the series it read, so one request can cost scanBatches x Limit
+// series' worth of parsing whatever it returns. The worst case is the healthy
+// steady state (everything already at cutoff), not an exotic one -- tracked
+// separately rather than papered over here, since scoring is what decides
+// membership and cannot be pushed into SQL.
 const scanBatches = 20
 
-// cutoffItemsPerGroup caps what one group lists; the group's Below count is the
-// whole truth either way.
-const cutoffItemsPerGroup = 50
+// ItemsPerGroup caps what one group of either wanted listing lists; the group's
+// own count (Below here, Missing on the other tab) is the whole truth either way.
+const ItemsPerGroup = 50
 
 // PageItemBudget closes a wanted-queue page early once it carries this many
 // items across its groups. The group limit bounds the seasonal shape (many
@@ -158,7 +165,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 					continue
 				}
 				group.Below++
-				if len(group.Items) == cutoffItemsPerGroup {
+				if len(group.Items) == ItemsPerGroup {
 					continue
 				}
 				group.Items = append(group.Items, CutoffUnmetItem{
