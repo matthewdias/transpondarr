@@ -28,24 +28,37 @@ that lives on AniList/AniDB rather than TVDB.
   minutes of them appearing, and a scheduled sweep backs it up for everything
   that already existed; per-series monitoring and a global off / notify-only / on
   switch (off until you enable it). **Notify-only** rehearses the whole thing —
-  real searches and real decisions, reported rather than grabbed.
+  real searches and real decisions, reported rather than grabbed. Requests can be
+  filtered to specific indexer categories, and a poll that misses a page puts the
+  series that aired inside the gap back at the front of the search queue.
+- **A Wanted queue that says why** — every episode still missing across the
+  library, and every episode you hold that scores below its profile's cutoff,
+  each with the reason it hasn't been grabbed: automation off, unmonitored,
+  waiting its turn in the search queue, blocklisted — or the release the last
+  pass found and declined, and why.
 - **Notifications and an activity feed** — Discord, generic webhook, and ntfy,
   with per-event toggles and a test button each; an Activity page collects the
   in-flight queue and the grab/import history across every series.
 - **Anime-aware quality profiles** — release group is the dominant axis, then
   resolution/source, dual audio, and sub preferences, with a score floor and hard
   excludes. A per-series **pinned group** can also mean *wait for* — hold new
-  episodes for the pinned group's release before settling for another.
+  episodes for the pinned group's release before settling for another. Opt a
+  profile into **upgrades** and an episode you already have is re-grabbed while
+  what holds it scores below the cutoff, then left alone for good.
 - **Failure memory** — a failed release is blocklisted with escalating expiry
   instead of re-grabbed forever, an environmental-fault breaker stops one bad
   afternoon from blocklisting the library, and everything is visible and
   unblockable in the UI.
-- **Manual control that's never refused** — search and grab any release by hand;
+- **Manual control that's never refused** — search and grab any release by hand,
+  with an episode's Search opening the release list focused on that episode;
   profiles inform manual actions but only gate automation.
 - **Seeding-safe library import** — hardlink (or copy) into Plex/Jellyfin-ready
-  naming, without breaking the seeding torrent. Archived payloads aren't
-  unpacked: a RAR-set download says so and names what to extract, and extracting
-  it in place then retrying from **Fix import** completes the import.
+  naming, without breaking the seeding torrent. Season packs import episode by
+  episode, so a back catalogue arrives in one grab, and anything the importer
+  can't place by itself is fixable by hand from the Activity queue. Archived
+  payloads aren't unpacked: a RAR-set download says so and names what to extract,
+  and extracting it in place then retrying from **Fix import** completes the
+  import.
 - **Self-hosted, single binary** — embedded web UI, login + API key auth, REST
   API with an OpenAPI spec, observable background jobs, and live-editable
   settings — no restarts.
@@ -53,9 +66,6 @@ that lives on AniList/AniDB rather than TVDB.
 **Planned** (tracked in the
 [milestones](https://github.com/matthewdias/transpondarr/milestones)):
 
-- Batch/season-pack import, quality upgrades, and episode-targeted search.
-- Per-indexer category filtering, and feed-gap recovery for releases that scroll
-  off between polls.
 - Post-1.0: anime movies — with their own library root, indexer and category —
   AniList account sync (auto-monitor your Watching list), adopting a pre-existing
   library and noticing when it changes on disk, more indexers and download

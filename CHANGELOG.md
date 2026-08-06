@@ -6,18 +6,18 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
-### Added
+## [0.6.0] — 2026-08-06
 
-- **Wanted now says when the search found releases and turned them down.** An
-  episode blocked by your profile's floor, a blocked group or an exclude used to
-  look exactly like one nothing had searched for yet — and those are the ones
-  where you have something to change. Each episode now shows what the last pass
-  decided about it: the release it declined and why, the pinned group it is
-  waiting for, the one the download client refused, or that a search genuinely
-  found nothing. Under notify-only, a rehearsal's decisions show up here too
-  rather than only in your notifier. It is the last pass's answer, so the badge
-  is dated — "Releases declined · 2h ago" — and a grab since then replaces it.
-  Adds migration 00018 (`pass_outcomes`).
+Completeness: the release where you can see what the library is still missing,
+and finish it. v0.5.0 told you what automation *did*; this one answers the
+harder question — what it hasn't done, and why. A new **Wanted** page lists
+every episode still missing across the library with the reason for each one,
+down to the release the last search found and turned down. Season packs now
+import episode by episode, so a back catalogue arrives in one grab instead of a
+dozen. And an episode you already hold can be re-grabbed when a better release
+appears — opt-in per quality profile, bounded by a cutoff.
+
+### Added
 
 - **Wanted is a real page: what the library is still missing, and why.** Two
   tabs. *Missing* lists every episode still worth acquiring, grouped by series
@@ -36,15 +36,16 @@ All notable changes to this project are documented here. The format is based on
   scroll, groups collapse once you are done with them, and both lists page as
   you go rather than loading a whole library at once.
 
-- **An episode's Search button now searches for that episode.** It used to hand
-  you the series-wide result list and leave you to scan it for the row whose
-  Match badge said E7. The Releases tab now opens pre-filtered to the candidates
-  that cover the episode you asked about — a single or the batch that contains
-  it — with a dismissible chip naming the focus and a count of what is hidden.
-  Nothing covering it says so, and offers the full list in one click. The search
-  itself is unchanged and still series-wide: *Search all wanted* and clicking
-  the Releases tab directly both stay that way, and a grab is still decided by
-  the server.
+  Missing also says when a search *found* releases and turned them down. An
+  episode blocked by your profile's floor, a blocked group or an exclude used
+  to look exactly like one nothing had searched for yet — and those are the
+  ones where you have something to change. Each episode carries what the last
+  pass decided about it: the release it declined and why, the pinned group it
+  is waiting for, the one the download client refused, or that a search
+  genuinely found nothing. Under notify-only, a rehearsal's decisions show up
+  here too rather than only in your notifier. It is the last pass's answer, so
+  the badge is dated — "Releases declined · 2h ago" — and a grab since then
+  replaces it. Adds migration 00018 (`pass_outcomes`).
 
 - **An episode you already have can be re-grabbed when a better release turns
   up.** Off by default and enabled per quality profile: *Upgrade until cutoff*
@@ -68,17 +69,6 @@ All notable changes to this project are documented here. The format is based on
   profiles, and the release each held episode is holding, backfilled from its
   import).
 
-- **The indexer can be pointed at specific Newznab categories.** A new
-  *Categories* field on the indexer settings (env
-  `TRANSPONDARR_TORZNAB_CATEGORIES`) takes a comma-separated list of IDs — anime
-  is usually `5070` — and sends it as `cat=` on every search and on the recent
-  feed. It matters most for the feed: one page is about 100 entries covering the
-  whole endpoint, so on a general-purpose indexer music, books and software eat
-  the window an anime release needs to be seen in. Empty is the default and
-  keeps today's behaviour exactly — every request unfiltered — so nothing
-  changes until you fill it in. A `cat` you baked into a Prowlarr or Jackett
-  feed URL is left alone while the field is empty.
-
 - **Season packs and batches now import episode by episode, and automation
   prefers them.** A multi-episode payload used to settle every grab row it
   covered as "downloaded (batch)" — terminal, with the bytes on disk and the
@@ -92,23 +82,46 @@ All notable changes to this project are documented here. The format is based on
   profile score. A pack whose numbering runs past the entry — a `01-48` pack
   against a 12-episode season — is now refused as a possible absolute/season
   mismatch instead of silently claiming episodes 1-12.
+
 - **A payload file for an episode the release never claimed is imported too**,
   when that episode exists, is still wanted, and has no download of its own —
   the release titled `03` that ships `03` and `04`.
+
 - **A stuck import can be fixed by hand from the Activity queue.** "Needs import
   fix" rows get a *Fix import* action listing every file in the payload with
   what its name parsed to, and a per-file episode picker preseeded with the
   importer's own suggestion. Use it when a filename is unreadable and nothing
   could be matched to it. Automation never reopens a settled import on its own.
 
+- **An episode's Search button now searches for that episode.** It used to hand
+  you the series-wide result list and leave you to scan it for the row whose
+  Match badge said E7. The Releases tab now opens pre-filtered to the candidates
+  that cover the episode you asked about — a single or the batch that contains
+  it — with a dismissible chip naming the focus and a count of what is hidden.
+  Nothing covering it says so, and offers the full list in one click. The search
+  itself is unchanged and still series-wide: *Search all wanted* and clicking
+  the Releases tab directly both stay that way, and a grab is still decided by
+  the server.
+
+- **The indexer can be pointed at specific Newznab categories.** A new
+  *Categories* field on the indexer settings (env
+  `TRANSPONDARR_TORZNAB_CATEGORIES`) takes a comma-separated list of IDs — anime
+  is usually `5070` — and sends it as `cat=` on every search and on the recent
+  feed. It matters most for the feed: one page is about 100 entries covering the
+  whole endpoint, so on a general-purpose indexer music, books and software eat
+  the window an anime release needs to be seen in. Empty is the default and
+  keeps today's behaviour exactly — every request unfiltered — so nothing
+  changes until you fill it in. A `cat` you baked into a Prowlarr or Jackett
+  feed URL is left alone while the field is empty.
+
 ### Changed
 
 - **The Calendar's "Unmonitored" control is now a filter chip rather than a
   switch.** A switch says you are changing a stored preference — which is what
   Monitored on a series is — and using the same control for a view filter made
-  both mean less. It now reads "Include: Unmonitored" as a pill that lights up
-  when on, matching the new Wanted page. Same behaviour, same keyboard and
-  screen-reader semantics.
+  both mean less. It is now an "Unmonitored" pill under an *Include* label,
+  lighting up when on and matching the new Wanted page. Same behaviour, same
+  keyboard and screen-reader semantics.
 
 - **An episode you have with a download in flight now reads as "downloading"**
   rather than as simply had — the state an upgrade in progress puts it in.
@@ -118,6 +131,7 @@ All notable changes to this project are documented here. The format is based on
   (`Episodes 1-3, 5`). The generic webhook's payload gains an `items` array
   carrying the raw numbers — always present, empty for a single-episode import,
   with `item_number` then `0`.
+
 - **"Downloaded (batch)" is now "Needs import fix"**, and says which episode had
   no file and how many files were left unmatched. It means one file could not be
   picked out of a payload, not that a whole batch was refused. When *nothing* in
@@ -645,7 +659,8 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/matthewdias/transpondarr/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/matthewdias/transpondarr/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/matthewdias/transpondarr/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/matthewdias/transpondarr/compare/v0.2.1...v0.3.0
