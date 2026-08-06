@@ -25,13 +25,6 @@ var AllOutcomes = []string{
 	OutcomeContended, OutcomeAddFailed, OutcomeDeclined, OutcomeNoMatch,
 }
 
-// PassSource names the entry point that recorded an outcome. Only the sweep
-// spent a search on the series, which is what lets it say nothing matched.
-const (
-	SourceSweep = string(sourceSweep)
-	SourceFeed  = string(sourceFeed)
-)
-
 // outcome is one item's row before it has an id: what was decided, the release
 // it was decided about, and the window a hold runs to.
 type outcome struct {
