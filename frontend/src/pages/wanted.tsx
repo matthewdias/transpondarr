@@ -528,12 +528,14 @@ function CutoffRow({
           </div>
         ) : (
           (item.unmet_goals?.length ?? 0) === 0 && (
-            // Nothing the profile can describe is missing, yet it is still
-            // below the cutoff: the cutoff is above this profile's own ceiling,
-            // which is a profile-editor problem rather than this row's.
+            // No stated preference is missing, yet the release is still below
+            // the cutoff. Deliberately two facts and no verdict: unmet goals
+            // exclude the repack/v2 bonus, so an empty list means "tops every
+            // preference", not "at the maximum" -- a v2 of this very release
+            // scores 25 higher and would be taken.
             <div
               className="truncate text-[11px] text-faint"
-              title={`This profile's best possible score is ${item.score}, below its cutoff of ${cutoff}, so nothing can clear it`}
+              title={`This release meets every preference this profile states. It stays listed because its score (${item.score}) is below the cutoff (${cutoff}).`}
             >
               Nothing left to improve
             </div>

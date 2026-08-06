@@ -379,9 +379,11 @@ it("says nothing below cutoff when the scan is exhausted", async () => {
   expect(screen.queryByRole("button", { name: /keep looking/i })).toBeNull();
 });
 
-// A held release can top every axis its profile states and still sit below the
-// cutoff, when the cutoff is above what the profile can score. The row says so
-// rather than rendering an empty space that reads as a bug.
+// A held release can meet every preference its profile states and still sit
+// below the cutoff. The row says so rather than rendering an empty space that
+// reads as a bug -- as two facts, not a verdict: unmet goals exclude the
+// repack/v2 bonus, so an empty list is not proof that nothing can clear the
+// cutoff, and the copy must not claim it is.
 it("says when a sub-cutoff row has nothing left to improve", async () => {
   useHandlers({
     pages: { "": { groups: [] } },
@@ -397,8 +399,9 @@ it("says when a sub-cutoff row has nothing left to improve", async () => {
   const note = await screen.findByText("Nothing left to improve");
   expect(note).toHaveAttribute(
     "title",
-    "This profile's best possible score is 2400, below its cutoff of 2500, so nothing can clear it",
+    "This release meets every preference this profile states. It stays listed because its score (2400) is below the cutoff (2500).",
   );
+  expect(note.getAttribute("title")).not.toMatch(/best possible|nothing can/i);
   // The header stays quiet: an item below the ceiling on the same profile is
   // healthy, so the group is not the place to say this.
   expect(screen.queryByText(/^Wanted:/)).toBeNull();
