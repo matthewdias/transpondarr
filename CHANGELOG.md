@@ -34,7 +34,14 @@ All notable changes to this project are documented here. The format is based on
   ("Wanted: …") and a row adding only what is its own, so a whole season below
   cutoff for one reason reads as one line, not thirty. It only ever lists
   series on a profile with upgrades enabled, and re-scores from the stored
-  release name, so editing a profile moves the list immediately. On both tabs
+  release name, so editing a profile moves the list immediately. Membership is
+  what automation could act on: the upgrade pool plus upgrades already in
+  flight, which read as "Downloading". An episode whose import is deferred is
+  left out — its fix belongs to Activity's queue, and grabbing over it from
+  here would discard the deferred attempt and strand its payload. A held
+  release that already tops every axis its profile states says "Nothing left to
+  improve" rather than nothing at all, which happens when a cutoff sits above
+  what its own profile can score. On both tabs
   a series' header pins to the top while its episodes scroll and the group
   collapses to that header, which keeps a long back catalogue navigable. Every
   episode's Search opens the Releases tab already focused on it, where the

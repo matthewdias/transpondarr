@@ -338,6 +338,31 @@ it("hoists shared goals to the cutoff group header", async () => {
   expect(screen.getByText("2200 / 2300")).toBeInTheDocument();
 });
 
+// A held release can top every axis its profile states and still sit below the
+// cutoff, when the cutoff is above what the profile can score. The row says so
+// rather than rendering an empty space that reads as a bug.
+it("says when a sub-cutoff row has nothing left to improve", async () => {
+  useHandlers({
+    pages: { "": { groups: [] } },
+    cutoffGroups: [
+      cutoffGroup({ cutoff_score: 2500 }, [
+        cutoff({ id: 11, number: 1, score: 2400 }),
+      ]),
+    ],
+  });
+  renderPage();
+
+  await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
+  const note = await screen.findByText("Nothing left to improve");
+  expect(note).toHaveAttribute(
+    "title",
+    "This profile's best possible score is 2400, below its cutoff of 2500, so nothing can clear it",
+  );
+  // The header stays quiet: an item below the ceiling on the same profile is
+  // healthy, so the group is not the place to say this.
+  expect(screen.queryByText(/^Wanted:/)).toBeNull();
+});
+
 // Both tabs' groups collapse from the header, keeping the header's summary.
 it("collapses a group to its header", async () => {
   useHandlers({

@@ -169,12 +169,13 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 					HeldReleaseTitle: r.HeldReleaseTitle,
 					Score:            score,
 					UnmetGoals:       decide.UnmetGoals(parsed, profile),
+					// The join is inner now, so every listed item has a grab.
 					Grab: db.Grab{
-						Status:       r.GrabStatus.String,
-						ReleaseTitle: r.GrabReleaseTitle.String,
+						Status:       r.GrabStatus,
+						ReleaseTitle: r.GrabReleaseTitle,
 						LastError:    r.GrabLastError,
 					},
-					HasGrab: r.GrabStatus.Valid,
+					HasGrab: true,
 				})
 			}
 			if group.Below == 0 {

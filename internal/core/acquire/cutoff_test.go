@@ -2,6 +2,7 @@ package acquire_test
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -119,6 +120,56 @@ func TestCutoffUnmetMembership(t *testing.T) {
 	}
 	if got.HeldReleaseTitle == "" || len(got.UnmetGoals) == 0 {
 		t.Errorf("item = %+v, want the held release and its unmet goals carried through", got)
+	}
+}
+
+// holdWithStatus is hold with the grab left in a chosen state, which is what
+// decides whether the upgrade pool can act on the item at all.
+func holdWithStatus(t *testing.T, st *store.Store, seriesID int64, number int, releaseTitle, status string) {
+	t.Helper()
+	hold(t, st, seriesID, number, releaseTitle)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE grabs SET status = ? WHERE wanted_item_id =
+		     (SELECT id FROM wanted_items WHERE series_id = ? AND number = ?)`,
+		status, seriesID, number); err != nil {
+		t.Fatalf("set grab status for item %d: %v", number, err)
+	}
+}
+
+// Membership is the sweep's upgrade pool plus what it is already acting on.
+// import_deferred is the one held state left out: its fix belongs to the
+// Activity queue, and a grab from here would overwrite the deferred row and
+// orphan the payload the episode is sitting in.
+func TestCutoffUnmetMembershipMatchesTheUpgradePool(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, "Placeholder Saga", 4)
+	putOnProfile(t, st, seriesID, upgradingProfile(t, st, "Upgrading", 2300))
+	// All four hold the same sub-cutoff release; only the grab state differs.
+	const held = "[MidSubs] Placeholder Saga - %s [720p]"
+	holdWithStatus(t, st, seriesID, 1, fmt.Sprintf(held, "01"), "imported")
+	holdWithStatus(t, st, seriesID, 2, fmt.Sprintf(held, "02"), "failed")
+	holdWithStatus(t, st, seriesID, 3, fmt.Sprintf(held, "03"), "grabbed")
+	holdWithStatus(t, st, seriesID, 4, fmt.Sprintf(held, "04"), "import_deferred")
+
+	page, err := cutoffService(t, st).CutoffUnmet(context.Background(), acquire.CutoffUnmetParams{Limit: 20})
+	if err != nil {
+		t.Fatalf("CutoffUnmet: %v", err)
+	}
+	if len(page.Groups) != 1 {
+		t.Fatalf("groups = %+v, want one", page.Groups)
+	}
+	got := map[int]string{}
+	for _, it := range page.Groups[0].Items {
+		got[it.Number] = it.Grab.Status
+	}
+	if len(got) != 3 || got[1] != "imported" || got[2] != "failed" || got[3] != "grabbed" {
+		t.Fatalf("items = %v, want the imported, failed and in-flight holds", got)
+	}
+	if _, ok := got[4]; ok {
+		t.Error("a deferred grab is the Activity queue's to fix and must not be listed here")
+	}
+	if page.Groups[0].Below != 3 {
+		t.Errorf("below = %d, want the count to exclude the deferred item too", page.Groups[0].Below)
 	}
 }
 

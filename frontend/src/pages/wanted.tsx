@@ -511,10 +511,22 @@ function CutoffRow({
         <div className="truncate font-mono text-[12px] text-faint">
           {item.held_release}
         </div>
-        {own.length > 0 && (
+        {own.length > 0 ? (
           <div className="truncate text-[11px] text-dl">
             Also wants {goalLine(own)}
           </div>
+        ) : (
+          (item.unmet_goals?.length ?? 0) === 0 && (
+            // Nothing the profile can describe is missing, yet it is still
+            // below the cutoff: the cutoff is above this profile's own ceiling,
+            // which is a profile-editor problem rather than this row's.
+            <div
+              className="truncate text-[11px] text-faint"
+              title={`This profile's best possible score is ${item.score}, below its cutoff of ${cutoff}, so nothing can clear it`}
+            >
+              Nothing left to improve
+            </div>
+          )
         )}
       </div>
       <span className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:block">
