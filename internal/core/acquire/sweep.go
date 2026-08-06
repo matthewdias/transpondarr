@@ -191,6 +191,10 @@ func passItems(sweep []sweepItem) []passItem {
 // settings.UpdateAutomation).
 func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source passSource) (int, time.Time, error) {
 	res, err := s.walkCandidates(ctx, series, m, sweep, now, source)
+	// A pass that gave up partway still decided something real, so what it did
+	// decide is flushed on the error path too (#181).
+	finalizeOutcomes(&res, m, sweep, source)
+	s.persistOutcomes(ctx, sweep, res.outcomes, source, now)
 	if err != nil {
 		return res.grabbed, time.Time{}, err
 	}
@@ -206,12 +210,17 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 	return res.grabbed, res.held, nil
 }
 
-// walkResult is what one walk of the ranked candidates decided.
+// walkResult is what one walk of the ranked candidates decided. covered and
+// outcomes are kept side by side rather than merged: covered runs per candidate
+// on the feed's hot path. They agree by invariant — an item is covered exactly
+// when a settling outcome closed it (see walk_invariant_test.go).
 type walkResult struct {
 	grabbed   int
 	held      time.Time
 	covered   map[int]bool
+	outcomes  outcomeSet
 	rehearsed bool // notify-only was on, so nothing reached the download client
+	complete  bool // false when the walk returned early and never saw the rest
 }
 
 // walkCandidates takes every eligible release whose items are still unspoken
@@ -227,7 +236,7 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 	}
 
 	covered := make(map[int]bool, len(sweep))
-	res := walkResult{covered: covered, rehearsed: notifyOnly}
+	res := walkResult{covered: covered, outcomes: outcomeSet{}, rehearsed: notifyOnly}
 	var failed int
 	for _, c := range m.Candidates {
 		// Eligibility is enforcement here, unlike a manual grab (PR #57). The take
@@ -235,7 +244,12 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 		// item is deliberately left uncovered, so a lower-ranked release that does
 		// qualify -- its own group's v2 -- is still reached this pass.
 		take := c.TakeItems()
-		if !c.Matched || !c.Eligible || len(take) == 0 || anyCovered(covered, take) {
+		if !c.Matched || !c.Eligible || len(take) == 0 {
+			continue
+		}
+		// This pass took these items already: the queue is working, not refusing.
+		if anyCovered(covered, take) {
+			res.outcomes.tentative(take, outcome{kind: OutcomeContended, release: c.Release.Title})
 			continue
 		}
 		if until, ok := s.pinHold(series, c, take, airs, now); ok {
@@ -246,6 +260,12 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 			// long closed, when a batch's anchor is its newest episode. Deliberate:
 			// taking an old episode separately and the batch later is worse.
 			markCovered(covered, take)
+			res.outcomes.settle(take, outcome{
+				kind:      OutcomePinHeld,
+				release:   c.Release.Title,
+				detail:    fmt.Sprintf("waiting for the pinned group %q", series.PinnedGroup.String),
+				heldUntil: until,
+			})
 			if notifyOnly {
 				s.dispatchRehearsal(ctx, series, take, c.Release.Title,
 					fmt.Sprintf("would have waited: held %s for the pinned group %q",
@@ -258,6 +278,7 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 				"source", string(source), "series", series.ID, "release", c.Release.Title, "items", take)
 			s.dispatchRehearsal(ctx, series, take, c.Release.Title, "would have grabbed")
 			markCovered(covered, take)
+			res.outcomes.settle(take, outcome{kind: OutcomeWouldGrab, release: c.Release.Title})
 			res.grabbed++
 			continue
 		}
@@ -266,6 +287,7 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 			// them. Leave them uncovered either way: an in-flight holder may still
 			// fail, and a later pass must be free to retry them.
 			if errors.Is(err, errItemsTaken) {
+				res.outcomes.tentative(take, outcome{kind: OutcomeContended, release: c.Release.Title})
 				continue
 			}
 			if !errors.Is(err, ErrDownloadAdd) {
@@ -276,6 +298,9 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 			// only a client that keeps refusing ends the pass. AutoGrab has already
 			// remembered it if the release itself was at fault (#120).
 			failed++
+			res.outcomes.tentative(take, outcome{
+				kind: OutcomeAddFailed, release: c.Release.Title, detail: err.Error(),
+			})
 			s.log.Warn("could not add a release; trying the next candidate",
 				"source", string(source), "series", series.ID, "release", c.Release.Title, "err", err)
 			if failed >= maxAddFailures {
@@ -298,9 +323,88 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 			})
 		}
 		markCovered(covered, take)
+		res.outcomes.settle(take, outcome{kind: OutcomeGrabbed, release: c.Release.Title})
 		res.grabbed++
 	}
+	res.complete = true
 	return res, nil
+}
+
+// finalizeOutcomes fills in what the walk left unsaid: an uncovered item blames
+// the refused candidate that came closest to covering it, and failing that the
+// pass says nothing matched — but only a sweep that ran to the end may. A hard
+// return never examined the remaining candidates, and a feed poll saw one page
+// covering the whole library rather than a search for this series, so either
+// claiming nothing matched would clobber a real refusal with a guess.
+func finalizeOutcomes(res *walkResult, m Match, sweep []sweepItem, source passSource) {
+	for _, it := range sweep {
+		if !it.grabbable || it.had || res.covered[it.number] {
+			continue
+		}
+		release, reason := bestRefusal(m.Candidates, map[int]bool{it.number: true})
+		switch {
+		case release != "":
+			res.outcomes.tentative([]int{it.number},
+				outcome{kind: OutcomeDeclined, release: release, detail: reason})
+		case res.complete && source == sourceSweep:
+			res.outcomes.tentative([]int{it.number}, outcome{kind: OutcomeNoMatch})
+		}
+	}
+}
+
+// persistOutcomes writes one row per decided item. A failure only logs:
+// sweepSeries treats a returned error with nothing grabbed as grounds to back
+// the series off, so surfacing a failed display-column write would cost it its
+// place in the search queue.
+func (s *Service) persistOutcomes(ctx context.Context, sweep []sweepItem, set outcomeSet, source passSource, now time.Time) {
+	if len(set) == 0 {
+		return
+	}
+	stamp := store.FormatTimestamp(now)
+	rows := make([]db.UpsertPassOutcomeParams, 0, len(set))
+	for _, it := range sweep {
+		// The upgrade pool is grabbable and had at once (#97), and those rows can
+		// never be read back by the Missing listing. Number 0 is a NULL number:
+		// episode numbering is 1-based, so two numberless items would collapse
+		// onto one row, exactly as they already do in covered.
+		if it.number == 0 || !it.grabbable || it.had {
+			continue
+		}
+		o, ok := set[it.number]
+		if !ok {
+			continue
+		}
+		rows = append(rows, db.UpsertPassOutcomeParams{
+			WantedItemID: it.id,
+			Outcome:      o.kind,
+			Source:       string(source),
+			ReleaseTitle: o.release,
+			Detail:       o.detail,
+			HeldUntil:    nullTimestamp(o.heldUntil),
+			RecordedAt:   stamp,
+		})
+	}
+	if len(rows) == 0 {
+		return
+	}
+
+	tx, err := s.store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		s.log.Warn("could not record what the pass decided", "err", err)
+		return
+	}
+	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
+	q := s.store.Q.WithTx(tx)
+	for _, row := range rows {
+		if err := q.UpsertPassOutcome(ctx, row); err != nil {
+			s.log.Warn("could not record what the pass decided",
+				"item", row.WantedItemID, "err", err)
+			return
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		s.log.Warn("could not record what the pass decided", "err", err)
+	}
 }
 
 // dispatchRehearsal reports one rehearsed decision (#116). The outcome is always
@@ -331,21 +435,21 @@ func (s *Service) dispatchRehearsal(ctx context.Context, series db.Series, items
 // unmatched — the mismatch a rehearsal exists to surface.
 func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, m Match, sweep []sweepItem, covered map[int]bool) {
 	var wanted []int
+	numbers := make(map[int]bool, len(sweep))
 	for _, it := range sweep {
 		if it.grabbable && !covered[it.number] {
 			wanted = append(wanted, it.number)
+			numbers[it.number] = true
 		}
 	}
 	if len(wanted) == 0 {
 		return
 	}
-	release, reason := "", "no matching release found"
-	for _, c := range m.Candidates {
-		// Candidates are ranked, so the first refusal is the closest miss.
-		if c.Matched && len(c.Items) > 0 && !c.Eligible {
-			release, reason = c.Release.Title, c.IneligibleReason
-			break
-		}
+	// The same selection the stored rows use, so the notification and the column
+	// cannot disagree about which release came closest (#181).
+	release, reason := bestRefusal(m.Candidates, numbers)
+	if reason == "" {
+		reason = "no matching release found"
 	}
 	s.dispatchRehearsal(ctx, series, wanted, release, "would have grabbed nothing: "+reason)
 }
