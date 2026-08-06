@@ -334,3 +334,34 @@ func TestMapState(t *testing.T) {
 		}
 	}
 }
+
+// A download URL's query string carries the indexer's API key, and this error is
+// logged, stored on the item's pass outcome and rendered in a tooltip (#181), so
+// no path may put the raw URL in it.
+func TestAddNeverLeaksTheDownloadURLQueryString(t *testing.T) {
+	const key = "s3cr3t-indexer-key"
+	torrentSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "no such torrent", http.StatusNotFound)
+	}))
+	defer torrentSrv.Close()
+
+	cases := []struct{ name, url string }{
+		{"host answered and refused", torrentSrv.URL + "/gone.torrent?apikey=" + key},
+		{"transport error", "http://127.0.0.1:1/gone.torrent?apikey=" + key},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			qb := New(qbitStub(t, http.StatusOK).URL, "u", "p")
+			_, err := qb.Add(context.Background(), download.AddOptions{URL: c.url})
+			if err == nil {
+				t.Fatal("Add succeeded, want an error")
+			}
+			if strings.Contains(err.Error(), key) {
+				t.Errorf("error leaks the API key: %v", err)
+			}
+			if strings.Contains(err.Error(), "apikey=") {
+				t.Errorf("error leaks the query string: %v", err)
+			}
+		})
+	}
+}

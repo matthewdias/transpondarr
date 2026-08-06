@@ -258,9 +258,17 @@ const listMissingItemsBySeries = `-- name: ListMissingItemsBySeries :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, w.held_release_title,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
-       g.last_error    AS grab_last_error
+       g.last_error    AS grab_last_error,
+       g.created_at    AS grab_created_at,
+       p.outcome       AS pass_outcome,
+       p.source        AS pass_source,
+       p.release_title AS pass_release_title,
+       p.detail        AS pass_detail,
+       p.held_until    AS pass_held_until,
+       p.recorded_at   AS pass_recorded_at
 FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
+LEFT JOIN pass_outcomes p ON p.wanted_item_id = w.id
 WHERE w.series_id IN (/*SLICE:series_ids*/?)
   AND w.have = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
@@ -286,12 +294,22 @@ type ListMissingItemsBySeriesRow struct {
 	GrabStatus       sql.NullString `json:"grab_status"`
 	GrabReleaseTitle sql.NullString `json:"grab_release_title"`
 	GrabLastError    sql.NullString `json:"grab_last_error"`
+	GrabCreatedAt    sql.NullString `json:"grab_created_at"`
+	PassOutcome      sql.NullString `json:"pass_outcome"`
+	PassSource       sql.NullString `json:"pass_source"`
+	PassReleaseTitle sql.NullString `json:"pass_release_title"`
+	PassDetail       sql.NullString `json:"pass_detail"`
+	PassHeldUntil    sql.NullString `json:"pass_held_until"`
+	PassRecordedAt   sql.NullString `json:"pass_recorded_at"`
 }
 
 // The items behind one page of groups. Same wanted predicate and unaired filter
 // as the series page, so a group and its items are computed from one reading of
 // the world. Number ascends within a series deliberately: a back catalogue
 // drains forwards, and episodes enumerate forwards however their dates fall.
+// Both joins are 1:1, so neither multiplies rows. The grab's created_at rides
+// along because the reason column ranks a stored pass outcome against it: an
+// answer older than the grab is one the grab has already superseded.
 func (q *Queries) ListMissingItemsBySeries(ctx context.Context, arg ListMissingItemsBySeriesParams) ([]ListMissingItemsBySeriesRow, error) {
 	query := listMissingItemsBySeries
 	var queryParams []interface{}
@@ -325,6 +343,13 @@ func (q *Queries) ListMissingItemsBySeries(ctx context.Context, arg ListMissingI
 			&i.GrabStatus,
 			&i.GrabReleaseTitle,
 			&i.GrabLastError,
+			&i.GrabCreatedAt,
+			&i.PassOutcome,
+			&i.PassSource,
+			&i.PassReleaseTitle,
+			&i.PassDetail,
+			&i.PassHeldUntil,
+			&i.PassRecordedAt,
 		); err != nil {
 			return nil, err
 		}

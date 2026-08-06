@@ -112,6 +112,7 @@ export type GrabEvent = Schemas["GrabEventDTO"];
 export type MissingItem = Schemas["MissingItemDTO"];
 export type MissingGroup = Schemas["MissingGroupDTO"];
 export type SeriesMissingReason = MissingGroup["reason"];
+export type ItemMissingReason = NonNullable<MissingItem["reason"]>;
 export type GlobalMissingReason = NonNullable<
   Schemas["MissingOutputBody"]["global_reason"]
 >;

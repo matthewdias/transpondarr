@@ -160,6 +160,116 @@ it("renders group and item reasons on their own tiers", async () => {
   expect(links).toEqual(["/series/7?item=4", "/series/7?item=5"]);
 });
 
+// #181's tier. It is the one stored reason on the page, so the chip carries a
+// visible age -- a past-tense verb plus "2h ago" cannot read as "now" -- and
+// the tooltip names the release, the refusal reason and which entry point
+// decided. A row with nothing of its own still stays quiet.
+it("dates what the last pass decided and names the release", async () => {
+  const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
+    .toISOString()
+    .replace("T", " ")
+    .slice(0, 19);
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({}, [
+            missing({ id: 1, number: 4 }),
+            missing({
+              id: 2,
+              number: 5,
+              reason: "declined",
+              reason_detail: "below the profile floor",
+              last_pass: {
+                release_title: "[SynthSubs] Signal Anomaly - 05 [720p]",
+                source: "sweep",
+                at: twoHoursAgo,
+              },
+            }),
+            missing({
+              id: 3,
+              number: 6,
+              reason: "no_match",
+              last_pass: { source: "sweep", at: twoHoursAgo },
+            }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  expect(await screen.findByText("Releases declined · 2h ago")).toBeVisible();
+  expect(screen.getByText("Nothing matched · 2h ago")).toBeVisible();
+  const declined = screen.getByText("Releases declined · 2h ago");
+  expect(declined.getAttribute("title")).toContain(
+    "[SynthSubs] Signal Anomaly - 05 [720p]",
+  );
+  expect(declined.getAttribute("title")).toContain("below the profile floor");
+  expect(declined.getAttribute("title")).toContain("search");
+  // Episode 4 has no story of its own; its group carries it.
+  expect(screen.queryByText(/Releases declined · 2h ago/)).toBe(declined);
+  expect(screen.getByText("Episode 4")).toBeInTheDocument();
+});
+
+// A hold names what it is waiting for and how long is left, which is how the
+// pin delay gets validated empirically (#62). An add failure shares the failed
+// grab's destructive tone: the client refused it, which is not the profile
+// turning a release down.
+it("names a pinned-group wait and tones a refused add as a failure", async () => {
+  const justNow = new Date(Date.now() - 60 * 1000)
+    .toISOString()
+    .replace("T", " ")
+    .slice(0, 19);
+  const inFourHours = new Date(Date.now() + 4 * 60 * 60 * 1000)
+    .toISOString()
+    .replace("T", " ")
+    .slice(0, 19);
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({}, [
+            missing({
+              id: 1,
+              number: 1,
+              reason: "pin_held",
+              reason_detail: 'waiting for the pinned group "PinnedSubs"',
+              last_pass: {
+                release_title: "[OtherSubs] Signal Anomaly - 01 [1080p]",
+                source: "feed",
+                at: justNow,
+                held_until: inFourHours,
+              },
+            }),
+            missing({
+              id: 2,
+              number: 2,
+              reason: "add_failed",
+              reason_detail: "404 fetching .torrent",
+              last_pass: {
+                release_title: "[SynthSubs] Signal Anomaly - 02 [1080p]",
+                source: "sweep",
+                at: justNow,
+              },
+            }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  const held = await screen.findByText(/Waiting for the pinned group/);
+  expect(held.getAttribute("title")).toContain("PinnedSubs");
+  expect(held.getAttribute("title")).toMatch(/Grabbable in \d+h/);
+  expect(held.getAttribute("title")).toContain("feed");
+
+  const refused = screen.getByText(/Download client refused it/);
+  expect(refused.className).toContain("destructive");
+  expect(refused.getAttribute("title")).toContain("404 fetching .torrent");
+});
+
 // The page tier is a banner said once, not a badge stamped on every row.
 it("shows the global reason as one banner", async () => {
   useHandlers({

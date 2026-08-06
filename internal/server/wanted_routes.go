@@ -20,17 +20,28 @@ import (
 // queued search triggers rather than issuing indexer requests itself.
 const sweepJobName = "wanted-search"
 
+// lastPassDTO dates the one stored reason a row can carry (#181). It is emitted
+// only when the pass tier won: everything else is computed at request time, and
+// an "as of" on a fresh answer would be a lie about how it was reached.
+type lastPassDTO struct {
+	ReleaseTitle string `json:"release_title,omitempty" doc:"The release the pass acted on or turned down; absent when nothing matched"`
+	Source       string `json:"source" enum:"sweep,feed" doc:"Which entry point decided; only a search ever reports no_match"`
+	At           string `json:"at" format:"date-time" doc:"When the pass decided this"`
+	HeldUntil    string `json:"held_until,omitempty" format:"date-time" doc:"When a pinned-group hold expires (reason pin_held)"`
+}
+
 // missingItemDTO is one item still worth acquiring. It carries no derived status
 // because the listing's predicate admits only wanted ones -- an in-flight grab
 // is Activity's row, not this page's. Its reason covers only what varies row to
 // row; the series' story lives on the group and the page's on global_reason.
 type missingItemDTO struct {
-	ID           int64  `json:"id"`
-	Number       int    `json:"number"`
-	Name         string `json:"name,omitempty"`
-	AirsAt       string `json:"airs_at,omitempty" doc:"Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule"`
-	Reason       string `json:"reason,omitempty" enum:"unaired,grab_failed" doc:"This item's own story; absent when the group and page tell it all"`
-	ReasonDetail string `json:"reason_detail,omitempty" doc:"Why the last grab failed (reason grab_failed)"`
+	ID           int64        `json:"id"`
+	Number       int          `json:"number"`
+	Name         string       `json:"name,omitempty"`
+	AirsAt       string       `json:"airs_at,omitempty" doc:"Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule"`
+	Reason       string       `json:"reason,omitempty" enum:"unaired,grab_failed,no_match,declined,pin_held,would_grab,add_failed" doc:"This item's own story; absent when the group and page tell it all"`
+	ReasonDetail string       `json:"reason_detail,omitempty" doc:"Why the last grab failed, or why the pass turned a release down"`
+	LastPass     *lastPassDTO `json:"last_pass,omitempty" doc:"Present only when the reason is the last pass's answer, which is dated because it can go stale"`
 }
 
 // missingGroupDTO is one series' missing items. Grouping is the page's shape
@@ -219,16 +230,36 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		if len(itemsBySeries[r.SeriesID]) == acquire.ItemsPerGroup {
 			continue
 		}
+		facts := itemFacts{
+			AirsAt:     storedTime(r.AirsAt),
+			GrabFailed: r.GrabStatus.Valid,
+			GrabbedAt:  storedTime(r.GrabCreatedAt),
+			Pass: passFacts{
+				Outcome:    r.PassOutcome.String,
+				Release:    r.PassReleaseTitle.String,
+				Detail:     r.PassDetail.String,
+				Source:     r.PassSource.String,
+				RecordedAt: storedTime(r.PassRecordedAt),
+			},
+		}
+		reason, fromPass := itemReason(facts, now)
 		item := missingItemDTO{
 			ID:     r.ID,
 			Number: int(r.Number.Int64),
 			Name:   r.Title.String,
 			AirsAt: storedTimeRFC3339(r.AirsAt),
-			Reason: itemReason(itemFacts{
-				AirsAt: storedTime(r.AirsAt), GrabFailed: r.GrabStatus.Valid,
-			}, now),
+			Reason: reason,
 		}
-		if item.Reason == reasonGrabFailed {
+		switch {
+		case fromPass:
+			item.ReasonDetail = facts.Pass.Detail
+			item.LastPass = &lastPassDTO{
+				ReleaseTitle: facts.Pass.Release,
+				Source:       facts.Pass.Source,
+				At:           storedTimeRFC3339(r.PassRecordedAt),
+				HeldUntil:    storedTimeRFC3339(r.PassHeldUntil),
+			}
+		case reason == reasonGrabFailed:
 			item.ReasonDetail = r.GrabLastError.String
 		}
 		itemsBySeries[r.SeriesID] = append(itemsBySeries[r.SeriesID], item)

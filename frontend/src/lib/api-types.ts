@@ -1213,6 +1213,25 @@ export interface components {
             next_run?: string;
             running: boolean;
         };
+        LastPassDTO: {
+            /**
+             * Format: date-time
+             * @description When the pass decided this
+             */
+            at: string;
+            /**
+             * Format: date-time
+             * @description When a pinned-group hold expires (reason pin_held)
+             */
+            held_until?: string;
+            /** @description The release the pass acted on or turned down; absent when nothing matched */
+            release_title?: string;
+            /**
+             * @description Which entry point decided; only a search ever reports no_match
+             * @enum {string}
+             */
+            source: "sweep" | "feed";
+        };
         LibraryInputBody: {
             /**
              * Format: uri
@@ -1285,6 +1304,8 @@ export interface components {
             airs_at?: string;
             /** Format: int64 */
             id: number;
+            /** @description Present only when the reason is the last pass's answer, which is dated because it can go stale */
+            last_pass?: components["schemas"]["LastPassDTO"];
             name?: string;
             /** Format: int64 */
             number: number;
@@ -1292,8 +1313,8 @@ export interface components {
              * @description This item's own story; absent when the group and page tell it all
              * @enum {string}
              */
-            reason?: "unaired" | "grab_failed";
-            /** @description Why the last grab failed (reason grab_failed) */
+            reason?: "unaired" | "grab_failed" | "no_match" | "declined" | "pin_held" | "would_grab" | "add_failed";
+            /** @description Why the last grab failed, or why the pass turned a release down */
             reason_detail?: string;
         };
         MissingOutputBody: {

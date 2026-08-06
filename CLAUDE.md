@@ -278,6 +278,27 @@ Behaviour changes are test-driven. Work red → green → refactor:
   `LastRssSyncReleaseInfo` shape. Two entry ids matter — the GUID is unreliable
   across Torznab implementations (Sonarr keys on the download URL for exactly
   that reason), and a feed publishing no dates dedupes on ids alone.
+- **A pass stores what it decided; the page surfaces less than it stores
+  (#181).** `walkCandidates` writes one `pass_outcomes` row per wanted item,
+  upserted in place, so the table is bounded by `wanted_items` rather than by
+  pass count. Three constants are load-bearing. **The stored set is wider than
+  the surfaced set** — seven outcomes stored, five reach a row: `grabbed` exists
+  only as the tombstone that invalidates an older refusal (a listed item's grab
+  plainly did not hold, and `grab_failed` owns that row), and `contended`'s
+  honest message is "the queue is working", which the group tier already says.
+  **Blame drops decide's coverage tier** and re-ranks Pinned → Score → Seeders,
+  because coverage buys grab efficiency (#126) and says nothing about which
+  release came closest *for one episode* — inheriting it would let a wide
+  low-scoring pack outrank a high-scoring single covering exactly the episode
+  asked about. And **the read-side suppression guard is exactly equivalent to
+  ranking on recency**, not an approximation of it: a pass only writes for a
+  grabbable item and an item is not grabbable while its grab is live, so an
+  outcome can never be recorded between a grab being made and failing — hence
+  "older than `grabs.created_at` → dropped" needs no timestamp arithmetic and no
+  index. `covered` stays a separate map from the outcome set (it runs per
+  candidate on the feed's hot path); they agree by invariant, tested rather than
+  merged. Only a sweep that ran to the end writes `no_match`: a hard return never
+  saw the rest of the candidates, and a feed poll saw a page, not a search.
 - **The automation toggle is three-state (#116): `off` / `notify_only` / `on` —
   one settings key (`automation.enabled`) whose value domain widened, so legacy
   stored/env bools still parse.** Notify-only rehearses: both entry points run

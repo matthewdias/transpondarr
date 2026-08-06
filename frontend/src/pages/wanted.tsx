@@ -22,12 +22,13 @@ import {
   type CutoffGroup,
   type CutoffItem,
   type GlobalMissingReason,
+  type ItemMissingReason,
   type MissingGroup,
   type MissingItem,
   type SeriesMissingReason,
 } from "@/lib/api";
 import { wantedCutoffQuery, wantedMissingQuery } from "@/lib/queries";
-import { airDate, countdownOrDate, pad2, plural } from "@/lib/format";
+import { airDate, countdownOrDate, pad2, plural, timeAgo } from "@/lib/format";
 import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,30 @@ const seriesReasonTone: Record<SeriesMissingReason, string> = {
   never_searched: "border-border bg-panel-2 text-muted-foreground",
   search_backoff: "border-border bg-panel-2 text-muted-foreground",
   search_due: "border-border bg-panel-2 text-muted-foreground",
+};
+
+// The row tier. The last five are #181's: what the last pass decided about this
+// episode, which is the half the user can act on.
+const itemReasonLabel: Record<ItemMissingReason, string> = {
+  unaired: "Not aired yet",
+  grab_failed: "Last grab failed",
+  no_match: "Nothing matched",
+  declined: "Releases declined",
+  pin_held: "Waiting for the pinned group",
+  would_grab: "Would have grabbed",
+  add_failed: "Download client refused it",
+};
+
+// A refused add is a failure like a failed grab; a decline is the mid tone,
+// because there is a setting behind it to change.
+const itemReasonTone: Record<ItemMissingReason, string> = {
+  unaired: "border-border bg-panel-2 text-faint",
+  grab_failed: "border-destructive/40 text-destructive",
+  add_failed: "border-destructive/40 text-destructive",
+  declined: "border-dl/40 text-dl",
+  no_match: "border-border bg-panel-2 text-faint",
+  pin_held: "border-border bg-panel-2 text-faint",
+  would_grab: "border-border bg-panel-2 text-faint",
 };
 
 export function WantedPage() {
@@ -379,21 +404,44 @@ function SeriesReasonBadge({ group }: { group: MissingGroup }) {
   );
 }
 
+// The pass tier is the only reason on this page that can go stale, so it is
+// always shown with its age: a past-tense verb next to "2h ago" cannot read as
+// a fact about now. The tooltip carries what the pass acted on.
+function itemReasonTitle(item: MissingItem): string | undefined {
+  const pass = item.last_pass;
+  if (!pass) {
+    return item.reason === "grab_failed" ? item.reason_detail : undefined;
+  }
+  return [
+    pass.release_title,
+    item.reason_detail,
+    // countdownOrDate returns "in 4h" or a date, so the phrasing has to read
+    // with both -- "Held until in 4h" is what a bare "until" gives you.
+    item.reason === "pin_held" && pass.held_until
+      ? `Grabbable ${countdownOrDate(pass.held_until)}`
+      : undefined,
+    pass.source === "feed"
+      ? "Decided by a feed poll"
+      : "Decided by a search of this series",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
 // A row speaks only when it has its own story; most rows are told by their
 // group and stay quiet.
 function ItemReasonBadge({ item }: { item: MissingItem }) {
   if (!item.reason) return null;
+  const label = itemReasonLabel[item.reason];
   return (
     <span
-      title={item.reason === "grab_failed" ? item.reason_detail : undefined}
+      title={itemReasonTitle(item)}
       className={cn(
         "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap md:inline-flex",
-        item.reason === "grab_failed"
-          ? "border-destructive/40 text-destructive"
-          : "border-border bg-panel-2 text-faint",
+        itemReasonTone[item.reason],
       )}
     >
-      {item.reason === "grab_failed" ? "Last grab failed" : "Not aired yet"}
+      {item.last_pass ? `${label} · ${timeAgo(item.last_pass.at)}` : label}
     </span>
   );
 }

@@ -2,9 +2,11 @@ package qbittorrent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -79,6 +81,27 @@ func (c *Client) resolveAdd(ctx context.Context, opts download.AddOptions) (hash
 	}
 }
 
+// safeURL drops a download URL's query string: Torznab links carry the indexer's
+// API key there, and this text is logged, stored and rendered in a tooltip (#181).
+func safeURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "the release URL"
+	}
+	u.RawQuery, u.Fragment = "", ""
+	return u.Redacted()
+}
+
+// withoutURL strips the URL net/http repeats back in every *url.Error, which
+// would otherwise re-add the query string safeURL just removed.
+func withoutURL(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return ue.Err
+	}
+	return err
+}
+
 // badRelease attributes a failure to the release rather than to us, which is
 // what decides whether the caller remembers it (#120).
 func badRelease(err error) error {
@@ -113,7 +136,7 @@ func addOptions(opts download.AddOptions) map[string]string {
 func (c *Client) fetchTorrent(ctx context.Context, rawURL string) (content []byte, magnet string, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, "", badRelease(fmt.Errorf("qbittorrent: fetch torrent: %w", err))
+		return nil, "", badRelease(fmt.Errorf("qbittorrent: fetch torrent: %w", withoutURL(err)))
 	}
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -133,7 +156,7 @@ func (c *Client) fetchTorrent(ctx context.Context, rawURL string) (content []byt
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("qbittorrent: fetch torrent: %w", err)
+		return nil, "", fmt.Errorf("qbittorrent: fetch torrent: %w", withoutURL(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if magnet != "" {
@@ -142,7 +165,7 @@ func (c *Client) fetchTorrent(ctx context.Context, rawURL string) (content []byt
 	if resp.StatusCode != http.StatusOK {
 		// The host answered and refused this URL. A transport error above is left
 		// unattributed: it is as likely to be our network as the release's host.
-		return nil, "", badRelease(fmt.Errorf("qbittorrent: fetch torrent %s: %s", rawURL, resp.Status))
+		return nil, "", badRelease(fmt.Errorf("qbittorrent: fetch torrent %s: %s", safeURL(rawURL), resp.Status))
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20)) // 32 MiB cap
 	if err != nil {

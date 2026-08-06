@@ -37,12 +37,23 @@ LIMIT ?;
 -- as the series page, so a group and its items are computed from one reading of
 -- the world. Number ascends within a series deliberately: a back catalogue
 -- drains forwards, and episodes enumerate forwards however their dates fall.
+-- Both joins are 1:1, so neither multiplies rows. The grab's created_at rides
+-- along because the reason column ranks a stored pass outcome against it: an
+-- answer older than the grab is one the grab has already superseded.
 SELECT w.*,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
-       g.last_error    AS grab_last_error
+       g.last_error    AS grab_last_error,
+       g.created_at    AS grab_created_at,
+       p.outcome       AS pass_outcome,
+       p.source        AS pass_source,
+       p.release_title AS pass_release_title,
+       p.detail        AS pass_detail,
+       p.held_until    AS pass_held_until,
+       p.recorded_at   AS pass_recorded_at
 FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
+LEFT JOIN pass_outcomes p ON p.wanted_item_id = w.id
 WHERE w.series_id IN (sqlc.slice('series_ids'))
   AND w.have = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')

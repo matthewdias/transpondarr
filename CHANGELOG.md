@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Wanted now says when the search found releases and turned them down.** An
+  episode blocked by your profile's floor, a blocked group or an exclude used to
+  look exactly like one nothing had searched for yet — and those are the ones
+  where you have something to change. Each episode now shows what the last pass
+  decided about it: the release it declined and why, the pinned group it is
+  waiting for, the one the download client refused, or that a search genuinely
+  found nothing. Under notify-only, a rehearsal's decisions show up here too
+  rather than only in your notifier. It is the last pass's answer, so the badge
+  is dated — "Releases declined · 2h ago" — and a grab since then replaces it.
+  Adds migration 00018 (`pass_outcomes`).
+
 - **Wanted is a real page: what the library is still missing, and why.** Two
   tabs. *Missing* lists every episode still worth acquiring, grouped by series
   with the newest gap first, and says why each one is still missing —
