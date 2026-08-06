@@ -262,7 +262,7 @@ it("names a pinned-group wait and tones a refused add as a failure", async () =>
 
   const held = await screen.findByText(/Waiting for the pinned group/);
   expect(held.getAttribute("title")).toContain("PinnedSubs");
-  expect(held.getAttribute("title")).toMatch(/Held until in \d+h/);
+  expect(held.getAttribute("title")).toMatch(/Grabbable in \d+h/);
   expect(held.getAttribute("title")).toContain("feed");
 
   const refused = screen.getByText(/Download client refused it/);

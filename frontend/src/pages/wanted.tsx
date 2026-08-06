@@ -415,8 +415,10 @@ function itemReasonTitle(item: MissingItem): string | undefined {
   return [
     pass.release_title,
     item.reason_detail,
+    // countdownOrDate returns "in 4h" or a date, so the phrasing has to read
+    // with both -- "Held until in 4h" is what a bare "until" gives you.
     item.reason === "pin_held" && pass.held_until
-      ? `Held until ${countdownOrDate(pass.held_until)}`
+      ? `Grabbable ${countdownOrDate(pass.held_until)}`
       : undefined,
     pass.source === "feed"
       ? "Decided by a feed poll"

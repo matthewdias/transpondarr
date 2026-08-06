@@ -413,3 +413,49 @@ func TestRepeatedPassesKeepOneRowPerItem(t *testing.T) {
 		t.Errorf("stored rows after three passes over two items = %d, want 2", rows)
 	}
 }
+
+// An overlapping candidate is not contention. anyCovered trips on a single
+// shared item, so the rest of the release was merely deferred to a later pass --
+// and claiming it would bury each item's own refusal, which is the one thing
+// this table exists to show. A batch beside weekly singles is a normal search
+// result, not a corner.
+func TestAnOverlappingBatchDoesNotSilenceItsItemsOwnRefusal(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	// 480p is hard-excluded below, so only episode 2's single is refused; the
+	// pack stays eligible and overlaps episode 1, which the single takes first.
+	refused := episodeRelease("Placeholder Saga", 2)
+	refused.Title = "[ExampleSubs] Placeholder Saga - 02 [480p]"
+	h := newSweep(t, []indexer.Release{
+		episodeRelease("Placeholder Saga", 1), packRelease("Placeholder Saga"), refused,
+	}, fakeConfig{})
+	if _, err := h.st.DB.ExecContext(context.Background(),
+		`UPDATE quality_profiles SET hard_excludes = '["480p"]' WHERE id = 1`); err != nil {
+		t.Fatalf("exclude 480p: %v", err)
+	}
+	items := make([]sweepItem, 0, 6)
+	for n := 1; n <= 6; n++ {
+		items = append(items, sweepItem{number: n, airsAt: &past})
+	}
+	id := seedSweep(t, h.st, "Placeholder Saga", true, items...)
+	// Pinning the singles' group ranks episode 1's single above the wider pack,
+	// so the pack is the one that overlaps and is skipped.
+	if _, err := h.st.DB.ExecContext(context.Background(),
+		`UPDATE series SET pinned_group = 'ExampleSubs' WHERE id = ?`, id); err != nil {
+		t.Fatalf("pin the group: %v", err)
+	}
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+
+	// Episode 2's refusal is user-actionable and must survive the overlap.
+	row := wantOutcome(t, h.st, id, 2, acquire.OutcomeDeclined)
+	if !strings.Contains(row.Detail, "excluded by the profile") {
+		t.Errorf("episode 2 detail = %q, want the exclusion that refused it", row.Detail)
+	}
+	// Episode 3 has no refusal of its own: an eligible pack covers it and this
+	// pass took an overlapping release first, so it is next pass's, not a miss.
+	if got := wantOutcome(t, h.st, id, 3, acquire.OutcomeDeferred); got.Outcome != acquire.OutcomeDeferred {
+		t.Errorf("episode 3 outcome = %q", got.Outcome)
+	}
+}

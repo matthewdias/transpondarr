@@ -45,6 +45,7 @@ func TestEveryOutcomeIsClassified(t *testing.T) {
 		OutcomeContended: false,
 		OutcomeAddFailed: false,
 		OutcomeDeclined:  false,
+		OutcomeDeferred:  false,
 		OutcomeNoMatch:   false,
 	}
 	if len(cases) != len(AllOutcomes) {
@@ -83,7 +84,7 @@ func TestBestRefusalIgnoresTheCoverageTier(t *testing.T) {
 	pack := refused("[Batchers] Sample Show 01-12", 100, 10, false, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
 	single := refused("[SynthSubs] Sample Show - 07", 900, 5, false, 7)
 
-	release, reason := bestRefusal([]decide.Candidate{pack, single}, map[int]bool{7: true})
+	release, reason := indexCandidates([]decide.Candidate{pack, single}).bestRefusal([]int{7})
 	if release != single.Release.Title {
 		t.Errorf("blamed %q, want the high-scoring single covering episode 7", release)
 	}
@@ -98,7 +99,7 @@ func TestBestRefusalPrefersThePinnedGroup(t *testing.T) {
 	loud := refused("[LoudSubs] Sample Show - 07", 900, 50, false, 7)
 	pinned := refused("[PinnedSubs] Sample Show - 07", 100, 5, true, 7)
 
-	release, _ := bestRefusal([]decide.Candidate{loud, pinned}, map[int]bool{7: true})
+	release, _ := indexCandidates([]decide.Candidate{loud, pinned}).bestRefusal([]int{7})
 	if release != pinned.Release.Title {
 		t.Errorf("blamed %q, want the pinned group's release", release)
 	}
@@ -114,7 +115,7 @@ func TestBestRefusalIgnoresUncoveringAndEligibleCandidates(t *testing.T) {
 		Matched: true, Items: []int{7}, Score: 900, Eligible: true,
 	}
 
-	release, reason := bestRefusal([]decide.Candidate{elsewhere, eligible}, map[int]bool{7: true})
+	release, reason := indexCandidates([]decide.Candidate{elsewhere, eligible}).bestRefusal([]int{7})
 	if release != "" || reason != "" {
 		t.Errorf("blamed %q (%q), want nothing", release, reason)
 	}

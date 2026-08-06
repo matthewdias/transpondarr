@@ -16,13 +16,14 @@ const (
 	OutcomeContended = "contended"
 	OutcomeAddFailed = "add_failed"
 	OutcomeDeclined  = "declined"
+	OutcomeDeferred  = "deferred"
 	OutcomeNoMatch   = "no_match"
 )
 
 // AllOutcomes is the closed set, so a reader can assert it has handled it whole.
 var AllOutcomes = []string{
-	OutcomeGrabbed, OutcomeWouldGrab, OutcomePinHeld,
-	OutcomeContended, OutcomeAddFailed, OutcomeDeclined, OutcomeNoMatch,
+	OutcomeGrabbed, OutcomeWouldGrab, OutcomePinHeld, OutcomeContended,
+	OutcomeAddFailed, OutcomeDeclined, OutcomeDeferred, OutcomeNoMatch,
 }
 
 // outcome is one item's row before it has an id: what was decided, the release
@@ -65,38 +66,60 @@ func (s outcomeSet) tentative(numbers []int, o outcome) {
 	}
 }
 
-// bestRefusal names the matched-but-refused candidate that came closest for the
-// given item numbers, or nothing when none covers them.
-//
-// It re-ranks rather than trusting the incoming order, because decide's
-// comparator puts coverage above score: coverage buys grab efficiency (#126)
-// and says nothing about which release came closest for one episode, so
-// inheriting it would blame a wide low-scoring pack over a high-scoring single
-// covering exactly the episode asked about. Pinned stays on top -- a pin is
-// per-series knowledge about which group is definitive.
-func bestRefusal(cands []decide.Candidate, numbers map[int]bool) (release, reason string) {
-	var best *decide.Candidate
-	for i, c := range cands {
-		if !c.Matched || c.Eligible || !coversAny(c.Items, numbers) {
+// passIndex answers per item number the two questions the fill needs: which
+// refused release came closest, and whether an eligible one covers it at all.
+// Built in one walk, because asking per item would be
+// O(items x candidates x pack size) -- and a back-catalogue pass against
+// absolute-numbered packs makes all three large at once.
+type passIndex struct {
+	closest  map[int]decide.Candidate
+	eligible map[int]bool
+}
+
+// indexCandidates ranks refusals per item without decide's coverage tier:
+// coverage buys grab efficiency (#126) and says nothing about which release came
+// closest for one episode, so inheriting it would blame a wide low-scoring pack
+// over a high-scoring single covering exactly the episode asked about. Pinned
+// stays on top -- a pin is per-series knowledge about which group is definitive.
+func indexCandidates(cands []decide.Candidate) passIndex {
+	idx := passIndex{closest: map[int]decide.Candidate{}, eligible: map[int]bool{}}
+	for _, c := range cands {
+		if !c.Matched {
 			continue
 		}
-		if best == nil || closerMiss(c, *best) {
-			best = &cands[i]
+		if c.Eligible {
+			for _, n := range c.TakeItems() {
+				idx.eligible[n] = true
+			}
+			continue
+		}
+		for _, n := range c.Items {
+			if best, seen := idx.closest[n]; !seen || closerMiss(c, best) {
+				idx.closest[n] = c
+			}
 		}
 	}
-	if best == nil {
+	return idx
+}
+
+// bestRefusal names the release that came closest for these numbers, or nothing
+// when none was refused for any of them.
+func (idx passIndex) bestRefusal(numbers []int) (release, reason string) {
+	var best decide.Candidate
+	found := false
+	for _, n := range numbers {
+		c, ok := idx.closest[n]
+		if !ok {
+			continue
+		}
+		if !found || closerMiss(c, best) {
+			best, found = c, true
+		}
+	}
+	if !found {
 		return "", ""
 	}
 	return best.Release.Title, best.IneligibleReason
-}
-
-func coversAny(items []int, numbers map[int]bool) bool {
-	for _, n := range items {
-		if numbers[n] {
-			return true
-		}
-	}
-	return false
 }
 
 // closerMiss is bestRefusal's ordering: pinned, then score, then seeders. Ties

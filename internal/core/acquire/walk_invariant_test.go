@@ -72,7 +72,7 @@ func TestCoveredAgreesWithTheSettlingOutcomes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walkCandidates: %v", err)
 	}
-	finalizeOutcomes(&res, m, sweep, sourceSweep)
+	finalizeOutcomes(&res, indexCandidates(m.Candidates), sweep, sourceSweep)
 
 	// Non-vacuous in both directions: one settled take, one settled hold, one
 	// refusal the walk left uncovered.

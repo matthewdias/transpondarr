@@ -191,9 +191,10 @@ func passItems(sweep []sweepItem) []passItem {
 // settings.UpdateAutomation).
 func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source passSource) (int, time.Time, error) {
 	res, err := s.walkCandidates(ctx, series, m, sweep, now, source)
+	idx := indexCandidates(m.Candidates)
 	// A pass that gave up partway still decided something real, so what it did
 	// decide is flushed on the error path too (#181).
-	finalizeOutcomes(&res, m, sweep, source)
+	finalizeOutcomes(&res, idx, sweep, source)
 	s.persistOutcomes(ctx, sweep, res.outcomes, source, now)
 	if err != nil {
 		return res.grabbed, time.Time{}, err
@@ -203,7 +204,7 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 		// rehearsal — but only the sweep's, which spent a search on this series;
 		// per-series silence is the feed page's normal state.
 		if source == sourceSweep {
-			s.rehearseNoAction(ctx, series, m, sweep, res.covered)
+			s.rehearseNoAction(ctx, series, idx, sweep, res.covered)
 		}
 		return 0, res.held, nil
 	}
@@ -247,9 +248,10 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 		if !c.Matched || !c.Eligible || len(take) == 0 {
 			continue
 		}
-		// This pass took these items already: the queue is working, not refusing.
+		// Records nothing: anyCovered is true on a single overlapping item, so the
+		// rest of take was not contended, and claiming it here would bury their
+		// own refusal under a tentative that outranks it. The fill answers them.
 		if anyCovered(covered, take) {
-			res.outcomes.tentative(take, outcome{kind: OutcomeContended, release: c.Release.Title})
 			continue
 		}
 		if until, ok := s.pinHold(series, c, take, airs, now); ok {
@@ -336,16 +338,20 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 // return never examined the remaining candidates, and a feed poll saw one page
 // covering the whole library rather than a search for this series, so either
 // claiming nothing matched would clobber a real refusal with a guess.
-func finalizeOutcomes(res *walkResult, m Match, sweep []sweepItem, source passSource) {
+func finalizeOutcomes(res *walkResult, idx passIndex, sweep []sweepItem, source passSource) {
 	for _, it := range sweep {
 		if !it.grabbable || it.had || res.covered[it.number] {
 			continue
 		}
-		release, reason := bestRefusal(m.Candidates, map[int]bool{it.number: true})
+		release, reason := idx.bestRefusal([]int{it.number})
 		switch {
-		case release != "":
+		case release != "" && reason != "":
 			res.outcomes.tentative([]int{it.number},
 				outcome{kind: OutcomeDeclined, release: release, detail: reason})
+		case idx.eligible[it.number]:
+			// An eligible release covers it and the pass took an overlapping one
+			// first, so it is next pass's business rather than anything to report.
+			res.outcomes.tentative([]int{it.number}, outcome{kind: OutcomeDeferred})
 		case res.complete && source == sourceSweep:
 			res.outcomes.tentative([]int{it.number}, outcome{kind: OutcomeNoMatch})
 		}
@@ -433,13 +439,11 @@ func (s *Service) dispatchRehearsal(ctx context.Context, series db.Series, items
 // It reports on what the walk did not cover rather than on "nothing happened",
 // so a series whose episode 1 was pin-held still says that 2 and 3 went
 // unmatched — the mismatch a rehearsal exists to surface.
-func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, m Match, sweep []sweepItem, covered map[int]bool) {
+func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, idx passIndex, sweep []sweepItem, covered map[int]bool) {
 	var wanted []int
-	numbers := make(map[int]bool, len(sweep))
 	for _, it := range sweep {
 		if it.grabbable && !covered[it.number] {
 			wanted = append(wanted, it.number)
-			numbers[it.number] = true
 		}
 	}
 	if len(wanted) == 0 {
@@ -447,7 +451,7 @@ func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, m Matc
 	}
 	// The same selection the stored rows use, so the notification and the column
 	// cannot disagree about which release came closest (#181).
-	release, reason := bestRefusal(m.Candidates, numbers)
+	release, reason := idx.bestRefusal(wanted)
 	if reason == "" {
 		reason = "no matching release found"
 	}
