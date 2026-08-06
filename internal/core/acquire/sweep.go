@@ -190,6 +190,34 @@ func passItems(sweep []sweepItem) []passItem {
 // re-decide the same items every tick. Switching to on clears that (see
 // settings.UpdateAutomation).
 func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source passSource) (int, time.Time, error) {
+	res, err := s.walkCandidates(ctx, series, m, sweep, now, source)
+	if err != nil {
+		return res.grabbed, time.Time{}, err
+	}
+	if res.rehearsed {
+		// "Would have done nothing, and here's why" is the useful half of a
+		// rehearsal — but only the sweep's, which spent a search on this series;
+		// per-series silence is the feed page's normal state.
+		if source == sourceSweep {
+			s.rehearseNoAction(ctx, series, m, sweep, res.covered)
+		}
+		return 0, res.held, nil
+	}
+	return res.grabbed, res.held, nil
+}
+
+// walkResult is what one walk of the ranked candidates decided.
+type walkResult struct {
+	grabbed   int
+	held      time.Time
+	covered   map[int]bool
+	rehearsed bool // notify-only was on, so nothing reached the download client
+}
+
+// walkCandidates takes every eligible release whose items are still unspoken
+// for, in rank order. It is split from grabPass so there is one exit that acts
+// on what the walk decided.
+func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source passSource) (walkResult, error) {
 	notifyOnly := s.cfg.NotifyOnly()
 	airs := make(map[int]time.Time, len(sweep))
 	for _, it := range sweep {
@@ -199,8 +227,8 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 	}
 
 	covered := make(map[int]bool, len(sweep))
-	var grabbed, failed int
-	var held time.Time
+	res := walkResult{covered: covered, rehearsed: notifyOnly}
+	var failed int
 	for _, c := range m.Candidates {
 		// Eligibility is enforcement here, unlike a manual grab (PR #57). The take
 		// set is Items minus the held items the upgrade policy refused; a blocked
@@ -211,8 +239,8 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			continue
 		}
 		if until, ok := s.pinHold(series, c, take, airs, now); ok {
-			if held.IsZero() || until.Before(held) {
-				held = until
+			if res.held.IsZero() || until.Before(res.held) {
+				res.held = until
 			}
 			// Marking the whole release covered holds items whose own window has
 			// long closed, when a batch's anchor is its newest episode. Deliberate:
@@ -230,7 +258,7 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 				"source", string(source), "series", series.ID, "release", c.Release.Title, "items", take)
 			s.dispatchRehearsal(ctx, series, take, c.Release.Title, "would have grabbed")
 			markCovered(covered, take)
-			grabbed++
+			res.grabbed++
 			continue
 		}
 		if _, err := s.AutoGrab(ctx, series.ID, c, m.Items); err != nil {
@@ -241,7 +269,7 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 				continue
 			}
 			if !errors.Is(err, ErrDownloadAdd) {
-				return grabbed, time.Time{}, err
+				return res, err
 			}
 			// A dead download URL is this release's problem, not the series': the
 			// items stay unclaimed so the next-ranked release is still tried, and
@@ -251,7 +279,7 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			s.log.Warn("could not add a release; trying the next candidate",
 				"source", string(source), "series", series.ID, "release", c.Release.Title, "err", err)
 			if failed >= maxAddFailures {
-				return grabbed, time.Time{}, fmt.Errorf("%d refused adds: %w", failed, err)
+				return res, fmt.Errorf("%d refused adds: %w", failed, err)
 			}
 			continue
 		}
@@ -270,18 +298,9 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 			})
 		}
 		markCovered(covered, take)
-		grabbed++
+		res.grabbed++
 	}
-	if notifyOnly {
-		// "Would have done nothing, and here's why" is the useful half of a
-		// rehearsal — but only the sweep's, which spent a search on this series;
-		// per-series silence is the feed page's normal state.
-		if source == sourceSweep {
-			s.rehearseNoAction(ctx, series, m, sweep, covered)
-		}
-		return 0, held, nil
-	}
-	return grabbed, held, nil
+	return res, nil
 }
 
 // dispatchRehearsal reports one rehearsed decision (#116). The outcome is always
