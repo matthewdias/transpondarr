@@ -244,7 +244,7 @@ func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 	var haveAll = true
 	items, _ := st.Q.ListWantedItems(ctx, rows[0].SeriesID)
 	for _, it := range items {
-		if it.Have != 1 {
+		if it.InLibrary != 1 {
 			haveAll = false
 		}
 	}

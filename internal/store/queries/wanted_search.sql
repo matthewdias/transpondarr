@@ -15,7 +15,7 @@ WHERE s.monitored = 1
       FROM wanted_items w
       LEFT JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
-        AND w.have = 0
+        AND w.in_library = 0
         AND (g.wanted_item_id IS NULL OR g.status = 'failed')
         AND (w.airs_at IS NULL OR w.airs_at <= ?)
   )
@@ -44,7 +44,7 @@ WHERE s.monitored = 1
           FROM wanted_items w
           LEFT JOIN grabs g ON g.wanted_item_id = w.id
           WHERE w.series_id = s.id
-            AND w.have = 0
+            AND w.in_library = 0
             AND (g.wanted_item_id IS NULL OR g.status = 'failed')
             AND (w.airs_at IS NULL OR w.airs_at <= ?)
       )
@@ -55,7 +55,7 @@ WHERE s.monitored = 1
               FROM wanted_items w
               JOIN grabs g ON g.wanted_item_id = w.id
               WHERE w.series_id = s.id
-                AND w.have = 1
+                AND w.in_library = 1
                 AND w.held_release_title != ''
                 AND g.status IN ('imported', 'failed')
           )
@@ -82,7 +82,7 @@ WHERE s.monitored = 1
       FROM wanted_items w
       LEFT JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
-        AND w.have = 0
+        AND w.in_library = 0
         AND (g.wanted_item_id IS NULL OR g.status = 'failed')
         AND w.airs_at IS NOT NULL AND w.airs_at >= ? AND w.airs_at < ?
   )

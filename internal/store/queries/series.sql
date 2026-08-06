@@ -7,7 +7,7 @@ ORDER BY title;
 SELECT
     s.*,
     COUNT(w.id)                            AS total_items,
-    CAST(COALESCE(SUM(w.have), 0) AS INTEGER) AS have_items
+    CAST(COALESCE(SUM(w.in_library), 0) AS INTEGER) AS in_library_items
 FROM series s
 LEFT JOIN wanted_items w ON w.series_id = s.id
 GROUP BY s.id

@@ -26,7 +26,7 @@ afterAll(() => server.close());
 const item = (number: number, status: WantedItem["status"]): WantedItem => ({
   id: number,
   number,
-  have: status === "have",
+  in_library: status === "in_library",
   status,
 });
 
@@ -37,8 +37,8 @@ const detail: SeriesDetail = {
   monitored: true,
   quality_profile_id: 1,
   items: [
-    item(1, "have"),
-    item(2, "have"),
+    item(1, "in_library"),
+    item(2, "in_library"),
     item(3, "downloading"),
     item(4, "deferred"),
     item(5, "stuck"),

@@ -107,22 +107,22 @@ func syncedAt(t *testing.T, st *store.Store, seriesID int64) (string, bool) {
 	return *stored, true
 }
 
-// items returns number -> have for a series' wanted items.
+// items returns number -> in_library for a series' wanted items.
 func items(t *testing.T, st *store.Store, seriesID int64) map[int]int {
 	t.Helper()
 	rows, err := st.DB.QueryContext(context.Background(),
-		`SELECT number, have FROM wanted_items WHERE series_id = ?`, seriesID)
+		`SELECT number, in_library FROM wanted_items WHERE series_id = ?`, seriesID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}
 	defer func() { _ = rows.Close() }()
 	out := map[int]int{}
 	for rows.Next() {
-		var number, have int
-		if err := rows.Scan(&number, &have); err != nil {
+		var number, inLibrary int
+		if err := rows.Scan(&number, &inLibrary); err != nil {
 			t.Fatalf("scan item: %v", err)
 		}
-		out[number] = have
+		out[number] = inLibrary
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate items: %v", err)
@@ -144,8 +144,8 @@ func TestRefreshGrowsSeriesWhenEpisodeCountRises(t *testing.T) {
 	if len(got) != 13 {
 		t.Fatalf("got %d items, want 13: %v", len(got), got)
 	}
-	if have, ok := got[13]; !ok || have != 0 {
-		t.Errorf("item 13: have=%d ok=%v, want a fresh have=0 item", have, ok)
+	if inLibrary, ok := got[13]; !ok || inLibrary != 0 {
+		t.Errorf("item 13: in_library=%d ok=%v, want a fresh in_library=0 item", inLibrary, ok)
 	}
 }
 
@@ -155,7 +155,7 @@ func TestRefreshLeavesExistingItemsUntouched(t *testing.T) {
 	prov.episodes[100] = 12
 	id := seedSeries(t, st, 100, 12)
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE wanted_items SET have = 1 WHERE series_id = ? AND number = 5`, id); err != nil {
+		`UPDATE wanted_items SET in_library = 1 WHERE series_id = ? AND number = 5`, id); err != nil {
 		t.Fatalf("mark item had: %v", err)
 	}
 
@@ -168,7 +168,7 @@ func TestRefreshLeavesExistingItemsUntouched(t *testing.T) {
 		t.Fatalf("got %d items, want 12 (no duplicates): %v", len(got), got)
 	}
 	if got[5] != 1 {
-		t.Errorf("item 5 have = %d, want 1 (refresh must not clobber have)", got[5])
+		t.Errorf("item 5 in_library = %d, want 1 (refresh must not clobber it)", got[5])
 	}
 }
 

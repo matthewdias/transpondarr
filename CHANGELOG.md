@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- **The item status `have` is now `in_library`, and so is the field it derives
+  from.** `have` was the odd one out in a vocabulary of `downloading` / `stuck` /
+  `deferred` / `wanted` — `status: have` never read as a state — and the web UI
+  has always rendered it as "In library" anyway, so this is a rename in the API,
+  not in what you see. The target is deliberately *not* `imported`: adopting a
+  pre-existing library or identifying a file by hash would each put an episode in
+  the library without the importer touching it, and `imported` would then be
+  wrong in the contract rather than merely awkward. The `wanted_items.have`
+  column moves with it (migration 00019), since the column is what sources the
+  status. No behaviour changes. Closes [#84](https://github.com/matthewdias/transpondarr/issues/84).
+
+### Upgrade notes
+
+- **API clients using `X-Api-Key` need one search-and-replace; the web UI needs
+  nothing.** Three fields change on the JSON responses:
+
+  | Endpoint | Before | After |
+  | --- | --- | --- |
+  | `GET /api/v1/series` | `have: 12` (count) | `in_library: 12` |
+  | `GET /api/v1/series/{id}`, `POST /api/v1/series` | `have: true` (per item) | `in_library: true` |
+  | `GET /api/v1/series/{id}`, `GET /api/v1/calendar`, `GET /api/v1/wanted/cutoff-unmet` | `status: "have"` | `status: "in_library"` |
+
+  The other status values are untouched. The migration renames the column in
+  place, so no data moves and a downgrade to 0.6.x needs `goose down` for
+  migration 00019 as usual.
+
 ## [0.6.0] — 2026-08-06
 
 Completeness: the release where you can see what the library is still missing,

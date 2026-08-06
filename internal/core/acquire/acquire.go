@@ -109,8 +109,8 @@ type Match struct {
 }
 
 // passItem is where an entry point states candidacy for itself: the stored item,
-// whose Have is the library's answer, beside the pass's own grabbable. This is
-// the one place the two may sit together — deriving either from the other
+// whose InLibrary is the library's answer, beside the pass's own grabbable. This
+// is the one place the two may sit together — deriving either from the other
 // anywhere else is exactly the conflation this type exists to end (#97).
 type passItem struct {
 	domain.WantedItem
@@ -193,14 +193,14 @@ func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passIte
 	for _, r := range rows {
 		it := passItem{
 			WantedItem: domain.WantedItem{
-				ID:     r.ID,
-				Kind:   domain.WantedKind(r.Kind),
-				Number: int(r.Number.Int64),
-				Have:   r.Have == 1,
+				ID:        r.ID,
+				Kind:      domain.WantedKind(r.Kind),
+				Number:    int(r.Number.Int64),
+				InLibrary: r.InLibrary == 1,
 			},
 			grabbable: true,
 		}
-		if it.Have {
+		if it.InLibrary {
 			it.heldTitle = r.HeldReleaseTitle
 		}
 		items = append(items, it)

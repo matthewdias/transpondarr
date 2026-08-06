@@ -260,8 +260,8 @@ describe("SeriesDetailPage episode search", () => {
         HttpResponse.json(
           detail({
             items: [
-              { id: 1, number: 2, have: false, status: "wanted" },
-              { id: 2, number: 5, have: false, status: "wanted" },
+              { id: 1, number: 2, in_library: false, status: "wanted" },
+              { id: 2, number: 5, in_library: false, status: "wanted" },
             ],
           }),
         ),
@@ -271,7 +271,7 @@ describe("SeriesDetailPage episode search", () => {
           detail({
             id: 9,
             title: "Second Saga",
-            items: [{ id: 3, number: 4, have: false, status: "wanted" }],
+            items: [{ id: 3, number: 4, in_library: false, status: "wanted" }],
           }),
         ),
       ),

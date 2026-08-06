@@ -121,7 +121,7 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 4)
 	// 1 is held, 2 is downloading, 3 failed and is wanted again, 4 untouched.
 	if err := h.store.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
-		Have: 1, HeldReleaseTitle: "[ExampleSubs] Placeholder Saga - 01 [1080p]", ID: itemID(t, h.store, seriesID, 1),
+		InLibrary: 1, HeldReleaseTitle: "[ExampleSubs] Placeholder Saga - 01 [1080p]", ID: itemID(t, h.store, seriesID, 1),
 	}); err != nil {
 		t.Fatalf("hold item 1: %v", err)
 	}
@@ -602,7 +602,7 @@ func TestCutoffUnmetRoute(t *testing.T) {
 		t.Fatalf("items = %+v, want only the sub-cutoff item", g.Items)
 	}
 	got := g.Items[0]
-	if got.Number != 1 || got.Status != "have" {
+	if got.Number != 1 || got.Status != "in_library" {
 		t.Errorf("item = %+v, want episode 1, held", got)
 	}
 	if got.Score >= g.CutoffScore {
@@ -729,7 +729,7 @@ func holdItem(t *testing.T, st *store.Store, seriesID int64, number int, release
 	ctx := context.Background()
 	id := itemID(t, st, seriesID, number)
 	if err := st.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
-		Have: 1, HeldReleaseTitle: releaseTitle, ID: id,
+		InLibrary: 1, HeldReleaseTitle: releaseTitle, ID: id,
 	}); err != nil {
 		t.Fatalf("hold item %d: %v", number, err)
 	}

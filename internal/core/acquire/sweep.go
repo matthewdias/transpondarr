@@ -64,7 +64,7 @@ type sweepItem struct {
 	id        int64
 	kind      domain.WantedKind
 	number    int
-	had       bool
+	inLibrary bool
 	airsAt    time.Time // zero when the provider published none
 	grabbable bool
 	heldTitle string // what the library holds, when this item is in the upgrade pool
@@ -160,15 +160,15 @@ func (s *Service) backOffAfterFailure(ctx context.Context, series db.Series, now
 }
 
 // passItems is the item list the matcher gets. In-flight and unaired items are
-// handed over as non-candidates while Have keeps reporting the library alone:
-// decide excludes non-candidates from the wanted set while maxItem still spans
+// handed over as non-candidates while InLibrary keeps reporting the library
+// alone: decide excludes non-candidates from the wanted set while maxItem spans
 // them, so in-flight suppression falls out of the existing matcher and a batch
 // covering an in-flight episode still matches the rest.
 func passItems(sweep []sweepItem) []passItem {
 	items := make([]passItem, 0, len(sweep))
 	for _, it := range sweep {
 		items = append(items, passItem{
-			WantedItem: domain.WantedItem{ID: it.id, Kind: it.kind, Number: it.number, Have: it.had},
+			WantedItem: domain.WantedItem{ID: it.id, Kind: it.kind, Number: it.number, InLibrary: it.inLibrary},
 			grabbable:  it.grabbable,
 			heldTitle:  it.heldTitle,
 		})
@@ -340,7 +340,7 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 // claiming nothing matched would clobber a real refusal with a guess.
 func finalizeOutcomes(res *walkResult, idx passIndex, sweep []sweepItem, source passSource) {
 	for _, it := range sweep {
-		if !it.grabbable || it.had || res.covered[it.number] {
+		if !it.grabbable || it.inLibrary || res.covered[it.number] {
 			continue
 		}
 		release, reason := idx.bestRefusal([]int{it.number})
@@ -369,11 +369,11 @@ func (s *Service) persistOutcomes(ctx context.Context, sweep []sweepItem, set ou
 	stamp := store.FormatTimestamp(now)
 	rows := make([]db.UpsertPassOutcomeParams, 0, len(set))
 	for _, it := range sweep {
-		// The upgrade pool is grabbable and had at once (#97), and those rows can
-		// never be read back by the Missing listing. Number 0 is a NULL number:
+		// The upgrade pool is grabbable and in the library at once (#97), and those
+		// rows can never be read back by the Missing listing. Number 0 is a NULL:
 		// episode numbering is 1-based, so two numberless items would collapse
 		// onto one row, exactly as they already do in covered.
-		if it.number == 0 || !it.grabbable || it.had {
+		if it.number == 0 || !it.grabbable || it.inLibrary {
 			continue
 		}
 		o, ok := set[it.number]
@@ -523,10 +523,10 @@ func (s *Service) loadSweepItems(ctx context.Context, seriesID int64, now time.T
 	out := make([]sweepItem, 0, len(rows))
 	for _, r := range rows {
 		it := sweepItem{
-			id:     r.ID,
-			kind:   domain.WantedKind(r.Kind),
-			number: int(r.Number.Int64),
-			had:    r.Have == 1,
+			id:        r.ID,
+			kind:      domain.WantedKind(r.Kind),
+			number:    int(r.Number.Int64),
+			inLibrary: r.InLibrary == 1,
 		}
 		if r.AirsAt.Valid {
 			if t, perr := store.ParseTimestamp(r.AirsAt.String); perr == nil {
@@ -537,12 +537,12 @@ func (s *Service) loadSweepItems(ctx context.Context, seriesID int64, now time.T
 		// The upgrade pool, mirroring the feed's due predicate: a held item whose
 		// release is known and whose grab is settled either way an upgrade can
 		// re-open. An unextracted deferral and an in-flight grab stay out.
-		pool := it.had && r.HeldReleaseTitle != "" && r.GrabStatus.Valid &&
+		pool := it.inLibrary && r.HeldReleaseTitle != "" && r.GrabStatus.Valid &&
 			(r.GrabStatus.String == statusImported || r.GrabStatus.String == statusFailed)
 		if pool {
 			it.heldTitle = r.HeldReleaseTitle
 		}
-		it.grabbable = pool || (!it.had && !settled && (it.airsAt.IsZero() || !it.airsAt.After(now)))
+		it.grabbable = pool || (!it.inLibrary && !settled && (it.airsAt.IsZero() || !it.airsAt.After(now)))
 		out = append(out, it)
 	}
 	return out, nil
@@ -553,7 +553,7 @@ func (s *Service) loadSweepItems(ctx context.Context, seriesID int64, now time.T
 func nextAiring(sweep []sweepItem, now time.Time) time.Time {
 	var next time.Time
 	for _, it := range sweep {
-		if it.had || it.airsAt.IsZero() || !it.airsAt.After(now) {
+		if it.inLibrary || it.airsAt.IsZero() || !it.airsAt.After(now) {
 			continue
 		}
 		if next.IsZero() || it.airsAt.Before(next) {
@@ -573,7 +573,7 @@ func airedSince(sweep []sweepItem, lastSearched sql.NullString, now time.Time) b
 		}
 	}
 	for _, it := range sweep {
-		if it.had || it.airsAt.IsZero() || it.airsAt.After(now) {
+		if it.inLibrary || it.airsAt.IsZero() || it.airsAt.After(now) {
 			continue
 		}
 		if it.airsAt.After(since) {

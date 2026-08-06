@@ -24,7 +24,7 @@ type upgradeProfileJSON struct {
 func hold(t *testing.T, h *harness, seriesID int64, number int, release string) {
 	t.Helper()
 	if _, err := h.store.DB.ExecContext(context.Background(),
-		`UPDATE wanted_items SET have = 1, held_release_title = ? WHERE series_id = ? AND number = ?`,
+		`UPDATE wanted_items SET in_library = 1, held_release_title = ? WHERE series_id = ? AND number = ?`,
 		release, seriesID, number); err != nil {
 		t.Fatalf("hold item %d: %v", number, err)
 	}
@@ -152,8 +152,8 @@ func TestHeldItemWithAnOpenGrabReadsAsDownloading(t *testing.T) {
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
 	hold(t, h, seriesID, 3, "[ExampleSubs] Placeholder Saga - 03 [480p]")
 
-	if got := itemStatus(t, h, seriesID, 3); got != "have" {
-		t.Fatalf("held item status = %q, want have before the upgrade", got)
+	if got := itemStatus(t, h, seriesID, 3); got != "in_library" {
+		t.Fatalf("held item status = %q, want in_library before the upgrade", got)
 	}
 	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
 		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {

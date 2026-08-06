@@ -17,11 +17,11 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// sweepItem describes one wanted item to seed: its number, whether it is had,
+// sweepItem describes one wanted item to seed: its number, whether it is in the library,
 // its air time (nil = the provider published none), and any grab against it.
 type sweepItem struct {
 	number    int
-	have      bool
+	inLibrary bool
 	airsAt    *time.Time
 	grab      string
 	heldTitle string // the release the library holds, for an upgrade pass (#97)
@@ -40,14 +40,14 @@ func seedSweep(t *testing.T, st *store.Store, title string, monitored bool, item
 		t.Fatalf("create series: %v", err)
 	}
 	for _, it := range items {
-		var have int64
-		if it.have {
-			have = 1
+		var inLibrary int64
+		if it.inLibrary {
+			inLibrary = 1
 		}
 		row, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 			SeriesID: s.ID, Kind: "episode",
-			Number: sql.NullInt64{Int64: int64(it.number), Valid: true},
-			Have:   have,
+			Number:    sql.NullInt64{Int64: int64(it.number), Valid: true},
+			InLibrary: inLibrary,
 		})
 		if err != nil {
 			t.Fatalf("create item %d: %v", it.number, err)
@@ -190,7 +190,7 @@ func TestSweepGrabsEligibleAiredItem(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 1, have: true}, sweepItem{number: 3, airsAt: &past})
+		sweepItem{number: 1, inLibrary: true}, sweepItem{number: 3, airsAt: &past})
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)

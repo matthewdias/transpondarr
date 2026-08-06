@@ -65,7 +65,7 @@ func TestFeedPollUpgradesAHeldItem(t *testing.T) {
 	}, fakeConfig{})
 	enableUpgrades(t, h.st, 400)
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "imported"})
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -91,7 +91,7 @@ func TestFeedPollLeavesACutoffMetItemAlone(t *testing.T) {
 	}, fakeConfig{})
 	enableUpgrades(t, h.st, 400)
 	seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldHD, grab: "imported"})
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldHD, grab: "imported"})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -107,7 +107,7 @@ func TestFeedPollLeavesHeldItemsAloneWhenUpgradesAreOff(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{})
 	seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "imported"})
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -125,7 +125,7 @@ func TestFeedPollRetriesAfterAFailedUpgrade(t *testing.T) {
 	}, fakeConfig{})
 	enableUpgrades(t, h.st, 400)
 	seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "failed"})
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "failed"})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -145,7 +145,7 @@ func TestFeedPollLeavesUnsettledUpgradesAlone(t *testing.T) {
 			}, fakeConfig{})
 			enableUpgrades(t, h.st, 400)
 			seedSweep(t, h.st, "Placeholder Saga", true,
-				sweepItem{number: 3, have: true, heldTitle: heldSD, grab: status})
+				sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: status})
 
 			if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 				t.Fatalf("PollFeedOnce: %v", err)
@@ -167,7 +167,7 @@ func TestSweepUpgradesHeldItemsItSearchedForAnyway(t *testing.T) {
 	}, fakeConfig{})
 	enableUpgrades(t, h.st, 400)
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "imported"},
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"},
 		sweepItem{number: 5, airsAt: &past})
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
@@ -190,7 +190,7 @@ func TestSweepDoesNotSearchForUpgradesAlone(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	enableUpgrades(t, h.st, 400)
 	seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "imported"})
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -212,7 +212,7 @@ func TestNotifyOnlyRehearsesAnUpgrade(t *testing.T) {
 	enableUpgrades(t, h.st, 400)
 	fn := withNotifier(h.reg)
 	seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "imported"})
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -239,7 +239,7 @@ func TestManualMatchOffersReleasesForHeldItems(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc, _ := newService(t, st, idx, fakeTitles{})
 	id := seedSweep(t, st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "imported"})
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
 	m, err := svc.MatchSeries(context.Background(), id)
 	if err != nil {
@@ -299,7 +299,7 @@ func TestUpgradeLifecycleReplacesTheHeldFile(t *testing.T) {
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
 	enableUpgrades(t, st, 400)
 	id := seedSweep(t, st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "imported"})
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
 	if err := svc.PollFeedOnce(ctx); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -332,13 +332,13 @@ func TestUpgradeLifecycleReplacesTheHeldFile(t *testing.T) {
 	if got := heldTitleOf(t, st, id); got != entry.Release.Title {
 		t.Errorf("held release = %q, want the release that just landed", got)
 	}
-	var have int64
+	var inLibrary int64
 	if err := st.DB.QueryRowContext(ctx,
-		`SELECT have FROM wanted_items WHERE series_id = ?`, id).Scan(&have); err != nil {
-		t.Fatalf("read have: %v", err)
+		`SELECT in_library FROM wanted_items WHERE series_id = ?`, id).Scan(&inLibrary); err != nil {
+		t.Fatalf("read in_library: %v", err)
 	}
-	if have != 1 {
-		t.Errorf("have = %d, want the item still in the library", have)
+	if inLibrary != 1 {
+		t.Errorf("in_library = %d, want the item still in the library", inLibrary)
 	}
 
 	// Forget the page, so what stops a second grab is the cutoff rather than the

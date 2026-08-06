@@ -107,8 +107,8 @@ func TestCalendarDerivesItemStatus(t *testing.T) {
 		setAirsAt(t, h.store, seriesID, n, "2026-07-10 15:00:00")
 	}
 
-	if err := h.store.Q.SetWantedItemHave(ctx, db.SetWantedItemHaveParams{
-		Have: 1, ID: itemID(t, h.store, seriesID, 1),
+	if err := h.store.Q.SetWantedItemInLibrary(ctx, db.SetWantedItemInLibraryParams{
+		InLibrary: 1, ID: itemID(t, h.store, seriesID, 1),
 	}); err != nil {
 		t.Fatalf("set have: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestCalendarDerivesItemStatus(t *testing.T) {
 	if code := h.get(t, "/api/v1/calendar?start=2026-07-01T00:00:00Z&end=2026-08-01T00:00:00Z", &out); code != http.StatusOK {
 		t.Fatalf("GET calendar = %d, want 200", code)
 	}
-	want := map[int]string{1: "have", 2: "downloading", 3: "deferred", 4: "stuck", 5: "wanted"}
+	want := map[int]string{1: "in_library", 2: "downloading", 3: "deferred", 4: "stuck", 5: "wanted"}
 	if len(out.Items) != len(want) {
 		t.Fatalf("items = %d, want %d", len(out.Items), len(want))
 	}
@@ -159,8 +159,8 @@ func TestCalendarSurfacesUnscheduledSeries(t *testing.T) {
 	noSchedule := seedSeries(t, h.store, "No Schedule Show", 2)
 
 	complete := seedSeries(t, h.store, "Complete Show", 1)
-	if err := h.store.Q.SetWantedItemHave(ctx, db.SetWantedItemHaveParams{
-		Have: 1, ID: itemID(t, h.store, complete, 1),
+	if err := h.store.Q.SetWantedItemInLibrary(ctx, db.SetWantedItemInLibraryParams{
+		InLibrary: 1, ID: itemID(t, h.store, complete, 1),
 	}); err != nil {
 		t.Fatalf("set have: %v", err)
 	}

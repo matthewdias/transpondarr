@@ -26,7 +26,7 @@ type seriesDTO struct {
 	Format    string `json:"format"`
 	Monitored bool   `json:"monitored"`
 	Total     int    `json:"total"`
-	Have      int    `json:"have"`
+	InLibrary int    `json:"in_library"`
 }
 
 type listSeriesOutput struct {
@@ -36,10 +36,10 @@ type listSeriesOutput struct {
 }
 
 type wantedItemDTO struct {
-	ID     int64  `json:"id"`
-	Number int    `json:"number"`
-	Name   string `json:"name,omitempty"`
-	Have   bool   `json:"have"`
+	ID        int64  `json:"id"`
+	Number    int    `json:"number"`
+	Name      string `json:"name,omitempty"`
+	InLibrary bool   `json:"in_library"`
 }
 
 type seriesDetailDTO struct {
@@ -63,14 +63,14 @@ type addSeriesOutput struct {
 }
 
 // detailItemDTO is one wanted item with its derived acquisition state, so the UI
-// can render each episode row (have / downloading / deferred / wanted) without a
-// second call.
+// can render each episode row (in_library / downloading / deferred / wanted)
+// without a second call.
 type detailItemDTO struct {
 	ID           int64  `json:"id"`
 	Number       int    `json:"number"`
 	Name         string `json:"name,omitempty"`
-	Have         bool   `json:"have"`
-	Status       string `json:"status" enum:"have,downloading,stuck,deferred,wanted" doc:"Derived acquisition state"`
+	InLibrary    bool   `json:"in_library"`
+	Status       string `json:"status" enum:"in_library,downloading,stuck,deferred,wanted" doc:"Derived acquisition state"`
 	ReleaseTitle string `json:"release_title,omitempty"`
 	ImportError  string `json:"import_error,omitempty" doc:"Why the last import attempt failed (status stuck)"`
 	AirsAt       string `json:"airs_at,omitempty" format:"date-time" doc:"Broadcast time (RFC 3339, Japanese broadcast clock); absent when the provider publishes none"`
@@ -271,7 +271,7 @@ func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listSerie
 			Format:    s.Format,
 			Monitored: s.Monitored == 1,
 			Total:     int(s.TotalItems),
-			Have:      int(s.HaveItems),
+			InLibrary: int(s.InLibraryItems),
 		})
 	}
 	return out, nil
@@ -306,10 +306,10 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 	}
 	for _, it := range title.Items {
 		out.Body.Items = append(out.Body.Items, wantedItemDTO{
-			ID:     it.ID,
-			Number: it.Number,
-			Name:   it.Name,
-			Have:   it.Have,
+			ID:        it.ID,
+			Number:    it.Number,
+			Name:      it.Name,
+			InLibrary: it.InLibrary,
 		})
 	}
 	return out, nil
@@ -371,12 +371,12 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 
 	for _, r := range rows {
 		g, ok := grabByItem[r.ID]
-		state := deriveItemState(r.Have == 1, g, ok)
+		state := deriveItemState(r.InLibrary == 1, g, ok)
 		out.Body.Items = append(out.Body.Items, detailItemDTO{
 			ID:           r.ID,
 			Number:       int(r.Number.Int64),
 			Name:         r.Title.String,
-			Have:         r.Have == 1,
+			InLibrary:    r.InLibrary == 1,
 			Status:       state.Status,
 			ReleaseTitle: state.ReleaseTitle,
 			ImportError:  state.ImportError,

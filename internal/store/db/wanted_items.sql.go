@@ -11,17 +11,17 @@ import (
 )
 
 const createWantedItem = `-- name: CreateWantedItem :one
-INSERT INTO wanted_items (series_id, kind, number, title, have)
+INSERT INTO wanted_items (series_id, kind, number, title, in_library)
 VALUES (?, ?, ?, ?, ?)
-RETURNING id, series_id, kind, number, title, have, airs_at, held_release_title
+RETURNING id, series_id, kind, number, title, in_library, airs_at, held_release_title
 `
 
 type CreateWantedItemParams struct {
-	SeriesID int64          `json:"series_id"`
-	Kind     string         `json:"kind"`
-	Number   sql.NullInt64  `json:"number"`
-	Title    sql.NullString `json:"title"`
-	Have     int64          `json:"have"`
+	SeriesID  int64          `json:"series_id"`
+	Kind      string         `json:"kind"`
+	Number    sql.NullInt64  `json:"number"`
+	Title     sql.NullString `json:"title"`
+	InLibrary int64          `json:"in_library"`
 }
 
 func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemParams) (WantedItem, error) {
@@ -30,7 +30,7 @@ func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemPara
 		arg.Kind,
 		arg.Number,
 		arg.Title,
-		arg.Have,
+		arg.InLibrary,
 	)
 	var i WantedItem
 	err := row.Scan(
@@ -39,7 +39,7 @@ func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemPara
 		&i.Kind,
 		&i.Number,
 		&i.Title,
-		&i.Have,
+		&i.InLibrary,
 		&i.AirsAt,
 		&i.HeldReleaseTitle,
 	)
@@ -47,7 +47,7 @@ func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemPara
 }
 
 const getWantedItemByNumber = `-- name: GetWantedItemByNumber :one
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, w.held_release_title, g.status AS grab_status
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, g.status AS grab_status
 FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ? AND w.kind = ? AND w.number = ?
@@ -65,7 +65,7 @@ type GetWantedItemByNumberRow struct {
 	Kind             string         `json:"kind"`
 	Number           sql.NullInt64  `json:"number"`
 	Title            sql.NullString `json:"title"`
-	Have             int64          `json:"have"`
+	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
 	GrabStatus       sql.NullString `json:"grab_status"`
@@ -83,7 +83,7 @@ func (q *Queries) GetWantedItemByNumber(ctx context.Context, arg GetWantedItemBy
 		&i.Kind,
 		&i.Number,
 		&i.Title,
-		&i.Have,
+		&i.InLibrary,
 		&i.AirsAt,
 		&i.HeldReleaseTitle,
 		&i.GrabStatus,
@@ -92,7 +92,7 @@ func (q *Queries) GetWantedItemByNumber(ctx context.Context, arg GetWantedItemBy
 }
 
 const listCalendarItems = `-- name: ListCalendarItems :many
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, w.held_release_title,
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title,
        s.title         AS series_title,
        s.monitored     AS series_monitored,
        g.status        AS grab_status,
@@ -116,7 +116,7 @@ type ListCalendarItemsRow struct {
 	Kind             string         `json:"kind"`
 	Number           sql.NullInt64  `json:"number"`
 	Title            sql.NullString `json:"title"`
-	Have             int64          `json:"have"`
+	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
 	SeriesTitle      string         `json:"series_title"`
@@ -143,7 +143,7 @@ func (q *Queries) ListCalendarItems(ctx context.Context, arg ListCalendarItemsPa
 			&i.Kind,
 			&i.Number,
 			&i.Title,
-			&i.Have,
+			&i.InLibrary,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
 			&i.SeriesTitle,
@@ -169,7 +169,7 @@ const listUnscheduledSeries = `-- name: ListUnscheduledSeries :many
 SELECT DISTINCT s.id, s.title
 FROM series s
 JOIN wanted_items w ON w.series_id = s.id
-WHERE s.monitored = 1 AND w.have = 0 AND w.airs_at IS NULL
+WHERE s.monitored = 1 AND w.in_library = 0 AND w.airs_at IS NULL
 ORDER BY s.title
 `
 
@@ -204,7 +204,7 @@ func (q *Queries) ListUnscheduledSeries(ctx context.Context) ([]ListUnscheduledS
 }
 
 const listWantedItems = `-- name: ListWantedItems :many
-SELECT id, series_id, kind, number, title, have, airs_at, held_release_title
+SELECT id, series_id, kind, number, title, in_library, airs_at, held_release_title
 FROM wanted_items
 WHERE series_id = ?
 ORDER BY number
@@ -225,7 +225,7 @@ func (q *Queries) ListWantedItems(ctx context.Context, seriesID int64) ([]Wanted
 			&i.Kind,
 			&i.Number,
 			&i.Title,
-			&i.Have,
+			&i.InLibrary,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
 		); err != nil {
@@ -242,26 +242,12 @@ func (q *Queries) ListWantedItems(ctx context.Context, seriesID int64) ([]Wanted
 	return items, nil
 }
 
-const setWantedItemHave = `-- name: SetWantedItemHave :exec
-UPDATE wanted_items SET have = ? WHERE id = ?
-`
-
-type SetWantedItemHaveParams struct {
-	Have int64 `json:"have"`
-	ID   int64 `json:"id"`
-}
-
-func (q *Queries) SetWantedItemHave(ctx context.Context, arg SetWantedItemHaveParams) error {
-	_, err := q.db.ExecContext(ctx, setWantedItemHave, arg.Have, arg.ID)
-	return err
-}
-
 const setWantedItemHeld = `-- name: SetWantedItemHeld :exec
-UPDATE wanted_items SET have = ?, held_release_title = ? WHERE id = ?
+UPDATE wanted_items SET in_library = ?, held_release_title = ? WHERE id = ?
 `
 
 type SetWantedItemHeldParams struct {
-	Have             int64  `json:"have"`
+	InLibrary        int64  `json:"in_library"`
 	HeldReleaseTitle string `json:"held_release_title"`
 	ID               int64  `json:"id"`
 }
@@ -269,12 +255,26 @@ type SetWantedItemHeldParams struct {
 // The one write point for held identity: what the library holds, and which
 // release put it there, so an upgrade has something to score against.
 func (q *Queries) SetWantedItemHeld(ctx context.Context, arg SetWantedItemHeldParams) error {
-	_, err := q.db.ExecContext(ctx, setWantedItemHeld, arg.Have, arg.HeldReleaseTitle, arg.ID)
+	_, err := q.db.ExecContext(ctx, setWantedItemHeld, arg.InLibrary, arg.HeldReleaseTitle, arg.ID)
+	return err
+}
+
+const setWantedItemInLibrary = `-- name: SetWantedItemInLibrary :exec
+UPDATE wanted_items SET in_library = ? WHERE id = ?
+`
+
+type SetWantedItemInLibraryParams struct {
+	InLibrary int64 `json:"in_library"`
+	ID        int64 `json:"id"`
+}
+
+func (q *Queries) SetWantedItemInLibrary(ctx context.Context, arg SetWantedItemInLibraryParams) error {
+	_, err := q.db.ExecContext(ctx, setWantedItemInLibrary, arg.InLibrary, arg.ID)
 	return err
 }
 
 const upsertWantedItem = `-- name: UpsertWantedItem :execrows
-INSERT INTO wanted_items (series_id, kind, number, title, have)
+INSERT INTO wanted_items (series_id, kind, number, title, in_library)
 VALUES (?, ?, ?, ?, 0)
 ON CONFLICT (series_id, kind, number) DO NOTHING
 `
@@ -286,7 +286,7 @@ type UpsertWantedItemParams struct {
 	Title    sql.NullString `json:"title"`
 }
 
-// DO NOTHING keeps refresh from ever clobbering an existing item's have or
+// DO NOTHING keeps refresh from ever clobbering an existing item's in_library or
 // title; the row count tells the caller whether the series actually grew.
 func (q *Queries) UpsertWantedItem(ctx context.Context, arg UpsertWantedItemParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, upsertWantedItem,

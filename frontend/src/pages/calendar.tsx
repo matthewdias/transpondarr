@@ -32,7 +32,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toggle } from "@/components/ui/toggle";
 
 const statusDot: Record<ItemStatus, string> = {
-  have: "bg-have",
+  in_library: "bg-have",
   downloading: "bg-dl",
   stuck: "bg-destructive",
   deferred: "bg-dl/50",
@@ -42,7 +42,7 @@ const statusDot: Record<ItemStatus, string> = {
 // Compact form for grid cells, where the full ItemStatusBadge cannot fit a
 // 1/7-width column; the agenda list renders the real badge.
 const statusLabel: Record<ItemStatus, string> = {
-  have: "In library",
+  in_library: "In library",
   downloading: "Downloading",
   stuck: "Import blocked",
   deferred: "Batch downloaded",

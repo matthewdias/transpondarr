@@ -68,7 +68,7 @@ type cutoffItemDTO struct {
 	Number      int            `json:"number"`
 	Name        string         `json:"name,omitempty"`
 	AirsAt      string         `json:"airs_at,omitempty" format:"date-time"`
-	Status      string         `json:"status" enum:"have,downloading" doc:"Derived acquisition state; downloading while an upgrade is in flight"`
+	Status      string         `json:"status" enum:"in_library,downloading" doc:"Derived acquisition state; downloading while an upgrade is in flight"`
 	HeldRelease string         `json:"held_release" doc:"What the library holds, and what the score below rates"`
 	Score       int            `json:"score"`
 	UnmetGoals  []scorePartDTO `json:"unmet_goals,omitempty" doc:"Profile axes the held release scores below its best on, each with the points still available"`

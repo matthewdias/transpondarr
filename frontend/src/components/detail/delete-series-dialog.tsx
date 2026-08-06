@@ -30,7 +30,9 @@ export function DeleteSeriesDialog({
   const checkboxId = useId();
 
   const tracked = detail.items.length;
-  const inLibrary = detail.items.filter((i) => i.status === "have").length;
+  const inLibrary = detail.items.filter(
+    (i) => i.status === "in_library",
+  ).length;
   const active = detail.items.filter(
     (i) =>
       i.status === "downloading" ||

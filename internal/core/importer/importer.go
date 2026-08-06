@@ -478,7 +478,7 @@ func (im *Importer) place(ctx context.Context, target library.Target, source str
 			Kind:   domain.WantedKind(g.ItemKind),
 			Number: int(g.ItemNumber.Int64),
 		},
-		Replace: g.ItemHave == 1,
+		Replace: g.ItemInLibrary == 1,
 	})
 	if err != nil {
 		if ctx.Err() == nil {
@@ -498,9 +498,9 @@ func (im *Importer) place(ctx context.Context, target library.Target, source str
 	// rather than an inconsistency. The same write names what is now in the library,
 	// which is what a later upgrade scores against.
 	if err := im.store.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
-		Have: 1, HeldReleaseTitle: g.ReleaseTitle, ID: g.WantedItemID,
+		InLibrary: 1, HeldReleaseTitle: g.ReleaseTitle, ID: g.WantedItemID,
 	}); err != nil {
-		im.log.Error("importer: set have", "err", err)
+		im.log.Error("importer: set in_library", "err", err)
 		return "", err
 	}
 	im.settle(ctx, g, statusImported, "")
@@ -567,7 +567,7 @@ func (im *Importer) unclaimedItem(ctx context.Context, g db.ListGrabsByStatusRow
 		}
 		return item, false, err
 	}
-	return item, item.Have != 1 && (!item.GrabStatus.Valid || item.GrabStatus.String == statusFailed), nil
+	return item, item.InLibrary != 1 && (!item.GrabStatus.Valid || item.GrabStatus.String == statusFailed), nil
 }
 
 // placeUnclaimedFile places one such file and writes its grab row after the
@@ -577,7 +577,7 @@ func (im *Importer) placeUnclaimedFile(ctx context.Context, target library.Targe
 		SourcePath: lo.file.path,
 		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat)},
 		Item:       domain.WantedItem{ID: item.ID, Kind: domain.WantedKind(item.Kind), Number: lo.number},
-		Replace:    item.Have == 1,
+		Replace:    item.InLibrary == 1,
 	})
 	if err != nil {
 		if ctx.Err() == nil {
@@ -588,9 +588,9 @@ func (im *Importer) placeUnclaimedFile(ctx context.Context, target library.Targe
 	}
 	ctx = context.WithoutCancel(ctx)
 	if err := im.store.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
-		Have: 1, HeldReleaseTitle: g.ReleaseTitle, ID: item.ID,
+		InLibrary: 1, HeldReleaseTitle: g.ReleaseTitle, ID: item.ID,
 	}); err != nil {
-		im.log.Error("importer: set have for an unclaimed payload file", "err", err)
+		im.log.Error("importer: set in_library for an unclaimed payload file", "err", err)
 		return "", err
 	}
 	if _, err := im.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{

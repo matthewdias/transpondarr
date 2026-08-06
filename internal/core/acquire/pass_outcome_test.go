@@ -380,7 +380,7 @@ func TestAnUpgradePoolItemRecordsNoOutcome(t *testing.T) {
 		t.Fatalf("raise the profile floor: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 3, have: true, heldTitle: heldSD, grab: "imported"})
+		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)

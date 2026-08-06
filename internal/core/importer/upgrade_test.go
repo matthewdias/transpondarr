@@ -17,7 +17,7 @@ func seedHeldGrab(t *testing.T, st *store.Store, hash, heldTitle string) (itemID
 	t.Helper()
 	itemID, seriesID = seedGrab(t, st, hash)
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE wanted_items SET have = 1, held_release_title = ? WHERE id = ?`,
+		`UPDATE wanted_items SET in_library = 1, held_release_title = ? WHERE id = ?`,
 		heldTitle, itemID); err != nil {
 		t.Fatalf("seed held item: %v", err)
 	}
@@ -27,13 +27,13 @@ func seedHeldGrab(t *testing.T, st *store.Store, hash, heldTitle string) (itemID
 // heldTitleOf reads what the store says holds an item.
 func heldTitleOf(t *testing.T, st *store.Store, itemID int64) (int64, string) {
 	t.Helper()
-	var have int64
+	var inLibrary int64
 	var title string
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT have, held_release_title FROM wanted_items WHERE id = ?`, itemID).Scan(&have, &title); err != nil {
+		`SELECT in_library, held_release_title FROM wanted_items WHERE id = ?`, itemID).Scan(&inLibrary, &title); err != nil {
 		t.Fatalf("read held state: %v", err)
 	}
-	return have, title
+	return inLibrary, title
 }
 
 // completedSource is a finished download for the importer to place.
@@ -64,9 +64,9 @@ func TestImportOfAHeldItemReplacesAndRecordsTheNewRelease(t *testing.T) {
 	if len(target.Placed) != 1 || !target.Placed[0].Replace {
 		t.Fatalf("placed = %+v, want one request replacing the held file", target.Placed)
 	}
-	have, held := heldTitleOf(t, st, itemID)
-	if have != 1 || held != "rel" {
-		t.Errorf("have = %d, held = %q, want the item still had and holding the imported release", have, held)
+	inLibrary, held := heldTitleOf(t, st, itemID)
+	if inLibrary != 1 || held != "rel" {
+		t.Errorf("in_library = %d, held = %q, want the item still in the library and holding the imported release", inLibrary, held)
 	}
 	if g := grabByHash(t, st, "abc"); g.Status != statusImported {
 		t.Errorf("grab status = %q, want imported", g.Status)
@@ -87,8 +87,8 @@ func TestFirstImportIsNotAReplacement(t *testing.T) {
 	if len(target.Placed) != 1 || target.Placed[0].Replace {
 		t.Fatalf("placed = %+v, want one request that replaces nothing", target.Placed)
 	}
-	if have, held := heldTitleOf(t, st, itemID); have != 1 || held != "rel" {
-		t.Errorf("have = %d, held = %q, want the item had and holding the release that landed", have, held)
+	if inLibrary, held := heldTitleOf(t, st, itemID); inLibrary != 1 || held != "rel" {
+		t.Errorf("in_library = %d, held = %q, want the item in the library and holding the release that landed", inLibrary, held)
 	}
 }
 
@@ -110,9 +110,9 @@ func TestFailedUpgradeLeavesTheHeldFileInPlace(t *testing.T) {
 	if g := grabByHash(t, st, "abc"); g.Status != statusFailed {
 		t.Errorf("grab status = %q, want failed", g.Status)
 	}
-	have, held := heldTitleOf(t, st, itemID)
-	if have != 1 || held != heldTitle {
-		t.Errorf("have = %d, held = %q, want the held file untouched by a failed upgrade", have, held)
+	inLibrary, held := heldTitleOf(t, st, itemID)
+	if inLibrary != 1 || held != heldTitle {
+		t.Errorf("in_library = %d, held = %q, want the held file untouched by a failed upgrade", inLibrary, held)
 	}
 }
 
@@ -153,7 +153,7 @@ func TestDeferredUpgradeKeepsTheHeldFile(t *testing.T) {
 	if status != statusDeferred {
 		t.Errorf("grab status = %q, want import_deferred", status)
 	}
-	if have, held := heldTitleOf(t, st, itemID); have != 1 || held != heldTitle {
-		t.Errorf("have = %d, held = %q, want the held file untouched by a deferral", have, held)
+	if inLibrary, held := heldTitleOf(t, st, itemID); inLibrary != 1 || held != heldTitle {
+		t.Errorf("in_library = %d, held = %q, want the held file untouched by a deferral", inLibrary, held)
 	}
 }

@@ -1,8 +1,14 @@
 import { cn } from "@/lib/utils";
 
-export function HaveProgress({ have, total }: { have: number; total: number }) {
-  const pct = total > 0 ? (have / total) * 100 : 0;
-  const complete = total > 0 && have >= total;
+export function LibraryProgress({
+  inLibrary,
+  total,
+}: {
+  inLibrary: number;
+  total: number;
+}) {
+  const pct = total > 0 ? (inLibrary / total) * 100 : 0;
+  const complete = total > 0 && inLibrary >= total;
   return (
     <div className="flex items-center gap-2.5 sm:min-w-[140px]">
       {/* the bar needs room; on mobile we keep just the count to avoid overflow */}
@@ -13,7 +19,7 @@ export function HaveProgress({ have, total }: { have: number; total: number }) {
         />
       </div>
       <span className="text-xs tabular-nums text-muted-foreground">
-        {have} / {total}
+        {inLibrary} / {total}
       </span>
     </div>
   );

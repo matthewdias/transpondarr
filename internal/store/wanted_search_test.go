@@ -30,8 +30,8 @@ func seedSearchItem(t *testing.T, st *Store, seriesID int64, number int, have in
 	}
 	item, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
 		SeriesID: seriesID, Kind: "episode",
-		Number: sql.NullInt64{Int64: int64(number), Valid: true},
-		Have:   have,
+		Number:    sql.NullInt64{Int64: int64(number), Valid: true},
+		InLibrary: have,
 	})
 	if err != nil {
 		t.Fatalf("create item %d: %v", number, err)

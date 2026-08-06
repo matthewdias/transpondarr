@@ -7,7 +7,7 @@ import type { SeriesDetail, WantedItem } from "@/lib/api";
 const item = (over: Partial<WantedItem>): WantedItem => ({
   id: 1,
   number: 1,
-  have: false,
+  in_library: false,
   status: "wanted",
   ...over,
 });

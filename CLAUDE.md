@@ -417,12 +417,18 @@ Behaviour changes are test-driven. Work red → green → refactor:
   release outside that range. Scope with `decide.Item.Grabbable` instead (#105
   tracks the scoped search).
 - **Candidacy and possession are two fields, not one.** `decide.Item.Grabbable`
-  is "worth offering a release for"; `domain.WantedItem.Have` is "the library
-  holds a file". They coincide only on the manual path — the sweep withholds
-  in-flight and unaired items it plainly does not hold — so nothing may derive
-  one from the other outside `acquire.passItem`, which is where each entry point
-  states its own. #97's upgrade path is a held item that is grabbable anyway,
-  which is exactly the case the old single `Have` could not express.
+  is "worth offering a release for"; `domain.WantedItem.InLibrary` is "the
+  library holds a file". They coincide only on the manual path — the sweep
+  withholds in-flight and unaired items it plainly does not hold — so nothing may
+  derive one from the other outside `acquire.passItem`, which is where each entry
+  point states its own. #97's upgrade path is a held item that is grabbable
+  anyway, which is exactly the case the old single field could not express.
+- **The library flag and the derived item status share one name, deliberately
+  (#84): `in_library`.** `wanted_items.in_library` sources the status
+  `deriveItemState` returns, so renaming either alone would hide the derivation.
+  The name is mechanism-agnostic on purpose — `imported` would name the importer
+  as the only route into the library, which pre-existing-library import and hash
+  identification (deferred, not rejected) would make a lie in the API contract.
 - **Route handlers: group by resource; use a receiver when it earns its keep.**
   Each resource gets a `*_routes.go` file with a `register<Resource>Routes(api,
 deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest.

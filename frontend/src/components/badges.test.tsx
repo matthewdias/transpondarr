@@ -4,7 +4,7 @@ import { ItemStatusBadge, MonitoredBadge } from "@/components/badges";
 
 describe("ItemStatusBadge", () => {
   it("labels each status", () => {
-    render(<ItemStatusBadge status="have" />);
+    render(<ItemStatusBadge status="in_library" />);
     expect(screen.getByText("In library")).toBeInTheDocument();
 
     render(<ItemStatusBadge status="downloading" />);

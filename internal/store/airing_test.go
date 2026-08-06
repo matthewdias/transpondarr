@@ -37,8 +37,9 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 		t.Fatalf("roll back to the pre-airing schema: %v", err)
 	}
 
-	// The row holding have is inserted last, so "keep the survivor with state" and
-	// "keep the lowest id" disagree — only the former passes.
+	// The held row is inserted last, so "keep the survivor with state" and "keep
+	// the lowest id" disagree — only the former passes. The column is still named
+	// have at this schema version; 00019 renames it.
 	for _, have := range []int{0, 1} {
 		if _, err := st.DB.ExecContext(ctx,
 			`INSERT INTO wanted_items (series_id, kind, number, have) VALUES (?, 'episode', 1, ?)`,
@@ -53,7 +54,7 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 
 	var count, have int
 	if err := st.DB.QueryRowContext(ctx,
-		`SELECT COUNT(*), COALESCE(MAX(have), 0) FROM wanted_items WHERE series_id = ?`,
+		`SELECT COUNT(*), COALESCE(MAX(in_library), 0) FROM wanted_items WHERE series_id = ?`,
 		seriesID).Scan(&count, &have); err != nil {
 		t.Fatalf("count items: %v", err)
 	}

@@ -21,7 +21,7 @@ WHERE s.monitored = 1
       FROM wanted_items w
       LEFT JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
-        AND w.have = 0
+        AND w.in_library = 0
         AND (g.wanted_item_id IS NULL OR g.status = 'failed')
         AND w.airs_at IS NOT NULL AND w.airs_at >= ? AND w.airs_at < ?
   )
@@ -97,7 +97,7 @@ WHERE s.monitored = 1
       FROM wanted_items w
       LEFT JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
-        AND w.have = 0
+        AND w.in_library = 0
         AND (g.wanted_item_id IS NULL OR g.status = 'failed')
         AND (w.airs_at IS NULL OR w.airs_at <= ?)
   )
@@ -167,7 +167,7 @@ WHERE s.monitored = 1
           FROM wanted_items w
           LEFT JOIN grabs g ON g.wanted_item_id = w.id
           WHERE w.series_id = s.id
-            AND w.have = 0
+            AND w.in_library = 0
             AND (g.wanted_item_id IS NULL OR g.status = 'failed')
             AND (w.airs_at IS NULL OR w.airs_at <= ?)
       )
@@ -178,7 +178,7 @@ WHERE s.monitored = 1
               FROM wanted_items w
               JOIN grabs g ON g.wanted_item_id = w.id
               WHERE w.series_id = s.id
-                AND w.have = 1
+                AND w.in_library = 1
                 AND w.held_release_title != ''
                 AND g.status IN ('imported', 'failed')
           )
@@ -237,7 +237,7 @@ func (q *Queries) ListSeriesWithWantedItems(ctx context.Context, airsAt sql.Null
 }
 
 const listWantedItemsWithGrabState = `-- name: ListWantedItemsWithGrabState :many
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, w.held_release_title, g.status AS grab_status
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, g.status AS grab_status
 FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ?
@@ -250,7 +250,7 @@ type ListWantedItemsWithGrabStateRow struct {
 	Kind             string         `json:"kind"`
 	Number           sql.NullInt64  `json:"number"`
 	Title            sql.NullString `json:"title"`
-	Have             int64          `json:"have"`
+	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
 	GrabStatus       sql.NullString `json:"grab_status"`
@@ -273,7 +273,7 @@ func (q *Queries) ListWantedItemsWithGrabState(ctx context.Context, seriesID int
 			&i.Kind,
 			&i.Number,
 			&i.Title,
-			&i.Have,
+			&i.InLibrary,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
 			&i.GrabStatus,
