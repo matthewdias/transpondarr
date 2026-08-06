@@ -14,12 +14,20 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
+type lastPass struct {
+	ReleaseTitle string `json:"release_title"`
+	Source       string `json:"source"`
+	At           string `json:"at"`
+	HeldUntil    string `json:"held_until"`
+}
+
 type missingItem struct {
-	ID           int64  `json:"id"`
-	Number       int    `json:"number"`
-	AirsAt       string `json:"airs_at"`
-	Reason       string `json:"reason"`
-	ReasonDetail string `json:"reason_detail"`
+	ID           int64     `json:"id"`
+	Number       int       `json:"number"`
+	AirsAt       string    `json:"airs_at"`
+	Reason       string    `json:"reason"`
+	ReasonDetail string    `json:"reason_detail"`
+	LastPass     *lastPass `json:"last_pass"`
 }
 
 type missingGroup struct {
@@ -188,6 +196,102 @@ func TestMissingUnairedToggle(t *testing.T) {
 		if it.Number == 2 && it.Reason != "unaired" {
 			t.Errorf("episode 2 reason = %q, want unaired", it.Reason)
 		}
+	}
+}
+
+func recordPassOutcome(t *testing.T, st *store.Store, seriesID int64, number int, p db.UpsertPassOutcomeParams) {
+	t.Helper()
+	p.WantedItemID = itemID(t, st, seriesID, number)
+	if err := st.Q.UpsertPassOutcome(context.Background(), p); err != nil {
+		t.Fatalf("record pass outcome for item %d: %v", number, err)
+	}
+}
+
+// #181's tier: what the last pass decided reaches the row, dated, with the
+// release it acted on -- and only when that tier actually won, since an
+// "as of" stamped on a freshly derived answer would misrepresent it.
+func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
+	h := wantedHarness(t)
+	now := time.Now()
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 4)
+	for n := 1; n <= 4; n++ {
+		setAirsAt(t, h.store, seriesID, n, store.FormatTimestamp(now.Add(-48*time.Hour)))
+	}
+	setAirsAt(t, h.store, seriesID, 2, store.FormatTimestamp(now.Add(48*time.Hour)))
+
+	recordPassOutcome(t, h.store, seriesID, 1, db.UpsertPassOutcomeParams{
+		Outcome: "declined", Source: "sweep",
+		ReleaseTitle: "[SynthSubs] Placeholder Saga - 01 [720p]",
+		Detail:       "below the profile floor",
+		RecordedAt:   store.FormatTimestamp(now.Add(-2 * time.Hour)),
+	})
+	recordPassOutcome(t, h.store, seriesID, 2, db.UpsertPassOutcomeParams{
+		Outcome: "no_match", Source: "sweep",
+		RecordedAt: store.FormatTimestamp(now.Add(-2 * time.Hour)),
+	})
+	recordPassOutcome(t, h.store, seriesID, 3, db.UpsertPassOutcomeParams{
+		Outcome: "pin_held", Source: "feed",
+		ReleaseTitle: "[OtherSubs] Placeholder Saga - 03 [1080p]",
+		Detail:       `waiting for the pinned group "PinnedSubs"`,
+		HeldUntil:    sql.NullString{String: store.FormatTimestamp(now.Add(4 * time.Hour)), Valid: true},
+		RecordedAt:   store.FormatTimestamp(now.Add(-30 * time.Minute)),
+	})
+	// The refusal predates the grab that has since failed, so the grab wins.
+	recordPassOutcome(t, h.store, seriesID, 4, db.UpsertPassOutcomeParams{
+		Outcome: "declined", Source: "sweep",
+		ReleaseTitle: "[SynthSubs] Placeholder Saga - 04 [720p]",
+		Detail:       "below the profile floor",
+		RecordedAt:   store.FormatTimestamp(now.Add(-6 * time.Hour)),
+	})
+	grabItem(t, h.store, seriesID, 4, "failed", "torrent vanished from the client")
+
+	var out missingResponse
+	if code := h.get(t, "/api/v1/wanted/missing?unaired=true", &out); code != http.StatusOK {
+		t.Fatalf("GET missing = %d, want 200", code)
+	}
+	got := map[int]missingItem{}
+	for _, it := range out.items() {
+		got[it.Number] = it
+	}
+	if len(got) != 4 {
+		t.Fatalf("items = %+v, want all four", out.items())
+	}
+
+	declined := got[1]
+	if declined.Reason != "declined" || declined.ReasonDetail != "below the profile floor" {
+		t.Errorf("episode 1 = %+v, want declined with the refusal reason", declined)
+	}
+	if declined.LastPass == nil {
+		t.Fatal("episode 1 carries no last_pass; a stored answer has to be dated")
+	}
+	if declined.LastPass.ReleaseTitle != "[SynthSubs] Placeholder Saga - 01 [720p]" ||
+		declined.LastPass.Source != "sweep" || declined.LastPass.At == "" {
+		t.Errorf("episode 1 last_pass = %+v", declined.LastPass)
+	}
+	if declined.LastPass.HeldUntil != "" {
+		t.Errorf("episode 1 carries held_until %q on a decline", declined.LastPass.HeldUntil)
+	}
+
+	// The pass tier never outranks a fact computed fresh, and an unaired row
+	// must not be dated as though it were the pass's answer.
+	if unaired := got[2]; unaired.Reason != "unaired" || unaired.LastPass != nil {
+		t.Errorf("episode 2 = %+v, want unaired with no last_pass", unaired)
+	}
+
+	held := got[3]
+	if held.Reason != "pin_held" || held.LastPass == nil {
+		t.Fatalf("episode 3 = %+v, want pin_held with its window", held)
+	}
+	if held.LastPass.HeldUntil == "" || held.LastPass.Source != "feed" {
+		t.Errorf("episode 3 last_pass = %+v, want the hold window and the feed source", held.LastPass)
+	}
+
+	stale := got[4]
+	if stale.Reason != "grab_failed" || stale.LastPass != nil {
+		t.Errorf("episode 4 = %+v, want the failure: the refusal predates the grab", stale)
+	}
+	if stale.ReasonDetail != "torrent vanished from the client" {
+		t.Errorf("episode 4 detail = %q, want the grab's error", stale.ReasonDetail)
 	}
 }
 
