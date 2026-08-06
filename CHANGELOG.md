@@ -8,57 +8,22 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
-- **Wanted is a real page: every missing episode across the library, and why
-  it is still missing.** Two tabs. *Missing* lists every episode still worth
-  acquiring — the scheduled search's own definition of wanted, so an episode
-  already downloading is Activity's row, not this one's — grouped by series,
-  because that is the unit everything else here works in: the newest gap's
-  series first, an all-undated back catalogue last, and episodes counting
-  forwards inside each group. The "why" is told once at each level instead of
-  stamped on every row: a page banner for what blocks everything (no indexer,
-  automation off or rehearsing), the group header for the series' standing
-  (not searched yet, backing off, releases blocklisted, unmonitored), and a
-  row speaks only when it has its own story (not aired yet, last grab failed
-  with its error) — all read from stored state when you look, so a reason is
-  never a stale record of an earlier pass. A group past fifty episodes lists
-  the front of the run and links to the series for the rest; the header's
-  count is the real size either way, which makes it the back-catalog drain's
-  progress display. Unaired episodes hide behind a filter, since the Calendar
-  owns the forward-looking view, and an unmonitored filter matches the
-  Calendar's. *Cutoff Unmet* groups the same way, ordered by title — an
-  inventory, not a queue — listing the episodes you hold that score below
-  their profile's cutoff, with the profile and its cutoff on the group header
-  and each row's held release scored against it. The specific profile goals a
-  release is not hitting are named outright — "group TopSubs (+100) ·
-  resolution 1080p (+100)" — with goals every episode in a series shares said
-  once on the header ("Wanted: …") and a row adding only what is its own, so a
-  whole season below cutoff for one reason reads as one line, not thirty. It
-  only ever lists series on a profile with upgrades enabled, and re-scores
-  from the stored release name, so editing a profile moves the list
-  immediately. Membership is what automation could act on: the upgrade pool
-  plus upgrades already in flight, which read as "Downloading". An episode
-  whose import is deferred is left out — its fix belongs to Activity's queue,
-  and grabbing over it from here would discard the deferred attempt and strand
-  its payload. A held release that already tops every axis its profile states
-  says "Nothing left to improve" rather than nothing at all, which happens
-  when a cutoff sits above what its own profile can score. Cutoff Unmet
-  decides what is below cutoff as it reads, so a scan that finds nothing yet
-  says so and offers to keep looking rather than claiming the library is
-  clear. On both tabs a series' header pins to the top while its episodes
-  scroll and the group collapses to that header, which keeps a long back
-  catalogue navigable. Every episode's Search opens the Releases tab already
-  focused on it, where the manual grab is unchanged. Selecting groups and
-  hitting "Search selected" (or "Search all") puts those series back at the
-  front of the search queue and starts a run rather than firing one indexer
-  request per series: the per-pass limit that protects your indexer still
-  applies, so a large library drains over several passes, and the confirmation
-  says queued rather than done — under notify-only, that the run will rehearse
-  and grab nothing. The list pages by whole groups, so a series never arrives
-  split, and a page closes early once its groups would list about 200 episodes
-  — the group count bounds the many-small-groups shape, the episode budget
-  bounds the few-huge-groups one, so a run of capped back-catalog series
-  cannot stack into one giant page. An episode's Releases focus is now
-  addressable as `#/series/<id>?item=<n>`.
+- **Wanted is a real page: what the library is still missing, and why.** Two
+  tabs. *Missing* lists every episode still worth acquiring, grouped by series
+  with the newest gap first, and says why each one is still missing —
+  automation is off, the series is unmonitored, blocklisted or waiting its
+  turn in the search queue, the last grab failed, or it simply has not aired.
+  Unaired episodes and unmonitored series sit behind filters, since the
+  Calendar owns the forward-looking view. *Cutoff Unmet* lists episodes you
+  hold that score below their quality profile's cutoff, with the release you
+  have and what the profile still wants from it ("group TopSubs (+100) ·
+  resolution 1080p (+100)"). An episode's Search opens the Releases tab
+  focused on that episode; selecting series and hitting *Search selected* or
+  *Search all* puts them back at the front of the search queue and starts a
+  run — the confirmation says queued rather than done, and under notify-only
+  that the run will grab nothing. Series headers stay in view while you
+  scroll, groups collapse once you are done with them, and both lists page as
+  you go rather than loading a whole library at once.
 
 - **An episode's Search button now searches for that episode.** It used to hand
   you the series-wide result list and leave you to scan it for the row whose
