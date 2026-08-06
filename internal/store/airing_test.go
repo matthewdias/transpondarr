@@ -70,7 +70,7 @@ func insertSeries(t *testing.T, st *Store, anilistID int64) int64 {
 	t.Helper()
 	var id int64
 	if err := st.DB.QueryRowContext(context.Background(),
-		`INSERT INTO series (anilist_id, title) VALUES (?, 'Placeholder') RETURNING id`,
+		`INSERT INTO series (provider, provider_id, title) VALUES ('anilist', ?, 'Placeholder') RETURNING id`,
 		anilistID).Scan(&id); err != nil {
 		t.Fatalf("insert series: %v", err)
 	}

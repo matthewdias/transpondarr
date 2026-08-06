@@ -137,13 +137,13 @@ func (f *fakeCachedTitles) CachedTitleVariants(_ context.Context, id int64) ([]s
 	return v, ok, nil
 }
 
-// setSeriesAnilistID gives a seeded series a provider id, which is what makes the
-// variant lookup reachable at all.
-func setSeriesAnilistID(t *testing.T, st *store.Store, seriesID, anilistID int64) {
+// setSeriesProviderID gives a seeded series a provider identity, which is what
+// makes the variant lookup reachable at all.
+func setSeriesProviderID(t *testing.T, st *store.Store, seriesID, providerID int64) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET anilist_id = ? WHERE id = ?`, anilistID, seriesID); err != nil {
-		t.Fatalf("set anilist_id on series %d: %v", seriesID, err)
+		`UPDATE series SET provider = 'anilist', provider_id = ? WHERE id = ?`, providerID, seriesID); err != nil {
+		t.Fatalf("set provider identity on series %d: %v", seriesID, err)
 	}
 }
 
@@ -157,7 +157,7 @@ func TestFeedPollMatchesOnCachedVariantWithoutFetching(t *testing.T) {
 		feedEntry(english, 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{}, titles)
 	id := seedSweep(t, h.st, "Sora no Fixture", true, sweepItem{number: 3, airsAt: &past})
-	setSeriesAnilistID(t, h.st, id, 42)
+	setSeriesProviderID(t, h.st, id, 42)
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -181,7 +181,7 @@ func TestFeedPollCacheMissStillMatchesStoredTitle(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{}, titles)
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
-	setSeriesAnilistID(t, h.st, id, 42)
+	setSeriesProviderID(t, h.st, id, 42)
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -203,7 +203,7 @@ func TestFeedPollCacheErrorStillMatchesStoredTitle(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{}, titles)
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
-	setSeriesAnilistID(t, h.st, id, 42)
+	setSeriesProviderID(t, h.st, id, 42)
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -228,7 +228,7 @@ func TestFeedPollWithoutCacheCapabilityUsesStoredTitleOnly(t *testing.T) {
 		feedEntry(english, 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{}, fakeTitles{variants: map[int64][]string{42: {english}}})
 	id := seedSweep(t, h.st, "Sora no Fixture", true, sweepItem{number: 3, airsAt: &past})
-	setSeriesAnilistID(t, h.st, id, 42)
+	setSeriesProviderID(t, h.st, id, 42)
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)

@@ -100,6 +100,9 @@ type Schemas = components["schemas"];
 
 export type Series = Schemas["SeriesDTO"];
 export type Candidate = Schemas["CandidateDTO"];
+// The id space a provider_id is numbered in; the spec's enum, so a new provider
+// widens this type rather than passing an arbitrary string.
+export type Provider = Schemas["AddSeriesInputBody"]["provider"];
 export type SeasonEntry = Schemas["SeasonEntryDTO"];
 export type SeasonChart = Schemas["BrowseSeasonOutputBody"];
 export type WantedItem = Schemas["DetailItemDTO"];
@@ -316,9 +319,11 @@ export const api = {
       .then(unwrap)
       .then((r) => r.results),
 
-  addSeries: (anilistId: number, monitored = true) =>
+  addSeries: (provider: Provider, providerId: number, monitored = true) =>
     client
-      .POST("/api/v1/series", { body: { anilist_id: anilistId, monitored } })
+      .POST("/api/v1/series", {
+        body: { provider, provider_id: providerId, monitored },
+      })
       .then(unwrap),
 
   searchReleases: (id: number, signal?: AbortSignal) =>

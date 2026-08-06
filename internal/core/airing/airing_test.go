@@ -80,7 +80,7 @@ func seedSeries(t *testing.T, st *store.Store, anilistID int64, episodes int) in
 	ctx := context.Background()
 	var id int64
 	if err := st.DB.QueryRowContext(ctx,
-		`INSERT INTO series (anilist_id, title, monitored) VALUES (?, 'Placeholder', 1) RETURNING id`,
+		`INSERT INTO series (provider, provider_id, title, monitored) VALUES ('anilist', ?, 'Placeholder', 1) RETURNING id`,
 		anilistID).Scan(&id); err != nil {
 		t.Fatalf("insert series: %v", err)
 	}

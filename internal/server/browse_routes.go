@@ -13,7 +13,8 @@ import (
 )
 
 type seasonEntryDTO struct {
-	AniListID    int64      `json:"anilist_id"`
+	Provider     string     `json:"provider" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
+	ProviderID   int64      `json:"provider_id"`
 	Romaji       string     `json:"romaji,omitempty"`
 	English      string     `json:"english,omitempty"`
 	Native       string     `json:"native,omitempty"`
@@ -65,6 +66,7 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 			return nil, huma.Error502BadGateway("seasonal browse failed", err)
 		}
 
+		provider := deps.browse.ProviderName()
 		out := &browseSeasonOutput{}
 		out.Body.Season = strings.ToLower(string(season))
 		out.Body.Year = year
@@ -77,7 +79,8 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 				genres = []string{}
 			}
 			dto := seasonEntryDTO{
-				AniListID:    e.ProviderID,
+				Provider:     provider,
+				ProviderID:   e.ProviderID,
 				Romaji:       e.Titles.Romaji,
 				English:      e.Titles.English,
 				Native:       e.Titles.Native,

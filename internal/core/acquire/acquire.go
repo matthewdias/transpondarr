@@ -225,8 +225,8 @@ func (s *Service) match(ctx context.Context, idx indexer.Indexer, series db.Seri
 // Best-effort: fall back to the stored title if the metadata lookup fails.
 func (s *Service) variants(ctx context.Context, series db.Series) []string {
 	variants := []string{series.Title}
-	if series.AnilistID.Valid {
-		if v, err := s.titles.TitleVariants(ctx, series.AnilistID.Int64); err == nil {
+	if series.ProviderID.Valid {
+		if v, err := s.titles.TitleVariants(ctx, series.ProviderID.Int64); err == nil {
 			variants = append(variants, v...)
 		}
 	}
@@ -238,11 +238,11 @@ func (s *Service) variants(ctx context.Context, series db.Series) []string {
 // path, which would silently reintroduce the unbounded provider spend.
 func (s *Service) cachedVariants(ctx context.Context, series db.Series) []string {
 	variants := []string{series.Title}
-	if !series.AnilistID.Valid {
+	if !series.ProviderID.Valid {
 		return variants
 	}
 	if src, ok := s.titles.(CachedTitleSource); ok {
-		v, hit, err := src.CachedTitleVariants(ctx, series.AnilistID.Int64)
+		v, hit, err := src.CachedTitleVariants(ctx, series.ProviderID.Int64)
 		switch {
 		case err != nil:
 			s.log.Debug("cached title variants unreadable; matching on the stored title alone",

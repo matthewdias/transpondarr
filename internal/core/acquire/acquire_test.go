@@ -86,10 +86,11 @@ func seedAniListSeries(t *testing.T, st *store.Store, title string, anilistID in
 	t.Helper()
 	ctx := context.Background()
 	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
-		Title:     title,
-		Format:    "TV",
-		Monitored: 1,
-		AnilistID: sql.NullInt64{Int64: anilistID, Valid: anilistID != 0},
+		Title:      title,
+		Format:     "TV",
+		Monitored:  1,
+		Provider:   sql.NullString{String: "anilist", Valid: anilistID != 0},
+		ProviderID: sql.NullInt64{Int64: anilistID, Valid: anilistID != 0},
 	})
 	if err != nil {
 		t.Fatalf("create series: %v", err)

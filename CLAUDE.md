@@ -400,6 +400,19 @@ Behaviour changes are test-driven. Work red → green → refactor:
     Two branches that each add `000NN_*.sql` merge without a git conflict (different
     filenames) and leave a migration set goose sees as a duplicate version. Renumber
     on rebase; never merge past a collision.
+  - **A table rebuild is one `-- +goose StatementBegin` block, never loose
+    statements** (`00019_provider_identity.sql` is the only one, and the recipe).
+    SQLite has no DROP CONSTRAINT, so changing one means create-copy-drop-rename —
+    and `DROP TABLE series` with foreign keys on **cascade-deletes the user's whole
+    library**, since `db.go` enables them in the DSN for every pooled connection.
+    `PRAGMA foreign_keys` is a silent no-op inside a transaction (hence `-- +goose
+    NO TRANSACTION`) *and* is per-connection, so the pragma and the DROP must meet
+    on the same connection. One statement block is one `Exec` is one pooled
+    connection — that is the guarantee; loose statements have none. Wrap the DDL in
+    an explicit `BEGIN`/`COMMIT` so a failure rolls back, and restore
+    `PRAGMA foreign_keys = on` inside the same block, because the DSN pragma is
+    applied only at connection open. A migration test seeding every cascade child
+    and asserting it survives is the acceptance criterion, not a nicety.
 - **`frontend/src/lib/api-types.ts` is generated and CI fails on drift**, so every
   backend schema change regenerates it and every concurrent branch conflicts there.
   Resolve by re-running `make gen-api` against the merged spec — never by hand-editing
@@ -411,6 +424,20 @@ Behaviour changes are test-driven. Work red → green → refactor:
   automatic choices; a manual grab is explicit user intent. Don't reintroduce a
   gate on manual paths (decided in PR #57).
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
+- **A title's identity is `(provider, provider_id)`, and the pair travels
+  together (#74).** The pair is what `series` is keyed on, what `catalog.AddSeries`
+  dedupes on, and what the API takes and emits — `provider` required rather than
+  defaulted, because a default hides which id space the caller meant. Two rules
+  follow. **The provider name is read, never written as a literal**:
+  `Provider.Name()` is the source, so `metadata_cache` joins on the series' own
+  `provider` column and the DTOs carry `ProviderName()`; the surviving literals
+  are the `enum:"anilist"` request tags and the migration's backfill, both of
+  which are statements about the *schema*, not lookups. And **AniList is still
+  the only provider**: `catalog.AddSeries` refuses a pair it cannot read, so
+  nothing persists a row keyed on an unreachable id space. The pair does *not*
+  mean a series can hold two ids — deduping the same title across id spaces
+  needs the cross-reference layer (#189), and until it lands, reaching for a
+  `tmdb_id` column is the regression it exists to prevent.
 - **`decide.Match`'s `items` is the numbering basis, not just the candidate set.**
   `maxItem` spans every item passed (grabbable or not) and drives absolute-numbering
   detection, so narrowing the slice to scope a search silently misreports every

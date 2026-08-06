@@ -110,14 +110,15 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
-// stubProvider stands in for AniList. Every method errors: these tests seed
-// series with no AniList id precisely so the provider is never reached, and a
-// loud failure is what proves that still holds.
+// stubProvider stands in for AniList. Every method but Name errors: these tests
+// seed series with no provider id precisely so the provider is never reached,
+// and a loud failure is what proves that still holds. Name is real, because it
+// is the id space the handlers pair a provider id with.
 type stubProvider struct{}
 
 func testProvider() metadata.Provider { return stubProvider{} }
 
-func (stubProvider) Name() string { return "stub" }
+func (stubProvider) Name() string { return "anilist" }
 
 func (stubProvider) Search(context.Context, string) ([]metadata.Candidate, error) {
 	return nil, errors.New("stub provider: unexpected metadata call")

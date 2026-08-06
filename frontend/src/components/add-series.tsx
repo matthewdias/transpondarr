@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/item";
 
 function candidateTitle(c: Candidate) {
-  return c.romaji || c.english || c.native || `AniList ${c.anilist_id}`;
+  return c.romaji || c.english || c.native || `${c.provider} ${c.provider_id}`;
 }
 
 function AddSeriesBody({ onDone }: { onDone: () => void }) {
@@ -49,7 +49,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
   });
 
   const add = useMutation({
-    mutationFn: (c: Candidate) => api.addSeries(c.anilist_id),
+    mutationFn: (c: Candidate) => api.addSeries(c.provider, c.provider_id),
     onSuccess: (series) => {
       queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
       toast.success("Series added", {
@@ -134,7 +134,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
           const english =
             c.english && c.english !== candidateTitle(c) ? c.english : null;
           return (
-            <Item key={c.anilist_id} className="gap-3">
+            <Item key={`${c.provider}:${c.provider_id}`} className="gap-3">
               <ItemMedia>
                 <Poster title={candidateTitle(c)} coverUrl={c.cover_url} />
               </ItemMedia>
@@ -158,7 +158,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
                   onClick={() => add.mutate(c)}
                 >
                   {add.isPending &&
-                    add.variables?.anilist_id === c.anilist_id && (
+                    add.variables?.provider_id === c.provider_id && (
                       <Loader2 className="size-3.5 animate-spin" />
                     )}
                   Add

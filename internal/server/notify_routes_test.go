@@ -166,7 +166,7 @@ func TestAddSeriesDispatchesSeriesAdded(t *testing.T) {
 
 	var out struct{}
 	if code := do(t, h, http.MethodPost, "/api/v1/series",
-		map[string]any{"anilist_id": 42}, &out); code != http.StatusCreated {
+		map[string]any{"provider": "anilist", "provider_id": 42}, &out); code != http.StatusCreated {
 		t.Fatalf("POST /series = %d, want 201", code)
 	}
 

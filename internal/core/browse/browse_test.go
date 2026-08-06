@@ -359,10 +359,11 @@ func TestCurrentSeason(t *testing.T) {
 func trackSeries(t *testing.T, st *store.Store, anilistID int64, synced bool) int64 {
 	t.Helper()
 	s, err := st.Q.CreateSeries(context.Background(), db.CreateSeriesParams{
-		AnilistID: sql.NullInt64{Int64: anilistID, Valid: true},
-		Title:     fmt.Sprintf("Tracked %d", anilistID),
-		Format:    "TV",
-		Monitored: 1,
+		Provider:   sql.NullString{String: "anilist", Valid: true},
+		ProviderID: sql.NullInt64{Int64: anilistID, Valid: true},
+		Title:      fmt.Sprintf("Tracked %d", anilistID),
+		Format:     "TV",
+		Monitored:  1,
 	})
 	if err != nil {
 		t.Fatalf("create series: %v", err)

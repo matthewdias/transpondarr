@@ -101,7 +101,8 @@ type SeasonCache struct {
 
 type Series struct {
 	ID               int64          `json:"id"`
-	AnilistID        sql.NullInt64  `json:"anilist_id"`
+	Provider         sql.NullString `json:"provider"`
+	ProviderID       sql.NullInt64  `json:"provider_id"`
 	Title            string         `json:"title"`
 	Format           string         `json:"format"`
 	Monitored        int64          `json:"monitored"`

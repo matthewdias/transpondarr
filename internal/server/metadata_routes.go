@@ -8,15 +8,16 @@ import (
 )
 
 type candidateDTO struct {
-	AniListID int64  `json:"anilist_id"`
-	Romaji    string `json:"romaji,omitempty"`
-	English   string `json:"english,omitempty"`
-	Native    string `json:"native,omitempty"`
-	Format    string `json:"format,omitempty"`
-	Episodes  int    `json:"episodes"`
-	Status    string `json:"status,omitempty"`
-	Year      int    `json:"year,omitempty"`
-	CoverURL  string `json:"cover_url,omitempty"`
+	Provider   string `json:"provider" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
+	ProviderID int64  `json:"provider_id"`
+	Romaji     string `json:"romaji,omitempty"`
+	English    string `json:"english,omitempty"`
+	Native     string `json:"native,omitempty"`
+	Format     string `json:"format,omitempty"`
+	Episodes   int    `json:"episodes"`
+	Status     string `json:"status,omitempty"`
+	Year       int    `json:"year,omitempty"`
+	CoverURL   string `json:"cover_url,omitempty"`
 }
 
 type searchMetadataInput struct {
@@ -42,19 +43,21 @@ func registerMetadataRoutes(api huma.API, deps routeDeps) {
 		if err != nil {
 			return nil, huma.Error502BadGateway("metadata search failed", err)
 		}
+		provider := svc.ProviderName()
 		out := &searchMetadataOutput{}
 		out.Body.Results = make([]candidateDTO, 0, len(cands))
 		for _, c := range cands {
 			out.Body.Results = append(out.Body.Results, candidateDTO{
-				AniListID: c.ProviderID,
-				Romaji:    c.Titles.Romaji,
-				English:   c.Titles.English,
-				Native:    c.Titles.Native,
-				Format:    c.Format,
-				Episodes:  c.Episodes,
-				Status:    c.Status,
-				Year:      c.Year,
-				CoverURL:  c.CoverURL,
+				Provider:   provider,
+				ProviderID: c.ProviderID,
+				Romaji:     c.Titles.Romaji,
+				English:    c.Titles.English,
+				Native:     c.Titles.Native,
+				Format:     c.Format,
+				Episodes:   c.Episodes,
+				Status:     c.Status,
+				Year:       c.Year,
+				CoverURL:   c.CoverURL,
 			})
 		}
 		return out, nil
