@@ -41,22 +41,24 @@ All notable changes to this project are documented here. The format is based on
   and grabbing over it from here would discard the deferred attempt and strand
   its payload. A held release that already tops every axis its profile states
   says "Nothing left to improve" rather than nothing at all, which happens
-  when a cutoff sits above what its own profile can score. On both tabs a
-  series' header pins to the top while its episodes scroll and the group
-  collapses to that header, which keeps a long back catalogue navigable. Every
-  episode's Search opens the Releases tab already focused on it, where the
-  manual grab is unchanged. Selecting groups and hitting "Search selected" (or
-  "Search all") puts those series back at the front of the search queue and
-  starts a run rather than firing one indexer request per series: the per-pass
-  limit that protects your indexer still applies, so a large library drains
-  over several passes, and the confirmation says queued rather than done —
-  under notify-only, that the run will rehearse and grab nothing. The list
-  pages by whole groups, so a series never arrives split, and a page closes
-  early once its groups would list about 200 episodes — the group count bounds
-  the many-small-groups shape, the episode budget bounds the few-huge-groups
-  one, so a run of capped back-catalog series cannot stack into one giant
-  page. An episode's Releases focus is now addressable as
-  `#/series/<id>?item=<n>`.
+  when a cutoff sits above what its own profile can score. Cutoff Unmet
+  decides what is below cutoff as it reads, so a scan that finds nothing yet
+  says so and offers to keep looking rather than claiming the library is
+  clear. On both tabs a series' header pins to the top while its episodes
+  scroll and the group collapses to that header, which keeps a long back
+  catalogue navigable. Every episode's Search opens the Releases tab already
+  focused on it, where the manual grab is unchanged. Selecting groups and
+  hitting "Search selected" (or "Search all") puts those series back at the
+  front of the search queue and starts a run rather than firing one indexer
+  request per series: the per-pass limit that protects your indexer still
+  applies, so a large library drains over several passes, and the confirmation
+  says queued rather than done — under notify-only, that the run will rehearse
+  and grab nothing. The list pages by whole groups, so a series never arrives
+  split, and a page closes early once its groups would list about 200 episodes
+  — the group count bounds the many-small-groups shape, the episode budget
+  bounds the few-huge-groups one, so a run of capped back-catalog series
+  cannot stack into one giant page. An episode's Releases focus is now
+  addressable as `#/series/<id>?item=<n>`.
 
 - **An episode's Search button now searches for that episode.** It used to hand
   you the series-wide result list and leave you to scan it for the row whose

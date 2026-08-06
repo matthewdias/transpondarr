@@ -71,6 +71,7 @@ type MissingPage = {
 function useHandlers(opts: {
   pages?: Record<string, MissingPage>;
   cutoffGroups?: CutoffGroup[];
+  cutoffPages?: Record<string, { groups: CutoffGroup[]; next_cursor?: string }>;
   onSearch?: (body: { series_ids?: number[] }) => void;
   onMissing?: (query: URLSearchParams) => void;
 }) {
@@ -81,9 +82,13 @@ function useHandlers(opts: {
       const cursor = query.get("cursor") ?? "";
       return HttpResponse.json(opts.pages?.[cursor] ?? { groups: [] });
     }),
-    http.get("/api/v1/wanted/cutoff-unmet", () =>
-      HttpResponse.json({ groups: opts.cutoffGroups ?? [] }),
-    ),
+    http.get("/api/v1/wanted/cutoff-unmet", ({ request }) => {
+      const cursor = new URL(request.url).searchParams.get("cursor") ?? "";
+      if (opts.cutoffPages) {
+        return HttpResponse.json(opts.cutoffPages[cursor] ?? { groups: [] });
+      }
+      return HttpResponse.json({ groups: opts.cutoffGroups ?? [] });
+    }),
     http.post("/api/v1/wanted/search", async ({ request }) => {
       const body = (await request.json()) as { series_ids?: number[] };
       opts.onSearch?.(body);
@@ -336,6 +341,42 @@ it("hoists shared goals to the cutoff group header", async () => {
   ).toBeInTheDocument();
   expect(screen.getByText("2100 / 2300")).toBeInTheDocument();
   expect(screen.getByText("2200 / 2300")).toBeInTheDocument();
+});
+
+// Cutoff Unmet decides membership in Go, so a request can scan its whole budget
+// without finding anything and still have somewhere to resume. Saying "nothing
+// below cutoff" there would hide a library that has some, further down.
+it("offers to keep looking when an empty cutoff page still has a cursor", async () => {
+  useHandlers({
+    pages: { "": { groups: [] } },
+    cutoffPages: {
+      "": { groups: [], next_cursor: "abc" },
+      abc: { groups: [cutoffGroup({}, [cutoff({})])] },
+    },
+  });
+  renderPage();
+
+  await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
+  expect(await screen.findByText("None found yet")).toBeInTheDocument();
+  expect(screen.queryByText("Nothing below cutoff")).toBeNull();
+
+  await userEvent.click(screen.getByRole("button", { name: /keep looking/i }));
+  expect(
+    await screen.findByText("[FakeGroup] Signal Anomaly - 02 [720p]"),
+  ).toBeInTheDocument();
+});
+
+// The last page with nothing on it is the real empty state.
+it("says nothing below cutoff when the scan is exhausted", async () => {
+  useHandlers({
+    pages: { "": { groups: [] } },
+    cutoffPages: { "": { groups: [] } },
+  });
+  renderPage();
+
+  await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
+  expect(await screen.findByText("Nothing below cutoff")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /keep looking/i })).toBeNull();
 });
 
 // A held release can top every axis its profile states and still sit below the

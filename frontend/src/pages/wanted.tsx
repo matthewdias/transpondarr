@@ -415,25 +415,33 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
   if (isLoading || isPaused) return <ListSkeleton />;
   if (isError)
     return <ListError what="the cutoff list" error={error} onRetry={refetch} />;
-  if (groups.length === 0) {
-    return (
-      <EmptyState
-        title="Nothing below cutoff"
-        blurb="Held episodes on a profile with upgrades enabled appear here while what holds them scores below that profile's cutoff."
-      />
-    );
-  }
 
+  // An empty page can still carry a cursor: membership is decided in Go, so a
+  // request that scanned its whole budget without finding a sub-cutoff release
+  // returns nothing and a place to resume. Returning early here would show
+  // "Nothing below cutoff" over a library that has some, further down.
   return (
     <>
-      <div className="space-y-3">
-        {groups.map((group) => (
-          <CutoffGroupCard key={group.series_id} group={group} />
-        ))}
-      </div>
+      {groups.length === 0 ? (
+        <EmptyState
+          title={hasNextPage ? "None found yet" : "Nothing below cutoff"}
+          blurb={
+            hasNextPage
+              ? "No episode below its cutoff in the series checked so far. Keep looking to check the rest of the library."
+              : "Held episodes on a profile with upgrades enabled appear here while what holds them scores below that profile's cutoff."
+          }
+        />
+      ) : (
+        <div className="space-y-3">
+          {groups.map((group) => (
+            <CutoffGroupCard key={group.series_id} group={group} />
+          ))}
+        </div>
+      )}
       <LoadMore
         hasNextPage={hasNextPage}
         isFetching={isFetchingNextPage}
+        label={groups.length === 0 ? "Keep looking" : undefined}
         onClick={() => fetchNextPage()}
       />
     </>
@@ -596,10 +604,12 @@ function SearchActions({
 function LoadMore({
   hasNextPage,
   isFetching,
+  label,
   onClick,
 }: {
   hasNextPage: boolean;
   isFetching: boolean;
+  label?: string;
   onClick: () => void;
 }) {
   if (!hasNextPage) return null;
@@ -611,7 +621,7 @@ function LoadMore({
       disabled={isFetching}
       onClick={onClick}
     >
-      {isFetching ? "Loading…" : "Load more"}
+      {isFetching ? "Loading…" : (label ?? "Load more")}
     </Button>
   );
 }
