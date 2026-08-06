@@ -109,6 +109,14 @@ export type CalendarItem = Schemas["CalendarItemDTO"];
 export type UnscheduledSeries = Schemas["UnscheduledSeriesDTO"];
 export type Calendar = Schemas["CalendarOutputBody"];
 export type GrabEvent = Schemas["GrabEventDTO"];
+export type MissingItem = Schemas["MissingItemDTO"];
+export type MissingGroup = Schemas["MissingGroupDTO"];
+export type SeriesMissingReason = MissingGroup["reason"];
+export type GlobalMissingReason = NonNullable<
+  Schemas["MissingOutputBody"]["global_reason"]
+>;
+export type CutoffItem = Schemas["CutoffItemDTO"];
+export type CutoffGroup = Schemas["CutoffGroupDTO"];
 export type BlocklistEntry = Schemas["BlocklistEntryDTO"];
 export type BlocklistSummary = Schemas["BlocklistSummaryOutputBody"];
 export type GrabResult = Schemas["GrabSeriesOutputBody"];
@@ -267,6 +275,38 @@ export const api = {
         params: { query: { start, end, unmonitored } },
         signal,
       })
+      .then(unwrap),
+
+  wantedMissing: (
+    cursor: string,
+    unaired: boolean,
+    unmonitored: boolean,
+    signal?: AbortSignal,
+  ) =>
+    client
+      .GET("/api/v1/wanted/missing", {
+        params: {
+          query: { ...(cursor ? { cursor } : {}), unaired, unmonitored },
+        },
+        signal,
+      })
+      .then(unwrap),
+
+  wantedCutoffUnmet: (
+    cursor: string,
+    unmonitored: boolean,
+    signal?: AbortSignal,
+  ) =>
+    client
+      .GET("/api/v1/wanted/cutoff-unmet", {
+        params: { query: { ...(cursor ? { cursor } : {}), unmonitored } },
+        signal,
+      })
+      .then(unwrap),
+
+  queueWantedSearch: (seriesIds: number[]) =>
+    client
+      .POST("/api/v1/wanted/search", { body: { series_ids: seriesIds } })
       .then(unwrap),
 
   searchMetadata: (term: string, signal?: AbortSignal) =>

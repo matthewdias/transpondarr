@@ -15,7 +15,7 @@ import { CalendarPage } from "@/pages/calendar";
 import { SeriesDetailPage } from "@/pages/series-detail";
 import { SettingsPage } from "@/pages/settings";
 import { ActivityPage } from "@/pages/activity";
-import { PlaceholderPage } from "@/pages/placeholder";
+import { WantedPage } from "@/pages/wanted";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -41,15 +41,7 @@ createRoot(document.getElementById("root")!).render(
                 <Route path="series/:id" element={<SeriesDetailPage />} />
                 <Route path="discovery" element={<DiscoveryPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
-                <Route
-                  path="wanted"
-                  element={
-                    <PlaceholderPage
-                      title="Wanted"
-                      blurb="A cross-series view of every wanted item is coming. For now, open a series to search and grab its episodes."
-                    />
-                  }
-                />
+                <Route path="wanted" element={<WantedPage />} />
                 <Route path="activity" element={<ActivityPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>

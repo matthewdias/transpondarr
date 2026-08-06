@@ -643,6 +643,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/wanted/cutoff-unmet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Held items whose release scores below the cutoff of an upgrading quality profile */
+        get: operations["list-wanted-cutoff-unmet"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wanted/missing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every item across the library still worth acquiring, newest broadcast first, with why it is still missing */
+        get: operations["list-wanted-missing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/wanted/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Put series back at the front of the sweep queue and run the sweep now
+         * @description Queues work rather than searching: the sweep's per-pass limit is the indexer budget the search design protects, so a library-wide reset drains over several passes.
+         */
+        post: operations["queue-wanted-search"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -928,6 +982,52 @@ export interface components {
              */
             cleared: number;
         };
+        CutoffGroupDTO: {
+            /**
+             * Format: int64
+             * @description Items below the cutoff in the whole series; may exceed len(items), which is capped
+             */
+            below: number;
+            /** Format: int64 */
+            cutoff_score: number;
+            items: components["schemas"]["CutoffItemDTO"][];
+            monitored: boolean;
+            profile_name: string;
+            /** Format: int64 */
+            series_id: number;
+            series_title: string;
+        };
+        CutoffItemDTO: {
+            /** Format: date-time */
+            airs_at?: string;
+            /** @description What the library holds, and what the score below rates */
+            held_release: string;
+            /** Format: int64 */
+            id: number;
+            name?: string;
+            /** Format: int64 */
+            number: number;
+            /** Format: int64 */
+            score: number;
+            /**
+             * @description Derived acquisition state; downloading while an upgrade is in flight
+             * @enum {string}
+             */
+            status: "have" | "downloading";
+            /** @description Profile axes the held release scores below its best on, each with the points still available */
+            unmet_goals?: components["schemas"]["ScorePartDTO"][];
+        };
+        CutoffOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/CutoffOutputBody.json
+             */
+            readonly $schema?: string;
+            groups: components["schemas"]["CutoffGroupDTO"][];
+            /** @description Absent on the last page */
+            next_cursor?: string;
+        };
         DetailItemDTO: {
             /**
              * Format: date-time
@@ -1156,6 +1256,62 @@ export interface components {
             readonly $schema?: string;
             series: components["schemas"]["SeriesDTO"][];
         };
+        MissingGroupDTO: {
+            /**
+             * Format: int64
+             * @description Releases this series is currently refusing (reason blocklisted)
+             */
+            blocked_releases?: number;
+            items: components["schemas"]["MissingItemDTO"][];
+            /**
+             * Format: int64
+             * @description Missing items in the whole group; may exceed len(items), which is capped
+             */
+            missing: number;
+            monitored: boolean;
+            /** @description When the sweep next reaches this series (reason search_backoff) */
+            next_search_at?: string;
+            /**
+             * @description The series' standing in the sweep queue, derived from stored state at request time
+             * @enum {string}
+             */
+            reason: "unmonitored" | "blocklisted" | "never_searched" | "search_backoff" | "search_due";
+            /** Format: int64 */
+            series_id: number;
+            series_title: string;
+        };
+        MissingItemDTO: {
+            /** @description Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule */
+            airs_at?: string;
+            /** Format: int64 */
+            id: number;
+            name?: string;
+            /** Format: int64 */
+            number: number;
+            /**
+             * @description This item's own story; absent when the group and page tell it all
+             * @enum {string}
+             */
+            reason?: "unaired" | "grab_failed";
+            /** @description Why the last grab failed (reason grab_failed) */
+            reason_detail?: string;
+        };
+        MissingOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/MissingOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * @description What stops any search running at all; absent when nothing does
+             * @enum {string}
+             */
+            global_reason?: "no_indexer" | "automation_off" | "notify_only";
+            groups: components["schemas"]["MissingGroupDTO"][];
+            /** @description Absent on the last page */
+            next_cursor?: string;
+        };
         NotificationsInputBody: {
             /**
              * Format: uri
@@ -1358,6 +1514,36 @@ export interface components {
             infohash: string;
             items: components["schemas"]["PayloadItemDTO"][];
             release_title: string;
+        };
+        QueueSearchInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/QueueSearchInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Series to put back at the front of the sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident */
+            series_ids: number[];
+        };
+        QueueSearchOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/QueueSearchOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * @description notify_only rehearses: the run happens, nothing reaches the download client
+             * @enum {string}
+             */
+            automation: "off" | "notify_only" | "on";
+            /** @description False when no runner is attached; the reset stands and the next scheduled pass picks it up */
+            run_triggered: boolean;
+            /**
+             * Format: int64
+             * @description Series whose search cadence was reset; -1 when the whole library was
+             */
+            series_queued: number;
         };
         ReleaseDTO: {
             download_url: string;
@@ -3065,6 +3251,115 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-wanted-cutoff-unmet": {
+        parameters: {
+            query?: {
+                /** @description Series groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
+                limit?: number;
+                /** @description Opaque cursor from the previous page's next_cursor */
+                cursor?: string;
+                /** @description Include items from unmonitored series */
+                unmonitored?: boolean;
+                /** @description Include items whose broadcast is still ahead; the Calendar owns the forward-looking view */
+                unaired?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CutoffOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-wanted-missing": {
+        parameters: {
+            query?: {
+                /** @description Series groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
+                limit?: number;
+                /** @description Opaque cursor from the previous page's next_cursor */
+                cursor?: string;
+                /** @description Include items from unmonitored series */
+                unmonitored?: boolean;
+                /** @description Include items whose broadcast is still ahead; the Calendar owns the forward-looking view */
+                unaired?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MissingOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "queue-wanted-search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QueueSearchInputBody"];
+            };
+        };
+        responses: {
+            /** @description Accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QueueSearchOutputBody"];
+                };
             };
             /** @description Error */
             default: {

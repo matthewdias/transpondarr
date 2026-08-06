@@ -35,13 +35,14 @@ import (
 // it reads. The registry is exposed so a test can point the importer at the same
 // clients the HTTP layer uses (it satisfies importer.ClientSource).
 type harness struct {
-	ts    *httptest.Server
-	store *store.Store
-	reg   *clients.Registry
-	jobs  *jobs.Runner
-	idx   *coretest.FakeIndexer
-	dl    *coretest.FakeDownload
-	lib   *coretest.FakeLibrary
+	ts       *httptest.Server
+	store    *store.Store
+	reg      *clients.Registry
+	jobs     *jobs.Runner
+	settings *settings.Service
+	idx      *coretest.FakeIndexer
+	dl       *coretest.FakeDownload
+	lib      *coretest.FakeLibrary
 	// importer is the very one the API holds, so a test drives the scan and the
 	// retry routes against one instance, as the daemon does.
 	importer *importer.Importer
@@ -104,7 +105,7 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 	})
 	ts := httptest.NewServer(h)
 	t.Cleanup(ts.Close)
-	return &harness{ts: ts, store: st, reg: reg, jobs: runner, idx: idx, dl: dl, lib: lib, importer: importSvc}
+	return &harness{ts: ts, store: st, reg: reg, jobs: runner, settings: settingsSvc, idx: idx, dl: dl, lib: lib, importer: importSvc}
 }
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }

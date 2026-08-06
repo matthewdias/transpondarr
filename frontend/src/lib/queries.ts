@@ -81,6 +81,26 @@ export const calendarQuery = (
     placeholderData: keepPreviousData,
   });
 
+// Both wanted listings page by keyset, and both keys start with "wanted" so a
+// queued search invalidates the pair with one prefix.
+export const wantedMissingQuery = (unaired: boolean, unmonitored: boolean) =>
+  infiniteQueryOptions({
+    queryKey: ["wanted", "missing", unaired, unmonitored],
+    queryFn: ({ pageParam, signal }) =>
+      api.wantedMissing(pageParam, unaired, unmonitored, signal),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+  });
+
+export const wantedCutoffQuery = (unmonitored: boolean) =>
+  infiniteQueryOptions({
+    queryKey: ["wanted", "cutoff", unmonitored],
+    queryFn: ({ pageParam, signal }) =>
+      api.wantedCutoffUnmet(pageParam, unmonitored, signal),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
+  });
+
 export const settingsQuery = () =>
   queryOptions({
     queryKey: ["settings"],

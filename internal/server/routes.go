@@ -49,6 +49,7 @@ func registerRoutes(api huma.API, deps routeDeps) {
 	registerSeriesRoutes(api, deps)
 	registerSeriesAcquisitionRoutes(api, deps)
 	registerCalendarRoutes(api, deps)
+	registerWantedRoutes(api, deps)
 	registerSettingsRoutes(api, deps)
 	registerProfileRoutes(api, deps)
 	registerBlocklistRoutes(api, deps)

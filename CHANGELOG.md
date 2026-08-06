@@ -8,6 +8,23 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Wanted is a real page: what the library is still missing, and why.** Two
+  tabs. *Missing* lists every episode still worth acquiring, grouped by series
+  with the newest gap first, and says why each one is still missing —
+  automation is off, the series is unmonitored, blocklisted or waiting its
+  turn in the search queue, the last grab failed, or it simply has not aired.
+  Unaired episodes and unmonitored series sit behind filters, since the
+  Calendar owns the forward-looking view. *Cutoff Unmet* lists episodes you
+  hold that score below their quality profile's cutoff, with the release you
+  have and what the profile still wants from it ("group TopSubs (+100) ·
+  resolution 1080p (+100)"). An episode's Search opens the Releases tab
+  focused on that episode; selecting series and hitting *Search selected* or
+  *Search all* puts them back at the front of the search queue and starts a
+  run — the confirmation says queued rather than done, and under notify-only
+  that the run will grab nothing. Series headers stay in view while you
+  scroll, groups collapse once you are done with them, and both lists page as
+  you go rather than loading a whole library at once.
+
 - **An episode's Search button now searches for that episode.** It used to hand
   you the series-wide result list and leave you to scan it for the row whose
   Match badge said E7. The Releases tab now opens pre-filtered to the candidates
@@ -74,6 +91,13 @@ All notable changes to this project are documented here. The format is based on
   could be matched to it. Automation never reopens a settled import on its own.
 
 ### Changed
+
+- **The Calendar's "Unmonitored" control is now a filter chip rather than a
+  switch.** A switch says you are changing a stored preference — which is what
+  Monitored on a series is — and using the same control for a view filter made
+  both mean less. It now reads "Include: Unmonitored" as a pill that lights up
+  when on, matching the new Wanted page. Same behaviour, same keyboard and
+  screen-reader semantics.
 
 - **An episode you have with a download in flight now reads as "downloading"**
   rather than as simply had — the state an upgrade in progress puts it in.
