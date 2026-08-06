@@ -43,6 +43,16 @@ type MetadataCache struct {
 	FetchedAt    string         `json:"fetched_at"`
 }
 
+type PassOutcome struct {
+	WantedItemID int64          `json:"wanted_item_id"`
+	Outcome      string         `json:"outcome"`
+	Source       string         `json:"source"`
+	ReleaseTitle string         `json:"release_title"`
+	Detail       string         `json:"detail"`
+	HeldUntil    sql.NullString `json:"held_until"`
+	RecordedAt   string         `json:"recorded_at"`
+}
+
 type QualityProfile struct {
 	ID                   int64  `json:"id"`
 	Name                 string `json:"name"`
