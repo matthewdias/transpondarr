@@ -8,6 +8,24 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Wanted now says when the search got there and turned everything down.** The
+  reason column could only answer "has anything looked at this yet?" — the
+  cases where you actually have something to change were indistinguishable from
+  a series still waiting its turn. Each episode now carries what the last pass
+  decided about it: the release it declined and why, the pinned group it is
+  waiting for and until when, the one the download client refused, or that a
+  search genuinely found nothing. A notify-only rehearsal's decisions land here
+  too, instead of scrolling past in whatever notifier happened to be
+  configured. It is the last pass's answer rather than a fresh one, so the badge
+  is dated — "Releases declined · 2h ago" — and a grab that has since happened
+  supersedes it. Blame is per episode, so a season pack and a single covering
+  the one you asked about are different answers, and the pack's breadth does not
+  win an argument about which release came closest for one episode. Only a
+  search ever reports "nothing matched": a feed poll sees one page covering the
+  whole library and stays quiet about a series it says nothing about, rather
+  than overwriting a real refusal with a guess. One row per episode, overwritten
+  in place. Adds migration 00018 (`pass_outcomes`).
+
 - **Wanted is a real page: what the library is still missing, and why.** Two
   tabs. *Missing* lists every episode still worth acquiring, grouped by series
   with the newest gap first, and says why each one is still missing —
