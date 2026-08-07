@@ -12,6 +12,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 )
 
+// The provider enum carries the same runtime-vs-spec coupling as candidateDTO's.
 type seasonEntryDTO struct {
 	Provider     string     `json:"provider" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
 	ProviderID   int64      `json:"provider_id"`

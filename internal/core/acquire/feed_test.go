@@ -123,6 +123,8 @@ type fakeCachedTitles struct {
 	cachedCalls int
 }
 
+func (f *fakeCachedTitles) ProviderName() string { return "anilist" }
+
 func (f *fakeCachedTitles) TitleVariants(_ context.Context, id int64) ([]string, error) {
 	f.fetchCalls++
 	return f.cached[id], nil

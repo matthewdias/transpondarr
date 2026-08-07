@@ -17,7 +17,7 @@ func TestSeriesDetailEnrichedFromMetadataCache(t *testing.T) {
 	ctx := context.Background()
 	if _, err := h.store.DB.ExecContext(ctx,
 		`UPDATE series SET provider = 'anilist', provider_id = 42 WHERE id = ?`, seriesID); err != nil {
-		t.Fatalf("set anilist id: %v", err)
+		t.Fatalf("set provider identity: %v", err)
 	}
 	if _, err := h.store.DB.ExecContext(ctx,
 		`INSERT INTO metadata_cache (provider, provider_id, status, format, title, raw) VALUES ('anilist', 42, 'RELEASING', 'TV', 'Enriched Show', ?)`,

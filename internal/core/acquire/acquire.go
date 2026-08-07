@@ -68,8 +68,11 @@ type ClientSource interface {
 }
 
 // TitleSource supplies a title's accepted name variants (satisfied by
-// *catalog.Service).
+// *catalog.Service). ProviderName names the id space TitleVariants reads: the
+// sweep and feed both serve series regardless of provider, so it is the caller's
+// job not to hand over an id numbered somewhere else.
 type TitleSource interface {
+	ProviderName() string
 	TitleVariants(ctx context.Context, providerID int64) ([]string, error)
 }
 
@@ -225,7 +228,7 @@ func (s *Service) match(ctx context.Context, idx indexer.Indexer, series db.Seri
 // Best-effort: fall back to the stored title if the metadata lookup fails.
 func (s *Service) variants(ctx context.Context, series db.Series) []string {
 	variants := []string{series.Title}
-	if series.ProviderID.Valid {
+	if s.readsProvider(series) {
 		if v, err := s.titles.TitleVariants(ctx, series.ProviderID.Int64); err == nil {
 			variants = append(variants, v...)
 		}
@@ -233,12 +236,18 @@ func (s *Service) variants(ctx context.Context, series db.Series) []string {
 	return variants
 }
 
+// readsProvider reports whether series is keyed on the id space the title source
+// reads. Untracked series and any keyed elsewhere match on their stored title.
+func (s *Service) readsProvider(series db.Series) bool {
+	return series.ProviderID.Valid && series.Provider.String == s.titles.ProviderName()
+}
+
 // cachedVariants is variants for the unbounded feed path (#139). A missing
 // capability or snapshot degrades to the stored title — never to the fetching
 // path, which would silently reintroduce the unbounded provider spend.
 func (s *Service) cachedVariants(ctx context.Context, series db.Series) []string {
 	variants := []string{series.Title}
-	if !series.ProviderID.Valid {
+	if !s.readsProvider(series) {
 		return variants
 	}
 	if src, ok := s.titles.(CachedTitleSource); ok {

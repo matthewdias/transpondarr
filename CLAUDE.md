@@ -401,7 +401,7 @@ Behaviour changes are test-driven. Work red → green → refactor:
     filenames) and leave a migration set goose sees as a duplicate version. Renumber
     on rebase; never merge past a collision.
   - **A table rebuild is one `-- +goose StatementBegin` block, never loose
-    statements** (`00019_provider_identity.sql` is the only one, and the recipe).
+    statements** (`00020_provider_identity.sql` is the only one, and the recipe).
     SQLite has no DROP CONSTRAINT, so changing one means create-copy-drop-rename —
     and `DROP TABLE series` with foreign keys on **cascade-deletes the user's whole
     library**, since `db.go` enables them in the DSN for every pooled connection.
@@ -413,6 +413,17 @@ Behaviour changes are test-driven. Work red → green → refactor:
     `PRAGMA foreign_keys = on` inside the same block, because the DSN pragma is
     applied only at connection open. A migration test seeding every cascade child
     and asserting it survives is the acceptance criterion, not a nicety.
+    - **Re-check the keys before `COMMIT`, and make the check able to fail.** With
+      enforcement off, a mis-copied id orphans children silently. A bare `PRAGMA
+      foreign_key_check` cannot catch it — it *returns* offending rows, and `Exec`
+      discards them — so land the count somewhere that rejects it:
+      `CREATE TABLE fk_violations (n INTEGER NOT NULL CHECK (n = 0)); INSERT INTO
+      fk_violations (n) SELECT count(*) FROM pragma_foreign_key_check; DROP TABLE
+      fk_violations;`.
+    - **A failure mid-block returns a connection to the pool with foreign keys
+      off**, since the restoring pragma never runs. Contained today only because
+      `store.Open` propagates the error and the process exits — do not build
+      anything that keeps running past a failed migration.
 - **`frontend/src/lib/api-types.ts` is generated and CI fails on drift**, so every
   backend schema change regenerates it and every concurrent branch conflicts there.
   Resolve by re-running `make gen-api` against the merged spec — never by hand-editing

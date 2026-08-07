@@ -158,6 +158,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
                   onClick={() => add.mutate(c)}
                 >
                   {add.isPending &&
+                    add.variables?.provider === c.provider &&
                     add.variables?.provider_id === c.provider_id && (
                       <Loader2 className="size-3.5 animate-spin" />
                     )}

@@ -50,12 +50,13 @@ UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?;
 -- cache row has unknown status and deliberately rides the short cutoff: unknown
 -- is likelier a transient anomaly than a finished title, and the cost is one
 -- tail request per short TTL. Never-synced series sort first; the limit bounds
--- how much of the request budget one pass can burn.
+-- how much of the request budget one pass can burn. Scoped to one provider
+-- because the id this hands to it is only meaningful in that provider's space.
 SELECT s.*
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
-  AND s.provider_id IS NOT NULL
+  AND s.provider = ?
   AND (
       s.airing_synced_at IS NULL
       OR s.airing_synced_at < CASE
@@ -105,11 +106,12 @@ WHERE s.provider = ?;
 -- earns the long cutoff; anything moving, unknown, or empty rides the short
 -- one, mirroring the freshness rule in metadata.Cached. Never-fetched series
 -- sort first; the limit bounds how much of the request budget one pass burns.
+-- Scoped to one provider for the same reason ListSeriesDueAiringSync is.
 SELECT s.*
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
-  AND s.provider_id IS NOT NULL
+  AND s.provider = ?
   AND (
       m.provider_id IS NULL
       OR m.fetched_at < CASE

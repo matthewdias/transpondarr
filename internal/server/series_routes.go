@@ -57,7 +57,7 @@ type seriesDetailDTO struct {
 type addSeriesInput struct {
 	Body struct {
 		Provider   string `json:"provider" required:"true" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
-		ProviderID int64  `json:"provider_id" required:"true" doc:"The provider's id for the title to add"`
+		ProviderID int64  `json:"provider_id" required:"true" minimum:"1" doc:"The provider's id for the title to add"`
 		Monitored  *bool  `json:"monitored,omitempty" doc:"Whether to monitor for downloads (default true)"`
 	}
 }
@@ -292,6 +292,9 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 	if errors.Is(err, catalog.ErrAlreadyExists) {
 		return nil, huma.Error409Conflict("series already exists")
 	}
+	// Unreachable while the request enum lists exactly the configured provider --
+	// huma rejects anything else at validation with a 422. It fires once the enum
+	// widens past what is actually wired up.
 	if errors.Is(err, catalog.ErrUnknownProvider) {
 		return nil, huma.Error400BadRequest("unknown metadata provider", err)
 	}

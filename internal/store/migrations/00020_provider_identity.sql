@@ -56,6 +56,13 @@ SELECT
 FROM series;
 DROP TABLE series;
 ALTER TABLE series_new RENAME TO series;
+-- Step 10 of SQLite's ALTER recipe, made to actually abort: a bare
+-- PRAGMA foreign_key_check only *returns* offending rows, and a migration runs
+-- through Exec, which discards them -- so orphaned children would commit
+-- silently. Landing the count in a CHECK turns them into a failed statement.
+CREATE TABLE fk_violations (n INTEGER NOT NULL CHECK (n = 0));
+INSERT INTO fk_violations (n) SELECT count(*) FROM pragma_foreign_key_check;
+DROP TABLE fk_violations;
 COMMIT;
 PRAGMA foreign_keys = on;
 -- +goose StatementEnd
@@ -96,6 +103,9 @@ SELECT
 FROM series;
 DROP TABLE series;
 ALTER TABLE series_old RENAME TO series;
+CREATE TABLE fk_violations (n INTEGER NOT NULL CHECK (n = 0));
+INSERT INTO fk_violations (n) SELECT count(*) FROM pragma_foreign_key_check;
+DROP TABLE fk_violations;
 COMMIT;
 PRAGMA foreign_keys = on;
 -- +goose StatementEnd

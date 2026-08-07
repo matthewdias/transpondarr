@@ -24,6 +24,8 @@ type fakeTitles struct {
 	err      error
 }
 
+func (f fakeTitles) ProviderName() string { return "anilist" }
+
 func (f fakeTitles) TitleVariants(_ context.Context, id int64) ([]string, error) {
 	if f.err != nil {
 		return nil, f.err

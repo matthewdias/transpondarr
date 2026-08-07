@@ -65,6 +65,7 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 		return store.FormatTimestamp(now.Add(-metadata.TTLFor(status)))
 	}
 	return s.store.Q.ListSeriesDueMetadataRefresh(ctx, db.ListSeriesDueMetadataRefreshParams{
+		Provider:    sql.NullString{String: s.provider.Name(), Valid: true},
 		FetchedAt:   cutoff("FINISHED"),
 		FetchedAt_2: cutoff("RELEASING"),
 		Limit:       seriesPerPass,

@@ -74,6 +74,7 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 		return sql.NullString{String: store.FormatTimestamp(now.Add(-metadata.TTLFor(status))), Valid: true}
 	}
 	return s.store.Q.ListSeriesDueAiringSync(ctx, db.ListSeriesDueAiringSyncParams{
+		Provider:         sql.NullString{String: s.provider.Name(), Valid: true},
 		AiringSyncedAt:   cutoff("FINISHED"),
 		AiringSyncedAt_2: cutoff("RELEASING"),
 		Limit:            seriesPerPass,

@@ -192,7 +192,7 @@ SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.create
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
-  AND s.provider_id IS NOT NULL
+  AND s.provider = ?
   AND (
       s.airing_synced_at IS NULL
       OR s.airing_synced_at < CASE
@@ -205,6 +205,7 @@ LIMIT ?
 `
 
 type ListSeriesDueAiringSyncParams struct {
+	Provider         sql.NullString `json:"provider"`
 	AiringSyncedAt   sql.NullString `json:"airing_synced_at"`
 	AiringSyncedAt_2 sql.NullString `json:"airing_synced_at_2"`
 	Limit            int64          `json:"limit"`
@@ -216,9 +217,15 @@ type ListSeriesDueAiringSyncParams struct {
 // cache row has unknown status and deliberately rides the short cutoff: unknown
 // is likelier a transient anomaly than a finished title, and the cost is one
 // tail request per short TTL. Never-synced series sort first; the limit bounds
-// how much of the request budget one pass can burn.
+// how much of the request budget one pass can burn. Scoped to one provider
+// because the id this hands to it is only meaningful in that provider's space.
 func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDueAiringSyncParams) ([]Series, error) {
-	rows, err := q.db.QueryContext(ctx, listSeriesDueAiringSync, arg.AiringSyncedAt, arg.AiringSyncedAt_2, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listSeriesDueAiringSync,
+		arg.Provider,
+		arg.AiringSyncedAt,
+		arg.AiringSyncedAt_2,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +268,7 @@ SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.create
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
-  AND s.provider_id IS NOT NULL
+  AND s.provider = ?
   AND (
       m.provider_id IS NULL
       OR m.fetched_at < CASE
@@ -274,9 +281,10 @@ LIMIT ?
 `
 
 type ListSeriesDueMetadataRefreshParams struct {
-	FetchedAt   string `json:"fetched_at"`
-	FetchedAt_2 string `json:"fetched_at_2"`
-	Limit       int64  `json:"limit"`
+	Provider    sql.NullString `json:"provider"`
+	FetchedAt   string         `json:"fetched_at"`
+	FetchedAt_2 string         `json:"fetched_at_2"`
+	Limit       int64          `json:"limit"`
 }
 
 // Monitored series whose cached title snapshot is missing or stale under the
@@ -284,8 +292,14 @@ type ListSeriesDueMetadataRefreshParams struct {
 // earns the long cutoff; anything moving, unknown, or empty rides the short
 // one, mirroring the freshness rule in metadata.Cached. Never-fetched series
 // sort first; the limit bounds how much of the request budget one pass burns.
+// Scoped to one provider for the same reason ListSeriesDueAiringSync is.
 func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeriesDueMetadataRefreshParams) ([]Series, error) {
-	rows, err := q.db.QueryContext(ctx, listSeriesDueMetadataRefresh, arg.FetchedAt, arg.FetchedAt_2, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listSeriesDueMetadataRefresh,
+		arg.Provider,
+		arg.FetchedAt,
+		arg.FetchedAt_2,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
