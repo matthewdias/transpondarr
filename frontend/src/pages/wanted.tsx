@@ -357,6 +357,13 @@ function MissingGroupCard({
   onToggle: () => void;
 }) {
   const hidden = group.missing - group.items.length;
+  // The count follows the filter, so with the Unmonitored chip on it reads
+  // "1173 episodes missing" over rows that were switched off deliberately.
+  // Splitting it says what is actually being chased -- but only for a whole
+  // group: with items paged the loaded rows are a sample, so counting them
+  // would understate what is off and turn the split into a worse lie.
+  const unmonitored =
+    hidden === 0 ? group.items.filter((i) => !i.monitored).length : 0;
   return (
     <GroupSection
       title={group.series_title}
@@ -376,7 +383,9 @@ function MissingGroupCard({
             {group.series_title}
           </Link>
           <span className="text-xs text-faint tabular-nums">
-            {plural(group.missing, "episode")} missing
+            {unmonitored > 0
+              ? `${group.missing - unmonitored} missing · ${unmonitored} not monitored`
+              : `${plural(group.missing, "episode")} missing`}
           </span>
           <SeriesReasonBadge group={group} />
         </>

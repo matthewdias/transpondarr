@@ -32,6 +32,7 @@ function renderTab(items: WantedItem[]) {
       onSearchItem={onSearchItem}
       selected={new Set()}
       onToggleSelect={vi.fn()}
+      onSelectRange={vi.fn()}
       onSetMonitored={vi.fn()}
     />,
   );
@@ -84,6 +85,7 @@ describe("EpisodesTab monitoring", () => {
         onSearchItem={vi.fn()}
         selected={new Set([1, 2])}
         onToggleSelect={vi.fn()}
+        onSelectRange={vi.fn()}
         onSetMonitored={onSetMonitored}
       />,
     );
@@ -102,6 +104,7 @@ describe("EpisodesTab monitoring", () => {
         onSearchItem={vi.fn()}
         selected={new Set()}
         onToggleSelect={onToggleSelect}
+        onSelectRange={vi.fn()}
         onSetMonitored={vi.fn()}
       />,
     );
@@ -127,11 +130,114 @@ describe("EpisodesTab monitoring", () => {
         onSearchItem={vi.fn()}
         selected={new Set()}
         onToggleSelect={vi.fn()}
+        onSelectRange={vi.fn()}
         onSetMonitored={vi.fn()}
       />,
     );
 
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
     expect(screen.getByText(/2 not monitored/i)).toBeInTheDocument();
+  });
+});
+
+describe("EpisodesTab selection range", () => {
+  // What makes a 1,000-episode series workable: click the first, shift-click the
+  // last. Whole-row click is deliberately not a thing -- it would collide with
+  // the in-row Search button.
+  it("selects the inclusive range on shift-click", async () => {
+    const onSelectRange = vi.fn();
+    const onToggleSelect = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <EpisodesTab
+        detail={detail([
+          item({ id: 10, number: 1 }),
+          item({ id: 20, number: 2 }),
+          item({ id: 30, number: 3 }),
+          item({ id: 40, number: 4 }),
+        ])}
+        onSearchAll={vi.fn()}
+        onSearchItem={vi.fn()}
+        selected={new Set()}
+        onToggleSelect={onToggleSelect}
+        onSelectRange={onSelectRange}
+        onSetMonitored={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("checkbox", { name: /select episode 2/i }),
+    );
+    expect(onToggleSelect).toHaveBeenCalledWith(20);
+
+    await user.keyboard("{Shift>}");
+    await user.click(
+      screen.getByRole("checkbox", { name: /select episode 4/i }),
+    );
+    await user.keyboard("{/Shift}");
+    expect(onSelectRange).toHaveBeenCalledWith([20, 30, 40]);
+  });
+
+  // The anchor is the last row clicked, whichever direction the range runs.
+  it("ranges backwards from the anchor too", async () => {
+    const onSelectRange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <EpisodesTab
+        detail={detail([
+          item({ id: 10, number: 1 }),
+          item({ id: 20, number: 2 }),
+          item({ id: 30, number: 3 }),
+        ])}
+        onSearchAll={vi.fn()}
+        onSearchItem={vi.fn()}
+        selected={new Set()}
+        onToggleSelect={vi.fn()}
+        onSelectRange={onSelectRange}
+        onSetMonitored={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("checkbox", { name: /select episode 3/i }),
+    );
+    await user.keyboard("{Shift>}");
+    await user.click(
+      screen.getByRole("checkbox", { name: /select episode 1/i }),
+    );
+    await user.keyboard("{/Shift}");
+    expect(onSelectRange).toHaveBeenCalledWith([10, 20, 30]);
+  });
+});
+
+describe("EpisodesTab unmonitored status", () => {
+  // "Wanted" is the one status that becomes false when an item is unmonitored;
+  // nothing is wanting it. The others stay true and are left alone.
+  it("replaces only the wanted badge", () => {
+    render(
+      <EpisodesTab
+        detail={detail([
+          item({ id: 1, number: 1, monitored: false, status: "wanted" }),
+          item({
+            id: 2,
+            number: 2,
+            monitored: false,
+            status: "downloading",
+            release_title: "[SynthSubs] Placeholder Saga - 02 [1080p]",
+          }),
+        ])}
+        onSearchAll={vi.fn()}
+        onSearchItem={vi.fn()}
+        selected={new Set()}
+        onToggleSelect={vi.fn()}
+        onSelectRange={vi.fn()}
+        onSetMonitored={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Not monitored")).toBeInTheDocument();
+    expect(screen.queryByText("Wanted")).not.toBeInTheDocument();
+    // An unmonitored episode with a grab in flight really is downloading.
+    expect(screen.getByText("Downloading")).toBeInTheDocument();
   });
 });

@@ -1,9 +1,10 @@
+import { memo, useCallback, useMemo, useRef } from "react";
 import { Eye, EyeOff, Search } from "lucide-react";
 import type { SeriesDetail, WantedItem } from "@/lib/api";
 import { airDate, pad2 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ItemStatusBadge } from "@/components/badges";
+import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
 import {
   Table,
   TableBody,
@@ -19,6 +20,7 @@ export function EpisodesTab({
   onSearchItem,
   selected,
   onToggleSelect,
+  onSelectRange,
   onSetMonitored,
 }: {
   detail: SeriesDetail;
@@ -26,26 +28,61 @@ export function EpisodesTab({
   onSearchItem: (n: number) => void;
   selected: Set<number>;
   onToggleSelect: (id: number) => void;
+  onSelectRange: (ids: number[]) => void;
   onSetMonitored: (ids: number[], monitored: boolean) => void;
 }) {
   const items = detail.items;
-  // Progress is measured against what is actually being pursued, matching the
-  // server's tracked count on the series list -- otherwise one bar reads 3 / 3
-  // and the other 3 / 1050 for the same narrowed long-runner.
-  const tracked = items.filter((i) => i.monitored);
-  const total = tracked.length;
-  const unmonitored = items.length - total;
-  const count = (s: WantedItem["status"]) =>
-    tracked.filter((i) => i.status === s).length;
-  const inLibrary = count("in_library");
-  const downloading = count("downloading");
-  const stuck = count("stuck");
-  const deferred = count("deferred");
-  const wanted = total - inLibrary - downloading - stuck - deferred;
+
+  // Memoized because a 1,200-row series recomputes these on every selection
+  // change otherwise, and none of them depend on the selection.
+  const counts = useMemo(() => {
+    // Progress is measured against what the series is pursuing, matching the
+    // server's tracked count on the series list -- otherwise one bar reads
+    // 3 / 3 and the other 3 / 1050 for the same narrowed long-runner.
+    const tracked = items.filter((i) => i.monitored);
+    const of = (s: WantedItem["status"]) =>
+      tracked.filter((i) => i.status === s).length;
+    const inLibrary = of("in_library");
+    const downloading = of("downloading");
+    const stuck = of("stuck");
+    const deferred = of("deferred");
+    return {
+      total: tracked.length,
+      unmonitored: items.length - tracked.length,
+      inLibrary,
+      downloading,
+      stuck,
+      deferred,
+      wanted: tracked.length - inLibrary - downloading - stuck - deferred,
+    };
+  }, [items]);
+  const {
+    total,
+    unmonitored,
+    inLibrary,
+    downloading,
+    stuck,
+    deferred,
+    wanted,
+  } = counts;
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
 
-  const selectedItems = items.filter((i) => selected.has(i.id));
-  const selectedIds = selectedItems.map((i) => i.id);
+  // The shift-click anchor is the last row clicked, not part of the selection,
+  // and moving it must not re-render 1,200 rows -- hence a ref.
+  const anchor = useRef<number | null>(null);
+  const onSelect = useCallback(
+    (id: number, index: number, shift: boolean) => {
+      const from = anchor.current;
+      if (shift && from !== null && from !== index) {
+        const [lo, hi] = from < index ? [from, index] : [index, from];
+        onSelectRange(items.slice(lo, hi + 1).map((i) => i.id));
+      } else {
+        onToggleSelect(id);
+      }
+      anchor.current = index;
+    },
+    [items, onSelectRange, onToggleSelect],
+  );
 
   return (
     <div>
@@ -118,30 +155,6 @@ export function EpisodesTab({
         </Button>
       </div>
 
-      {selectedIds.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-panel-2 px-3.5 py-2.5">
-          <span className="text-[13px] font-medium">
-            {selectedIds.length} selected
-          </span>
-          <div className="ml-auto flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSetMonitored(selectedIds, true)}
-            >
-              <Eye className="size-4" /> Monitor {selectedIds.length}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onSetMonitored(selectedIds, false)}
-            >
-              <EyeOff className="size-4" /> Unmonitor {selectedIds.length}
-            </Button>
-          </div>
-        </div>
-      )}
-
       <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
         <div className="overflow-x-auto">
           <Table>
@@ -158,12 +171,13 @@ export function EpisodesTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((item) => (
+              {items.map((item, index) => (
                 <EpisodeRow
                   key={item.id}
                   item={item}
+                  index={index}
                   selected={selected.has(item.id)}
-                  onToggleSelect={onToggleSelect}
+                  onSelect={onSelect}
                   onSetMonitored={onSetMonitored}
                   onSearch={onSearchItem}
                 />
@@ -172,37 +186,69 @@ export function EpisodesTab({
           </Table>
         </div>
       </div>
+
+      {/* Anchored to the viewport rather than inserted above the table: in flow
+          it shoved a thousand rows down under the cursor on the first click, and
+          scrolled out of reach a few hundred rows in. */}
+      {selected.size > 0 && (
+        <div className="sticky bottom-4 z-20 mt-3 flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3.5 py-2.5 shadow-lg">
+          <span className="text-[13px] font-medium">
+            {selected.size} selected
+          </span>
+          <div className="ml-auto flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSetMonitored([...selected], true)}
+            >
+              <Eye className="size-4" /> Monitor {selected.size}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSetMonitored([...selected], false)}
+            >
+              <EyeOff className="size-4" /> Unmonitor {selected.size}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function EpisodeRow({
+// Memoized, and every prop above is referentially stable, so toggling one
+// checkbox re-renders one row instead of the whole series.
+const EpisodeRow = memo(function EpisodeRow({
   item,
+  index,
   selected,
-  onToggleSelect,
+  onSelect,
   onSetMonitored,
   onSearch,
 }: {
   item: WantedItem;
+  index: number;
   selected: boolean;
-  onToggleSelect: (id: number) => void;
+  onSelect: (id: number, index: number, shift: boolean) => void;
   onSetMonitored: (ids: number[], monitored: boolean) => void;
   onSearch: (n: number) => void;
 }) {
+  const unmonitoredWanted = !item.monitored && item.status === "wanted";
   return (
     <TableRow
-      className={cn(
-        item.status === "wanted" && "text-muted-foreground",
-        !item.monitored && "opacity-60",
-      )}
+      className={cn(item.status === "wanted" && "text-muted-foreground")}
     >
       <TableCell>
         {/* A raw checkbox, as on the Wanted page: there is no shadcn Checkbox
-            in this project and this is not the change that adds one. */}
+            in this project and this is not the change that adds one. The click
+            handler is what carries shiftKey; onChange is the no-op React wants
+            beside a controlled checked. */}
         <input
           type="checkbox"
           checked={selected}
-          onChange={() => onToggleSelect(item.id)}
+          onChange={() => {}}
+          onClick={(e) => onSelect(item.id, index, e.shiftKey)}
           className="size-3.5 accent-primary"
           aria-label={`Select episode ${item.number}`}
         />
@@ -211,7 +257,11 @@ function EpisodeRow({
         {pad2(item.number)}
       </TableCell>
       <TableCell>
-        <ItemStatusBadge status={item.status} error={item.import_error} />
+        {unmonitoredWanted ? (
+          <UnmonitoredItemBadge />
+        ) : (
+          <ItemStatusBadge status={item.status} error={item.import_error} />
+        )}
       </TableCell>
       <TableCell
         className="hidden whitespace-nowrap text-muted-foreground md:table-cell"
@@ -264,4 +314,4 @@ function EpisodeRow({
       </TableCell>
     </TableRow>
   );
-}
+});

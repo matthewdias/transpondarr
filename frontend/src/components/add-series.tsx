@@ -7,7 +7,13 @@ import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
 import { metadataSearchQuery, seriesQuery } from "@/lib/queries";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Poster } from "@/components/poster";
@@ -50,6 +56,19 @@ const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
   { value: "none", label: "None", hint: "Track the series, grab nothing" },
 ];
 
+// The mode is a global control sitting well above a per-row button, so it is
+// invisible at the moment of the click. Annotating the button puts the
+// consequence at the point of action, and flipping the Select then visibly
+// rewrites every button -- the causal confirmation a distant control has none
+// of. Only a departure from the default is annotated: "everything" needs no
+// qualifier. These are deliberately not the option words: "Add - None" reads as
+// "add nothing", when what it does is add the series with nothing monitored.
+const monitorAnnotation: Record<MonitorItems, string> = {
+  all: "",
+  future: "future only",
+  none: "unmonitored",
+};
+
 function AddSeriesBody({ onDone }: { onDone: () => void }) {
   const [term, setTerm] = useState("");
   const [monitorItems, setMonitorItems] = useState<MonitorItems>("all");
@@ -88,6 +107,8 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
   });
 
   const results = search.data ?? [];
+  const annotation = monitorAnnotation[monitorItems];
+  const addLabel = annotation ? `Add · ${annotation}` : "Add";
 
   return (
     <div>
@@ -102,32 +123,34 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
         />
       </div>
 
-      <fieldset className="mt-3 flex flex-wrap items-center gap-2">
-        <legend className="sr-only">Which episodes to monitor</legend>
-        <span className="text-[13px] text-muted-foreground">Monitor</span>
-        {monitorChoices.map((c) => (
-          <label
-            key={c.value}
-            title={c.hint}
-            className={cn(
-              "cursor-pointer rounded-full border px-3 py-1 text-[12.5px] font-medium",
-              monitorItems === c.value
-                ? "border-primary bg-primary/10 text-foreground"
-                : "border-border text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <input
-              type="radio"
-              name="monitor-items"
-              className="sr-only"
-              value={c.value}
-              checked={monitorItems === c.value}
-              onChange={() => setMonitorItems(c.value)}
-            />
-            {c.label}
-          </label>
-        ))}
-      </fieldset>
+      {/* A Select, not a chip row: pills under a search box read as filters on
+          the results (that is exactly what the Wanted page's Include chips
+          are), when this configures the Add button instead. */}
+      <div className="mt-3 flex items-center gap-2">
+        <span className="text-[13px] text-muted-foreground">
+          Monitor on add
+        </span>
+        <Select
+          value={monitorItems}
+          onValueChange={(v) => setMonitorItems(v as MonitorItems)}
+        >
+          <SelectTrigger size="sm" aria-label="Monitor on add">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {monitorChoices.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                <span className="flex flex-col items-start">
+                  <span>{c.label}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {c.hint}
+                  </span>
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="mt-2 max-h-[56vh] min-h-[8rem] overflow-y-auto">
         {/* A paused retry (browser offline) reports neither fetching nor error. */}
@@ -199,6 +222,14 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
                 <Button
                   size="sm"
                   disabled={isMovie || add.isPending}
+                  // The visible label is the same for every row, so the
+                  // accessible name carries the title instead of leaving a
+                  // screen reader ten identical buttons.
+                  aria-label={
+                    annotation
+                      ? `Add ${candidateTitle(c)} · ${annotation}`
+                      : `Add ${candidateTitle(c)}`
+                  }
                   onClick={() => add.mutate(c)}
                 >
                   {add.isPending &&
@@ -206,7 +237,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
                     add.variables?.provider_id === c.provider_id && (
                       <Loader2 className="size-3.5 animate-spin" />
                     )}
-                  Add
+                  <span className="whitespace-nowrap">{addLabel}</span>
                 </Button>
               </ItemActions>
             </Item>

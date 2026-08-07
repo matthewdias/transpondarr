@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -109,14 +109,20 @@ export function SeriesDetailPage() {
 
   // Selection is the page's, not the tab's: Radix unmounts an inactive panel,
   // so a selection held in the tab would evaporate on a round trip to Releases.
+  // Both setters are functional and both callbacks are stable, which is what
+  // lets the memoized rows skip a re-render on every toggle.
   const [selected, setSelected] = useState<Set<number>>(new Set());
   useEffect(() => setSelected(new Set()), [id]);
-  const toggleSelect = (itemId: number) =>
+  const toggleSelect = useCallback((itemId: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (!next.delete(itemId)) next.add(itemId);
       return next;
     });
+  }, []);
+  const selectRange = useCallback((ids: number[]) => {
+    setSelected((prev) => new Set([...prev, ...ids]));
+  }, []);
 
   const setItemsMonitored = useMutation({
     mutationFn: ({ ids, monitored }: { ids: number[]; monitored: boolean }) =>
@@ -166,10 +172,19 @@ export function SeriesDetailPage() {
     setFocusItem(null);
     setTab("releases");
   };
-  const searchItem = (n: number) => {
+  // Stable: it is a prop of every memoized episode row.
+  const searchItem = useCallback((n: number) => {
     setFocusItem(n);
     setTab("releases");
-  };
+  }, []);
+
+  // mutate is referentially stable in TanStack Query, so this callback is too --
+  // which is what keeps the memoized rows from re-rendering on every toggle.
+  const { mutate: mutateMonitored } = setItemsMonitored;
+  const setMonitored = useCallback(
+    (ids: number[], monitored: boolean) => mutateMonitored({ ids, monitored }),
+    [mutateMonitored],
+  );
 
   return (
     <>
@@ -254,9 +269,8 @@ export function SeriesDetailPage() {
                   onSearchItem={searchItem}
                   selected={selected}
                   onToggleSelect={toggleSelect}
-                  onSetMonitored={(ids, monitored) =>
-                    setItemsMonitored.mutate({ ids, monitored })
-                  }
+                  onSelectRange={selectRange}
+                  onSetMonitored={setMonitored}
                 />
               </TabsContent>
               <TabsContent value="releases">

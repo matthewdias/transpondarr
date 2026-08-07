@@ -1,4 +1,10 @@
-import { Check, Download, FolderClock, TriangleAlert } from "lucide-react";
+import {
+  Check,
+  Download,
+  EyeOff,
+  FolderClock,
+  TriangleAlert,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ItemStatus } from "@/lib/api";
 
@@ -31,6 +37,19 @@ export function MonitoredBadge({ monitored }: { monitored: boolean }) {
   ) : (
     <span className={cn(badgeBase, "border-border bg-panel-2 text-faint")}>
       Unmonitored
+    </span>
+  );
+}
+
+// Only "wanted" becomes a false statement when an item is unmonitored -- an
+// unmonitored episode with an in-flight grab really is downloading, and one in
+// the library really is held. So this replaces that single status at the render
+// site rather than becoming a sixth value: deriveItemState knows nothing about
+// monitoring, deliberately.
+export function UnmonitoredItemBadge() {
+  return (
+    <span className={cn(badgeBase, "border-border bg-panel-2 text-faint")}>
+      <EyeOff className="size-3" /> Not monitored
     </span>
   );
 }

@@ -658,3 +658,47 @@ it("unmonitors a missing row in place", async () => {
     expect(calls).toEqual([{ item_ids: [3], monitored: false }]),
   );
 });
+
+// The count follows the filter, so with the Unmonitored chip on a narrowed
+// long-runner reads "1173 episodes missing" above rows deliberately switched
+// off. Splitting it says what is actually being chased.
+it("splits the group count when unmonitored rows are shown", async () => {
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({ missing: 3 }, [
+            missing({ id: 1, number: 1 }),
+            missing({ id: 2, number: 2, monitored: false }),
+            missing({ id: 3, number: 3, monitored: false }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  expect(
+    await screen.findByText("1 missing · 2 not monitored"),
+  ).toBeInTheDocument();
+});
+
+// With items paged the loaded rows are a sample, so a breakdown derived from
+// them would understate what is off -- a worse lie than the plain count.
+it("keeps the plain count when the group is truncated", async () => {
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({ missing: 90 }, [
+            missing({ id: 1, number: 1 }),
+            missing({ id: 2, number: 2, monitored: false }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  expect(await screen.findByText("90 episodes missing")).toBeInTheDocument();
+});
