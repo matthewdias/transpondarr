@@ -18,8 +18,6 @@ it("drops the total when the two agree", () => {
   expect(screen.queryByText(/total/)).not.toBeInTheDocument();
 });
 
-// "0 / 0" reads as "this series has no episodes", which is exactly wrong for a
-// seasonal show added the week before it premieres.
 it("words the zero state rather than reading as an empty series", () => {
   render(<LibraryProgress inLibrary={0} tracked={0} total={12} />);
 

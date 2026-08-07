@@ -14,14 +14,13 @@ export function LibraryProgress({
 }) {
   const pct = tracked > 0 ? (inLibrary / tracked) * 100 : 0;
   const complete = tracked > 0 && inLibrary >= tracked;
-  // "0 / 0" reads as "this series has no episodes", which is exactly wrong for
-  // a seasonal show added the week before it premieres.
+  // "0 / 0" would read as "this series has no episodes", which is exactly wrong
+  // for a seasonal show added the week before it premieres.
   const nothingAired = tracked === 0 && total > 0;
   return (
     <div className="flex items-center gap-2.5 sm:min-w-[140px]">
       {/* the bar needs room; on mobile we keep just the count to avoid overflow.
-          With nothing aired there is no progress to draw, and a flex-1 bar beside
-          the longer wording collapses to a few pixels of noise. */}
+          With nothing aired it would collapse to a few pixels beside the words. */}
       {!nothingAired && (
         <div className="hidden h-1.5 flex-1 overflow-hidden rounded border border-border bg-panel-2 sm:block">
           <div

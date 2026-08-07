@@ -90,9 +90,8 @@ func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
 	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
 	q := s.store.Q.WithTx(tx)
 
-	// The two consequences of an insert are counted apart (#188): the air-date
-	// sync ignores monitoring, so any growth clears the stamp, while the search
-	// cadence is only worth resetting for an item the sweep will look for.
+	// Counted apart (#188): the air-date sync ignores monitoring, so any growth
+	// clears the stamp, but only a monitored insert is worth searching for.
 	var inserted, monitoredInserts int64
 	for _, it := range items {
 		number := sql.NullInt64{Int64: int64(it.Number), Valid: true}

@@ -318,12 +318,10 @@ type ListMissingItemsBySeriesRow struct {
 	PassRecordedAt   sql.NullString `json:"pass_recorded_at"`
 }
 
-// The items behind one page of groups. Same wanted predicate, monitoring filter
-// and unaired filter as the series page, so a group and its items are computed
-// from one reading of the world -- the count and the rows would otherwise
-// disagree the moment anything is unmonitored. The series half of the
-// monitoring filter is the series page's business: every id here came from it.
-// Number ascends within a series deliberately: a back catalogue
+// The items behind one page of groups. Same predicates as the series page, so a
+// group and its items are computed from one reading of the world; the series
+// half of the monitoring filter is the series page's business, since every id
+// here came from it. Number ascends within a series deliberately: a back catalogue
 // drains forwards, and episodes enumerate forwards however their dates fall.
 // Both joins are 1:1, so neither multiplies rows. The grab's created_at rides
 // along because the reason column ranks a stored pass outcome against it: an
@@ -432,11 +430,9 @@ type ListMissingSeriesPageRow struct {
 // across a page boundary. The wanted half is the sweep's predicate character
 // for character (the EXISTS body of ListSeriesDueWantedSearch), which is what
 // keeps this page honest about what automation will go after; an in-flight
-// grab is absent by construction, being Activity's to show. Series monitoring,
-// item monitoring (#188) and the unaired cut are the three display filters,
-// each an OR against a request flag rather than an exclusion: an item has to
-// stay visible after the click that unmonitored it, or there is no way back.
-// Groups are ordered
+// grab is absent by construction, being Activity's to show. Monitoring and the
+// unaired cut are display filters, not exclusions: a row has to stay visible
+// after the click that hid it, or there is no way back. Groups are ordered
 // newest missing broadcast first, all-undated series last: COALESCE sorts a
 // null air date below every timestamp, and lexicographic compare on the one
 // stored layout is chronological. The keyset lives in HAVING because it binds

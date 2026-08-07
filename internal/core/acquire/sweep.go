@@ -59,9 +59,9 @@ const (
 	sourceFeed  passSource = "feed"
 )
 
-// sweepItem is one wanted item with everything the pass needs to reason about it.
-// monitored is kept beside grabbable rather than folded into it because the two
-// cadence helpers need it on items grabbable can never describe (#188).
+// sweepItem is one wanted item with everything the pass needs to reason about
+// it. monitored stays beside grabbable: the cadence helpers below need it on
+// items grabbable can never describe.
 type sweepItem struct {
 	id        int64
 	kind      domain.WantedKind
@@ -546,9 +546,8 @@ func (s *Service) loadSweepItems(ctx context.Context, seriesID int64, now time.T
 		if pool {
 			it.heldTitle = r.HeldReleaseTitle
 		}
-		// The one expression both automated entry points read: it gates sweep
-		// search, feed grab and the upgrade pool at once, which is what makes
-		// monitoring free in decide and the importer.
+		// The one expression both entry points read: sweep search, feed grab and
+		// the upgrade pool at once.
 		it.grabbable = it.monitored &&
 			(pool || (!it.inLibrary && !settled && (it.airsAt.IsZero() || !it.airsAt.After(now))))
 		out = append(out, it)
@@ -557,10 +556,8 @@ func (s *Service) loadSweepItems(ctx context.Context, seriesID int64, now time.T
 }
 
 // nextAiring is the earliest broadcast still ahead of us among monitored items
-// the library does not hold, or the zero time when nothing is scheduled. It gates
-// on monitored rather than grabbable deliberately: an unaired item is never
-// grabbable, so the stricter filter would return the zero time always and delete
-// the clamp for every feedless install (#100).
+// the library does not hold, or the zero time when nothing is scheduled.
+// Grabbable would be empty here by construction: an unaired item is never one.
 func nextAiring(sweep []sweepItem, now time.Time) time.Time {
 	var next time.Time
 	for _, it := range sweep {
@@ -576,8 +573,7 @@ func nextAiring(sweep []sweepItem, now time.Time) time.Time {
 
 // airedSince reports whether a monitored episode broadcast between the last
 // search and now — #100's "a new episode resets the clock", read off items
-// already loaded. Monitored rather than grabbable: the stricter filter would
-// also stop an in-flight grab resetting the ladder, which is not this issue's.
+// already loaded.
 func airedSince(sweep []sweepItem, lastSearched sql.NullString, now time.Time) bool {
 	var since time.Time
 	if lastSearched.Valid {

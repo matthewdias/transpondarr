@@ -26,18 +26,14 @@ LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ? AND w.kind = ? AND w.number = ?;
 
 -- name: SetWantedItemsMonitored :execrows
--- The bulk state-setter behind the Episodes table and the Wanted page. Unknown
--- ids are simply not matched: for a state-setter a missing item is vacuous
--- rather than erroneous, so a concurrent series delete must not cost a caller
--- its whole selection.
+-- The bulk state-setter behind both monitoring UIs. Unknown ids are simply not
+-- matched, which is what lets a concurrent series delete cost only those ids.
 UPDATE wanted_items SET monitored = ? WHERE id IN (sqlc.slice('ids'));
 
 -- name: ListSeriesIDsForUnmonitoredItems :many
 -- The series a re-monitor will actually change, so the cadence reset lands once
--- per series and only where something moved. Restricted to monitored = 0 on
--- purpose: re-monitoring an already-monitored selection changes nothing, and
--- resetting there would discard accumulated backoff for free. Read before the
--- update, in the same transaction, since the update reports only a row count.
+-- per series and only where something moved. Read before the update, in the
+-- same transaction, since the update reports only a row count.
 SELECT DISTINCT series_id
 FROM wanted_items
 WHERE id IN (sqlc.slice('ids')) AND monitored = 0;

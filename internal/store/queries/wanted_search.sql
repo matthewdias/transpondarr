@@ -32,10 +32,10 @@ LIMIT ?;
 -- character for character, so both entry points agree on what is grabbable.
 -- The upgrade half is the deliberate divergence (#97): a complete series is
 -- worth re-examining only against a page that cost nothing, so upgrades ride
--- the feed alone. Item monitoring gates both halves (#188): an unmonitored held
--- item is out of the upgrade pool too, or it would make its series feed-due on
--- every poll for an upgrade the pass will refuse. Score versus cutoff is decided
--- in Go, under the one profile snapshot that also scores the candidates.
+-- the feed alone. Item monitoring gates both halves (#188), the upgrade one
+-- included, or an unmonitored held item makes its series feed-due every poll.
+-- Score versus cutoff is decided in Go, under the one profile snapshot that
+-- also scores the candidates.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 SELECT s.*

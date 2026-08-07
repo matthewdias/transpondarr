@@ -90,8 +90,6 @@ function renderStrip(items: WantedItem[]) {
 }
 
 describe("EpisodesTab monitoring", () => {
-  // The bulk toolbar is the point: #160's long-runner is narrowed by selecting a
-  // range, not by clicking a thousand rows against a 15-minute sweep clock.
   it("sends the selected item ids in one call", async () => {
     const onSetMonitored = vi.fn();
     const user = userEvent.setup();
@@ -197,8 +195,6 @@ describe("EpisodesTab monitoring", () => {
     expect(screen.getByText(/6 total/i)).toBeInTheDocument();
   });
 
-  // "0 / 0" reads as "this series has no episodes", which is exactly wrong for
-  // a seasonal show added the week before it premieres.
   it("words the zero state and keeps the total beside it", () => {
     renderStrip([
       item({ id: 1, number: 1, airs_at: future }),
@@ -329,8 +325,7 @@ describe("EpisodesTab unmonitored status", () => {
 });
 
 describe("EpisodesTab select all", () => {
-  // The header box is what makes a bulk action reachable without a thousand
-  // clicks; it replaces the selection rather than adding to it.
+  // Replaces the selection rather than adding to it.
   it("selects every row and clears again from the header", async () => {
     const onSetSelection = vi.fn();
     const user = userEvent.setup();
@@ -390,10 +385,10 @@ describe("EpisodesTab select all", () => {
       />,
     );
 
-    const box = screen.getByRole("checkbox", {
-      name: /select all/i,
-    }) as HTMLInputElement;
-    expect(box.indeterminate).toBe(true);
-    expect(box.checked).toBe(false);
+    // Radix models it natively as a third checked state, so it reaches
+    // assistive tech as aria-checked="mixed" rather than as a DOM property.
+    const box = screen.getByRole("checkbox", { name: /select all/i });
+    expect(box).toHaveAttribute("aria-checked", "mixed");
+    expect(box).toHaveAttribute("data-state", "indeterminate");
   });
 });

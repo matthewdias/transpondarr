@@ -180,10 +180,8 @@ WHERE id IN (/*SLICE:ids*/?) AND monitored = 0
 `
 
 // The series a re-monitor will actually change, so the cadence reset lands once
-// per series and only where something moved. Restricted to monitored = 0 on
-// purpose: re-monitoring an already-monitored selection changes nothing, and
-// resetting there would discard accumulated backoff for free. Read before the
-// update, in the same transaction, since the update reports only a row count.
+// per series and only where something moved. Read before the update, in the
+// same transaction, since the update reports only a row count.
 func (q *Queries) ListSeriesIDsForUnmonitoredItems(ctx context.Context, ids []int64) ([]int64, error) {
 	query := listSeriesIDsForUnmonitoredItems
 	var queryParams []interface{}
@@ -335,10 +333,8 @@ type SetWantedItemsMonitoredParams struct {
 	Ids       []int64 `json:"ids"`
 }
 
-// The bulk state-setter behind the Episodes table and the Wanted page. Unknown
-// ids are simply not matched: for a state-setter a missing item is vacuous
-// rather than erroneous, so a concurrent series delete must not cost a caller
-// its whole selection.
+// The bulk state-setter behind both monitoring UIs. Unknown ids are simply not
+// matched, which is what lets a concurrent series delete cost only those ids.
 func (q *Queries) SetWantedItemsMonitored(ctx context.Context, arg SetWantedItemsMonitoredParams) (int64, error) {
 	query := setWantedItemsMonitored
 	var queryParams []interface{}

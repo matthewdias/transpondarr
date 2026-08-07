@@ -4,7 +4,9 @@ import type { SeriesDetail, WantedItem } from "@/lib/api";
 import { airDate, pad2, parseTimestamp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
+import { MonitorToggle } from "@/components/monitor-toggle";
 import {
   Table,
   TableBody,
@@ -18,9 +20,6 @@ function Sep() {
   return <span className="mx-1 text-faint">·</span>;
 }
 
-// indeterminate is a DOM property with no HTML attribute, so it can only be set
-// through the node -- a partial selection has to read as partial rather than as
-// "none selected", which is what the box would otherwise claim.
 function SelectAllCheckbox({
   total,
   selectedCount,
@@ -31,17 +30,11 @@ function SelectAllCheckbox({
   onChange: (all: boolean) => void;
 }) {
   const all = total > 0 && selectedCount === total;
-  const some = selectedCount > 0 && !all;
   return (
-    <input
-      type="checkbox"
-      ref={(el) => {
-        if (el) el.indeterminate = some;
-      }}
-      checked={all}
+    <Checkbox
+      checked={all ? true : selectedCount > 0 ? "indeterminate" : false}
       disabled={total === 0}
-      onChange={() => onChange(!all)}
-      className="size-3.5 accent-primary"
+      onCheckedChange={() => onChange(!all)}
       aria-label={all ? "Deselect all episodes" : "Select all episodes"}
     />
   );
@@ -71,10 +64,8 @@ export function EpisodesTab({
   // Memoized because a 1,200-row series recomputes these on every selection
   // change otherwise, and none of them depend on the selection.
   const counts = useMemo(() => {
-    // Exactly ListSeriesWithProgress's definition of tracked -- monitored AND
-    // already broadcast -- so this strip and the series-list bar can never
-    // disagree about the same series. A null air date reads as aired, because
-    // AniList's schedule coverage is thin by design.
+    // Exactly ListSeriesWithProgress's definition of tracked, so this strip and
+    // the series-list bar can never disagree about the same series.
     const now = Date.now();
     const aired = (i: WantedItem) =>
       !i.airs_at || parseTimestamp(i.airs_at) <= now;
@@ -85,8 +76,7 @@ export function EpisodesTab({
     const downloading = of("downloading");
     const stuck = of("stuck");
     const deferred = of("deferred");
-    // The three categories partition every item, so a reader can add them up to
-    // the total -- which is why unaired has to be named rather than dropped.
+    // The three categories partition every item, so a reader can add them up.
     const unmonitored = items.filter((i) => !i.monitored).length;
     return {
       total: tracked.length,
@@ -110,12 +100,9 @@ export function EpisodesTab({
     wanted,
   } = counts;
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
-  // "0 / 0" reads as "this series has no episodes", which is exactly wrong for
-  // a show you are waiting on.
   const nothingAired = total === 0 && items.length > 0;
 
-  // The shift-click anchor is the last row clicked, not part of the selection,
-  // and moving it must not re-render 1,200 rows -- hence a ref.
+  // Not part of the selection, and moving it must not re-render 1,200 rows.
   const anchor = useRef<number | null>(null);
   const onSelect = useCallback(
     (id: number, index: number, shift: boolean) => {
@@ -201,8 +188,6 @@ export function EpisodesTab({
                 <span className="text-faint">{unmonitored} not monitored</span>
               </>
             )}
-            {/* The denominator is a subset, so the raw count has to stay on the
-                strip that carries the ratio -- as the series-list bar does. */}
             {total !== items.length && (
               <>
                 <Sep />
@@ -262,9 +247,8 @@ export function EpisodesTab({
         </div>
       </div>
 
-      {/* Anchored to the viewport rather than inserted above the table: in flow
-          it shoved a thousand rows down under the cursor on the first click, and
-          scrolled out of reach a few hundred rows in. */}
+      {/* Anchored to the viewport: in flow it shoved a thousand rows down under
+          the cursor and scrolled out of reach a few hundred rows in. */}
       {selected.size > 0 && (
         <div className="sticky bottom-4 z-20 mt-3 flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3.5 py-2.5 shadow-lg">
           <span className="text-[13px] font-medium">
@@ -315,16 +299,10 @@ const EpisodeRow = memo(function EpisodeRow({
       className={cn(item.status === "wanted" && "text-muted-foreground")}
     >
       <TableCell>
-        {/* A raw checkbox, as on the Wanted page: there is no shadcn Checkbox
-            in this project and this is not the change that adds one. The click
-            handler is what carries shiftKey; onChange is the no-op React wants
-            beside a controlled checked. */}
-        <input
-          type="checkbox"
+        {/* onClick, not onCheckedChange: it is what carries shiftKey. */}
+        <Checkbox
           checked={selected}
-          onChange={() => {}}
           onClick={(e) => onSelect(item.id, index, e.shiftKey)}
-          className="size-3.5 accent-primary"
           aria-label={`Select episode ${item.number}`}
         />
       </TableCell>
@@ -359,8 +337,7 @@ const EpisodeRow = memo(function EpisodeRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2">
-          {/* Search stays offered on an unmonitored episode: monitoring never
-              gates a manual path (PR #57, generalised by #188). */}
+          {/* Monitoring never gates a manual path (PR #57, generalised by #188). */}
           {(item.status === "wanted" || item.status === "deferred") && (
             <button
               className="text-sm font-medium text-accent-foreground hover:underline"
@@ -369,22 +346,11 @@ const EpisodeRow = memo(function EpisodeRow({
               Search
             </button>
           )}
-          <button
-            className="text-faint hover:text-foreground"
-            title={item.monitored ? "Stop monitoring" : "Monitor"}
-            aria-label={
-              item.monitored
-                ? `Stop monitoring episode ${item.number}`
-                : `Monitor episode ${item.number}`
-            }
-            onClick={() => onSetMonitored([item.id], !item.monitored)}
-          >
-            {item.monitored ? (
-              <Eye className="size-4" />
-            ) : (
-              <EyeOff className="size-4" />
-            )}
-          </button>
+          <MonitorToggle
+            monitored={item.monitored}
+            itemNumber={item.number}
+            onChange={(v) => onSetMonitored([item.id], v)}
+          />
         </div>
       </TableCell>
     </TableRow>

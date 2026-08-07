@@ -180,8 +180,7 @@ export interface AuthStatus {
 
 // Mutations deliberately take no AbortSignal: a grab or a settings write must
 // not die on a stray unmount.
-// The endpoint caps one batch at 1000 ids; a select-all on a long-runner is
-// 1200+, so the client chunks. maxItems on the request is what this mirrors.
+// Mirrors the endpoint's maxItems; a select-all on a long-runner exceeds it.
 const MONITOR_BATCH = 1000;
 
 /** A chunked batch that failed partway. applied is what actually landed. */
@@ -199,17 +198,10 @@ export class PartialBatchError extends Error {
   }
 }
 
-/**
- * Chunks sequentially rather than in parallel: on a failure the caller needs to
- * know how much landed, and concurrent requests would leave that unknowable.
- * The flag is idempotent, so retrying the whole selection is always safe.
- */
+// Sequential, not parallel: on a failure the caller has to know how much
+// landed. The flag is idempotent, so retrying the whole selection is safe.
 async function setItemsMonitoredChunked(itemIds: number[], monitored: boolean) {
   let updated = 0;
-  // Summing the server's per-chunk count would double-count a series whose
-  // items straddle a boundary, and the client cannot dedupe a count. One chunk
-  // reports honestly; more than one reports "not derivable" rather than a lie.
-  let seriesQueued: number | null = 0;
   for (let i = 0; i < itemIds.length; i += MONITOR_BATCH) {
     const chunk = itemIds.slice(i, i + MONITOR_BATCH);
     try {
@@ -219,14 +211,12 @@ async function setItemsMonitoredChunked(itemIds: number[], monitored: boolean) {
         })
         .then(unwrap);
       updated += res.updated;
-      seriesQueued =
-        i === 0 && chunk.length === itemIds.length ? res.series_queued : null;
     } catch (err) {
       if (i === 0) throw err;
       throw new PartialBatchError(updated, itemIds.length, err);
     }
   }
-  return { updated, series_queued: seriesQueued };
+  return { updated };
 }
 
 export const api = {

@@ -118,8 +118,7 @@ func TestUpsertsNeverClobberAStoredMonitoredFlag(t *testing.T) {
 	}
 }
 
-// The bulk setter is the one write path behind both monitoring UIs, and it must
-// survive a selection whose series was deleted in another tab.
+// A concurrent series delete must cost only the ids it removed.
 func TestSetWantedItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
@@ -141,11 +140,8 @@ func TestSetWantedItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 			t.Errorf("item %d monitored = %d, want 0", n, got)
 		}
 	}
-
 }
 
-// The reset set is the series that will actually change, so a re-monitor of an
-// already-monitored selection spends no reset and keeps its accumulated backoff.
 func TestListSeriesIDsForUnmonitoredItems(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()

@@ -43,12 +43,9 @@ it("splits a selection past the cap into sequential batches", async () => {
   expect(batches.every((b) => b.monitored === false)).toBe(true);
   // Every id lands exactly once, so the count is exact even chunked.
   expect(res.updated).toBe(1202);
-  // A series straddling a boundary would be counted twice, and the client
-  // cannot dedupe a count -- so it reports "not derivable" rather than a lie.
-  expect(res.series_queued).toBeNull();
 });
 
-it("passes the server's own count through when one batch suffices", async () => {
+it("sends a single request when the selection fits", async () => {
   const batches: Body[] = [];
   capture(batches);
 
@@ -56,7 +53,6 @@ it("passes the server's own count through when one batch suffices", async () => 
 
   expect(batches).toHaveLength(1);
   expect(res.updated).toBe(3);
-  expect(res.series_queued).toBe(1);
 });
 
 // The flag is idempotent, so retrying is safe -- but the user has to be told

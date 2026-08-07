@@ -23,16 +23,8 @@ var (
 	ErrUnknownProvider = errors.New("catalog: unknown metadata provider")
 )
 
-// MonitorMode is the add-time choice of which items to monitor (#188). It is
-// stored as a numeric cut rather than kept as a mode, because the sites that
-// must honour it later -- the airing gap-fill and refresh growth -- create items
-// with no air date and so could never evaluate "future" for themselves.
-//
-// Both modes are self-healing: the rule is number >= cut, so a cut at 1173 keeps
-// monitoring every episode the series later grows. There is deliberately no
-// "none" -- it would write a null cut, which monitors nothing new *forever*, and
-// nothing can edit the cut after the add. "Track it but grab nothing" is the
-// series switch on the detail page, which is where it belongs.
+// MonitorMode is the add-time choice of which items to monitor, stored as a
+// numeric cut (#188).
 type MonitorMode string
 
 const (
@@ -183,11 +175,9 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 	return title, nil
 }
 
-// monitorCut turns the add-time mode into the stored numeric boundary. "future"
-// with no scheduled broadcast falls past the last item rather than to 1: a
-// FINISHED title (or a cache snapshot written before NextItem existed) then
-// monitors nothing existing and everything the series later grows into, which
-// degrades to "no surprise back-catalogue chase" and never to its opposite.
+// monitorCut turns the add-time mode into the stored numeric boundary. A
+// "future" with no scheduled broadcast falls past the last item, never to 1:
+// erring high monitors nothing existing, erring low chases a back catalogue.
 func monitorCut(mode MonitorMode, meta metadata.TitleMeta, itemCount int) sql.NullInt64 {
 	switch mode {
 	case MonitorFuture:

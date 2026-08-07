@@ -18,12 +18,20 @@ const toggleVariants = cva(
         // am looking at". Distinct from Switch on purpose -- a switch says "I am
         // changing a stored preference", which is what Monitored is.
         chip: "rounded-full border border-border bg-transparent text-muted-foreground hover:bg-panel-2 hover:text-foreground data-[state=on]:border-transparent",
+        // Inverts the usual emphasis: not monitoring is the exception a row has
+        // to advertise, so the off state is the marked one. Every weak fill in
+        // this palette is ~1.2:1 against a card, so the border and the icon's
+        // own contrast are what carry it; the on state keeps a transparent
+        // border so the two states are the same size.
+        monitor:
+          "border border-transparent bg-transparent text-muted-foreground hover:bg-panel-2 hover:text-foreground data-[state=on]:bg-transparent data-[state=on]:text-muted-foreground data-[state=off]:border-border data-[state=off]:bg-muted data-[state=off]:text-foreground",
       },
       size: {
         default: "h-9 min-w-9 px-2",
         sm: "h-8 min-w-8 px-1.5",
         lg: "h-10 min-w-10 px-2.5",
         chip: "h-7 gap-1.5 px-2.5 text-[11.5px] font-semibold [&_svg:not([class*='size-'])]:size-3",
+        icon: "size-7 p-0",
       },
     },
     defaultVariants: {

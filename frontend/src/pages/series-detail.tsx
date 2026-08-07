@@ -108,10 +108,9 @@ export function SeriesDetailPage() {
     },
   });
 
-  // Selection is the page's, not the tab's: Radix unmounts an inactive panel,
-  // so a selection held in the tab would evaporate on a round trip to Releases.
-  // Both setters are functional and both callbacks are stable, which is what
-  // lets the memoized rows skip a re-render on every toggle.
+  // The page's, not the tab's: Radix unmounts an inactive panel, so a selection
+  // held there would evaporate on a round trip to Releases. Every callback below
+  // is stable, which is what lets the memoized rows skip a re-render per toggle.
   const [selected, setSelected] = useState<Set<number>>(new Set());
   useEffect(() => setSelected(new Set()), [id]);
   const toggleSelect = useCallback((itemId: number) => {
@@ -124,7 +123,6 @@ export function SeriesDetailPage() {
   const selectRange = useCallback((ids: number[]) => {
     setSelected((prev) => new Set([...prev, ...ids]));
   }, []);
-  // Replaces the selection outright, which is what select-all and its clear are.
   const setSelection = useCallback((ids: number[]) => {
     setSelected(new Set(ids));
   }, []);
@@ -150,8 +148,6 @@ export function SeriesDetailPage() {
     },
     onError: (err, _v, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
-      // A chunked batch can stop partway, and the flag is idempotent, so the
-      // useful thing to say is where it stopped rather than that it failed.
       toast.error("Could not update episode monitoring", {
         description: err instanceof PartialBatchError ? err.message : undefined,
       });
@@ -181,14 +177,12 @@ export function SeriesDetailPage() {
     setFocusItem(null);
     setTab("releases");
   };
-  // Stable: it is a prop of every memoized episode row.
   const searchItem = useCallback((n: number) => {
     setFocusItem(n);
     setTab("releases");
   }, []);
 
-  // mutate is referentially stable in TanStack Query, so this callback is too --
-  // which is what keeps the memoized rows from re-rendering on every toggle.
+  // Destructured because mutate is referentially stable and the mutation is not.
   const { mutate: mutateMonitored } = setItemsMonitored;
   const setMonitored = useCallback(
     (ids: number[], monitored: boolean) => mutateMonitored({ ids, monitored }),

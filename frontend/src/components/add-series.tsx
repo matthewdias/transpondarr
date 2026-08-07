@@ -42,13 +42,8 @@ function candidateTitle(c: Candidate) {
   return c.romaji || c.english || c.native || `${c.provider} ${c.provider_id}`;
 }
 
-// The choice has to be made before the add, not after: a new series is
-// never-searched, which sorts it to the front of the sweep queue, and one pass
-// grabs every eligible candidate -- so a 1050-episode back catalogue starts
-// landing well before anyone can click a thousand checkboxes.
-// There is deliberately no "none": it would store a cut that monitors nothing
-// new forever, with nothing able to edit it afterwards. "Track it but grab
-// nothing" is the series switch on the detail page, one click after the add.
+// Before the add, not after: a new series sorts to the front of the sweep queue
+// and one pass grabs everything eligible.
 const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
   { value: "all", label: "All episodes", hint: "Including the back catalogue" },
   {
@@ -58,12 +53,8 @@ const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
   },
 ];
 
-// The mode is a global control sitting well above a per-row button, so it is
-// invisible at the moment of the click. Annotating the button puts the
-// consequence at the point of action, and flipping the Select then visibly
-// rewrites every button -- the causal confirmation a distant control has none
-// of. Only a departure from the default is annotated: "everything" needs no
-// qualifier.
+// The mode control is far from the button, so the button carries the
+// consequence. Only a departure from the default is worth saying.
 const monitorAnnotation: Record<MonitorItems, string> = {
   all: "",
   future: "future only",
@@ -123,9 +114,6 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
         />
       </div>
 
-      {/* A Select, not a chip row: pills under a search box read as filters on
-          the results (that is exactly what the Wanted page's Include chips
-          are), when this configures the Add button instead. */}
       <div className="mt-3 flex items-center gap-2">
         <span className="text-[13px] text-muted-foreground">
           Monitor on add
@@ -139,13 +127,8 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
           </SelectTrigger>
           <SelectContent>
             {monitorChoices.map((c) => (
-              <SelectItem key={c.value} value={c.value}>
-                <span className="flex flex-col items-start">
-                  <span>{c.label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {c.hint}
-                  </span>
-                </span>
+              <SelectItem key={c.value} value={c.value} description={c.hint}>
+                {c.label}
               </SelectItem>
             ))}
           </SelectContent>
@@ -222,9 +205,8 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
                 <Button
                   size="sm"
                   disabled={isMovie || add.isPending}
-                  // The visible label is the same for every row, so the
-                  // accessible name carries the title instead of leaving a
-                  // screen reader ten identical buttons.
+                  // Every row's visible label is identical, so the accessible
+                  // name carries the title.
                   aria-label={
                     annotation
                       ? `Add ${candidateTitle(c)} · ${annotation}`

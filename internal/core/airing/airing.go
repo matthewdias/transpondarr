@@ -119,8 +119,7 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	}
 
 	// Only monitored fills count: for a narrowed long-runner the fill range is
-	// the back catalogue, so an unnarrowed reset would put it back at the front
-	// of the search queue on every sync for items nothing will grab.
+	// the back catalogue, and nothing will grab it.
 	var filled int64
 	for _, n := range skipped(schedule, !notYetAired) {
 		number := sql.NullInt64{Int64: int64(n), Valid: true}

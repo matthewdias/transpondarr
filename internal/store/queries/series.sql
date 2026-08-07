@@ -4,14 +4,10 @@ FROM series
 ORDER BY title;
 
 -- name: ListSeriesWithProgress :many
--- Progress is measured against what is actually being pursued (#188): monitored
--- and already broadcast. "Aired" is airs_at IS NULL OR airs_at <= now, the
--- predicate every other query here uses, because null air dates are pervasive
--- by design and must read as aired; the inverted form would drop most
--- pre-2015 and every gap-filled item and make half the library read 100%. The
--- numerator carries the identical filter, or a held unaired or held unmonitored
--- item pushes a series past its own denominator. The raw count rides along
--- untouched: repurposing it would be a silent break for API clients.
+-- Progress is measured against what is being pursued (#188): monitored and
+-- already broadcast, numerator and denominator carrying the identical filter so
+-- a held unaired item cannot push a series past its own total. A null air date
+-- reads as aired, as everywhere else here.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 SELECT
@@ -42,19 +38,16 @@ WHERE provider = ? AND provider_id = ?
 LIMIT 1;
 
 -- name: CreateSeries :one
--- monitor_new_from is deliberately left to its schema default: an omitted sqlc
--- params field would write NULL, which reads as "monitor nothing new" -- the
--- worst possible silent default. SetSeriesMonitorNewFrom narrows it explicitly.
+-- monitor_new_from is left to its schema default: an omitted sqlc params field
+-- would write NULL, which reads as "monitor nothing new".
 INSERT INTO series (provider, provider_id, title, format, monitored)
 VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: SetSeriesMonitorNewFrom :exec
--- The cut every later create site reads (airing gap-fill, refresh growth): an
--- item numbered at or above it is created monitored. NULL monitors nothing new,
--- and no add-time mode writes one today: nothing can edit the cut afterwards, so
--- a null would be permanent. The column stays nullable because the schema
--- permits it and MonitorNew must be total over what the schema permits.
+-- The cut every later create site reads: an item numbered at or above it is
+-- created monitored. NULL monitors nothing new, and no mode writes one -- with
+-- nothing able to edit the cut afterwards, a null would be permanent.
 UPDATE series SET monitor_new_from = ? WHERE id = ?;
 
 -- name: SetSeriesMonitored :exec

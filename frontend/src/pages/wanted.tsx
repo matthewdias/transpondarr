@@ -10,7 +10,6 @@ import {
   CalendarClock,
   ChevronDown,
   ChevronRight,
-  Eye,
   EyeOff,
   ListChecks,
   RefreshCw,
@@ -35,6 +34,8 @@ import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 import { cn } from "@/lib/utils";
 import { ItemStatusBadge } from "@/components/badges";
+import { MonitorToggle } from "@/components/monitor-toggle";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -289,10 +290,8 @@ function GroupSection({
   );
 }
 
-// overflowRow links to the series for what the group cap left out.
-// One state-setter for both listings. It invalidates the whole wanted key
-// rather than patching a page: unmonitoring removes the row from the default
-// view entirely, which no in-place edit could express.
+// Invalidates rather than patching a page: unmonitoring removes the row from
+// the default view entirely, which no in-place edit could express.
 function useSetItemMonitored() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -308,7 +307,7 @@ function useSetItemMonitored() {
   });
 }
 
-function MonitorToggle({
+function RowMonitorToggle({
   itemId,
   number,
   monitored,
@@ -318,24 +317,17 @@ function MonitorToggle({
   monitored: boolean;
 }) {
   const set = useSetItemMonitored();
-  const Icon = monitored ? Eye : EyeOff;
   return (
-    <button
-      className="shrink-0 text-faint hover:text-foreground"
+    <MonitorToggle
+      monitored={monitored}
+      itemNumber={number}
       disabled={set.isPending}
-      title={monitored ? "Stop monitoring" : "Monitor"}
-      aria-label={
-        monitored
-          ? `Stop monitoring episode ${number}`
-          : `Monitor episode ${number}`
-      }
-      onClick={() => set.mutate({ id: itemId, monitored: !monitored })}
-    >
-      <Icon className="size-4" />
-    </button>
+      onChange={(v) => set.mutate({ id: itemId, monitored: v })}
+    />
   );
 }
 
+// overflowRow links to the series for what the group cap left out.
 function OverflowRow({ seriesId, label }: { seriesId: number; label: string }) {
   return (
     <Link
@@ -360,11 +352,8 @@ function MissingGroupCard({
   onToggle: () => void;
 }) {
   const hidden = group.missing - group.items.length;
-  // The count follows the filter, so with the Unmonitored chip on it reads
-  // "1173 episodes missing" over rows that were switched off deliberately.
-  // Splitting it says what is actually being chased -- but only for a whole
-  // group: with items paged the loaded rows are a sample, so counting them
-  // would understate what is off and turn the split into a worse lie.
+  // Only split a whole group: with items paged the loaded rows are a sample, so
+  // counting them would understate what is switched off.
   const unmonitored =
     hidden === 0 ? group.items.filter((i) => !i.monitored).length : 0;
   return (
@@ -372,11 +361,9 @@ function MissingGroupCard({
       title={group.series_title}
       header={
         <>
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selected}
-            onChange={onToggle}
-            className="size-3.5 accent-primary"
+            onCheckedChange={onToggle}
             aria-label={`Select ${group.series_title}`}
           />
           <Link
@@ -439,7 +426,7 @@ function MissingRow({
           <Search className="size-4" /> Search
         </Link>
       </Button>
-      <MonitorToggle
+      <RowMonitorToggle
         itemId={item.id}
         number={item.number}
         monitored={item.monitored}
@@ -663,7 +650,7 @@ function CutoffRow({
           <Search className="size-4" /> Search
         </Link>
       </Button>
-      <MonitorToggle
+      <RowMonitorToggle
         itemId={item.id}
         number={item.number}
         monitored={item.monitored}

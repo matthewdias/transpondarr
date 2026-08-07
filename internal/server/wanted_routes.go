@@ -123,9 +123,8 @@ type queueSearchOutput struct {
 	}
 }
 
-// setItemsMonitoredInput is one state-setter for both call sites: a single
-// toggle is a one-element array. The cap is what a select-all on a 1050-episode
-// long-runner has to be chunked against, which is the first realistic click.
+// setItemsMonitoredInput is one state-setter for both call sites; a single
+// toggle is a one-element array. The client chunks against maxItems.
 type setItemsMonitoredInput struct {
 	Body struct {
 		ItemIDs   []int64 `json:"item_ids" required:"true" maxItems:"1000" doc:"Wanted items to set; ids that no longer exist are skipped"`
@@ -430,19 +429,9 @@ func (h *wantedHandler) queueSearch(ctx context.Context, in *queueSearchInput) (
 	return out, nil
 }
 
-// setItemsMonitored applies the flag to a whole selection in one transaction,
-// resetting the sweep cadence once per distinct series that actually gained a
-// monitored item: the feed's dedupe is one-shot, so a release published while
-// the item was unmonitored is only ever found again by a fresh search. A
-// selection that was already monitored earns no reset -- it changed nothing, and
-// resetting would discard accumulated backoff for free.
-//
-// An unknown id is skipped rather than 404ing the batch, which is a deliberate
-// divergence from resetSelected: a re-clickable trigger and a persistent
-// state-setter fail differently. Losing a search-queue reset costs a click;
-// losing a hand-built 500-episode selection because an unrelated series was
-// deleted in another tab does not. And a missing id is vacuous here anyway --
-// the item is gone, so "stop wanting it" is already true.
+// setItemsMonitored applies the flag to a whole selection in one transaction.
+// An unknown id is skipped rather than 404ing the batch, deliberately, unlike
+// resetSelected beside it (#188).
 func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonitoredInput) (*setItemsMonitoredOutput, error) {
 	out := &setItemsMonitoredOutput{}
 	if len(in.Body.ItemIDs) == 0 {
@@ -456,9 +445,8 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.deps.store.Q.WithTx(tx)
 
-	// Read first, and only where something will actually move: the update reports
-	// a row count, not which series it touched, and re-monitoring an
-	// already-monitored selection must not spend a reset it did not earn.
+	// Only where something will actually move: the update reports a row count,
+	// not which series it touched.
 	var seriesIDs []int64
 	if in.Body.Monitored {
 		seriesIDs, err = qtx.ListSeriesIDsForUnmonitoredItems(ctx, in.Body.ItemIDs)

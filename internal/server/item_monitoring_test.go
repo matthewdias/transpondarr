@@ -50,9 +50,6 @@ func searchEpoch(t *testing.T, st *store.Store, seriesID int64) int64 {
 	return got
 }
 
-// One route for one state-setter: a single item is a one-element array, and both
-// call sites (the Episodes table and the cross-series Wanted page) need the
-// batch form anyway.
 func TestSetItemsMonitoredUnmonitorsWithoutTouchingTheSearchQueue(t *testing.T) {
 	h := wantedHarness(t)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
@@ -113,8 +110,6 @@ func TestSetItemsMonitoredResetsEachSeriesOnce(t *testing.T) {
 	}
 }
 
-// Re-monitoring something already monitored changes nothing, so it must not
-// spend a reset: the series would lose accumulated backoff for free.
 func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
 	h := wantedHarness(t)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)

@@ -127,9 +127,8 @@ func passReason(outcome string) string {
 // while a decline is a standing, unresolved, user-actionable condition that
 // appears nowhere else on the page and repeats silently every pass.
 //
-// Unmonitored is widest of all and suppresses everything below it (#188): the
-// row is only visible behind the Unmonitored toggle, and nothing about it will
-// be revisited while monitoring is off.
+// Unmonitored is widest of all and suppresses everything below it: nothing about
+// the row will be revisited while monitoring is off.
 func itemReason(f itemFacts, now time.Time) (reason string, fromPass bool) {
 	if !f.Monitored {
 		return reasonUnmonitored, false
@@ -150,12 +149,7 @@ func itemReason(f itemFacts, now time.Time) (reason string, fromPass bool) {
 // exactly equivalent to ranking on recency, with no timestamp arithmetic on the
 // live path: a pass only writes for a grabbable item, and an item is not
 // grabbable while its grab is live, so an outcome can never be recorded between
-// a grab being made and failing.
-//
-// Item monitoring only narrows that write set, so the invariant survives -- but
-// it adds a second, permanent staleness source, since a stored refusal on an
-// unmonitored item is never revisited. That one is suppressed by itemReason
-// above rather than invalidated here: the answer returns intact on re-monitor.
+// a grab being made and failing. Monitoring only narrows that write set.
 func (f itemFacts) currentOutcome() string {
 	if f.GrabFailed && !f.GrabbedAt.IsZero() && !f.Pass.RecordedAt.After(f.GrabbedAt) {
 		return ""

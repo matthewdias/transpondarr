@@ -99,8 +99,11 @@ function SelectLabel({
 function SelectItem({
   className,
   children,
+  description,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Item>) {
+}: React.ComponentProps<typeof SelectPrimitive.Item> & {
+  description?: React.ReactNode;
+}) {
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
@@ -115,7 +118,14 @@ function SelectItem({
           <CheckIcon className="size-4" />
         </SelectPrimitive.ItemIndicator>
       </span>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      {/* Radix clones ItemText into the trigger verbatim, so anything the
+          trigger must not show has to be its sibling rather than its child. */}
+      <span className="flex flex-col items-start">
+        <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+        {description && (
+          <span className="text-xs text-muted-foreground">{description}</span>
+        )}
+      </span>
     </SelectPrimitive.Item>
   );
 }
