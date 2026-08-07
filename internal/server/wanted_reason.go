@@ -89,6 +89,7 @@ type passFacts struct {
 // itemFacts is the state that varies row to row; a zero AirsAt is a provider
 // gap, which the sweep reads as searchable, never as a date in the future.
 type itemFacts struct {
+	Monitored  bool
 	AirsAt     time.Time
 	GrabFailed bool
 	GrabbedAt  time.Time // when the grab that failed was made
@@ -125,7 +126,14 @@ func passReason(outcome string) string {
 // entry was written, and the group already reads "Releases blocklisted (N)" --
 // while a decline is a standing, unresolved, user-actionable condition that
 // appears nowhere else on the page and repeats silently every pass.
+//
+// Unmonitored is widest of all and suppresses everything below it (#188): the
+// row is only visible behind the Unmonitored toggle, and nothing about it will
+// be revisited while monitoring is off.
 func itemReason(f itemFacts, now time.Time) (reason string, fromPass bool) {
+	if !f.Monitored {
+		return reasonUnmonitored, false
+	}
 	if !f.AirsAt.IsZero() && f.AirsAt.After(now) {
 		return reasonUnaired, false
 	}
@@ -143,6 +151,11 @@ func itemReason(f itemFacts, now time.Time) (reason string, fromPass bool) {
 // live path: a pass only writes for a grabbable item, and an item is not
 // grabbable while its grab is live, so an outcome can never be recorded between
 // a grab being made and failing.
+//
+// Item monitoring only narrows that write set, so the invariant survives -- but
+// it adds a second, permanent staleness source, since a stored refusal on an
+// unmonitored item is never revisited. That one is suppressed by itemReason
+// above rather than invalidated here: the answer returns intact on re-monitor.
 func (f itemFacts) currentOutcome() string {
 	if f.GrabFailed && !f.GrabbedAt.IsZero() && !f.Pass.RecordedAt.After(f.GrabbedAt) {
 		return ""

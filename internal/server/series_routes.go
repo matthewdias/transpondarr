@@ -82,6 +82,7 @@ type detailItemDTO struct {
 	Number       int    `json:"number"`
 	Name         string `json:"name,omitempty"`
 	InLibrary    bool   `json:"in_library"`
+	Monitored    bool   `json:"monitored" doc:"Whether automation pursues this item; candidacy and possession stay separate fields"`
 	Status       string `json:"status" enum:"in_library,downloading,stuck,deferred,wanted" doc:"Derived acquisition state"`
 	ReleaseTitle string `json:"release_title,omitempty"`
 	ImportError  string `json:"import_error,omitempty" doc:"Why the last import attempt failed (status stuck)"`
@@ -407,6 +408,7 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 			Number:       int(r.Number.Int64),
 			Name:         r.Title.String,
 			InLibrary:    r.InLibrary == 1,
+			Monitored:    r.Monitored == 1,
 			Status:       state.Status,
 			ReleaseTitle: state.ReleaseTitle,
 			ImportError:  state.ImportError,

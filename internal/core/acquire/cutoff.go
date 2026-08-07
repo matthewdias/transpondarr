@@ -63,6 +63,7 @@ type CutoffUnmetItem struct {
 	ID               int64
 	Number           int
 	Name             string
+	Monitored        bool
 	AirsAt           string
 	HeldReleaseTitle string
 	Score            int
@@ -176,6 +177,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 					ID:               r.ID,
 					Number:           int(r.Number.Int64),
 					Name:             r.Title.String,
+					Monitored:        r.Monitored == 1,
 					AirsAt:           r.AirsAt.String,
 					HeldReleaseTitle: r.HeldReleaseTitle,
 					Score:            score,
