@@ -20,13 +20,18 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
+// seriesDTO carries two denominators deliberately: tracked is what the series is
+// actually pursuing (monitored and broadcast), total is every item it has. total
+// keeps its old meaning because narrowing it in place would be a silent break
+// for API clients.
 type seriesDTO struct {
 	ID        int64  `json:"id"`
 	Title     string `json:"title"`
 	Format    string `json:"format"`
 	Monitored bool   `json:"monitored"`
 	Total     int    `json:"total"`
-	InLibrary int    `json:"in_library"`
+	Tracked   int    `json:"tracked" doc:"Items this series is pursuing: monitored and already broadcast"`
+	InLibrary int    `json:"in_library" doc:"Held items inside the tracked set, so progress can never exceed it"`
 }
 
 type listSeriesOutput struct {
@@ -59,6 +64,9 @@ type addSeriesInput struct {
 		Provider   string `json:"provider" required:"true" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
 		ProviderID int64  `json:"provider_id" required:"true" minimum:"1" doc:"The provider's id for the title to add"`
 		Monitored  *bool  `json:"monitored,omitempty" doc:"Whether to monitor for downloads (default true)"`
+		// The default must stay "all": Discovery adds a title without offering the
+		// choice, and today's behaviour is what an omitted field has to mean.
+		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future,none" default:"all" doc:"Which items to monitor, now and as the series grows: all, only from the next broadcast, or none"`
 	}
 }
 
@@ -263,7 +271,10 @@ func registerSeriesRoutes(api huma.API, deps routeDeps) {
 }
 
 func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listSeriesOutput, error) {
-	rows, err := h.store.Q.ListSeriesWithProgress(ctx)
+	now := sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true}
+	rows, err := h.store.Q.ListSeriesWithProgress(ctx, db.ListSeriesWithProgressParams{
+		AirsAt: now, AirsAt_2: now,
+	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list series", err)
 	}
@@ -276,6 +287,7 @@ func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listSerie
 			Format:    s.Format,
 			Monitored: s.Monitored == 1,
 			Total:     int(s.TotalItems),
+			Tracked:   int(s.TrackedItems),
 			InLibrary: int(s.InLibraryItems),
 		})
 	}
@@ -288,7 +300,12 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 		monitored = *in.Body.Monitored
 	}
 
-	title, err := h.catalog.AddSeries(ctx, in.Body.Provider, in.Body.ProviderID, monitored)
+	mode := catalog.MonitorAll
+	if in.Body.MonitorItems != "" {
+		mode = catalog.MonitorMode(in.Body.MonitorItems)
+	}
+
+	title, err := h.catalog.AddSeries(ctx, in.Body.Provider, in.Body.ProviderID, monitored, mode)
 	if errors.Is(err, catalog.ErrAlreadyExists) {
 		return nil, huma.Error409Conflict("series already exists")
 	}

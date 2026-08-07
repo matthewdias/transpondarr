@@ -219,7 +219,8 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	}
 	itemRows, err := h.deps.store.Q.ListMissingItemsBySeries(ctx, db.ListMissingItemsBySeriesParams{
 		SeriesIds: ids,
-		Column2:   boolParam(in.Unaired),
+		Column2:   boolParam(in.Unmonitored),
+		Column3:   boolParam(in.Unaired),
 		AirsAt:    nowStored,
 	})
 	if err != nil {

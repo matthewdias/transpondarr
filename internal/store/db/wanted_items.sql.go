@@ -8,12 +8,13 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const createWantedItem = `-- name: CreateWantedItem :one
-INSERT INTO wanted_items (series_id, kind, number, title, in_library)
-VALUES (?, ?, ?, ?, ?)
-RETURNING id, series_id, kind, number, title, in_library, airs_at, held_release_title
+INSERT INTO wanted_items (series_id, kind, number, title, in_library, monitored)
+VALUES (?, ?, ?, ?, ?, ?)
+RETURNING id, series_id, kind, number, title, in_library, airs_at, held_release_title, monitored
 `
 
 type CreateWantedItemParams struct {
@@ -22,6 +23,7 @@ type CreateWantedItemParams struct {
 	Number    sql.NullInt64  `json:"number"`
 	Title     sql.NullString `json:"title"`
 	InLibrary int64          `json:"in_library"`
+	Monitored int64          `json:"monitored"`
 }
 
 func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemParams) (WantedItem, error) {
@@ -31,6 +33,7 @@ func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemPara
 		arg.Number,
 		arg.Title,
 		arg.InLibrary,
+		arg.Monitored,
 	)
 	var i WantedItem
 	err := row.Scan(
@@ -42,12 +45,13 @@ func (q *Queries) CreateWantedItem(ctx context.Context, arg CreateWantedItemPara
 		&i.InLibrary,
 		&i.AirsAt,
 		&i.HeldReleaseTitle,
+		&i.Monitored,
 	)
 	return i, err
 }
 
 const getWantedItemByNumber = `-- name: GetWantedItemByNumber :one
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, g.status AS grab_status
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored, g.status AS grab_status
 FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ? AND w.kind = ? AND w.number = ?
@@ -68,6 +72,7 @@ type GetWantedItemByNumberRow struct {
 	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
+	Monitored        int64          `json:"monitored"`
 	GrabStatus       sql.NullString `json:"grab_status"`
 }
 
@@ -86,13 +91,14 @@ func (q *Queries) GetWantedItemByNumber(ctx context.Context, arg GetWantedItemBy
 		&i.InLibrary,
 		&i.AirsAt,
 		&i.HeldReleaseTitle,
+		&i.Monitored,
 		&i.GrabStatus,
 	)
 	return i, err
 }
 
 const listCalendarItems = `-- name: ListCalendarItems :many
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title,
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored,
        s.title         AS series_title,
        s.monitored     AS series_monitored,
        g.status        AS grab_status,
@@ -119,6 +125,7 @@ type ListCalendarItemsRow struct {
 	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
+	Monitored        int64          `json:"monitored"`
 	SeriesTitle      string         `json:"series_title"`
 	SeriesMonitored  int64          `json:"series_monitored"`
 	GrabStatus       sql.NullString `json:"grab_status"`
@@ -146,6 +153,7 @@ func (q *Queries) ListCalendarItems(ctx context.Context, arg ListCalendarItemsPa
 			&i.InLibrary,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
+			&i.Monitored,
 			&i.SeriesTitle,
 			&i.SeriesMonitored,
 			&i.GrabStatus,
@@ -155,6 +163,46 @@ func (q *Queries) ListCalendarItems(ctx context.Context, arg ListCalendarItemsPa
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSeriesIDsForWantedItems = `-- name: ListSeriesIDsForWantedItems :many
+SELECT DISTINCT series_id FROM wanted_items WHERE id IN (/*SLICE:ids*/?)
+`
+
+// The series a bulk monitoring change touched, so re-monitoring can reset each
+// one's search cadence exactly once. Read before the update, inside the same
+// transaction, because the update itself reports only a row count.
+func (q *Queries) ListSeriesIDsForWantedItems(ctx context.Context, ids []int64) ([]int64, error) {
+	query := listSeriesIDsForWantedItems
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var series_id int64
+		if err := rows.Scan(&series_id); err != nil {
+			return nil, err
+		}
+		items = append(items, series_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -204,7 +252,7 @@ func (q *Queries) ListUnscheduledSeries(ctx context.Context) ([]ListUnscheduledS
 }
 
 const listWantedItems = `-- name: ListWantedItems :many
-SELECT id, series_id, kind, number, title, in_library, airs_at, held_release_title
+SELECT id, series_id, kind, number, title, in_library, airs_at, held_release_title, monitored
 FROM wanted_items
 WHERE series_id = ?
 ORDER BY number
@@ -228,6 +276,7 @@ func (q *Queries) ListWantedItems(ctx context.Context, seriesID int64) ([]Wanted
 			&i.InLibrary,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
+			&i.Monitored,
 		); err != nil {
 			return nil, err
 		}
@@ -273,27 +322,61 @@ func (q *Queries) SetWantedItemInLibrary(ctx context.Context, arg SetWantedItemI
 	return err
 }
 
+const setWantedItemsMonitored = `-- name: SetWantedItemsMonitored :execrows
+UPDATE wanted_items SET monitored = ? WHERE id IN (/*SLICE:ids*/?)
+`
+
+type SetWantedItemsMonitoredParams struct {
+	Monitored int64   `json:"monitored"`
+	Ids       []int64 `json:"ids"`
+}
+
+// The bulk state-setter behind the Episodes table and the Wanted page. Unknown
+// ids are simply not matched: for a state-setter a missing item is vacuous
+// rather than erroneous, so a concurrent series delete must not cost a caller
+// its whole selection.
+func (q *Queries) SetWantedItemsMonitored(ctx context.Context, arg SetWantedItemsMonitoredParams) (int64, error) {
+	query := setWantedItemsMonitored
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.Monitored)
+	if len(arg.Ids) > 0 {
+		for _, v := range arg.Ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(arg.Ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	result, err := q.db.ExecContext(ctx, query, queryParams...)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertWantedItem = `-- name: UpsertWantedItem :execrows
-INSERT INTO wanted_items (series_id, kind, number, title, in_library)
-VALUES (?, ?, ?, ?, 0)
+INSERT INTO wanted_items (series_id, kind, number, title, in_library, monitored)
+VALUES (?, ?, ?, ?, 0, ?)
 ON CONFLICT (series_id, kind, number) DO NOTHING
 `
 
 type UpsertWantedItemParams struct {
-	SeriesID int64          `json:"series_id"`
-	Kind     string         `json:"kind"`
-	Number   sql.NullInt64  `json:"number"`
-	Title    sql.NullString `json:"title"`
+	SeriesID  int64          `json:"series_id"`
+	Kind      string         `json:"kind"`
+	Number    sql.NullInt64  `json:"number"`
+	Title     sql.NullString `json:"title"`
+	Monitored int64          `json:"monitored"`
 }
 
-// DO NOTHING keeps refresh from ever clobbering an existing item's in_library or
-// title; the row count tells the caller whether the series actually grew.
+// DO NOTHING keeps refresh from ever clobbering an existing item's in_library,
+// title or monitored; the row count tells the caller whether the series grew.
 func (q *Queries) UpsertWantedItem(ctx context.Context, arg UpsertWantedItemParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, upsertWantedItem,
 		arg.SeriesID,
 		arg.Kind,
 		arg.Number,
 		arg.Title,
+		arg.Monitored,
 	)
 	if err != nil {
 		return 0, err
@@ -302,26 +385,29 @@ func (q *Queries) UpsertWantedItem(ctx context.Context, arg UpsertWantedItemPara
 }
 
 const upsertWantedItemAiring = `-- name: UpsertWantedItemAiring :exec
-INSERT INTO wanted_items (series_id, kind, number, airs_at)
-VALUES (?, ?, ?, ?)
+INSERT INTO wanted_items (series_id, kind, number, airs_at, monitored)
+VALUES (?, ?, ?, ?, ?)
 ON CONFLICT (series_id, kind, number) DO UPDATE SET airs_at = excluded.airs_at
 `
 
 type UpsertWantedItemAiringParams struct {
-	SeriesID int64          `json:"series_id"`
-	Kind     string         `json:"kind"`
-	Number   sql.NullInt64  `json:"number"`
-	AirsAt   sql.NullString `json:"airs_at"`
+	SeriesID  int64          `json:"series_id"`
+	Kind      string         `json:"kind"`
+	Number    sql.NullInt64  `json:"number"`
+	AirsAt    sql.NullString `json:"airs_at"`
+	Monitored int64          `json:"monitored"`
 }
 
 // Creating the item matters for a null-count long-runner: the schedule is the
-// only source that knows its episodes exist. Only airs_at moves on conflict.
+// only source that knows its episodes exist. Only airs_at moves on conflict, so
+// a stored monitored flag survives every resync.
 func (q *Queries) UpsertWantedItemAiring(ctx context.Context, arg UpsertWantedItemAiringParams) error {
 	_, err := q.db.ExecContext(ctx, upsertWantedItemAiring,
 		arg.SeriesID,
 		arg.Kind,
 		arg.Number,
 		arg.AirsAt,
+		arg.Monitored,
 	)
 	return err
 }

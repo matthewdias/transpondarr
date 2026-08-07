@@ -23,6 +23,18 @@ var (
 	ErrUnknownProvider = errors.New("catalog: unknown metadata provider")
 )
 
+// MonitorMode is the add-time choice of which items to monitor (#188). It is
+// stored as a numeric cut rather than kept as a mode, because the sites that
+// must honour it later -- the airing gap-fill and refresh growth -- create items
+// with no air date and so could never evaluate "future" for themselves.
+type MonitorMode string
+
+const (
+	MonitorAll    MonitorMode = "all"
+	MonitorFuture MonitorMode = "future"
+	MonitorNone   MonitorMode = "none"
+)
+
 type Service struct {
 	store    *store.Store
 	provider metadata.Provider
@@ -83,7 +95,7 @@ func dedupeNonEmpty(vals ...string) []string {
 // idempotent-ish: a title already tracked returns ErrAlreadyExists rather than a
 // duplicate. Deduping is per id space — the same title known to two providers is
 // two rows until the cross-reference layer (#189) can relate them.
-func (s *Service) AddSeries(ctx context.Context, provider string, providerID int64, monitored bool) (domain.Title, error) {
+func (s *Service) AddSeries(ctx context.Context, provider string, providerID int64, monitored bool, mode MonitorMode) (domain.Title, error) {
 	if provider != s.provider.Name() {
 		return domain.Title{}, fmt.Errorf("%w: %q", ErrUnknownProvider, provider)
 	}
@@ -124,6 +136,13 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 		return domain.Title{}, fmt.Errorf("create series: %w", err)
 	}
 
+	cut := monitorCut(mode, meta, len(items))
+	if err := q.SetSeriesMonitorNewFrom(ctx, db.SetSeriesMonitorNewFromParams{
+		MonitorNewFrom: cut, ID: srow.ID,
+	}); err != nil {
+		return domain.Title{}, fmt.Errorf("set the item monitor cut: %w", err)
+	}
+
 	title := domain.Title{
 		ID:         srow.ID,
 		Provider:   provider,
@@ -133,12 +152,14 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 		Monitored:  monitored,
 	}
 	for _, it := range items {
+		number := sql.NullInt64{Int64: int64(it.Number), Valid: true}
 		wrow, err := q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 			SeriesID:  srow.ID,
 			Kind:      string(domain.KindEpisode),
-			Number:    sql.NullInt64{Int64: int64(it.Number), Valid: true},
+			Number:    number,
 			Title:     nullString(it.Name),
 			InLibrary: 0,
+			Monitored: store.MonitorNew(cut, number),
 		})
 		if err != nil {
 			return domain.Title{}, fmt.Errorf("create wanted item %d: %w", it.Number, err)
@@ -155,6 +176,26 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 		return domain.Title{}, fmt.Errorf("commit: %w", err)
 	}
 	return title, nil
+}
+
+// monitorCut turns the add-time mode into the stored numeric boundary. "future"
+// with no scheduled broadcast falls past the last item rather than to 1: a
+// FINISHED title (or a cache snapshot written before NextItem existed) then
+// monitors nothing existing and everything the series later grows into, which
+// degrades to "no surprise back-catalogue chase" and never to its opposite.
+func monitorCut(mode MonitorMode, meta metadata.TitleMeta, itemCount int) sql.NullInt64 {
+	switch mode {
+	case MonitorNone:
+		return sql.NullInt64{}
+	case MonitorFuture:
+		from := meta.NextItem
+		if from <= 0 {
+			from = itemCount + 1
+		}
+		return sql.NullInt64{Int64: int64(from), Valid: true}
+	default:
+		return sql.NullInt64{Int64: 1, Valid: true}
+	}
 }
 
 func boolToInt(b bool) int64 {

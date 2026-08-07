@@ -21,7 +21,8 @@ func TestTmpMeasureWriteCost(t *testing.T) {
 	param := func(series int64, i int) db.UpsertWantedItemParams {
 		return db.UpsertWantedItemParams{
 			SeriesID: series, Kind: "episode",
-			Number: sql.NullInt64{Int64: int64(i), Valid: true},
+			Number:    sql.NullInt64{Int64: int64(i), Valid: true},
+			Monitored: 1,
 		}
 	}
 

@@ -32,6 +32,7 @@ func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 		Kind:      "episode",
 		Number:    sql.NullInt64{Int64: 1, Valid: true},
 		InLibrary: 0,
+		Monitored: 1,
 	})
 	if err != nil {
 		t.Fatalf("create wanted item: %v", err)
@@ -94,7 +95,8 @@ func TestUpsertGrabBatchSharesInfoHash(t *testing.T) {
 	for n := 1; n <= 3; n++ {
 		item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 			SeriesID: series.ID, Kind: "episode",
-			Number: sql.NullInt64{Int64: int64(n), Valid: true},
+			Number:    sql.NullInt64{Int64: int64(n), Valid: true},
+			Monitored: 1,
 		})
 		if err != nil {
 			t.Fatalf("create item %d: %v", n, err)

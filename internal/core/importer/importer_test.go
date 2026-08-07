@@ -94,6 +94,7 @@ func seedSeriesGrab(t *testing.T, st *store.Store, title, hash string, number in
 	}
 	item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 		SeriesID: s.ID, Kind: "episode", Number: sql.NullInt64{Int64: int64(number), Valid: true},
+		Monitored: 1,
 	})
 	if err != nil {
 		t.Fatalf("create item: %v", err)
@@ -117,6 +118,7 @@ func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, seriesID int6
 	}
 	item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 		SeriesID: s.ID, Kind: "episode", Number: sql.NullInt64{Int64: 5, Valid: true},
+		Monitored: 1,
 	})
 	if err != nil {
 		t.Fatalf("create item: %v", err)
@@ -134,6 +136,7 @@ func addItem(t *testing.T, st *store.Store, seriesID int64, number int) int64 {
 	t.Helper()
 	item, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
 		SeriesID: seriesID, Kind: "episode", Number: sql.NullInt64{Int64: int64(number), Valid: true},
+		Monitored: 1,
 	})
 	if err != nil {
 		t.Fatalf("create item %d: %v", number, err)
@@ -619,6 +622,44 @@ func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 	}
 	if !recovered {
 		t.Errorf("events = %+v, want a grabbed event explaining where the extra item came from", events)
+	}
+}
+
+// Monitoring is deliberately not one of those guards (#188, decision 1): it
+// gates search and grab, not import. The bytes are already spent, an anime batch
+// is all-or-nothing, and in hardlink mode the extra file costs no disk -- so the
+// unmonitored episode is placed like any other. This is a recorded non-change,
+// not an oversight; #157's file adoption closes the same hole from the other end.
+func TestImportsAFileForAnUnmonitoredItemAnyway(t *testing.T) {
+	st := coretest.NewStore(t)
+	ctx := context.Background()
+	seriesID, _ := seedBatchGrab(t, st, "abc", 1)
+	extra := addItem(t, st, seriesID, 2)
+	if _, err := st.DB.ExecContext(ctx,
+		`UPDATE wanted_items SET monitored = 0 WHERE id = ?`, extra); err != nil {
+		t.Fatalf("unmonitor the extra item: %v", err)
+	}
+	dir := writeTree(t,
+		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
+		"[SynthSubs] Placeholder Saga - 02 [1080p].mkv",
+	)
+
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
+	}}
+	target := &coretest.FakeLibrary{}
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(ctx); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	if len(target.Placed) != 2 {
+		t.Fatalf("Place called %d times, want the claimed episode and the unmonitored extra", len(target.Placed))
+	}
+	items, _ := st.Q.ListWantedItems(ctx, seriesID)
+	for _, it := range items {
+		if it.InLibrary != 1 {
+			t.Errorf("item %d in_library = %d, want 1", it.Number.Int64, it.InLibrary)
+		}
 	}
 }
 

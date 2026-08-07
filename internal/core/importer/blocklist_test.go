@@ -143,6 +143,7 @@ func seedBatchGrab(t *testing.T, st *store.Store, hash string, items int) (serie
 	for n := 1; n <= items; n++ {
 		item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 			SeriesID: s.ID, Kind: "episode", Number: sql.NullInt64{Int64: int64(n), Valid: true},
+			Monitored: 1,
 		})
 		if err != nil {
 			t.Fatalf("create item %d: %v", n, err)
@@ -255,6 +256,7 @@ func TestDistinctReleasesFailingAcrossItemsStillTripTheBreaker(t *testing.T) {
 	for n := 1; n <= 6; n++ {
 		item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 			SeriesID: s.ID, Kind: "episode", Number: sql.NullInt64{Int64: int64(n), Valid: true},
+			Monitored: 1,
 		})
 		if err != nil {
 			t.Fatalf("create item %d: %v", n, err)

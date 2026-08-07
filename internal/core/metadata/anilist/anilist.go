@@ -125,6 +125,15 @@ func (m media) highestItem() int {
 	return n
 }
 
+// nextItem is the next scheduled broadcast's number, already selected by
+// titleQuery for highestItem, so reading it costs no extra request.
+func nextItem(m media) int {
+	if m.NextAiringEpisode == nil {
+		return 0
+	}
+	return m.NextAiringEpisode.Episode
+}
+
 // --- Provider methods -------------------------------------------------------
 
 const searchQuery = `
@@ -212,6 +221,7 @@ func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []
 		Episodes:   m.episodes(),
 		Status:     m.Status,
 		CoverURL:   m.CoverImage.Large,
+		NextItem:   nextItem(m),
 	}
 
 	highest := m.highestItem()

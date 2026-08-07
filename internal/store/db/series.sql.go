@@ -24,7 +24,7 @@ func (q *Queries) ClearSeriesAiringSyncedAt(ctx context.Context, id int64) error
 const createSeries = `-- name: CreateSeries :one
 INSERT INTO series (provider, provider_id, title, format, monitored)
 VALUES (?, ?, ?, ?, ?)
-RETURNING id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
+RETURNING id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from
 `
 
 type CreateSeriesParams struct {
@@ -35,6 +35,9 @@ type CreateSeriesParams struct {
 	Monitored  int64          `json:"monitored"`
 }
 
+// monitor_new_from is deliberately left to its schema default: an omitted sqlc
+// params field would write NULL, which reads as "monitor nothing new" -- the
+// worst possible silent default. SetSeriesMonitorNewFrom narrows it explicitly.
 func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Series, error) {
 	row := q.db.QueryRowContext(ctx, createSeries,
 		arg.Provider,
@@ -60,6 +63,7 @@ func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Ser
 		&i.NextSearchAt,
 		&i.PinDelayHours,
 		&i.SearchEpoch,
+		&i.MonitorNewFrom,
 	)
 	return i, err
 }
@@ -77,7 +81,7 @@ func (q *Queries) DeleteSeries(ctx context.Context, id int64) (int64, error) {
 }
 
 const getSeries = `-- name: GetSeries :one
-SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from
 FROM series
 WHERE id = ?
 LIMIT 1
@@ -102,12 +106,13 @@ func (q *Queries) GetSeries(ctx context.Context, id int64) (Series, error) {
 		&i.NextSearchAt,
 		&i.PinDelayHours,
 		&i.SearchEpoch,
+		&i.MonitorNewFrom,
 	)
 	return i, err
 }
 
 const getSeriesByProviderID = `-- name: GetSeriesByProviderID :one
-SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from
 FROM series
 WHERE provider = ? AND provider_id = ?
 LIMIT 1
@@ -138,12 +143,13 @@ func (q *Queries) GetSeriesByProviderID(ctx context.Context, arg GetSeriesByProv
 		&i.NextSearchAt,
 		&i.PinDelayHours,
 		&i.SearchEpoch,
+		&i.MonitorNewFrom,
 	)
 	return i, err
 }
 
 const listSeries = `-- name: ListSeries :many
-SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from
 FROM series
 ORDER BY title
 `
@@ -173,6 +179,7 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 			&i.NextSearchAt,
 			&i.PinDelayHours,
 			&i.SearchEpoch,
+			&i.MonitorNewFrom,
 		); err != nil {
 			return nil, err
 		}
@@ -188,7 +195,7 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 }
 
 const listSeriesDueAiringSync = `-- name: ListSeriesDueAiringSync :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
@@ -249,6 +256,7 @@ func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDue
 			&i.NextSearchAt,
 			&i.PinDelayHours,
 			&i.SearchEpoch,
+			&i.MonitorNewFrom,
 		); err != nil {
 			return nil, err
 		}
@@ -264,7 +272,7 @@ func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDue
 }
 
 const listSeriesDueMetadataRefresh = `-- name: ListSeriesDueMetadataRefresh :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
@@ -323,6 +331,7 @@ func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeri
 			&i.NextSearchAt,
 			&i.PinDelayHours,
 			&i.SearchEpoch,
+			&i.MonitorNewFrom,
 		); err != nil {
 			return nil, err
 		}
@@ -339,14 +348,24 @@ func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeri
 
 const listSeriesWithProgress = `-- name: ListSeriesWithProgress :many
 SELECT
-    s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch,
+    s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from,
     COUNT(w.id)                            AS total_items,
-    CAST(COALESCE(SUM(w.in_library), 0) AS INTEGER) AS in_library_items
+    CAST(COALESCE(SUM(
+        w.monitored = 1 AND (w.airs_at IS NULL OR w.airs_at <= ?)
+    ), 0) AS INTEGER)                      AS tracked_items,
+    CAST(COALESCE(SUM(
+        w.in_library = 1 AND w.monitored = 1 AND (w.airs_at IS NULL OR w.airs_at <= ?)
+    ), 0) AS INTEGER)                      AS in_library_items
 FROM series s
 LEFT JOIN wanted_items w ON w.series_id = s.id
 GROUP BY s.id
 ORDER BY s.title
 `
+
+type ListSeriesWithProgressParams struct {
+	AirsAt   sql.NullString `json:"airs_at"`
+	AirsAt_2 sql.NullString `json:"airs_at_2"`
+}
 
 type ListSeriesWithProgressRow struct {
 	ID               int64          `json:"id"`
@@ -364,12 +383,24 @@ type ListSeriesWithProgressRow struct {
 	NextSearchAt     sql.NullString `json:"next_search_at"`
 	PinDelayHours    sql.NullInt64  `json:"pin_delay_hours"`
 	SearchEpoch      int64          `json:"search_epoch"`
+	MonitorNewFrom   sql.NullInt64  `json:"monitor_new_from"`
 	TotalItems       int64          `json:"total_items"`
+	TrackedItems     int64          `json:"tracked_items"`
 	InLibraryItems   int64          `json:"in_library_items"`
 }
 
-func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithProgressRow, error) {
-	rows, err := q.db.QueryContext(ctx, listSeriesWithProgress)
+// Progress is measured against what is actually being pursued (#188): monitored
+// and already broadcast. "Aired" is airs_at IS NULL OR airs_at <= now, the
+// predicate every other query here uses, because null air dates are pervasive
+// by design and must read as aired; the inverted form would drop most
+// pre-2015 and every gap-filled item and make half the library read 100%. The
+// numerator carries the identical filter, or a held unaired or held unmonitored
+// item pushes a series past its own denominator. The raw count rides along
+// untouched: repurposing it would be a silent break for API clients.
+// NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
+// rune offsets and silently truncates the emitted SQL on a multi-byte character.
+func (q *Queries) ListSeriesWithProgress(ctx context.Context, arg ListSeriesWithProgressParams) ([]ListSeriesWithProgressRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSeriesWithProgress, arg.AirsAt, arg.AirsAt_2)
 	if err != nil {
 		return nil, err
 	}
@@ -393,7 +424,9 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 			&i.NextSearchAt,
 			&i.PinDelayHours,
 			&i.SearchEpoch,
+			&i.MonitorNewFrom,
 			&i.TotalItems,
+			&i.TrackedItems,
 			&i.InLibraryItems,
 		); err != nil {
 			return nil, err
@@ -488,6 +521,22 @@ type SetSeriesAiringSyncedAtParams struct {
 // mid-sync must win, so the next airing pass re-pages the grown series.
 func (q *Queries) SetSeriesAiringSyncedAt(ctx context.Context, arg SetSeriesAiringSyncedAtParams) error {
 	_, err := q.db.ExecContext(ctx, setSeriesAiringSyncedAt, arg.ID, arg.AiringSyncedAt)
+	return err
+}
+
+const setSeriesMonitorNewFrom = `-- name: SetSeriesMonitorNewFrom :exec
+UPDATE series SET monitor_new_from = ? WHERE id = ?
+`
+
+type SetSeriesMonitorNewFromParams struct {
+	MonitorNewFrom sql.NullInt64 `json:"monitor_new_from"`
+	ID             int64         `json:"id"`
+}
+
+// The cut every later create site reads (airing gap-fill, refresh growth): an
+// item numbered at or above it is created monitored. NULL monitors nothing new.
+func (q *Queries) SetSeriesMonitorNewFrom(ctx context.Context, arg SetSeriesMonitorNewFromParams) error {
+	_, err := q.db.ExecContext(ctx, setSeriesMonitorNewFrom, arg.MonitorNewFrom, arg.ID)
 	return err
 }
 

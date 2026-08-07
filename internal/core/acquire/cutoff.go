@@ -113,6 +113,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 	for range scanBatches {
 		series, err := s.store.Q.ListCutoffSeriesPage(ctx, db.ListCutoffSeriesPageParams{
 			Column1: unmonitored,
+			Column2: unmonitored,
 			Title:   cursor.Key,
 			Title_2: cursor.Key,
 			ID:      cursor.ID,
@@ -128,7 +129,10 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 		for _, sr := range series {
 			ids = append(ids, sr.ID)
 		}
-		items, err := s.store.Q.ListCutoffItemsBySeries(ctx, ids)
+		items, err := s.store.Q.ListCutoffItemsBySeries(ctx, db.ListCutoffItemsBySeriesParams{
+			SeriesIds: ids,
+			Column2:   unmonitored,
+		})
 		if err != nil {
 			return CutoffUnmetPage{}, fmt.Errorf("list held items for cutoff page: %w", err)
 		}

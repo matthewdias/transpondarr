@@ -379,10 +379,11 @@ func trackSeries(t *testing.T, st *store.Store, anilistID int64, synced bool) in
 func scheduleItem(t *testing.T, st *store.Store, seriesID int64, number int, airsAt time.Time) {
 	t.Helper()
 	err := st.Q.UpsertWantedItemAiring(context.Background(), db.UpsertWantedItemAiringParams{
-		SeriesID: seriesID,
-		Kind:     "episode",
-		Number:   sql.NullInt64{Int64: int64(number), Valid: true},
-		AirsAt:   sql.NullString{String: store.FormatTimestamp(airsAt), Valid: true},
+		SeriesID:  seriesID,
+		Kind:      "episode",
+		Number:    sql.NullInt64{Int64: int64(number), Valid: true},
+		AirsAt:    sql.NullString{String: store.FormatTimestamp(airsAt), Valid: true},
+		Monitored: 1,
 	})
 	if err != nil {
 		t.Fatalf("schedule item: %v", err)

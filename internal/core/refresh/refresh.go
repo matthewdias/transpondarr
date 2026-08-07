@@ -90,23 +90,32 @@ func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
 	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
 	q := s.store.Q.WithTx(tx)
 
-	var inserted int64
+	// The two consequences of an insert are counted apart (#188): the air-date
+	// sync ignores monitoring, so any growth clears the stamp, while the search
+	// cadence is only worth resetting for an item the sweep will look for.
+	var inserted, monitoredInserts int64
 	for _, it := range items {
+		number := sql.NullInt64{Int64: int64(it.Number), Valid: true}
+		monitored := store.MonitorNew(series.MonitorNewFrom, number)
 		n, err := q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
-			SeriesID: series.ID,
-			Kind:     string(domain.KindEpisode),
-			Number:   sql.NullInt64{Int64: int64(it.Number), Valid: true},
-			Title:    nullString(it.Name),
+			SeriesID:  series.ID,
+			Kind:      string(domain.KindEpisode),
+			Number:    number,
+			Title:     nullString(it.Name),
+			Monitored: monitored,
 		})
 		if err != nil {
 			return fmt.Errorf("upsert item %d: %w", it.Number, err)
 		}
 		inserted += n
+		monitoredInserts += n * monitored
 	}
 	if inserted > 0 {
 		if err := q.ClearSeriesAiringSyncedAt(ctx, series.ID); err != nil {
 			return fmt.Errorf("clear airing stamp: %w", err)
 		}
+	}
+	if monitoredInserts > 0 {
 		if err := q.ResetSeriesSearchState(ctx, series.ID); err != nil {
 			return fmt.Errorf("reset search cadence: %w", err)
 		}

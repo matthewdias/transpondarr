@@ -4,10 +4,25 @@ FROM series
 ORDER BY title;
 
 -- name: ListSeriesWithProgress :many
+-- Progress is measured against what is actually being pursued (#188): monitored
+-- and already broadcast. "Aired" is airs_at IS NULL OR airs_at <= now, the
+-- predicate every other query here uses, because null air dates are pervasive
+-- by design and must read as aired; the inverted form would drop most
+-- pre-2015 and every gap-filled item and make half the library read 100%. The
+-- numerator carries the identical filter, or a held unaired or held unmonitored
+-- item pushes a series past its own denominator. The raw count rides along
+-- untouched: repurposing it would be a silent break for API clients.
+-- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
+-- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 SELECT
     s.*,
     COUNT(w.id)                            AS total_items,
-    CAST(COALESCE(SUM(w.in_library), 0) AS INTEGER) AS in_library_items
+    CAST(COALESCE(SUM(
+        w.monitored = 1 AND (w.airs_at IS NULL OR w.airs_at <= ?)
+    ), 0) AS INTEGER)                      AS tracked_items,
+    CAST(COALESCE(SUM(
+        w.in_library = 1 AND w.monitored = 1 AND (w.airs_at IS NULL OR w.airs_at <= ?)
+    ), 0) AS INTEGER)                      AS in_library_items
 FROM series s
 LEFT JOIN wanted_items w ON w.series_id = s.id
 GROUP BY s.id
@@ -27,9 +42,17 @@ WHERE provider = ? AND provider_id = ?
 LIMIT 1;
 
 -- name: CreateSeries :one
+-- monitor_new_from is deliberately left to its schema default: an omitted sqlc
+-- params field would write NULL, which reads as "monitor nothing new" -- the
+-- worst possible silent default. SetSeriesMonitorNewFrom narrows it explicitly.
 INSERT INTO series (provider, provider_id, title, format, monitored)
 VALUES (?, ?, ?, ?, ?)
 RETURNING *;
+
+-- name: SetSeriesMonitorNewFrom :exec
+-- The cut every later create site reads (airing gap-fill, refresh growth): an
+-- item numbered at or above it is created monitored. NULL monitors nothing new.
+UPDATE series SET monitor_new_from = ? WHERE id = ?;
 
 -- name: SetSeriesMonitored :exec
 UPDATE series SET monitored = ? WHERE id = ?;

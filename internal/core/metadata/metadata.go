@@ -45,6 +45,10 @@ type TitleMeta struct {
 	Episodes   int           // 0 when the count is not yet known (e.g. still releasing)
 	Status     string
 	CoverURL   string
+	// NextItem is the number of the next scheduled broadcast, 0 when nothing is
+	// scheduled. It lives here rather than on ItemMeta because it describes the
+	// title's position in its own run, and it keeps ItemMeta air-date-free.
+	NextItem int
 }
 
 type ItemMeta struct {
