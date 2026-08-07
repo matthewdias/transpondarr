@@ -51,7 +51,10 @@ RETURNING *;
 
 -- name: SetSeriesMonitorNewFrom :exec
 -- The cut every later create site reads (airing gap-fill, refresh growth): an
--- item numbered at or above it is created monitored. NULL monitors nothing new.
+-- item numbered at or above it is created monitored. NULL monitors nothing new,
+-- and no add-time mode writes one today: nothing can edit the cut afterwards, so
+-- a null would be permanent. The column stays nullable because the schema
+-- permits it and MonitorNew must be total over what the schema permits.
 UPDATE series SET monitor_new_from = ? WHERE id = ?;
 
 -- name: SetSeriesMonitored :exec

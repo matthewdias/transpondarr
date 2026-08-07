@@ -142,12 +142,39 @@ func TestSetWantedItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 		}
 	}
 
-	ids, err := st.Q.ListSeriesIDsForWantedItems(ctx, []int64{first, second, 9999})
+}
+
+// The reset set is the series that will actually change, so a re-monitor of an
+// already-monitored selection spends no reset and keeps its accumulated backoff.
+func TestListSeriesIDsForUnmonitoredItems(t *testing.T) {
+	st := tempStore(t)
+	ctx := context.Background()
+	seriesID := seedSearchSeries(t, st, "narrowing", 1)
+	off := seedSearchItem(t, st, seriesID, 1, 0, nil)
+	alsoOff := seedSearchItem(t, st, seriesID, 2, 0, nil)
+	on := seedSearchItem(t, st, seriesID, 3, 0, nil)
+	if _, err := st.Q.SetWantedItemsMonitored(ctx, db.SetWantedItemsMonitoredParams{
+		Monitored: 0, Ids: []int64{off, alsoOff},
+	}); err != nil {
+		t.Fatalf("unmonitor: %v", err)
+	}
+
+	// Two unmonitored items on one series collapse to a single reset.
+	ids, err := st.Q.ListSeriesIDsForUnmonitoredItems(ctx, []int64{off, alsoOff, on, 9999})
 	if err != nil {
 		t.Fatalf("list series ids: %v", err)
 	}
 	if len(ids) != 1 || ids[0] != seriesID {
 		t.Errorf("series ids = %v, want exactly [%d] -- one reset per distinct series", ids, seriesID)
+	}
+
+	// Nothing to change means nothing to reset.
+	ids, err = st.Q.ListSeriesIDsForUnmonitoredItems(ctx, []int64{on})
+	if err != nil {
+		t.Fatalf("list series ids: %v", err)
+	}
+	if len(ids) != 0 {
+		t.Errorf("series ids = %v, want none for an already-monitored selection", ids)
 	}
 }
 

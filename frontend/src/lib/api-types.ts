@@ -767,11 +767,11 @@ export interface components {
              */
             readonly $schema?: string;
             /**
-             * @description Which items to monitor, now and as the series grows: all, only from the next broadcast, or none
+             * @description Which items to monitor, now and as the series grows: all, or only from the next broadcast onwards
              * @default all
              * @enum {string}
              */
-            monitor_items: "all" | "future" | "none";
+            monitor_items: "all" | "future";
             /** @description Whether to monitor for downloads (default true) */
             monitored?: boolean;
             /**

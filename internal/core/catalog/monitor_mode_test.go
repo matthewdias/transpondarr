@@ -93,12 +93,6 @@ func TestAddSeriesAppliesTheMonitorMode(t *testing.T) {
 			wantItems: nil,
 			wantCut:   sql.NullInt64{Int64: 7, Valid: true},
 		},
-		{
-			name: "none monitors nothing, now or later",
-			mode: MonitorNone, next: 7,
-			wantItems: nil,
-			wantCut:   sql.NullInt64{},
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := coretest.NewStore(t)
@@ -122,6 +116,19 @@ func TestAddSeriesAppliesTheMonitorMode(t *testing.T) {
 				t.Errorf("monitor_new_from = %+v, want %+v", cut, tc.wantCut)
 			}
 		})
+	}
+}
+
+// Every mode is self-healing, which is why there is no "none": a null cut
+// monitors nothing new forever, and nothing can edit the cut after the add.
+func TestNoModeWritesANullCut(t *testing.T) {
+	for _, mode := range []MonitorMode{MonitorAll, MonitorFuture} {
+		for _, next := range []int{0, 7} {
+			cut := monitorCut(mode, metadata.TitleMeta{NextItem: next}, 6)
+			if !cut.Valid {
+				t.Errorf("mode %q with next %d wrote a null cut, which is permanent", mode, next)
+			}
+		}
 	}
 }
 

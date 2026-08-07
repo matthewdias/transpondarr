@@ -180,6 +180,55 @@ export interface AuthStatus {
 
 // Mutations deliberately take no AbortSignal: a grab or a settings write must
 // not die on a stray unmount.
+// The endpoint caps one batch at 1000 ids; a select-all on a long-runner is
+// 1200+, so the client chunks. maxItems on the request is what this mirrors.
+const MONITOR_BATCH = 1000;
+
+/** A chunked batch that failed partway. applied is what actually landed. */
+export class PartialBatchError extends Error {
+  applied: number;
+  total: number;
+  reason: unknown;
+  constructor(applied: number, total: number, reason: unknown) {
+    const detail = reason instanceof Error ? reason.message : String(reason);
+    super(`Updated ${applied} of ${total} episodes, then failed: ${detail}`);
+    this.name = "PartialBatchError";
+    this.applied = applied;
+    this.total = total;
+    this.reason = reason;
+  }
+}
+
+/**
+ * Chunks sequentially rather than in parallel: on a failure the caller needs to
+ * know how much landed, and concurrent requests would leave that unknowable.
+ * The flag is idempotent, so retrying the whole selection is always safe.
+ */
+async function setItemsMonitoredChunked(itemIds: number[], monitored: boolean) {
+  let updated = 0;
+  // Summing the server's per-chunk count would double-count a series whose
+  // items straddle a boundary, and the client cannot dedupe a count. One chunk
+  // reports honestly; more than one reports "not derivable" rather than a lie.
+  let seriesQueued: number | null = 0;
+  for (let i = 0; i < itemIds.length; i += MONITOR_BATCH) {
+    const chunk = itemIds.slice(i, i + MONITOR_BATCH);
+    try {
+      const res = await client
+        .PATCH("/api/v1/wanted/items", {
+          body: { item_ids: chunk, monitored },
+        })
+        .then(unwrap);
+      updated += res.updated;
+      seriesQueued =
+        i === 0 && chunk.length === itemIds.length ? res.series_queued : null;
+    } catch (err) {
+      if (i === 0) throw err;
+      throw new PartialBatchError(updated, itemIds.length, err);
+    }
+  }
+  return { updated, series_queued: seriesQueued };
+}
+
 export const api = {
   health: (signal?: AbortSignal) =>
     client.GET("/api/v1/health", { signal }).then(unwrap),
@@ -319,11 +368,7 @@ export const api = {
       .then(unwrap),
 
   setItemsMonitored: (itemIds: number[], monitored: boolean) =>
-    client
-      .PATCH("/api/v1/wanted/items", {
-        body: { item_ids: itemIds, monitored },
-      })
-      .then(unwrap),
+    setItemsMonitoredChunked(itemIds, monitored),
 
   searchMetadata: (term: string, signal?: AbortSignal) =>
     client

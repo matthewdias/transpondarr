@@ -173,15 +173,19 @@ func (q *Queries) ListCalendarItems(ctx context.Context, arg ListCalendarItemsPa
 	return items, nil
 }
 
-const listSeriesIDsForWantedItems = `-- name: ListSeriesIDsForWantedItems :many
-SELECT DISTINCT series_id FROM wanted_items WHERE id IN (/*SLICE:ids*/?)
+const listSeriesIDsForUnmonitoredItems = `-- name: ListSeriesIDsForUnmonitoredItems :many
+SELECT DISTINCT series_id
+FROM wanted_items
+WHERE id IN (/*SLICE:ids*/?) AND monitored = 0
 `
 
-// The series a bulk monitoring change touched, so re-monitoring can reset each
-// one's search cadence exactly once. Read before the update, inside the same
-// transaction, because the update itself reports only a row count.
-func (q *Queries) ListSeriesIDsForWantedItems(ctx context.Context, ids []int64) ([]int64, error) {
-	query := listSeriesIDsForWantedItems
+// The series a re-monitor will actually change, so the cadence reset lands once
+// per series and only where something moved. Restricted to monitored = 0 on
+// purpose: re-monitoring an already-monitored selection changes nothing, and
+// resetting there would discard accumulated backoff for free. Read before the
+// update, in the same transaction, since the update reports only a row count.
+func (q *Queries) ListSeriesIDsForUnmonitoredItems(ctx context.Context, ids []int64) ([]int64, error) {
+	query := listSeriesIDsForUnmonitoredItems
 	var queryParams []interface{}
 	if len(ids) > 0 {
 		for _, v := range ids {

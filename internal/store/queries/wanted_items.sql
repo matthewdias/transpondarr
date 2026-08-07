@@ -32,11 +32,15 @@ WHERE w.series_id = ? AND w.kind = ? AND w.number = ?;
 -- its whole selection.
 UPDATE wanted_items SET monitored = ? WHERE id IN (sqlc.slice('ids'));
 
--- name: ListSeriesIDsForWantedItems :many
--- The series a bulk monitoring change touched, so re-monitoring can reset each
--- one's search cadence exactly once. Read before the update, inside the same
--- transaction, because the update itself reports only a row count.
-SELECT DISTINCT series_id FROM wanted_items WHERE id IN (sqlc.slice('ids'));
+-- name: ListSeriesIDsForUnmonitoredItems :many
+-- The series a re-monitor will actually change, so the cadence reset lands once
+-- per series and only where something moved. Restricted to monitored = 0 on
+-- purpose: re-monitoring an already-monitored selection changes nothing, and
+-- resetting there would discard accumulated backoff for free. Read before the
+-- update, in the same transaction, since the update reports only a row count.
+SELECT DISTINCT series_id
+FROM wanted_items
+WHERE id IN (sqlc.slice('ids')) AND monitored = 0;
 
 -- name: SetWantedItemInLibrary :exec
 UPDATE wanted_items SET in_library = ? WHERE id = ?;

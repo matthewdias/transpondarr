@@ -33,6 +33,7 @@ function renderTab(items: WantedItem[]) {
       selected={new Set()}
       onToggleSelect={vi.fn()}
       onSelectRange={vi.fn()}
+      onSetSelection={vi.fn()}
       onSetMonitored={vi.fn()}
     />,
   );
@@ -82,6 +83,7 @@ function renderStrip(items: WantedItem[]) {
       selected={new Set()}
       onToggleSelect={vi.fn()}
       onSelectRange={vi.fn()}
+      onSetSelection={vi.fn()}
       onSetMonitored={vi.fn()}
     />,
   );
@@ -104,6 +106,7 @@ describe("EpisodesTab monitoring", () => {
         selected={new Set([1, 2])}
         onToggleSelect={vi.fn()}
         onSelectRange={vi.fn()}
+        onSetSelection={vi.fn()}
         onSetMonitored={onSetMonitored}
       />,
     );
@@ -123,6 +126,7 @@ describe("EpisodesTab monitoring", () => {
         selected={new Set()}
         onToggleSelect={onToggleSelect}
         onSelectRange={vi.fn()}
+        onSetSelection={vi.fn()}
         onSetMonitored={vi.fn()}
       />,
     );
@@ -240,6 +244,7 @@ describe("EpisodesTab selection range", () => {
         selected={new Set()}
         onToggleSelect={onToggleSelect}
         onSelectRange={onSelectRange}
+        onSetSelection={vi.fn()}
         onSetMonitored={vi.fn()}
       />,
     );
@@ -273,6 +278,7 @@ describe("EpisodesTab selection range", () => {
         selected={new Set()}
         onToggleSelect={vi.fn()}
         onSelectRange={onSelectRange}
+        onSetSelection={vi.fn()}
         onSetMonitored={vi.fn()}
       />,
     );
@@ -310,6 +316,7 @@ describe("EpisodesTab unmonitored status", () => {
         selected={new Set()}
         onToggleSelect={vi.fn()}
         onSelectRange={vi.fn()}
+        onSetSelection={vi.fn()}
         onSetMonitored={vi.fn()}
       />,
     );
@@ -318,5 +325,75 @@ describe("EpisodesTab unmonitored status", () => {
     expect(screen.queryByText("Wanted")).not.toBeInTheDocument();
     // An unmonitored episode with a grab in flight really is downloading.
     expect(screen.getByText("Downloading")).toBeInTheDocument();
+  });
+});
+
+describe("EpisodesTab select all", () => {
+  // The header box is what makes a bulk action reachable without a thousand
+  // clicks; it replaces the selection rather than adding to it.
+  it("selects every row and clears again from the header", async () => {
+    const onSetSelection = vi.fn();
+    const user = userEvent.setup();
+    const items = [
+      item({ id: 10, number: 1 }),
+      item({ id: 20, number: 2 }),
+      item({ id: 30, number: 3 }),
+    ];
+    const { rerender } = render(
+      <EpisodesTab
+        detail={detail(items)}
+        onSearchAll={vi.fn()}
+        onSearchItem={vi.fn()}
+        selected={new Set()}
+        onToggleSelect={vi.fn()}
+        onSelectRange={vi.fn()}
+        onSetSelection={onSetSelection}
+        onSetMonitored={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /select all/i }));
+    expect(onSetSelection).toHaveBeenCalledWith([10, 20, 30]);
+
+    rerender(
+      <EpisodesTab
+        detail={detail(items)}
+        onSearchAll={vi.fn()}
+        onSearchItem={vi.fn()}
+        selected={new Set([10, 20, 30])}
+        onToggleSelect={vi.fn()}
+        onSelectRange={vi.fn()}
+        onSetSelection={onSetSelection}
+        onSetMonitored={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole("checkbox", { name: /deselect all/i }));
+    expect(onSetSelection).toHaveBeenLastCalledWith([]);
+  });
+
+  // A partial selection must not read as "none selected", which is what a bare
+  // unchecked box would claim.
+  it("reads as indeterminate on a partial selection", () => {
+    render(
+      <EpisodesTab
+        detail={detail([
+          item({ id: 10, number: 1 }),
+          item({ id: 20, number: 2 }),
+        ])}
+        onSearchAll={vi.fn()}
+        onSearchItem={vi.fn()}
+        selected={new Set([10])}
+        onToggleSelect={vi.fn()}
+        onSelectRange={vi.fn()}
+        onSetSelection={vi.fn()}
+        onSetMonitored={vi.fn()}
+      />,
+    );
+
+    const box = screen.getByRole("checkbox", {
+      name: /select all/i,
+    }) as HTMLInputElement;
+    expect(box.indeterminate).toBe(true);
+    expect(box.checked).toBe(false);
   });
 });

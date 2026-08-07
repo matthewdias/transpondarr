@@ -46,6 +46,9 @@ function candidateTitle(c: Candidate) {
 // never-searched, which sorts it to the front of the sweep queue, and one pass
 // grabs every eligible candidate -- so a 1050-episode back catalogue starts
 // landing well before anyone can click a thousand checkboxes.
+// There is deliberately no "none": it would store a cut that monitors nothing
+// new forever, with nothing able to edit it afterwards. "Track it but grab
+// nothing" is the series switch on the detail page, one click after the add.
 const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
   { value: "all", label: "All episodes", hint: "Including the back catalogue" },
   {
@@ -53,7 +56,6 @@ const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
     label: "Future only",
     hint: "From the next broadcast onwards",
   },
-  { value: "none", label: "None", hint: "Track the series, grab nothing" },
 ];
 
 // The mode is a global control sitting well above a per-row button, so it is
@@ -61,12 +63,10 @@ const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
 // consequence at the point of action, and flipping the Select then visibly
 // rewrites every button -- the causal confirmation a distant control has none
 // of. Only a departure from the default is annotated: "everything" needs no
-// qualifier. These are deliberately not the option words: "Add - None" reads as
-// "add nothing", when what it does is add the series with nothing monitored.
+// qualifier.
 const monitorAnnotation: Record<MonitorItems, string> = {
   all: "",
   future: "future only",
-  none: "unmonitored",
 };
 
 function AddSeriesBody({ onDone }: { onDone: () => void }) {

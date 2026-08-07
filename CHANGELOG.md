@@ -51,7 +51,12 @@ All notable changes to this project are documented here. The format is based on
   there is nothing to search for yet.
 
   The API keeps `total` unchanged and adds `tracked` alongside it, so a client
-  reading the old field still gets the old number.
+  reading the old field still gets the old number. **`in_library` is a different
+  number, though**: it now carries the identical monitored-and-aired filter, so
+  that a held unaired or held unmonitored episode cannot push a series past its
+  own denominator. That is visible in the direction people notice — unmonitoring
+  an episode you already hold takes a card from `12 / 12` to `11 / 11
+  (12 total)` rather than to `12 / 11`.
 - **The item status `have` is now `in_library`, and so is the field it derives
   from.** `have` was the odd one out in a vocabulary of `downloading` / `stuck` /
   `deferred` / `wanted` — `status: have` never read as a state — and the web UI

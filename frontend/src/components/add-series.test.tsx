@@ -67,15 +67,18 @@ it("annotates the add button with the chosen mode", async () => {
   await waitFor(() =>
     expect(screen.getByText("Add · future only")).toBeInTheDocument(),
   );
+});
+
+// "none" would store a cut that monitors nothing new forever, and nothing can
+// edit the cut after the add. "Track it but grab nothing" is the series switch.
+it("offers no way to add a series that monitors nothing", async () => {
+  const user = await openWithResults();
 
   await user.click(screen.getByRole("combobox", { name: /monitor on add/i }));
-  await user.click(screen.getByRole("option", { name: /^none/i }));
-  // Deliberately not the option's own word: "Add · None" would read as
-  // "add nothing".
-  await waitFor(() =>
-    expect(screen.getByText("Add · unmonitored")).toBeInTheDocument(),
-  );
-  expect(screen.queryByText("Add · None")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("option")).toHaveLength(2);
+  expect(
+    screen.queryByRole("option", { name: /^none/i }),
+  ).not.toBeInTheDocument();
 });
 
 // The visible label is identical on every row, so the accessible name is what

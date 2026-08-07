@@ -66,7 +66,7 @@ type addSeriesInput struct {
 		Monitored  *bool  `json:"monitored,omitempty" doc:"Whether to monitor for downloads (default true)"`
 		// The default must stay "all": Discovery adds a title without offering the
 		// choice, and today's behaviour is what an omitted field has to mean.
-		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future,none" default:"all" doc:"Which items to monitor, now and as the series grows: all, only from the next broadcast, or none"`
+		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future" default:"all" doc:"Which items to monitor, now and as the series grows: all, or only from the next broadcast onwards"`
 	}
 }
 

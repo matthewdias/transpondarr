@@ -431,9 +431,11 @@ func (h *wantedHandler) queueSearch(ctx context.Context, in *queueSearchInput) (
 }
 
 // setItemsMonitored applies the flag to a whole selection in one transaction,
-// resetting the sweep cadence once per distinct series when re-monitoring: the
-// feed's dedupe is one-shot, so a release published while the item was
-// unmonitored is only ever found again by a fresh search.
+// resetting the sweep cadence once per distinct series that actually gained a
+// monitored item: the feed's dedupe is one-shot, so a release published while
+// the item was unmonitored is only ever found again by a fresh search. A
+// selection that was already monitored earns no reset -- it changed nothing, and
+// resetting would discard accumulated backoff for free.
 //
 // An unknown id is skipped rather than 404ing the batch, which is a deliberate
 // divergence from resetSelected: a re-clickable trigger and a persistent
@@ -454,11 +456,15 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.deps.store.Q.WithTx(tx)
 
-	// Read first: the update reports only a row count, and a re-monitored item's
-	// series is what needs the reset.
-	seriesIDs, err := qtx.ListSeriesIDsForWantedItems(ctx, in.Body.ItemIDs)
-	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load the items", err)
+	// Read first, and only where something will actually move: the update reports
+	// a row count, not which series it touched, and re-monitoring an
+	// already-monitored selection must not spend a reset it did not earn.
+	var seriesIDs []int64
+	if in.Body.Monitored {
+		seriesIDs, err = qtx.ListSeriesIDsForUnmonitoredItems(ctx, in.Body.ItemIDs)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("failed to load the items", err)
+		}
 	}
 	updated, err := qtx.SetWantedItemsMonitored(ctx, db.SetWantedItemsMonitoredParams{
 		Monitored: boolToInt(in.Body.Monitored),
@@ -467,14 +473,12 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
 	}
-	if in.Body.Monitored {
-		for _, id := range seriesIDs {
-			if err := qtx.ResetSeriesSearchState(ctx, id); err != nil {
-				return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
-			}
+	for _, id := range seriesIDs {
+		if err := qtx.ResetSeriesSearchState(ctx, id); err != nil {
+			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
 		}
-		out.Body.SeriesQueued = len(seriesIDs)
 	}
+	out.Body.SeriesQueued = len(seriesIDs)
 	if err := tx.Commit(); err != nil {
 		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
 	}

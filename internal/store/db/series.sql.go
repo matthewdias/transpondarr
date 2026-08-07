@@ -534,7 +534,10 @@ type SetSeriesMonitorNewFromParams struct {
 }
 
 // The cut every later create site reads (airing gap-fill, refresh growth): an
-// item numbered at or above it is created monitored. NULL monitors nothing new.
+// item numbered at or above it is created monitored. NULL monitors nothing new,
+// and no add-time mode writes one today: nothing can edit the cut afterwards, so
+// a null would be permanent. The column stays nullable because the schema
+// permits it and MonitorNew must be total over what the schema permits.
 func (q *Queries) SetSeriesMonitorNewFrom(ctx context.Context, arg SetSeriesMonitorNewFromParams) error {
 	_, err := q.db.ExecContext(ctx, setSeriesMonitorNewFrom, arg.MonitorNewFrom, arg.ID)
 	return err

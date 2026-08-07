@@ -18,6 +18,35 @@ function Sep() {
   return <span className="mx-1 text-faint">·</span>;
 }
 
+// indeterminate is a DOM property with no HTML attribute, so it can only be set
+// through the node -- a partial selection has to read as partial rather than as
+// "none selected", which is what the box would otherwise claim.
+function SelectAllCheckbox({
+  total,
+  selectedCount,
+  onChange,
+}: {
+  total: number;
+  selectedCount: number;
+  onChange: (all: boolean) => void;
+}) {
+  const all = total > 0 && selectedCount === total;
+  const some = selectedCount > 0 && !all;
+  return (
+    <input
+      type="checkbox"
+      ref={(el) => {
+        if (el) el.indeterminate = some;
+      }}
+      checked={all}
+      disabled={total === 0}
+      onChange={() => onChange(!all)}
+      className="size-3.5 accent-primary"
+      aria-label={all ? "Deselect all episodes" : "Select all episodes"}
+    />
+  );
+}
+
 export function EpisodesTab({
   detail,
   onSearchAll,
@@ -25,6 +54,7 @@ export function EpisodesTab({
   selected,
   onToggleSelect,
   onSelectRange,
+  onSetSelection,
   onSetMonitored,
 }: {
   detail: SeriesDetail;
@@ -33,6 +63,7 @@ export function EpisodesTab({
   selected: Set<number>;
   onToggleSelect: (id: number) => void;
   onSelectRange: (ids: number[]) => void;
+  onSetSelection: (ids: number[]) => void;
   onSetMonitored: (ids: number[], monitored: boolean) => void;
 }) {
   const items = detail.items;
@@ -196,7 +227,15 @@ export function EpisodesTab({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-8" />
+                <TableHead className="w-8">
+                  <SelectAllCheckbox
+                    total={items.length}
+                    selectedCount={selected.size}
+                    onChange={(all) =>
+                      onSetSelection(all ? items.map((i) => i.id) : [])
+                    }
+                  />
+                </TableHead>
                 <TableHead className="w-[70px]">Ep</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden w-32 md:table-cell">

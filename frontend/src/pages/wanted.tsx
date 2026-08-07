@@ -20,6 +20,7 @@ import {
 import {
   api,
   ApiError,
+  PartialBatchError,
   type CutoffGroup,
   type CutoffItem,
   type GlobalMissingReason,
@@ -300,7 +301,9 @@ function useSetItemMonitored() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wanted"] }),
     onError: (err) =>
       toast.error(
-        err instanceof ApiError ? err.message : "Could not update monitoring",
+        err instanceof ApiError || err instanceof PartialBatchError
+          ? err.message
+          : "Could not update monitoring",
       ),
   });
 }

@@ -6,6 +6,7 @@ import { Pin, TriangleAlert } from "lucide-react";
 import {
   api,
   ApiError,
+  PartialBatchError,
   type AutomationMode,
   type SeriesDetail,
 } from "@/lib/api";
@@ -123,6 +124,10 @@ export function SeriesDetailPage() {
   const selectRange = useCallback((ids: number[]) => {
     setSelected((prev) => new Set([...prev, ...ids]));
   }, []);
+  // Replaces the selection outright, which is what select-all and its clear are.
+  const setSelection = useCallback((ids: number[]) => {
+    setSelected(new Set(ids));
+  }, []);
 
   const setItemsMonitored = useMutation({
     mutationFn: ({ ids, monitored }: { ids: number[]; monitored: boolean }) =>
@@ -143,9 +148,13 @@ export function SeriesDetailPage() {
       );
       return { prev };
     },
-    onError: (_e, _v, ctx) => {
+    onError: (err, _v, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
-      toast.error("Could not update episode monitoring");
+      // A chunked batch can stop partway, and the flag is idempotent, so the
+      // useful thing to say is where it stopped rather than that it failed.
+      toast.error("Could not update episode monitoring", {
+        description: err instanceof PartialBatchError ? err.message : undefined,
+      });
     },
     onSuccess: () => setSelected(new Set()),
     onSettled: () => {
@@ -270,6 +279,7 @@ export function SeriesDetailPage() {
                   selected={selected}
                   onToggleSelect={toggleSelect}
                   onSelectRange={selectRange}
+                  onSetSelection={setSelection}
                   onSetMonitored={setMonitored}
                 />
               </TabsContent>

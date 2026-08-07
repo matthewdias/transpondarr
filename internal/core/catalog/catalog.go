@@ -27,12 +27,17 @@ var (
 // stored as a numeric cut rather than kept as a mode, because the sites that
 // must honour it later -- the airing gap-fill and refresh growth -- create items
 // with no air date and so could never evaluate "future" for themselves.
+//
+// Both modes are self-healing: the rule is number >= cut, so a cut at 1173 keeps
+// monitoring every episode the series later grows. There is deliberately no
+// "none" -- it would write a null cut, which monitors nothing new *forever*, and
+// nothing can edit the cut after the add. "Track it but grab nothing" is the
+// series switch on the detail page, which is where it belongs.
 type MonitorMode string
 
 const (
 	MonitorAll    MonitorMode = "all"
 	MonitorFuture MonitorMode = "future"
-	MonitorNone   MonitorMode = "none"
 )
 
 type Service struct {
@@ -185,8 +190,6 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 // degrades to "no surprise back-catalogue chase" and never to its opposite.
 func monitorCut(mode MonitorMode, meta metadata.TitleMeta, itemCount int) sql.NullInt64 {
 	switch mode {
-	case MonitorNone:
-		return sql.NullInt64{}
 	case MonitorFuture:
 		from := meta.NextItem
 		if from <= 0 {

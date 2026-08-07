@@ -113,6 +113,55 @@ func TestSetItemsMonitoredResetsEachSeriesOnce(t *testing.T) {
 	}
 }
 
+// Re-monitoring something already monitored changes nothing, so it must not
+// spend a reset: the series would lose accumulated backoff for free.
+func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
+	h := wantedHarness(t)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
+	ids := []int64{itemID(t, h.store, seriesID, 1), itemID(t, h.store, seriesID, 2)}
+	before := searchEpoch(t, h.store, seriesID)
+
+	var out setItemsMonitoredResponse
+	code := do(t, h, http.MethodPatch, "/api/v1/wanted/items",
+		map[string]any{"item_ids": ids, "monitored": true}, &out)
+	if code != http.StatusOK {
+		t.Fatalf("PATCH items = %d, want 200", code)
+	}
+	if got := searchEpoch(t, h.store, seriesID); got != before {
+		t.Errorf("search_epoch = %d, want %d -- nothing moved, so nothing is queued", got, before)
+	}
+	if out.SeriesQueued != 0 {
+		t.Errorf("series_queued = %d, want 0", out.SeriesQueued)
+	}
+}
+
+// A selection straddling both states resets once, on the strength of the item
+// that actually moved.
+func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
+	h := wantedHarness(t)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
+	stillOn := itemID(t, h.store, seriesID, 1)
+	turnedOff := itemID(t, h.store, seriesID, 2)
+	if _, err := h.store.Q.SetWantedItemsMonitored(context.Background(),
+		setMonitoredParams(0, []int64{turnedOff})); err != nil {
+		t.Fatalf("seed an unmonitored item: %v", err)
+	}
+	before := searchEpoch(t, h.store, seriesID)
+
+	var out setItemsMonitoredResponse
+	code := do(t, h, http.MethodPatch, "/api/v1/wanted/items",
+		map[string]any{"item_ids": []int64{stillOn, turnedOff}, "monitored": true}, &out)
+	if code != http.StatusOK {
+		t.Fatalf("PATCH items = %d, want 200", code)
+	}
+	if got := searchEpoch(t, h.store, seriesID); got != before+1 {
+		t.Errorf("search_epoch = %d, want %d -- exactly one reset", got, before+1)
+	}
+	if out.SeriesQueued != 1 {
+		t.Errorf("series_queued = %d, want 1", out.SeriesQueued)
+	}
+}
+
 // A hand-built selection must survive a series deleted in another tab: for a
 // state-setter a missing id is vacuous -- the item is gone, so "stop wanting it"
 // is already true -- which is why this diverges from resetSelected's 404.
