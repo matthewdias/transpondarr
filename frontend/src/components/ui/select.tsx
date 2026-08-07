@@ -119,13 +119,15 @@ function SelectItem({
         </SelectPrimitive.ItemIndicator>
       </span>
       {/* Radix clones ItemText into the trigger verbatim, so anything the
-          trigger must not show has to be its sibling rather than its child. */}
-      <span className="flex flex-col items-start">
+          trigger must not show has to be its sibling rather than its child. A
+          div, not a span: the base class's *:[span]:last:* row utilities would
+          otherwise land here and centre the label over the description. */}
+      <div className="flex flex-col items-start">
         <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
         {description && (
           <span className="text-xs text-muted-foreground">{description}</span>
         )}
-      </span>
+      </div>
     </SelectPrimitive.Item>
   );
 }
