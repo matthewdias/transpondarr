@@ -92,14 +92,14 @@ func (q *Queries) ListActiveBlocklistCounts(ctx context.Context, arg ListActiveB
 }
 
 const listCutoffItemsBySeries = `-- name: ListCutoffItemsBySeries :many
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, w.held_release_title,
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
        g.last_error    AS grab_last_error
 FROM wanted_items w
 JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id IN (/*SLICE:series_ids*/?)
-  AND w.have = 1
+  AND w.in_library = 1
   AND w.held_release_title != ''
   AND g.status IN ('imported', 'failed', 'grabbed')
 ORDER BY w.series_id, w.number
@@ -111,7 +111,7 @@ type ListCutoffItemsBySeriesRow struct {
 	Kind             string         `json:"kind"`
 	Number           sql.NullInt64  `json:"number"`
 	Title            sql.NullString `json:"title"`
-	Have             int64          `json:"have"`
+	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
 	GrabStatus       string         `json:"grab_status"`
@@ -148,7 +148,7 @@ func (q *Queries) ListCutoffItemsBySeries(ctx context.Context, seriesIds []int64
 			&i.Kind,
 			&i.Number,
 			&i.Title,
-			&i.Have,
+			&i.InLibrary,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
 			&i.GrabStatus,
@@ -182,7 +182,7 @@ WHERE qp.upgrades_enabled = 1
       FROM wanted_items w
       JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
-        AND w.have = 1
+        AND w.in_library = 1
         AND w.held_release_title != ''
         AND g.status IN ('imported', 'failed', 'grabbed')
   )
@@ -255,7 +255,7 @@ func (q *Queries) ListCutoffSeriesPage(ctx context.Context, arg ListCutoffSeries
 }
 
 const listMissingItemsBySeries = `-- name: ListMissingItemsBySeries :many
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.have, w.airs_at, w.held_release_title,
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
        g.last_error    AS grab_last_error,
@@ -270,7 +270,7 @@ FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 LEFT JOIN pass_outcomes p ON p.wanted_item_id = w.id
 WHERE w.series_id IN (/*SLICE:series_ids*/?)
-  AND w.have = 0
+  AND w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
 ORDER BY w.series_id, w.number
@@ -288,7 +288,7 @@ type ListMissingItemsBySeriesRow struct {
 	Kind             string         `json:"kind"`
 	Number           sql.NullInt64  `json:"number"`
 	Title            sql.NullString `json:"title"`
-	Have             int64          `json:"have"`
+	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
 	GrabStatus       sql.NullString `json:"grab_status"`
@@ -337,7 +337,7 @@ func (q *Queries) ListMissingItemsBySeries(ctx context.Context, arg ListMissingI
 			&i.Kind,
 			&i.Number,
 			&i.Title,
-			&i.Have,
+			&i.InLibrary,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
 			&i.GrabStatus,
@@ -372,7 +372,7 @@ SELECT s.id, s.title, s.monitored, s.last_searched_at, s.next_search_at,
 FROM wanted_items w
 JOIN series s ON s.id = w.series_id
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
-WHERE w.have = 0
+WHERE w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR s.monitored = 1)
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)

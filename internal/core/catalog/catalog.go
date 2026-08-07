@@ -113,11 +113,11 @@ func (s *Service) AddSeries(ctx context.Context, providerID int64, monitored boo
 	}
 	for _, it := range items {
 		wrow, err := q.CreateWantedItem(ctx, db.CreateWantedItemParams{
-			SeriesID: srow.ID,
-			Kind:     string(domain.KindEpisode),
-			Number:   sql.NullInt64{Int64: int64(it.Number), Valid: true},
-			Title:    nullString(it.Name),
-			Have:     0,
+			SeriesID:  srow.ID,
+			Kind:      string(domain.KindEpisode),
+			Number:    sql.NullInt64{Int64: int64(it.Number), Valid: true},
+			Title:     nullString(it.Name),
+			InLibrary: 0,
 		})
 		if err != nil {
 			return domain.Title{}, fmt.Errorf("create wanted item %d: %w", it.Number, err)

@@ -58,8 +58,8 @@ func TestSweepThenImportLifecycle(t *testing.T) {
 	}
 	items, _ := st.Q.ListWantedItems(ctx, id)
 	for _, it := range items {
-		if int(it.Number.Int64) == 3 && it.Have != 1 {
-			t.Errorf("episode 3 have = %d, want 1 after the import", it.Have)
+		if int(it.Number.Int64) == 3 && it.InLibrary != 1 {
+			t.Errorf("episode 3 in_library = %d, want 1 after the import", it.InLibrary)
 		}
 	}
 }

@@ -6,7 +6,7 @@ import { Topbar } from "@/components/topbar";
 import { AddSeriesButton } from "@/components/add-series";
 import { Poster } from "@/components/poster";
 import { FormatBadge, MonitoredBadge } from "@/components/badges";
-import { HaveProgress } from "@/components/have-progress";
+import { LibraryProgress } from "@/components/library-progress";
 import {
   Table,
   TableBody,
@@ -85,7 +85,10 @@ export function SeriesListPage() {
                         <MonitoredBadge monitored={s.monitored} />
                       </TableCell>
                       <TableCell>
-                        <HaveProgress have={s.have} total={s.total} />
+                        <LibraryProgress
+                          inLibrary={s.in_library}
+                          total={s.total}
+                        />
                       </TableCell>
                       <TableCell className="hidden text-faint sm:table-cell">
                         <ChevronRight className="size-4" />

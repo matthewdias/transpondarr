@@ -204,8 +204,8 @@ func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 	if len(out.Results) != 1 || out.Results[0].ItemNumber != 2 || out.Results[0].Outcome != "imported" {
 		t.Fatalf("results = %+v, want episode 2 imported", out.Results)
 	}
-	if got := itemStatus(t, h, seriesID, 2); got != "have" {
-		t.Errorf("episode 2 status = %q, want have", got)
+	if got := itemStatus(t, h, seriesID, 2); got != "in_library" {
+		t.Errorf("episode 2 status = %q, want in_library", got)
 	}
 	events, err := h.store.Q.ListSeriesGrabEvents(context.Background(), seriesID)
 	if err != nil {

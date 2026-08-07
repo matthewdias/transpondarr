@@ -58,7 +58,7 @@ export function ItemStatusBadge({
           <TriangleAlert className="size-3" /> Import blocked
         </span>
       );
-    case "have":
+    case "in_library":
       return (
         <span
           className={cn(badgeBase, "border-transparent bg-have-weak text-have")}

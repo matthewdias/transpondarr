@@ -21,9 +21,9 @@ import (
 
 // TestGrabThenImportLifecycle exercises the whole item lifecycle across the two
 // halves that were previously only tested in isolation: a grab recorded by the
-// HTTP handler (status "grabbed", have=false) is picked up by the importer once
-// its download completes, placed in the library, and the item becomes had. The
-// importer reads the very registry the server writes to, so this is the real
+// HTTP handler (status "grabbed", in_library=false) is picked up by the importer
+// once its download completes, placed in the library, and the item becomes held.
+// The importer reads the very registry the server writes to, so this is the real
 // wiring, not a reconstructed mapping.
 func TestGrabThenImportLifecycle(t *testing.T) {
 	const matchURL = "magnet:?xt=urn:btih:0000000000000000000000000000000000000003"
@@ -78,8 +78,8 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	}
 	items, _ := h.store.Q.ListWantedItems(context.Background(), seriesID)
 	for _, it := range items {
-		if int(it.Number.Int64) == 3 && it.Have != 1 {
-			t.Errorf("episode 3 have = %d, want 1 after import", it.Have)
+		if int(it.Number.Int64) == 3 && it.InLibrary != 1 {
+			t.Errorf("episode 3 in_library = %d, want 1 after import", it.InLibrary)
 		}
 	}
 }
@@ -242,8 +242,8 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	if got := itemStatus(t, h, seriesID, 9); got != "have" {
-		t.Errorf("episode 9 status = %q, want have after the replacement import", got)
+	if got := itemStatus(t, h, seriesID, 9); got != "in_library" {
+		t.Errorf("episode 9 status = %q, want in_library after the replacement import", got)
 	}
 	if len(h.lib.Placed) != 1 || h.lib.Placed[0].SourcePath != src {
 		t.Errorf("library placed %+v, want exactly the replacement file", h.lib.Placed)
@@ -252,7 +252,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 
 // TestStuckImportShowsReason (#37): an import failing on source access must
 // surface as a distinct "stuck" status with the reason — not blend into
-// "downloading" — and recover to "have" once the path works.
+// "downloading" — and recover to "in_library" once the path works.
 func TestStuckImportShowsReason(t *testing.T) {
 	const matchURL = "magnet:?xt=urn:btih:000000000000000000000000000000000000000c"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
@@ -321,8 +321,8 @@ func TestStuckImportShowsReason(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	if got := itemStatus(t, h, seriesID, 4); got != "have" {
-		t.Errorf("episode 4 status = %q, want have after the path is reachable", got)
+	if got := itemStatus(t, h, seriesID, 4); got != "in_library" {
+		t.Errorf("episode 4 status = %q, want in_library after the path is reachable", got)
 	}
 	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
 	if len(grabs) != 1 || grabs[0].LastError.Valid {
@@ -361,8 +361,8 @@ func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("set last_error: %v", err)
 	}
-	if err := h.store.Q.SetWantedItemHave(ctx, db.SetWantedItemHaveParams{Have: 1, ID: itemID}); err != nil {
-		t.Fatalf("set have: %v", err)
+	if err := h.store.Q.SetWantedItemInLibrary(ctx, db.SetWantedItemInLibraryParams{InLibrary: 1, ID: itemID}); err != nil {
+		t.Fatalf("set in_library: %v", err)
 	}
 
 	var out seriesDetailDTO

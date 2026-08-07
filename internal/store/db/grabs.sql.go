@@ -16,7 +16,7 @@ SELECT
     g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
-    w.have   AS item_have,
+    w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
     s.format AS series_format
@@ -27,19 +27,19 @@ WHERE g.id = ?
 `
 
 type GetGrabByIDRow struct {
-	ID           int64          `json:"id"`
-	WantedItemID int64          `json:"wanted_item_id"`
-	InfoHash     string         `json:"info_hash"`
-	ReleaseTitle string         `json:"release_title"`
-	Status       string         `json:"status"`
-	MissingSince sql.NullString `json:"missing_since"`
-	LastError    sql.NullString `json:"last_error"`
-	ItemNumber   sql.NullInt64  `json:"item_number"`
-	ItemKind     string         `json:"item_kind"`
-	ItemHave     int64          `json:"item_have"`
-	SeriesID     int64          `json:"series_id"`
-	SeriesTitle  string         `json:"series_title"`
-	SeriesFormat string         `json:"series_format"`
+	ID            int64          `json:"id"`
+	WantedItemID  int64          `json:"wanted_item_id"`
+	InfoHash      string         `json:"info_hash"`
+	ReleaseTitle  string         `json:"release_title"`
+	Status        string         `json:"status"`
+	MissingSince  sql.NullString `json:"missing_since"`
+	LastError     sql.NullString `json:"last_error"`
+	ItemNumber    sql.NullInt64  `json:"item_number"`
+	ItemKind      string         `json:"item_kind"`
+	ItemInLibrary int64          `json:"item_in_library"`
+	SeriesID      int64          `json:"series_id"`
+	SeriesTitle   string         `json:"series_title"`
+	SeriesFormat  string         `json:"series_format"`
 }
 
 func (q *Queries) GetGrabByID(ctx context.Context, id int64) (GetGrabByIDRow, error) {
@@ -55,7 +55,7 @@ func (q *Queries) GetGrabByID(ctx context.Context, id int64) (GetGrabByIDRow, er
 		&i.LastError,
 		&i.ItemNumber,
 		&i.ItemKind,
-		&i.ItemHave,
+		&i.ItemInLibrary,
 		&i.SeriesID,
 		&i.SeriesTitle,
 		&i.SeriesFormat,
@@ -69,7 +69,7 @@ SELECT
     g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
-    w.have   AS item_have,
+    w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
     s.format AS series_format
@@ -81,23 +81,23 @@ ORDER BY w.number
 `
 
 type ListGrabsByInfoHashRow struct {
-	ID           int64          `json:"id"`
-	WantedItemID int64          `json:"wanted_item_id"`
-	InfoHash     string         `json:"info_hash"`
-	ReleaseTitle string         `json:"release_title"`
-	Status       string         `json:"status"`
-	MissingSince sql.NullString `json:"missing_since"`
-	LastError    sql.NullString `json:"last_error"`
-	ItemNumber   sql.NullInt64  `json:"item_number"`
-	ItemKind     string         `json:"item_kind"`
-	ItemHave     int64          `json:"item_have"`
-	SeriesID     int64          `json:"series_id"`
-	SeriesTitle  string         `json:"series_title"`
-	SeriesFormat string         `json:"series_format"`
+	ID            int64          `json:"id"`
+	WantedItemID  int64          `json:"wanted_item_id"`
+	InfoHash      string         `json:"info_hash"`
+	ReleaseTitle  string         `json:"release_title"`
+	Status        string         `json:"status"`
+	MissingSince  sql.NullString `json:"missing_since"`
+	LastError     sql.NullString `json:"last_error"`
+	ItemNumber    sql.NullInt64  `json:"item_number"`
+	ItemKind      string         `json:"item_kind"`
+	ItemInLibrary int64          `json:"item_in_library"`
+	SeriesID      int64          `json:"series_id"`
+	SeriesTitle   string         `json:"series_title"`
+	SeriesFormat  string         `json:"series_format"`
 }
 
 // One release's rows, in episode order: the group the importer settles together.
-// item_have rides along because it is what makes an import a replacement (#97);
+// item_in_library rides along because it is what makes an import a replacement (#97);
 // the three grab row shapes stay parallel.
 func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]ListGrabsByInfoHashRow, error) {
 	rows, err := q.db.QueryContext(ctx, listGrabsByInfoHash, infoHash)
@@ -118,7 +118,7 @@ func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]L
 			&i.LastError,
 			&i.ItemNumber,
 			&i.ItemKind,
-			&i.ItemHave,
+			&i.ItemInLibrary,
 			&i.SeriesID,
 			&i.SeriesTitle,
 			&i.SeriesFormat,
@@ -182,7 +182,7 @@ SELECT
     g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
-    w.have   AS item_have,
+    w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
     s.format AS series_format
@@ -194,19 +194,19 @@ ORDER BY g.info_hash
 `
 
 type ListGrabsByStatusRow struct {
-	ID           int64          `json:"id"`
-	WantedItemID int64          `json:"wanted_item_id"`
-	InfoHash     string         `json:"info_hash"`
-	ReleaseTitle string         `json:"release_title"`
-	Status       string         `json:"status"`
-	MissingSince sql.NullString `json:"missing_since"`
-	LastError    sql.NullString `json:"last_error"`
-	ItemNumber   sql.NullInt64  `json:"item_number"`
-	ItemKind     string         `json:"item_kind"`
-	ItemHave     int64          `json:"item_have"`
-	SeriesID     int64          `json:"series_id"`
-	SeriesTitle  string         `json:"series_title"`
-	SeriesFormat string         `json:"series_format"`
+	ID            int64          `json:"id"`
+	WantedItemID  int64          `json:"wanted_item_id"`
+	InfoHash      string         `json:"info_hash"`
+	ReleaseTitle  string         `json:"release_title"`
+	Status        string         `json:"status"`
+	MissingSince  sql.NullString `json:"missing_since"`
+	LastError     sql.NullString `json:"last_error"`
+	ItemNumber    sql.NullInt64  `json:"item_number"`
+	ItemKind      string         `json:"item_kind"`
+	ItemInLibrary int64          `json:"item_in_library"`
+	SeriesID      int64          `json:"series_id"`
+	SeriesTitle   string         `json:"series_title"`
+	SeriesFormat  string         `json:"series_format"`
 }
 
 func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListGrabsByStatusRow, error) {
@@ -228,7 +228,7 @@ func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListG
 			&i.LastError,
 			&i.ItemNumber,
 			&i.ItemKind,
-			&i.ItemHave,
+			&i.ItemInLibrary,
 			&i.SeriesID,
 			&i.SeriesTitle,
 			&i.SeriesFormat,

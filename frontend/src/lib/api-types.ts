@@ -911,7 +911,7 @@ export interface components {
              * @description Derived acquisition state
              * @enum {string}
              */
-            status: "have" | "downloading" | "stuck" | "deferred" | "wanted";
+            status: "in_library" | "downloading" | "stuck" | "deferred" | "wanted";
         };
         CalendarOutputBody: {
             /**
@@ -1013,7 +1013,7 @@ export interface components {
              * @description Derived acquisition state; downloading while an upgrade is in flight
              * @enum {string}
              */
-            status: "have" | "downloading";
+            status: "in_library" | "downloading";
             /** @description Profile axes the held release scores below its best on, each with the points still available */
             unmet_goals?: components["schemas"]["ScorePartDTO"][];
         };
@@ -1034,11 +1034,11 @@ export interface components {
              * @description Broadcast time (RFC 3339, Japanese broadcast clock); absent when the provider publishes none
              */
             airs_at?: string;
-            have: boolean;
             /** Format: int64 */
             id: number;
             /** @description Why the last import attempt failed (status stuck) */
             import_error?: string;
+            in_library: boolean;
             name?: string;
             /** Format: int64 */
             number: number;
@@ -1047,7 +1047,7 @@ export interface components {
              * @description Derived acquisition state
              * @enum {string}
              */
-            status: "have" | "downloading" | "stuck" | "deferred" | "wanted";
+            status: "in_library" | "downloading" | "stuck" | "deferred" | "wanted";
         };
         DownloadInputBody: {
             /**
@@ -1683,9 +1683,9 @@ export interface components {
         SeriesDTO: {
             format: string;
             /** Format: int64 */
-            have: number;
-            /** Format: int64 */
             id: number;
+            /** Format: int64 */
+            in_library: number;
             monitored: boolean;
             title: string;
             /** Format: int64 */
@@ -1842,9 +1842,9 @@ export interface components {
             reason: string;
         };
         WantedItemDTO: {
-            have: boolean;
             /** Format: int64 */
             id: number;
+            in_library: boolean;
             name?: string;
             /** Format: int64 */
             number: number;

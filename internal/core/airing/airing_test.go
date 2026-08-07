@@ -171,19 +171,19 @@ func TestSyncWritesAirDatesForANeverSyncedSeries(t *testing.T) {
 	}
 }
 
-// itemState reads one item's have and airs_at; found is false when no row exists.
-func itemState(t *testing.T, st *store.Store, seriesID int64, number int) (have int, airsAt *string, found bool) {
+// itemState reads one item's in_library and airs_at; found is false when no row exists.
+func itemState(t *testing.T, st *store.Store, seriesID int64, number int) (inLibrary int, airsAt *string, found bool) {
 	t.Helper()
 	err := st.DB.QueryRowContext(context.Background(),
-		`SELECT have, airs_at FROM wanted_items WHERE series_id = ? AND number = ?`,
-		seriesID, number).Scan(&have, &airsAt)
+		`SELECT in_library, airs_at FROM wanted_items WHERE series_id = ? AND number = ?`,
+		seriesID, number).Scan(&inLibrary, &airsAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil, false
 	}
 	if err != nil {
 		t.Fatalf("read item %d: %v", number, err)
 	}
-	return have, airsAt, true
+	return inLibrary, airsAt, true
 }
 
 // A null-count long-runner (AniList never publishes an episode total mid-run)
@@ -203,12 +203,12 @@ func TestSyncCreatesItemsTheScheduleKnowsAbout(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	have, airs, found := itemState(t, st, seriesID, 1)
+	inLibrary, airs, found := itemState(t, st, seriesID, 1)
 	if !found || airs == nil || *airs != "2026-01-04 15:30:00" {
 		t.Errorf("item 1: found=%t airs_at=%v, want a created item dated 2026-01-04 15:30:00", found, airs)
 	}
-	if have != 0 {
-		t.Errorf("item 1 have = %d, want a fresh item at 0", have)
+	if inLibrary != 0 {
+		t.Errorf("item 1 in_library = %d, want a fresh item at 0", inLibrary)
 	}
 	if _, _, found := itemState(t, st, seriesID, 2); !found {
 		t.Error("item 2 was not created from the schedule")
@@ -232,15 +232,15 @@ func TestSyncFillsTheGapsAScheduleSkips(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	have, airs, found := itemState(t, st, seriesID, 2)
+	inLibrary, airs, found := itemState(t, st, seriesID, 2)
 	if !found {
 		t.Fatal("item 2 was not created, so the episode that shared a slot is silently missing")
 	}
 	if airs != nil {
 		t.Errorf("item 2 airs_at = %v, want null — the schedule gave it no date", *airs)
 	}
-	if have != 0 {
-		t.Errorf("item 2 have = %d, want a fresh item at 0", have)
+	if inLibrary != 0 {
+		t.Errorf("item 2 in_library = %d, want a fresh item at 0", inLibrary)
 	}
 	if _, _, found := itemState(t, st, seriesID, 4); found {
 		t.Error("item 4 was created past the highest number the schedule knows")
@@ -363,11 +363,11 @@ func TestSyncTailFillsOnlyInsideItsOwnSpan(t *testing.T) {
 	}
 }
 
-func TestSyncUpsertDoesNotClobberHave(t *testing.T) {
+func TestSyncUpsertDoesNotClobberInLibrary(t *testing.T) {
 	st := coretest.NewStore(t)
 	seriesID := seedSeries(t, st, 100, 1)
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE wanted_items SET have = 1 WHERE series_id = ? AND number = 1`, seriesID); err != nil {
+		`UPDATE wanted_items SET in_library = 1 WHERE series_id = ? AND number = 1`, seriesID); err != nil {
 		t.Fatalf("mark item had: %v", err)
 	}
 
@@ -380,9 +380,9 @@ func TestSyncUpsertDoesNotClobberHave(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	have, airs, _ := itemState(t, st, seriesID, 1)
-	if have != 1 {
-		t.Errorf("item 1 have = %d, want 1 (sync must not clobber have)", have)
+	inLibrary, airs, _ := itemState(t, st, seriesID, 1)
+	if inLibrary != 1 {
+		t.Errorf("item 1 in_library = %d, want 1 (sync must not clobber it)", inLibrary)
 	}
 	if airs == nil || *airs != "2026-01-04 15:30:00" {
 		t.Errorf("item 1 airs_at = %v, want the date still applied", airs)

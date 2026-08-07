@@ -169,7 +169,8 @@ func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 }
 
 // seedPreUpgradeItem inserts an item and its grab with raw SQL, so it works on
-// the rolled-back schema the migration test drives.
+// the rolled-back schema the migration test drives — where the library flag is
+// still named have, as 00019 renames it only later.
 func seedPreUpgradeItem(t *testing.T, st *Store, seriesID int64, number int, have int, releaseTitle, status string) int64 {
 	t.Helper()
 	ctx := context.Background()

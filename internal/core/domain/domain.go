@@ -40,11 +40,11 @@ type Title struct {
 
 // WantedItem is a single acquirable unit — an episode, or a movie's single file.
 type WantedItem struct {
-	ID     int64
-	Kind   WantedKind
-	Number int // absolute/episode number; typically 1 for a movie
-	Name   string
-	Have   bool // library state only: an import placed a file for it
+	ID        int64
+	Kind      WantedKind
+	Number    int // absolute/episode number; typically 1 for a movie
+	Name      string
+	InLibrary bool // library state only: a file for it sits in the library
 }
 
 // MaxPinDelayHours bounds the wait a pinned group can impose at a year. The

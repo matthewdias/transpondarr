@@ -3,17 +3,18 @@ package server
 import "github.com/matthewdias/transpondarr/internal/store/db"
 
 // itemState is one wanted item's derived acquisition state — the shared
-// vocabulary (have / downloading / stuck / deferred / wanted) rendered by both
-// series detail and the calendar. Derive it here only, so the edges never drift.
+// vocabulary (in_library / downloading / stuck / deferred / wanted) rendered by
+// both series detail and the calendar. Derive it here only, so the edges never
+// drift.
 type itemState struct {
 	Status       string
 	ReleaseTitle string
 	ImportError  string
 }
 
-// deriveItemState maps an item's have flag and its grab (hasGrab=false when
-// none) to the status vocabulary.
-func deriveItemState(have bool, grab db.Grab, hasGrab bool) itemState {
+// deriveItemState maps an item's in_library flag and its grab (hasGrab=false
+// when none) to the status vocabulary.
+func deriveItemState(inLibrary bool, grab db.Grab, hasGrab bool) itemState {
 	var releaseTitle, grabStatus, importError string
 	// A failed grab does not count as downloading: the item reverts to
 	// "wanted" so it can be searched/grabbed again (the failure stays in the
@@ -25,12 +26,12 @@ func deriveItemState(have bool, grab db.Grab, hasGrab bool) itemState {
 	}
 	status := "wanted"
 	switch {
-	case have && grabStatus == "grabbed":
+	case inLibrary && grabStatus == "grabbed":
 		// An upgrade in flight over a file we hold (#97). Every other held state
-		// stays "have": a deferred or failed upgrade left the library as it was.
+		// stays "in_library": a deferred or failed upgrade left the library alone.
 		status = "downloading"
-	case have:
-		status = "have"
+	case inLibrary:
+		status = "in_library"
 	case grabStatus == "import_deferred":
 		// Settled without an import (a batch payload): distinct from
 		// downloading, which would otherwise show as in-progress forever.
@@ -40,7 +41,7 @@ func deriveItemState(have bool, grab db.Grab, hasGrab bool) itemState {
 		// permissions): distinct from downloading, with the reason attached.
 		status = "stuck"
 	case releaseTitle != "":
-		// A grab exists but the item isn't had yet → still downloading/importing.
+		// A grab exists but the file isn't in the library yet → still downloading.
 		status = "downloading"
 	}
 	if status != "stuck" {

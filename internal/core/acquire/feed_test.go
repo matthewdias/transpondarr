@@ -246,7 +246,7 @@ func TestFeedPollGrabsAnAiredWantedItemWithoutSearching(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
-		sweepItem{number: 1, have: true}, sweepItem{number: 3, airsAt: &past})
+		sweepItem{number: 1, inLibrary: true}, sweepItem{number: 3, airsAt: &past})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -284,7 +284,7 @@ func TestFeedPollGrabsNothingForIneligibleEntries(t *testing.T) {
 			return seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &future})
 		}},
 		{"already had", func(t *testing.T, h *feedHarness) int64 {
-			return seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, have: true})
+			return seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, inLibrary: true})
 		}},
 		{"already grabbed", func(t *testing.T, h *feedHarness) int64 {
 			return seedSweep(t, h.st, "Placeholder Saga", true,

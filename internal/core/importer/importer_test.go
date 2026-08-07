@@ -226,8 +226,8 @@ func TestImportsCompletedGrab(t *testing.T) {
 		t.Errorf("grab status = %v, want imported", rows)
 	}
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
-	if items[0].Have != 1 {
-		t.Errorf("have = %d, want 1", items[0].Have)
+	if items[0].InLibrary != 1 {
+		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
 }
 
@@ -254,8 +254,8 @@ func TestFinishesInFlightImportAfterCancel(t *testing.T) {
 		t.Errorf("status = %q, want imported: the file was already placed when the cancel arrived", g.Status)
 	}
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
-	if items[0].Have != 1 {
-		t.Errorf("have = %d, want 1", items[0].Have)
+	if items[0].InLibrary != 1 {
+		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
 	if n := len(target.Placed); n != 1 {
 		t.Errorf("Place called %d times, want 1", n)
@@ -402,8 +402,8 @@ func TestImportsFolderWrappedEpisode(t *testing.T) {
 		t.Errorf("status = %q, want imported", grabByHash(t, st, "abc").Status)
 	}
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
-	if items[0].Have != 1 {
-		t.Errorf("have = %d, want 1", items[0].Have)
+	if items[0].InLibrary != 1 {
+		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
 }
 
@@ -437,8 +437,8 @@ func TestImportsItsOwnEpisodeFromAMultiEpisodeDirectory(t *testing.T) {
 		t.Errorf("status = %q, want imported", g.Status)
 	}
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
-	if items[0].Have != 1 {
-		t.Errorf("have = %d, want 1", items[0].Have)
+	if items[0].InLibrary != 1 {
+		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
 }
 
@@ -479,8 +479,8 @@ func TestImportsEveryEpisodeOfASeasonPack(t *testing.T) {
 	}
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
 	for _, it := range items {
-		if it.Have != 1 {
-			t.Errorf("item %d have = %d, want 1", it.Number.Int64, it.Have)
+		if it.InLibrary != 1 {
+			t.Errorf("item %d in_library = %d, want 1", it.Number.Int64, it.InLibrary)
 		}
 	}
 	// The pack keeps seeding: a fully-imported release is never removed.
@@ -527,8 +527,8 @@ func TestDefersWhenAFileIsMissingButOthersAreLoose(t *testing.T) {
 	}
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
 	for _, it := range items {
-		if want := int64(0); it.Number.Int64 == 2 && it.Have != want {
-			t.Errorf("item 2 have = %d, want %d", it.Have, want)
+		if want := int64(0); it.Number.Int64 == 2 && it.InLibrary != want {
+			t.Errorf("item 2 in_library = %d, want %d", it.InLibrary, want)
 		}
 	}
 }
@@ -597,8 +597,8 @@ func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 	}
 	items, _ := st.Q.ListWantedItems(ctx, seriesID)
 	for _, it := range items {
-		if it.Have != 1 {
-			t.Errorf("item %d have = %d, want 1", it.Number.Int64, it.Have)
+		if it.InLibrary != 1 {
+			t.Errorf("item %d in_library = %d, want 1", it.Number.Int64, it.InLibrary)
 		}
 	}
 	rows, _ := st.Q.ListGrabsByInfoHash(ctx, "abc")
@@ -631,7 +631,7 @@ func TestLeavesAnUnclaimedFileAloneWhenTheGuardRefuses(t *testing.T) {
 	}{
 		{"item is already had", func(t *testing.T, st *store.Store, seriesID int64) {
 			id := addItem(t, st, seriesID, 2)
-			if err := st.Q.SetWantedItemHave(context.Background(), db.SetWantedItemHaveParams{Have: 1, ID: id}); err != nil {
+			if err := st.Q.SetWantedItemInLibrary(context.Background(), db.SetWantedItemInLibraryParams{InLibrary: 1, ID: id}); err != nil {
 				t.Fatal(err)
 			}
 		}},
@@ -999,8 +999,8 @@ func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	}
 	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
 	for _, it := range items {
-		if it.ID == itemID && it.Have != 0 {
-			t.Errorf("have = %d, want 0 for a failed grab", it.Have)
+		if it.ID == itemID && it.InLibrary != 0 {
+			t.Errorf("in_library = %d, want 0 for a failed grab", it.InLibrary)
 		}
 	}
 }

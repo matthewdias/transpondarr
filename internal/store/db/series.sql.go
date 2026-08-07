@@ -313,7 +313,7 @@ const listSeriesWithProgress = `-- name: ListSeriesWithProgress :many
 SELECT
     s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch,
     COUNT(w.id)                            AS total_items,
-    CAST(COALESCE(SUM(w.have), 0) AS INTEGER) AS have_items
+    CAST(COALESCE(SUM(w.in_library), 0) AS INTEGER) AS in_library_items
 FROM series s
 LEFT JOIN wanted_items w ON w.series_id = s.id
 GROUP BY s.id
@@ -336,7 +336,7 @@ type ListSeriesWithProgressRow struct {
 	PinDelayHours    sql.NullInt64  `json:"pin_delay_hours"`
 	SearchEpoch      int64          `json:"search_epoch"`
 	TotalItems       int64          `json:"total_items"`
-	HaveItems        int64          `json:"have_items"`
+	InLibraryItems   int64          `json:"in_library_items"`
 }
 
 func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithProgressRow, error) {
@@ -364,7 +364,7 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 			&i.PinDelayHours,
 			&i.SearchEpoch,
 			&i.TotalItems,
-			&i.HaveItems,
+			&i.InLibraryItems,
 		); err != nil {
 			return nil, err
 		}

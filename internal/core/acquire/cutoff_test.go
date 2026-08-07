@@ -61,7 +61,7 @@ func hold(t *testing.T, st *store.Store, seriesID int64, number int, releaseTitl
 		t.Fatalf("look up item %d: %v", number, err)
 	}
 	if err := st.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
-		Have: 1, HeldReleaseTitle: releaseTitle, ID: id,
+		InLibrary: 1, HeldReleaseTitle: releaseTitle, ID: id,
 	}); err != nil {
 		t.Fatalf("hold item %d: %v", number, err)
 	}

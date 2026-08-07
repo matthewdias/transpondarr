@@ -20,7 +20,7 @@ type calendarItemDTO struct {
 	Number      int    `json:"number"`
 	Name        string `json:"name,omitempty"`
 	AirsAt      string `json:"airs_at" format:"date-time" doc:"Broadcast time (RFC 3339 UTC)"`
-	Status      string `json:"status" enum:"have,downloading,stuck,deferred,wanted" doc:"Derived acquisition state"`
+	Status      string `json:"status" enum:"in_library,downloading,stuck,deferred,wanted" doc:"Derived acquisition state"`
 	ImportError string `json:"import_error,omitempty" doc:"Why the last import attempt failed (status stuck)"`
 }
 
@@ -69,7 +69,7 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 			if !monitored && !in.Unmonitored {
 				continue
 			}
-			state := deriveItemState(r.Have == 1, db.Grab{
+			state := deriveItemState(r.InLibrary == 1, db.Grab{
 				Status:       r.GrabStatus.String,
 				ReleaseTitle: r.GrabReleaseTitle.String,
 				LastError:    r.GrabLastError,

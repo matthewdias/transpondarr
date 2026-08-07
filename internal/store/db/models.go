@@ -135,7 +135,7 @@ type WantedItem struct {
 	Kind             string         `json:"kind"`
 	Number           sql.NullInt64  `json:"number"`
 	Title            sql.NullString `json:"title"`
-	Have             int64          `json:"have"`
+	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
 }

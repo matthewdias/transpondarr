@@ -486,7 +486,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 			c.Reason = "episode number exceeds this entry's range (possible absolute/season mismatch)"
 			return c
 		}
-		c.Reason = "episode already have / not wanted"
+		c.Reason = "episode already in the library / not wanted"
 		return c
 	}
 

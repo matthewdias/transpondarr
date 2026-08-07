@@ -42,7 +42,7 @@ const group = (
 const cutoff = (over: Partial<CutoffItem>): CutoffItem => ({
   id: 11,
   number: 2,
-  status: "have",
+  status: "in_library",
   held_release: "[FakeGroup] Signal Anomaly - 02 [720p]",
   score: 2100,
   ...over,

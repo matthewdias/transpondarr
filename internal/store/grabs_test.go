@@ -19,7 +19,7 @@ func tempStore(t *testing.T) *Store {
 	return st
 }
 
-func TestUpsertGrabIsOnePerItemAndLeavesHaveUntouched(t *testing.T) {
+func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 
@@ -28,10 +28,10 @@ func TestUpsertGrabIsOnePerItemAndLeavesHaveUntouched(t *testing.T) {
 		t.Fatalf("create series: %v", err)
 	}
 	item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
-		SeriesID: series.ID,
-		Kind:     "episode",
-		Number:   sql.NullInt64{Int64: 1, Valid: true},
-		Have:     0,
+		SeriesID:  series.ID,
+		Kind:      "episode",
+		Number:    sql.NullInt64{Int64: 1, Valid: true},
+		InLibrary: 0,
 	})
 	if err != nil {
 		t.Fatalf("create wanted item: %v", err)
@@ -77,8 +77,8 @@ func TestUpsertGrabIsOnePerItemAndLeavesHaveUntouched(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list wanted items: %v", err)
 	}
-	if items[0].Have != 0 {
-		t.Errorf("have = %d after grab, want 0 (import sets have, not grab)", items[0].Have)
+	if items[0].InLibrary != 0 {
+		t.Errorf("in_library = %d after grab, want 0 (import sets it, not grab)", items[0].InLibrary)
 	}
 }
 

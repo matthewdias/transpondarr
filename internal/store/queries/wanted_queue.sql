@@ -23,7 +23,7 @@ SELECT s.id, s.title, s.monitored, s.last_searched_at, s.next_search_at,
 FROM wanted_items w
 JOIN series s ON s.id = w.series_id
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
-WHERE w.have = 0
+WHERE w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR s.monitored = 1)
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
@@ -55,7 +55,7 @@ FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 LEFT JOIN pass_outcomes p ON p.wanted_item_id = w.id
 WHERE w.series_id IN (sqlc.slice('series_ids'))
-  AND w.have = 0
+  AND w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
 ORDER BY w.series_id, w.number;
@@ -84,7 +84,7 @@ WHERE qp.upgrades_enabled = 1
       FROM wanted_items w
       JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
-        AND w.have = 1
+        AND w.in_library = 1
         AND w.held_release_title != ''
         AND g.status IN ('imported', 'failed', 'grabbed')
   )
@@ -104,7 +104,7 @@ SELECT w.*,
 FROM wanted_items w
 JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id IN (sqlc.slice('series_ids'))
-  AND w.have = 1
+  AND w.in_library = 1
   AND w.held_release_title != ''
   AND g.status IN ('imported', 'failed', 'grabbed')
 ORDER BY w.series_id, w.number;

@@ -1,7 +1,7 @@
 // Package refresh grows a tracked series as its provider metadata moves: a
 // releasing title whose episode count rises (or arrives, having been unknown at
 // add time) gains the missing wanted items on the next pass. It never touches
-// existing rows, so a refresh cannot clobber have or re-grab anything.
+// existing rows, so a refresh cannot clobber in_library or re-grab anything.
 package refresh
 
 import (

@@ -5,14 +5,14 @@ WHERE series_id = ?
 ORDER BY number;
 
 -- name: CreateWantedItem :one
-INSERT INTO wanted_items (series_id, kind, number, title, have)
+INSERT INTO wanted_items (series_id, kind, number, title, in_library)
 VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpsertWantedItem :execrows
--- DO NOTHING keeps refresh from ever clobbering an existing item's have or
+-- DO NOTHING keeps refresh from ever clobbering an existing item's in_library or
 -- title; the row count tells the caller whether the series actually grew.
-INSERT INTO wanted_items (series_id, kind, number, title, have)
+INSERT INTO wanted_items (series_id, kind, number, title, in_library)
 VALUES (?, ?, ?, ?, 0)
 ON CONFLICT (series_id, kind, number) DO NOTHING;
 
@@ -25,13 +25,13 @@ FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ? AND w.kind = ? AND w.number = ?;
 
--- name: SetWantedItemHave :exec
-UPDATE wanted_items SET have = ? WHERE id = ?;
+-- name: SetWantedItemInLibrary :exec
+UPDATE wanted_items SET in_library = ? WHERE id = ?;
 
 -- name: SetWantedItemHeld :exec
 -- The one write point for held identity: what the library holds, and which
 -- release put it there, so an upgrade has something to score against.
-UPDATE wanted_items SET have = ?, held_release_title = ? WHERE id = ?;
+UPDATE wanted_items SET in_library = ?, held_release_title = ? WHERE id = ?;
 
 -- name: ListCalendarItems :many
 -- Stored timestamps are UTC in one fixed layout, so lexicographic range
@@ -54,7 +54,7 @@ ORDER BY w.airs_at, s.title, w.number;
 SELECT DISTINCT s.id, s.title
 FROM series s
 JOIN wanted_items w ON w.series_id = s.id
-WHERE s.monitored = 1 AND w.have = 0 AND w.airs_at IS NULL
+WHERE s.monitored = 1 AND w.in_library = 0 AND w.airs_at IS NULL
 ORDER BY s.title;
 
 -- name: UpsertWantedItemAiring :exec

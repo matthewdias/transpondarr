@@ -284,7 +284,7 @@ func (im *Importer) assignableOutsideRelease(ctx context.Context, g db.ListGrabs
 	if err != nil {
 		return fmt.Errorf("look up item %d: %w", number, err)
 	}
-	if item.Have == 1 {
+	if item.InLibrary == 1 {
 		return fmt.Errorf("%w: episode %d is already in the library", ErrBadAssignment, number)
 	}
 	if item.GrabStatus.Valid && item.GrabStatus.String != statusFailed {

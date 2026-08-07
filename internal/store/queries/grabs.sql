@@ -21,14 +21,14 @@ ORDER BY g.created_at DESC;
 
 -- name: ListGrabsByInfoHash :many
 -- One release's rows, in episode order: the group the importer settles together.
--- item_have rides along because it is what makes an import a replacement (#97);
+-- item_in_library rides along because it is what makes an import a replacement (#97);
 -- the three grab row shapes stay parallel.
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
     g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
-    w.have   AS item_have,
+    w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
     s.format AS series_format
@@ -44,7 +44,7 @@ SELECT
     g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
-    w.have   AS item_have,
+    w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
     s.format AS series_format
@@ -59,7 +59,7 @@ SELECT
     g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
-    w.have   AS item_have,
+    w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
     s.format AS series_format
