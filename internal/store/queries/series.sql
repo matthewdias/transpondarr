@@ -19,15 +19,16 @@ FROM series
 WHERE id = ?
 LIMIT 1;
 
--- name: GetSeriesByAnilistID :one
+-- name: GetSeriesByProviderID :one
+-- The pair is the identity: the same id in two provider spaces is two titles.
 SELECT *
 FROM series
-WHERE anilist_id = ?
+WHERE provider = ? AND provider_id = ?
 LIMIT 1;
 
 -- name: CreateSeries :one
-INSERT INTO series (anilist_id, title, format, monitored)
-VALUES (?, ?, ?, ?)
+INSERT INTO series (provider, provider_id, title, format, monitored)
+VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: SetSeriesMonitored :exec
@@ -49,12 +50,13 @@ UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?;
 -- cache row has unknown status and deliberately rides the short cutoff: unknown
 -- is likelier a transient anomaly than a finished title, and the cost is one
 -- tail request per short TTL. Never-synced series sort first; the limit bounds
--- how much of the request budget one pass can burn.
+-- how much of the request budget one pass can burn. Scoped to one provider
+-- because the id this hands to it is only meaningful in that provider's space.
 SELECT s.*
 FROM series s
-LEFT JOIN metadata_cache m ON m.provider = 'anilist' AND m.provider_id = s.anilist_id
+LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
-  AND s.anilist_id IS NOT NULL
+  AND s.provider = ?
   AND (
       s.airing_synced_at IS NULL
       OR s.airing_synced_at < CASE
@@ -77,12 +79,12 @@ WHERE id = ? AND airing_synced_at IS ?;
 UPDATE series SET airing_synced_at = NULL WHERE id = ?;
 
 -- name: ListTrackedNextAiring :many
--- Discovery overlay rows: every series carrying an AniList id, joined to its
--- next item scheduled after the given instant. airing_synced_at rides along so
--- the caller can tell "synced, nothing upcoming" from "never synced".
+-- Discovery overlay rows: every series keyed on the given provider, joined to
+-- its next item scheduled after the given instant. airing_synced_at rides along
+-- so the caller can tell "synced, nothing upcoming" from "never synced".
 SELECT
     s.id,
-    s.anilist_id,
+    s.provider_id,
     s.airing_synced_at,
     w.number AS next_number,
     w.airs_at AS next_airs_at
@@ -96,7 +98,7 @@ LEFT JOIN wanted_items w ON w.id = (
     ORDER BY w2.airs_at
     LIMIT 1
 )
-WHERE s.anilist_id IS NOT NULL;
+WHERE s.provider = ?;
 
 -- name: ListSeriesDueMetadataRefresh :many
 -- Monitored series whose cached title snapshot is missing or stale under the
@@ -104,11 +106,12 @@ WHERE s.anilist_id IS NOT NULL;
 -- earns the long cutoff; anything moving, unknown, or empty rides the short
 -- one, mirroring the freshness rule in metadata.Cached. Never-fetched series
 -- sort first; the limit bounds how much of the request budget one pass burns.
+-- Scoped to one provider for the same reason ListSeriesDueAiringSync is.
 SELECT s.*
 FROM series s
-LEFT JOIN metadata_cache m ON m.provider = 'anilist' AND m.provider_id = s.anilist_id
+LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
-  AND s.anilist_id IS NOT NULL
+  AND s.provider = ?
   AND (
       m.provider_id IS NULL
       OR m.fetched_at < CASE

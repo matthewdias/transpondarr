@@ -9,7 +9,8 @@ import {
 } from "@/lib/chart";
 
 const entry = (over: Partial<SeasonEntry>): SeasonEntry => ({
-  anilist_id: 1,
+  provider: "anilist",
+  provider_id: 1,
   episodes: 12,
   genres: [],
   average_score: 0,
@@ -20,19 +21,19 @@ const entry = (over: Partial<SeasonEntry>): SeasonEntry => ({
 describe("filterEntries", () => {
   const chart = [
     entry({
-      anilist_id: 1,
+      provider_id: 1,
       format: "TV",
       status: "RELEASING",
       genres: ["Action", "Comedy"],
     }),
     entry({
-      anilist_id: 2,
+      provider_id: 2,
       format: "MOVIE",
       status: "FINISHED",
       genres: ["Drama"],
     }),
     entry({
-      anilist_id: 3,
+      provider_id: 3,
       format: "TV",
       status: "NOT_YET_RELEASED",
       genres: ["Comedy"],
@@ -46,17 +47,17 @@ describe("filterEntries", () => {
   it("filters each dimension independently", () => {
     expect(
       filterEntries(chart, { ...NO_FILTERS, format: "TV" }).map(
-        (e) => e.anilist_id,
+        (e) => e.provider_id,
       ),
     ).toEqual([1, 3]);
     expect(
       filterEntries(chart, { ...NO_FILTERS, status: "FINISHED" }).map(
-        (e) => e.anilist_id,
+        (e) => e.provider_id,
       ),
     ).toEqual([2]);
     expect(
       filterEntries(chart, { ...NO_FILTERS, genre: "Comedy" }).map(
-        (e) => e.anilist_id,
+        (e) => e.provider_id,
       ),
     ).toEqual([1, 3]);
   });
@@ -67,7 +68,7 @@ describe("filterEntries", () => {
         format: "TV",
         status: "RELEASING",
         genre: "Comedy",
-      }).map((e) => e.anilist_id),
+      }).map((e) => e.provider_id),
     ).toEqual([1]);
   });
 });

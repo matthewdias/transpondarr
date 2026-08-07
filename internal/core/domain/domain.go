@@ -28,14 +28,16 @@ const (
 	KindMovie   WantedKind = "movie"
 )
 
-// Title is a tracked work (from AniList). It owns a set of WantedItems.
+// Title is a tracked work. Its identity is the (Provider, ProviderID) pair, so
+// the primary key does not name a single upstream.
 type Title struct {
-	ID        int64
-	AniListID int64
-	Name      string
-	Format    Format
-	Monitored bool
-	Items     []WantedItem
+	ID         int64
+	Provider   string
+	ProviderID int64
+	Name       string
+	Format     Format
+	Monitored  bool
+	Items      []WantedItem
 }
 
 // WantedItem is a single acquirable unit — an episode, or a movie's single file.

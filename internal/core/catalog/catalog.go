@@ -16,7 +16,12 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-var ErrAlreadyExists = errors.New("catalog: series already exists")
+var (
+	ErrAlreadyExists = errors.New("catalog: series already exists")
+	// A row keyed on a provider nothing can read would be unrefreshable and
+	// unsearchable, so the pair is rejected at the door rather than persisted.
+	ErrUnknownProvider = errors.New("catalog: unknown metadata provider")
+)
 
 type Service struct {
 	store    *store.Store
@@ -30,6 +35,10 @@ func NewService(st *store.Store, provider metadata.Provider) *Service {
 func (s *Service) Search(ctx context.Context, term string) ([]metadata.Candidate, error) {
 	return s.provider.Search(ctx, term)
 }
+
+// ProviderName is the id space every candidate this service returns is numbered
+// in, so callers can pair it with a ProviderID without hardcoding one.
+func (s *Service) ProviderName() string { return s.provider.Name() }
 
 // TitleVariants returns the accepted display-name variants (romaji/english/
 // native) for a title, used by the decide layer to filter releases that use a
@@ -69,11 +78,21 @@ func dedupeNonEmpty(vals ...string) []string {
 	return out
 }
 
-// AddSeries fetches a title's metadata by provider id and persists it together
-// with its expanded WantedItems in a single transaction. It is idempotent-ish:
-// a title already tracked returns ErrAlreadyExists rather than a duplicate.
-func (s *Service) AddSeries(ctx context.Context, providerID int64, monitored bool) (domain.Title, error) {
-	if _, err := s.store.Q.GetSeriesByAnilistID(ctx, sql.NullInt64{Int64: providerID, Valid: true}); err == nil {
+// AddSeries fetches a title's metadata by provider identity and persists it
+// together with its expanded WantedItems in a single transaction. It is
+// idempotent-ish: a title already tracked returns ErrAlreadyExists rather than a
+// duplicate. Deduping is per id space — the same title known to two providers is
+// two rows until the cross-reference layer (#189) can relate them.
+func (s *Service) AddSeries(ctx context.Context, provider string, providerID int64, monitored bool) (domain.Title, error) {
+	if provider != s.provider.Name() {
+		return domain.Title{}, fmt.Errorf("%w: %q", ErrUnknownProvider, provider)
+	}
+
+	identity := db.GetSeriesByProviderIDParams{
+		Provider:   sql.NullString{String: provider, Valid: true},
+		ProviderID: sql.NullInt64{Int64: providerID, Valid: true},
+	}
+	if _, err := s.store.Q.GetSeriesByProviderID(ctx, identity); err == nil {
 		return domain.Title{}, ErrAlreadyExists
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return domain.Title{}, fmt.Errorf("check existing series: %w", err)
@@ -95,21 +114,23 @@ func (s *Service) AddSeries(ctx context.Context, providerID int64, monitored boo
 	q := s.store.Q.WithTx(tx)
 
 	srow, err := q.CreateSeries(ctx, db.CreateSeriesParams{
-		AnilistID: sql.NullInt64{Int64: providerID, Valid: true},
-		Title:     name,
-		Format:    string(format),
-		Monitored: boolToInt(monitored),
+		Provider:   identity.Provider,
+		ProviderID: identity.ProviderID,
+		Title:      name,
+		Format:     string(format),
+		Monitored:  boolToInt(monitored),
 	})
 	if err != nil {
 		return domain.Title{}, fmt.Errorf("create series: %w", err)
 	}
 
 	title := domain.Title{
-		ID:        srow.ID,
-		AniListID: providerID,
-		Name:      name,
-		Format:    format,
-		Monitored: monitored,
+		ID:         srow.ID,
+		Provider:   provider,
+		ProviderID: providerID,
+		Name:       name,
+		Format:     format,
+		Monitored:  monitored,
 	}
 	for _, it := range items {
 		wrow, err := q.CreateWantedItem(ctx, db.CreateWantedItemParams{

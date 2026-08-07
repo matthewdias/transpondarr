@@ -63,7 +63,7 @@ import {
 } from "@/components/ui/select";
 
 function entryTitle(e: SeasonEntry) {
-  return e.romaji || e.english || e.native || `AniList ${e.anilist_id}`;
+  return e.romaji || e.english || e.native || `${e.provider} ${e.provider_id}`;
 }
 
 export function DiscoveryPage() {
@@ -273,7 +273,7 @@ export function DiscoveryPage() {
             )}
           >
             {filtered.map((e) => (
-              <SeasonCard key={e.anilist_id} entry={e} />
+              <SeasonCard key={`${e.provider}:${e.provider_id}`} entry={e} />
             ))}
           </div>
         )}
@@ -319,7 +319,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
   const isMovie = entry.format === "MOVIE";
 
   const add = useMutation({
-    mutationFn: () => api.addSeries(entry.anilist_id),
+    mutationFn: () => api.addSeries(entry.provider, entry.provider_id),
     onSuccess: (series) => {
       toast.success("Series added", { description: series.title });
       invalidate();
@@ -381,11 +381,14 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
           Add
         </Button>
       )}
-      <Button asChild variant="outline" size="sm" className="px-2">
-        <AniListLink id={entry.anilist_id}>
-          <ExternalLink className="size-3.5" />
-        </AniListLink>
-      </Button>
+      {/* The link is only meaningful in AniList's id space. */}
+      {entry.provider === "anilist" && (
+        <Button asChild variant="outline" size="sm" className="px-2">
+          <AniListLink id={entry.provider_id}>
+            <ExternalLink className="size-3.5" />
+          </AniListLink>
+        </Button>
+      )}
     </>
   );
 

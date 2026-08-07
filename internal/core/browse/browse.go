@@ -41,6 +41,10 @@ func New(st *store.Store, provider metadata.Provider, log *slog.Logger) *Service
 	return &Service{store: st, provider: provider, log: log}
 }
 
+// ProviderName is the id space every chart entry is numbered in, so callers can
+// pair it with a ProviderID without hardcoding one.
+func (s *Service) ProviderName() string { return s.provider.Name() }
+
 // Season returns a season's chart, from cache whatever its age — staleness is
 // the refresh job's problem, not the page view's. Only a never-cached season is
 // fetched live. A provider that cannot browse yields an empty chart, not an
@@ -92,13 +96,18 @@ func (s *Service) Chart(ctx context.Context, season metadata.Season, year int) (
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.store.Q.ListTrackedNextAiring(ctx, sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true})
+	// Scoped to this provider's id space: a chart entry's id only means anything
+	// against a series numbered in the same one.
+	rows, err := s.store.Q.ListTrackedNextAiring(ctx, db.ListTrackedNextAiringParams{
+		AirsAt:   sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true},
+		Provider: sql.NullString{String: s.provider.Name(), Valid: true},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("list tracked next airing: %w", err)
 	}
 	tracked := make(map[int64]db.ListTrackedNextAiringRow, len(rows))
 	for _, row := range rows {
-		tracked[row.AnilistID.Int64] = row
+		tracked[row.ProviderID.Int64] = row
 	}
 
 	out := make([]Entry, 0, len(entries))

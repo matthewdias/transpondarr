@@ -15,7 +15,8 @@ type browseSeasonResponse struct {
 	Season  string `json:"season"`
 	Year    int    `json:"year"`
 	Entries []struct {
-		AniListID    int64    `json:"anilist_id"`
+		Provider     string   `json:"provider"`
+		ProviderID   int64    `json:"provider_id"`
 		Romaji       string   `json:"romaji"`
 		English      string   `json:"english"`
 		Format       string   `json:"format"`
@@ -35,10 +36,10 @@ type browseSeasonResponse struct {
 
 func seedSeasonCache(t *testing.T, h *harness, season string, year int, raw string) {
 	t.Helper()
-	// provider = 'stub': the harness provider cannot browse, so a served chart
-	// can only have come from this row.
+	// The harness provider cannot browse, so a served chart can only have come
+	// from this row.
 	if _, err := h.store.DB.ExecContext(context.Background(),
-		`INSERT INTO season_cache (provider, season, year, raw) VALUES ('stub', ?, ?, ?)`,
+		`INSERT INTO season_cache (provider, season, year, raw) VALUES ('anilist', ?, ?, ?)`,
 		season, year, raw); err != nil {
 		t.Fatalf("seed season cache: %v", err)
 	}
@@ -77,7 +78,7 @@ func TestBrowseSeasonServedFromCache(t *testing.T) {
 		t.Fatalf("got %d entries, want 1", len(out.Entries))
 	}
 	e := out.Entries[0]
-	if e.AniListID != 101 || e.Romaji != "Cached Show" || e.English != "Cached Show EN" {
+	if e.ProviderID != 101 || e.Romaji != "Cached Show" || e.English != "Cached Show EN" {
 		t.Errorf("identity wrong: %+v", e)
 	}
 	if e.Format != "TV" || e.Status != "RELEASING" || e.Episodes != 12 {
@@ -110,7 +111,7 @@ func TestBrowseSeasonDefaultsToCurrent(t *testing.T) {
 	if out.Season != strings.ToLower(string(season)) || out.Year != year {
 		t.Errorf("defaulted to %s %d, want the current %s %d", out.Season, out.Year, season, year)
 	}
-	if len(out.Entries) != 1 || out.Entries[0].AniListID != 7 {
+	if len(out.Entries) != 1 || out.Entries[0].ProviderID != 7 {
 		t.Errorf("entries = %+v, want the cached current-season chart", out.Entries)
 	}
 
@@ -151,7 +152,7 @@ func TestBrowseSeasonMarksTrackedAndOverlaysAiring(t *testing.T) {
 	seriesID := seedSeries(t, h.store, "Tracked Show", 6)
 	localNext := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
 	if _, err := h.store.DB.ExecContext(ctx,
-		`UPDATE series SET anilist_id = 101, airing_synced_at = datetime('now') WHERE id = ?`, seriesID); err != nil {
+		`UPDATE series SET provider = 'anilist', provider_id = 101, airing_synced_at = datetime('now') WHERE id = ?`, seriesID); err != nil {
 		t.Fatalf("mark series tracked: %v", err)
 	}
 	if _, err := h.store.DB.ExecContext(ctx,
@@ -198,7 +199,7 @@ func TestBrowseSeasonDefaultsYearWithExplicitSeason(t *testing.T) {
 	if out.Season != "winter" || out.Year != year {
 		t.Errorf("resolved to %s %d, want winter %d", out.Season, out.Year, year)
 	}
-	if len(out.Entries) != 1 || out.Entries[0].AniListID != 3 {
+	if len(out.Entries) != 1 || out.Entries[0].ProviderID != 3 {
 		t.Errorf("entries = %+v, want the cached winter chart", out.Entries)
 	}
 }

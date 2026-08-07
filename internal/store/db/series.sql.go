@@ -22,21 +22,23 @@ func (q *Queries) ClearSeriesAiringSyncedAt(ctx context.Context, id int64) error
 }
 
 const createSeries = `-- name: CreateSeries :one
-INSERT INTO series (anilist_id, title, format, monitored)
-VALUES (?, ?, ?, ?)
-RETURNING id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
+INSERT INTO series (provider, provider_id, title, format, monitored)
+VALUES (?, ?, ?, ?, ?)
+RETURNING id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
 `
 
 type CreateSeriesParams struct {
-	AnilistID sql.NullInt64 `json:"anilist_id"`
-	Title     string        `json:"title"`
-	Format    string        `json:"format"`
-	Monitored int64         `json:"monitored"`
+	Provider   sql.NullString `json:"provider"`
+	ProviderID sql.NullInt64  `json:"provider_id"`
+	Title      string         `json:"title"`
+	Format     string         `json:"format"`
+	Monitored  int64          `json:"monitored"`
 }
 
 func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Series, error) {
 	row := q.db.QueryRowContext(ctx, createSeries,
-		arg.AnilistID,
+		arg.Provider,
+		arg.ProviderID,
 		arg.Title,
 		arg.Format,
 		arg.Monitored,
@@ -44,7 +46,8 @@ func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Ser
 	var i Series
 	err := row.Scan(
 		&i.ID,
-		&i.AnilistID,
+		&i.Provider,
+		&i.ProviderID,
 		&i.Title,
 		&i.Format,
 		&i.Monitored,
@@ -74,7 +77,7 @@ func (q *Queries) DeleteSeries(ctx context.Context, id int64) (int64, error) {
 }
 
 const getSeries = `-- name: GetSeries :one
-SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
 FROM series
 WHERE id = ?
 LIMIT 1
@@ -85,7 +88,8 @@ func (q *Queries) GetSeries(ctx context.Context, id int64) (Series, error) {
 	var i Series
 	err := row.Scan(
 		&i.ID,
-		&i.AnilistID,
+		&i.Provider,
+		&i.ProviderID,
 		&i.Title,
 		&i.Format,
 		&i.Monitored,
@@ -102,19 +106,26 @@ func (q *Queries) GetSeries(ctx context.Context, id int64) (Series, error) {
 	return i, err
 }
 
-const getSeriesByAnilistID = `-- name: GetSeriesByAnilistID :one
-SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
+const getSeriesByProviderID = `-- name: GetSeriesByProviderID :one
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
 FROM series
-WHERE anilist_id = ?
+WHERE provider = ? AND provider_id = ?
 LIMIT 1
 `
 
-func (q *Queries) GetSeriesByAnilistID(ctx context.Context, anilistID sql.NullInt64) (Series, error) {
-	row := q.db.QueryRowContext(ctx, getSeriesByAnilistID, anilistID)
+type GetSeriesByProviderIDParams struct {
+	Provider   sql.NullString `json:"provider"`
+	ProviderID sql.NullInt64  `json:"provider_id"`
+}
+
+// The pair is the identity: the same id in two provider spaces is two titles.
+func (q *Queries) GetSeriesByProviderID(ctx context.Context, arg GetSeriesByProviderIDParams) (Series, error) {
+	row := q.db.QueryRowContext(ctx, getSeriesByProviderID, arg.Provider, arg.ProviderID)
 	var i Series
 	err := row.Scan(
 		&i.ID,
-		&i.AnilistID,
+		&i.Provider,
+		&i.ProviderID,
 		&i.Title,
 		&i.Format,
 		&i.Monitored,
@@ -132,7 +143,7 @@ func (q *Queries) GetSeriesByAnilistID(ctx context.Context, anilistID sql.NullIn
 }
 
 const listSeries = `-- name: ListSeries :many
-SELECT id, anilist_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch
 FROM series
 ORDER BY title
 `
@@ -148,7 +159,8 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 		var i Series
 		if err := rows.Scan(
 			&i.ID,
-			&i.AnilistID,
+			&i.Provider,
+			&i.ProviderID,
 			&i.Title,
 			&i.Format,
 			&i.Monitored,
@@ -176,11 +188,11 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 }
 
 const listSeriesDueAiringSync = `-- name: ListSeriesDueAiringSync :many
-SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
 FROM series s
-LEFT JOIN metadata_cache m ON m.provider = 'anilist' AND m.provider_id = s.anilist_id
+LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
-  AND s.anilist_id IS NOT NULL
+  AND s.provider = ?
   AND (
       s.airing_synced_at IS NULL
       OR s.airing_synced_at < CASE
@@ -193,6 +205,7 @@ LIMIT ?
 `
 
 type ListSeriesDueAiringSyncParams struct {
+	Provider         sql.NullString `json:"provider"`
 	AiringSyncedAt   sql.NullString `json:"airing_synced_at"`
 	AiringSyncedAt_2 sql.NullString `json:"airing_synced_at_2"`
 	Limit            int64          `json:"limit"`
@@ -204,9 +217,15 @@ type ListSeriesDueAiringSyncParams struct {
 // cache row has unknown status and deliberately rides the short cutoff: unknown
 // is likelier a transient anomaly than a finished title, and the cost is one
 // tail request per short TTL. Never-synced series sort first; the limit bounds
-// how much of the request budget one pass can burn.
+// how much of the request budget one pass can burn. Scoped to one provider
+// because the id this hands to it is only meaningful in that provider's space.
 func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDueAiringSyncParams) ([]Series, error) {
-	rows, err := q.db.QueryContext(ctx, listSeriesDueAiringSync, arg.AiringSyncedAt, arg.AiringSyncedAt_2, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listSeriesDueAiringSync,
+		arg.Provider,
+		arg.AiringSyncedAt,
+		arg.AiringSyncedAt_2,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +235,8 @@ func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDue
 		var i Series
 		if err := rows.Scan(
 			&i.ID,
-			&i.AnilistID,
+			&i.Provider,
+			&i.ProviderID,
 			&i.Title,
 			&i.Format,
 			&i.Monitored,
@@ -244,11 +264,11 @@ func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDue
 }
 
 const listSeriesDueMetadataRefresh = `-- name: ListSeriesDueMetadataRefresh :many
-SELECT s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch
 FROM series s
-LEFT JOIN metadata_cache m ON m.provider = 'anilist' AND m.provider_id = s.anilist_id
+LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
-  AND s.anilist_id IS NOT NULL
+  AND s.provider = ?
   AND (
       m.provider_id IS NULL
       OR m.fetched_at < CASE
@@ -261,9 +281,10 @@ LIMIT ?
 `
 
 type ListSeriesDueMetadataRefreshParams struct {
-	FetchedAt   string `json:"fetched_at"`
-	FetchedAt_2 string `json:"fetched_at_2"`
-	Limit       int64  `json:"limit"`
+	Provider    sql.NullString `json:"provider"`
+	FetchedAt   string         `json:"fetched_at"`
+	FetchedAt_2 string         `json:"fetched_at_2"`
+	Limit       int64          `json:"limit"`
 }
 
 // Monitored series whose cached title snapshot is missing or stale under the
@@ -271,8 +292,14 @@ type ListSeriesDueMetadataRefreshParams struct {
 // earns the long cutoff; anything moving, unknown, or empty rides the short
 // one, mirroring the freshness rule in metadata.Cached. Never-fetched series
 // sort first; the limit bounds how much of the request budget one pass burns.
+// Scoped to one provider for the same reason ListSeriesDueAiringSync is.
 func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeriesDueMetadataRefreshParams) ([]Series, error) {
-	rows, err := q.db.QueryContext(ctx, listSeriesDueMetadataRefresh, arg.FetchedAt, arg.FetchedAt_2, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listSeriesDueMetadataRefresh,
+		arg.Provider,
+		arg.FetchedAt,
+		arg.FetchedAt_2,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +309,8 @@ func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeri
 		var i Series
 		if err := rows.Scan(
 			&i.ID,
-			&i.AnilistID,
+			&i.Provider,
+			&i.ProviderID,
 			&i.Title,
 			&i.Format,
 			&i.Monitored,
@@ -311,7 +339,7 @@ func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeri
 
 const listSeriesWithProgress = `-- name: ListSeriesWithProgress :many
 SELECT
-    s.id, s.anilist_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch,
+    s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch,
     COUNT(w.id)                            AS total_items,
     CAST(COALESCE(SUM(w.in_library), 0) AS INTEGER) AS in_library_items
 FROM series s
@@ -322,7 +350,8 @@ ORDER BY s.title
 
 type ListSeriesWithProgressRow struct {
 	ID               int64          `json:"id"`
-	AnilistID        sql.NullInt64  `json:"anilist_id"`
+	Provider         sql.NullString `json:"provider"`
+	ProviderID       sql.NullInt64  `json:"provider_id"`
 	Title            string         `json:"title"`
 	Format           string         `json:"format"`
 	Monitored        int64          `json:"monitored"`
@@ -350,7 +379,8 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 		var i ListSeriesWithProgressRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.AnilistID,
+			&i.Provider,
+			&i.ProviderID,
 			&i.Title,
 			&i.Format,
 			&i.Monitored,
@@ -382,7 +412,7 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context) ([]ListSeriesWithP
 const listTrackedNextAiring = `-- name: ListTrackedNextAiring :many
 SELECT
     s.id,
-    s.anilist_id,
+    s.provider_id,
     s.airing_synced_at,
     w.number AS next_number,
     w.airs_at AS next_airs_at
@@ -396,22 +426,27 @@ LEFT JOIN wanted_items w ON w.id = (
     ORDER BY w2.airs_at
     LIMIT 1
 )
-WHERE s.anilist_id IS NOT NULL
+WHERE s.provider = ?
 `
+
+type ListTrackedNextAiringParams struct {
+	AirsAt   sql.NullString `json:"airs_at"`
+	Provider sql.NullString `json:"provider"`
+}
 
 type ListTrackedNextAiringRow struct {
 	ID             int64          `json:"id"`
-	AnilistID      sql.NullInt64  `json:"anilist_id"`
+	ProviderID     sql.NullInt64  `json:"provider_id"`
 	AiringSyncedAt sql.NullString `json:"airing_synced_at"`
 	NextNumber     sql.NullInt64  `json:"next_number"`
 	NextAirsAt     sql.NullString `json:"next_airs_at"`
 }
 
-// Discovery overlay rows: every series carrying an AniList id, joined to its
-// next item scheduled after the given instant. airing_synced_at rides along so
-// the caller can tell "synced, nothing upcoming" from "never synced".
-func (q *Queries) ListTrackedNextAiring(ctx context.Context, airsAt sql.NullString) ([]ListTrackedNextAiringRow, error) {
-	rows, err := q.db.QueryContext(ctx, listTrackedNextAiring, airsAt)
+// Discovery overlay rows: every series keyed on the given provider, joined to
+// its next item scheduled after the given instant. airing_synced_at rides along
+// so the caller can tell "synced, nothing upcoming" from "never synced".
+func (q *Queries) ListTrackedNextAiring(ctx context.Context, arg ListTrackedNextAiringParams) ([]ListTrackedNextAiringRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTrackedNextAiring, arg.AirsAt, arg.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -421,7 +456,7 @@ func (q *Queries) ListTrackedNextAiring(ctx context.Context, airsAt sql.NullStri
 		var i ListTrackedNextAiringRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.AnilistID,
+			&i.ProviderID,
 			&i.AiringSyncedAt,
 			&i.NextNumber,
 			&i.NextAirsAt,

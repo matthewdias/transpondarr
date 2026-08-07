@@ -16,7 +16,8 @@ afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 const entry = (over: Partial<SeasonEntry>): SeasonEntry => ({
-  anilist_id: 1,
+  provider: "anilist",
+  provider_id: 1,
   episodes: 12,
   genres: [],
   average_score: 0,
@@ -56,7 +57,7 @@ describe("DiscoveryPage", () => {
     server.use(
       chartHandler([
         entry({
-          anilist_id: 101,
+          provider_id: 101,
           romaji: "Alpha Adventure",
           format: "TV",
           status: "RELEASING",
@@ -67,7 +68,7 @@ describe("DiscoveryPage", () => {
           description: "A hero rises.<br><i>Adapted from the manga.</i>",
         }),
         entry({
-          anilist_id: 102,
+          provider_id: 102,
           romaji: "Beta Ballad",
           format: "TV",
           status: "RELEASING",
@@ -129,7 +130,7 @@ describe("DiscoveryPage", () => {
           year: 2026,
           entries: [
             entry({
-              anilist_id: 101,
+              provider_id: 101,
               romaji: "Alpha Adventure",
               tracked: added,
               series_id: added ? 9 : undefined,
@@ -166,7 +167,7 @@ describe("DiscoveryPage", () => {
       server.use(
         chartHandler([
           entry({
-            anilist_id: 101,
+            provider_id: 101,
             romaji: "Alpha Adventure",
             description: "A compact tale.",
           }),
@@ -195,7 +196,7 @@ describe("DiscoveryPage", () => {
         return HttpResponse.json({
           season: url.searchParams.get("season"),
           year: Number(url.searchParams.get("year")),
-          entries: [entry({ anilist_id: 101, romaji: "Alpha Adventure" })],
+          entries: [entry({ provider_id: 101, romaji: "Alpha Adventure" })],
         });
       }),
     );
@@ -222,7 +223,7 @@ describe("DiscoveryPage", () => {
   it("keeps a movie visible but not addable", async () => {
     server.use(
       chartHandler([
-        entry({ anilist_id: 103, romaji: "Gamma the Movie", format: "MOVIE" }),
+        entry({ provider_id: 103, romaji: "Gamma the Movie", format: "MOVIE" }),
       ]),
     );
 

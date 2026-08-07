@@ -24,6 +24,8 @@ type fakeTitles struct {
 	err      error
 }
 
+func (f fakeTitles) ProviderName() string { return "anilist" }
+
 func (f fakeTitles) TitleVariants(_ context.Context, id int64) ([]string, error) {
 	if f.err != nil {
 		return nil, f.err
@@ -86,10 +88,11 @@ func seedAniListSeries(t *testing.T, st *store.Store, title string, anilistID in
 	t.Helper()
 	ctx := context.Background()
 	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
-		Title:     title,
-		Format:    "TV",
-		Monitored: 1,
-		AnilistID: sql.NullInt64{Int64: anilistID, Valid: anilistID != 0},
+		Title:      title,
+		Format:     "TV",
+		Monitored:  1,
+		Provider:   sql.NullString{String: "anilist", Valid: anilistID != 0},
+		ProviderID: sql.NullInt64{Int64: anilistID, Valid: anilistID != 0},
 	})
 	if err != nil {
 		t.Fatalf("create series: %v", err)

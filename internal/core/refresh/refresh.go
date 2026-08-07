@@ -65,6 +65,7 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 		return store.FormatTimestamp(now.Add(-metadata.TTLFor(status)))
 	}
 	return s.store.Q.ListSeriesDueMetadataRefresh(ctx, db.ListSeriesDueMetadataRefreshParams{
+		Provider:    sql.NullString{String: s.provider.Name(), Valid: true},
 		FetchedAt:   cutoff("FINISHED"),
 		FetchedAt_2: cutoff("RELEASING"),
 		Limit:       seriesPerPass,
@@ -77,7 +78,7 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 // cadence in the same transaction is the other half of that handshake — a new
 // episode is worth looking for now, whatever backoff had accumulated.
 func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
-	_, items, err := s.provider.GetTitle(ctx, series.AnilistID.Int64)
+	_, items, err := s.provider.GetTitle(ctx, series.ProviderID.Int64)
 	if err != nil {
 		return fmt.Errorf("fetch metadata: %w", err)
 	}

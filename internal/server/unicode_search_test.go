@@ -107,7 +107,7 @@ func TestSearchIndexerErrorMidFallback502(t *testing.T) {
 // variantProvider answers GetTitle with fixed metadata so TitleVariants works.
 type variantProvider struct{ meta metadata.TitleMeta }
 
-func (variantProvider) Name() string { return "variant-stub" }
+func (variantProvider) Name() string { return "anilist" }
 
 func (variantProvider) Search(context.Context, string) ([]metadata.Candidate, error) {
 	return nil, errors.New("variant-stub: unexpected Search call")
@@ -124,7 +124,8 @@ func seedAnilistSeries(t *testing.T, h *harness, title string, anilistID int64, 
 	ctx := context.Background()
 	s, err := h.store.Q.CreateSeries(ctx, db.CreateSeriesParams{
 		Title: title, Format: "TV", Monitored: 1,
-		AnilistID: sql.NullInt64{Int64: anilistID, Valid: true},
+		Provider:   sql.NullString{String: "anilist", Valid: true},
+		ProviderID: sql.NullInt64{Int64: anilistID, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("create series: %v", err)

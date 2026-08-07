@@ -18,6 +18,18 @@ All notable changes to this project are documented here. The format is based on
   wrong in the contract rather than merely awkward. The `wanted_items.have`
   column moves with it (migration 00019), since the column is what sources the
   status. No behaviour changes. Closes [#84](https://github.com/matthewdias/transpondarr/issues/84).
+- **A tracked title is now identified by which provider it came from and its id
+  there, not by an AniList id column.** `series.anilist_id` becomes the pair
+  `(provider, provider_id)` — the same shape the metadata cache has always
+  used — with the pair unique and a constraint that both are set or neither is.
+  Nothing about behaviour changes: AniList remains the only provider and every
+  existing row migrates to it. What changes is that the database no longer names
+  its upstream in a column, so moving off AniList would be a migration rather
+  than a rewrite. Relating one title's ids *across* providers is a separate,
+  additive piece of work and is not part of this. The `series` table is rebuilt
+  to do it (migration 00020), since `anilist_id`'s implicit unique index cannot
+  be dropped and no `CHECK` can be bolted on after the fact. Closes
+  [#74](https://github.com/matthewdias/transpondarr/issues/74).
 
 ### Upgrade notes
 
@@ -33,6 +45,25 @@ All notable changes to this project are documented here. The format is based on
   The other status values are untouched. The migration renames the column in
   place, so no data moves and a downgrade to 0.6.x needs `goose down` for
   migration 00019 as usual.
+
+- **Breaking API change: adding a series takes a provider pair.**
+  `POST /api/v1/series` now expects `{"provider": "anilist", "provider_id": 123,
+  "monitored": true}`. `anilist_id` is gone, with no compatibility alias, and
+  `provider` is required rather than defaulted — a default would hide which id
+  space the caller meant, which is the ambiguity this change exists to remove. A
+  request in the old shape is rejected with 422.
+
+  The series responses change to match: `GET /api/v1/series/{id}`, the add
+  response, `GET /api/v1/metadata/search` and `GET /api/v1/browse/season` all
+  emit `provider` and `provider_id` in place of `anilist_id`. The web UI ships
+  inside the server binary and is updated in lockstep, so this only affects
+  scripts and third-party clients calling the API directly.
+
+- **The migration rebuilds the `series` table.** It is applied automatically on
+  first start and preserves every row, including everything hanging off a series
+  — wanted items, grabs, grab history and blocklist entries. As with any
+  schema-changing release, back up `transpondarr.db` before upgrading;
+  downgrading to 0.6.x is supported and converts the pair back.
 
 ## [0.6.0] — 2026-08-06
 

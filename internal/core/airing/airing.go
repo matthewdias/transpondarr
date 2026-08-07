@@ -74,6 +74,7 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 		return sql.NullString{String: store.FormatTimestamp(now.Add(-metadata.TTLFor(status))), Valid: true}
 	}
 	return s.store.Q.ListSeriesDueAiringSync(ctx, db.ListSeriesDueAiringSyncParams{
+		Provider:         sql.NullString{String: s.provider.Name(), Valid: true},
 		AiringSyncedAt:   cutoff("FINISHED"),
 		AiringSyncedAt_2: cutoff("RELEASING"),
 		Limit:            seriesPerPass,
@@ -88,7 +89,7 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	// tail can still move, and that is 1-2 pages instead of one per 50 episodes.
 	notYetAired := series.AiringSyncedAt.Valid
 
-	schedule, err := airing.GetSchedule(ctx, series.AnilistID.Int64, notYetAired)
+	schedule, err := airing.GetSchedule(ctx, series.ProviderID.Int64, notYetAired)
 	if err != nil {
 		return fmt.Errorf("fetch schedule: %w", err)
 	}

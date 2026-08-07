@@ -9,6 +9,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 	"github.com/matthewdias/transpondarr/internal/coretest"
+	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
 // fakeProvider is a metadata.Provider whose responses are set per-test. It
@@ -119,7 +120,7 @@ func TestAddSeriesPersistsTitleAndItems(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	title, err := svc.AddSeries(context.Background(), 42, true)
+	title, err := svc.AddSeries(context.Background(), prov.Name(), 42, true)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
@@ -148,13 +149,23 @@ func TestAddSeriesPersistsTitleAndItems(t *testing.T) {
 		}
 	}
 
+	if title.Provider != prov.Name() || title.ProviderID != 42 {
+		t.Errorf("identity = (%q, %d), want (%q, 42)", title.Provider, title.ProviderID, prov.Name())
+	}
+
 	// Verify the rows actually landed in the DB, not just the returned struct.
-	srow, err := st.Q.GetSeriesByAnilistID(context.Background(), sql.NullInt64{Int64: 42, Valid: true})
+	srow, err := st.Q.GetSeriesByProviderID(context.Background(), db.GetSeriesByProviderIDParams{
+		Provider:   sql.NullString{String: prov.Name(), Valid: true},
+		ProviderID: sql.NullInt64{Int64: 42, Valid: true},
+	})
 	if err != nil {
-		t.Fatalf("GetSeriesByAnilistID: %v", err)
+		t.Fatalf("GetSeriesByProviderID: %v", err)
 	}
 	if srow.Title != "Cowboy Bebop" || srow.Monitored != 1 {
 		t.Errorf("stored series = %+v, want title Cowboy Bebop / monitored 1", srow)
+	}
+	if srow.Provider.String != prov.Name() {
+		t.Errorf("stored provider = %q, want %q", srow.Provider.String, prov.Name())
 	}
 	rows, err := st.Q.ListWantedItems(context.Background(), srow.ID)
 	if err != nil {
@@ -173,11 +184,11 @@ func TestAddSeriesIsIdempotentByProviderID(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	if _, err := svc.AddSeries(context.Background(), 7, true); err != nil {
+	if _, err := svc.AddSeries(context.Background(), prov.Name(), 7, true); err != nil {
 		t.Fatalf("first AddSeries: %v", err)
 	}
 
-	_, err := svc.AddSeries(context.Background(), 7, true)
+	_, err := svc.AddSeries(context.Background(), prov.Name(), 7, true)
 	if !errors.Is(err, ErrAlreadyExists) {
 		t.Fatalf("second AddSeries error = %v, want ErrAlreadyExists", err)
 	}
@@ -196,6 +207,29 @@ func TestAddSeriesIsIdempotentByProviderID(t *testing.T) {
 	}
 }
 
+// Idempotency is keyed on the pair, so an id that collides across id spaces is
+// not mistaken for a title we already track. Deduping the two as one title needs
+// the cross-reference layer (#189) and is deliberately not attempted here.
+func TestAddSeriesIdempotencyIsScopedToTheProvider(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := &fakeProvider{
+		meta:  metadata.TitleMeta{ProviderID: 7, Titles: metadata.Titles{Romaji: "Trigun"}, Format: "TV", Episodes: 1},
+		items: []metadata.ItemMeta{{Number: 1}},
+	}
+	svc := NewService(st, prov)
+
+	if _, err := svc.AddSeries(context.Background(), prov.Name(), 7, true); err != nil {
+		t.Fatalf("first AddSeries: %v", err)
+	}
+	// The same number in another id space is another title, and this provider
+	// cannot read it -- so it is refused for naming an unreachable id space, never
+	// for colliding with the row above.
+	_, err := svc.AddSeries(context.Background(), "mal", 7, true)
+	if !errors.Is(err, ErrUnknownProvider) {
+		t.Fatalf("cross-provider AddSeries error = %v, want ErrUnknownProvider", err)
+	}
+}
+
 // A releasing title with an unknown episode count yields zero items; the series
 // is still created so a later refresh can fill items in.
 func TestAddSeriesWithUnknownEpisodeCount(t *testing.T) {
@@ -206,7 +240,7 @@ func TestAddSeriesWithUnknownEpisodeCount(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	title, err := svc.AddSeries(context.Background(), 9, true)
+	title, err := svc.AddSeries(context.Background(), prov.Name(), 9, true)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
@@ -229,7 +263,7 @@ func TestAddSeriesProviderErrorPersistsNothing(t *testing.T) {
 	prov := &fakeProvider{getErr: errors.New("boom")}
 	svc := NewService(st, prov)
 
-	if _, err := svc.AddSeries(context.Background(), 1, true); err == nil {
+	if _, err := svc.AddSeries(context.Background(), prov.Name(), 1, true); err == nil {
 		t.Fatal("expected an error from a failing provider")
 	}
 	all, err := st.Q.ListSeries(context.Background())

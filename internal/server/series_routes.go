@@ -43,18 +43,22 @@ type wantedItemDTO struct {
 }
 
 type seriesDetailDTO struct {
-	ID        int64           `json:"id"`
-	AniListID int64           `json:"anilist_id"`
-	Title     string          `json:"title"`
-	Format    string          `json:"format"`
-	Monitored bool            `json:"monitored"`
-	Items     []wantedItemDTO `json:"items"`
+	ID         int64           `json:"id"`
+	Provider   string          `json:"provider"`
+	ProviderID int64           `json:"provider_id"`
+	Title      string          `json:"title"`
+	Format     string          `json:"format"`
+	Monitored  bool            `json:"monitored"`
+	Items      []wantedItemDTO `json:"items"`
 }
 
+// provider is required rather than defaulted: a default hides which id space the
+// caller meant, which is the bug class the pair exists to prevent.
 type addSeriesInput struct {
 	Body struct {
-		AniListID int64 `json:"anilist_id" required:"true" doc:"AniList media id to add"`
-		Monitored *bool `json:"monitored,omitempty" doc:"Whether to monitor for downloads (default true)"`
+		Provider   string `json:"provider" required:"true" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
+		ProviderID int64  `json:"provider_id" required:"true" minimum:"1" doc:"The provider's id for the title to add"`
+		Monitored  *bool  `json:"monitored,omitempty" doc:"Whether to monitor for downloads (default true)"`
 	}
 }
 
@@ -78,7 +82,8 @@ type detailItemDTO struct {
 
 type seriesDetailReadDTO struct {
 	ID               int64           `json:"id"`
-	AniListID        int64           `json:"anilist_id,omitempty"`
+	Provider         string          `json:"provider,omitempty" doc:"Metadata provider this series is keyed on; absent when untracked"`
+	ProviderID       int64           `json:"provider_id,omitempty"`
 	Title            string          `json:"title"`
 	English          string          `json:"english,omitempty"`
 	Native           string          `json:"native,omitempty"`
@@ -283,9 +288,15 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 		monitored = *in.Body.Monitored
 	}
 
-	title, err := h.catalog.AddSeries(ctx, in.Body.AniListID, monitored)
+	title, err := h.catalog.AddSeries(ctx, in.Body.Provider, in.Body.ProviderID, monitored)
 	if errors.Is(err, catalog.ErrAlreadyExists) {
 		return nil, huma.Error409Conflict("series already exists")
+	}
+	// Unreachable while the request enum lists exactly the configured provider --
+	// huma rejects anything else at validation with a 422. It fires once the enum
+	// widens past what is actually wired up.
+	if errors.Is(err, catalog.ErrUnknownProvider) {
+		return nil, huma.Error400BadRequest("unknown metadata provider", err)
 	}
 	if err != nil {
 		return nil, huma.Error502BadGateway("failed to add series", err)
@@ -297,12 +308,13 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 
 	out := &addSeriesOutput{}
 	out.Body = seriesDetailDTO{
-		ID:        title.ID,
-		AniListID: title.AniListID,
-		Title:     title.Name,
-		Format:    string(title.Format),
-		Monitored: title.Monitored,
-		Items:     make([]wantedItemDTO, 0, len(title.Items)),
+		ID:         title.ID,
+		Provider:   title.Provider,
+		ProviderID: title.ProviderID,
+		Title:      title.Name,
+		Format:     string(title.Format),
+		Monitored:  title.Monitored,
+		Items:      make([]wantedItemDTO, 0, len(title.Items)),
 	}
 	for _, it := range title.Items {
 		out.Body.Items = append(out.Body.Items, wantedItemDTO{
@@ -350,14 +362,15 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 		hours := int(series.PinDelayHours.Int64)
 		out.Body.PinDelayHours = &hours
 	}
-	if series.AnilistID.Valid {
-		out.Body.AniListID = series.AnilistID.Int64
+	if series.ProviderID.Valid {
+		out.Body.Provider = series.Provider.String
+		out.Body.ProviderID = series.ProviderID.Int64
 		// Best-effort enrichment from the metadata cache (no network call): the
 		// series row only stores the display title, so english/native/status come
-		// from the cached AniList snapshot when present.
+		// from the cached snapshot when present.
 		if row, cerr := h.store.Q.GetCachedMetadata(ctx, db.GetCachedMetadataParams{
-			Provider:   "anilist",
-			ProviderID: series.AnilistID.Int64,
+			Provider:   series.Provider.String,
+			ProviderID: series.ProviderID.Int64,
 		}); cerr == nil {
 			var snap metadata.CachedTitle
 			if json.Unmarshal([]byte(row.Raw), &snap) == nil {

@@ -746,13 +746,18 @@ export interface components {
              * @example https://example.com/schemas/AddSeriesInputBody.json
              */
             readonly $schema?: string;
-            /**
-             * Format: int64
-             * @description AniList media id to add
-             */
-            anilist_id: number;
             /** @description Whether to monitor for downloads (default true) */
             monitored?: boolean;
+            /**
+             * @description Metadata provider whose id space provider_id is numbered in
+             * @enum {string}
+             */
+            provider: "anilist";
+            /**
+             * Format: int64
+             * @description The provider's id for the title to add
+             */
+            provider_id: number;
         };
         ApiKeyOutputBody: {
             /**
@@ -925,14 +930,19 @@ export interface components {
             unscheduled: components["schemas"]["UnscheduledSeriesDTO"][];
         };
         CandidateDTO: {
-            /** Format: int64 */
-            anilist_id: number;
             cover_url?: string;
             english?: string;
             /** Format: int64 */
             episodes: number;
             format?: string;
             native?: string;
+            /**
+             * @description Metadata provider whose id space provider_id is numbered in
+             * @enum {string}
+             */
+            provider: "anilist";
+            /** Format: int64 */
+            provider_id: number;
             romaji?: string;
             status?: string;
             /** Format: int64 */
@@ -1644,8 +1654,6 @@ export interface components {
         };
         SeasonEntryDTO: {
             /** Format: int64 */
-            anilist_id: number;
-            /** Format: int64 */
             average_score: number;
             cover_url?: string;
             /** @description Provider-formatted HTML synopsis */
@@ -1660,6 +1668,13 @@ export interface components {
             next_airs_at?: string;
             /** Format: int64 */
             next_episode?: number;
+            /**
+             * @description Metadata provider whose id space provider_id is numbered in
+             * @enum {string}
+             */
+            provider: "anilist";
+            /** Format: int64 */
+            provider_id: number;
             romaji?: string;
             /**
              * Format: int64
@@ -1698,13 +1713,14 @@ export interface components {
              * @example https://example.com/schemas/SeriesDetailDTO.json
              */
             readonly $schema?: string;
-            /** Format: int64 */
-            anilist_id: number;
             format: string;
             /** Format: int64 */
             id: number;
             items: components["schemas"]["WantedItemDTO"][];
             monitored: boolean;
+            provider: string;
+            /** Format: int64 */
+            provider_id: number;
             title: string;
         };
         SeriesDetailReadDTO: {
@@ -1714,8 +1730,6 @@ export interface components {
              * @example https://example.com/schemas/SeriesDetailReadDTO.json
              */
             readonly $schema?: string;
-            /** Format: int64 */
-            anilist_id?: number;
             cover_url?: string;
             english?: string;
             format: string;
@@ -1731,6 +1745,10 @@ export interface components {
             pin_delay_hours?: number;
             /** @description Release group pinned above profile scoring; absent when none */
             pinned_group?: string;
+            /** @description Metadata provider this series is keyed on; absent when untracked */
+            provider?: string;
+            /** Format: int64 */
+            provider_id?: number;
             /** Format: int64 */
             quality_profile_id: number;
             /** @description Provider status (e.g. RELEASING, FINISHED) */

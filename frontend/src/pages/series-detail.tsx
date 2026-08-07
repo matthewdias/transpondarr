@@ -544,12 +544,13 @@ function DetailHeader({
               {c}
             </span>
           ))}
-          {detail.anilist_id ? (
+          {/* The link is only meaningful in AniList's id space. */}
+          {detail.provider === "anilist" && detail.provider_id ? (
             <AniListLink
-              id={detail.anilist_id}
+              id={detail.provider_id}
               className="inline-flex items-center rounded-md border border-border bg-panel-2 px-2.5 py-1 font-mono text-[11.5px] font-medium text-muted-foreground hover:text-accent-foreground"
             >
-              AniList {detail.anilist_id}
+              AniList {detail.provider_id}
             </AniListLink>
           ) : null}
           <ProfilePicker detail={detail} />
