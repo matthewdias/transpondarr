@@ -107,6 +107,47 @@ export function SeriesDetailPage() {
     },
   });
 
+  // Selection is the page's, not the tab's: Radix unmounts an inactive panel,
+  // so a selection held in the tab would evaporate on a round trip to Releases.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  useEffect(() => setSelected(new Set()), [id]);
+  const toggleSelect = (itemId: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(itemId)) next.add(itemId);
+      return next;
+    });
+
+  const setItemsMonitored = useMutation({
+    mutationFn: ({ ids, monitored }: { ids: number[]; monitored: boolean }) =>
+      api.setItemsMonitored(ids, monitored),
+    onMutate: async ({ ids, monitored }) => {
+      await queryClient.cancelQueries({ queryKey: detailKey });
+      const prev = queryClient.getQueryData(detailKey);
+      const set = new Set(ids);
+      queryClient.setQueryData(detailKey, (old) =>
+        old
+          ? {
+              ...old,
+              items: old.items.map((it) =>
+                set.has(it.id) ? { ...it, monitored } : it,
+              ),
+            }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
+      toast.error("Could not update episode monitoring");
+    },
+    onSuccess: () => setSelected(new Set()),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: detailKey });
+      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
+    },
+  });
+
   const notFound = isError && error instanceof ApiError && error.status === 404;
 
   const breadcrumb = (
@@ -211,6 +252,11 @@ export function SeriesDetailPage() {
                   detail={detail}
                   onSearchAll={searchAll}
                   onSearchItem={searchItem}
+                  selected={selected}
+                  onToggleSelect={toggleSelect}
+                  onSetMonitored={(ids, monitored) =>
+                    setItemsMonitored.mutate({ ids, monitored })
+                  }
                 />
               </TabsContent>
               <TabsContent value="releases">

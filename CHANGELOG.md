@@ -6,8 +6,41 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **Per-episode monitoring.** Monitoring used to be all or nothing per series, so
+  once an item existed the sweep chased it until a file landed — forever. Now
+  every episode carries its own flag: unmonitor a recap, an episode you already
+  have, or 1,038 episodes of a back catalogue, and automation stops looking for
+  them. Adding a series now asks which episodes to monitor — **all**, **future
+  only** (from the next broadcast onwards), or **none** — which is the only
+  answer that works for a currently-airing long-runner, since a new series sorts
+  to the front of the search queue and one pass grabs every eligible candidate.
+  The choice is stored as a numeric cut, so an episode created six months later
+  is monitored without any follow-up: that is what "continue from 1050" means,
+  and it survives the airing sync's gap-fill and metadata-refresh growth, both of
+  which would otherwise re-create the range you just narrowed. The Episodes table
+  gains row checkboxes and a bulk monitor/unmonitor toolbar; the Wanted page
+  gains an `unmonitored` reason and a per-row toggle, with unmonitored rows
+  hidden behind the existing Unmonitored chip rather than removed, so the click
+  is undoable. Two boundaries are deliberate. **Monitoring never gates a manual
+  path** — a manual search and a manual grab still work on an unmonitored
+  episode, as quality profiles already worked. And **monitoring gates search and
+  grab, not import**: a pack grabbed for its monitored episodes still places
+  every file it carries, because the bytes are already spent and, in hardlink
+  mode, cost no disk. Closes [#188](https://github.com/matthewdias/transpondarr/issues/188).
+
 ### Changed
 
+- **A series' progress is now measured against what it is pursuing, not against
+  every episode it will ever have.** The denominator is monitored *and* already
+  broadcast, following Sonarr, with the raw total kept beside it. This is visible
+  on **every** series, including ones with nothing unmonitored: a 12-episode show
+  three episodes in goes from `3 / 12` to `3 / 3 (12 total)`. A null air date
+  counts as aired, because AniList's schedule coverage is thin by design and the
+  inverted reading would make half a library report 100%. The API keeps `total`
+  unchanged and adds `tracked` alongside it, so a client reading the old field
+  still gets the old number.
 - **The item status `have` is now `in_library`, and so is the field it derives
   from.** `have` was the odd one out in a vocabulary of `downloading` / `stuck` /
   `deferred` / `wanted` — `status: have` never read as a state — and the web UI

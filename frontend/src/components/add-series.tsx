@@ -3,10 +3,11 @@ import { useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from "lucide-react";
-import { api, ApiError, type Candidate } from "@/lib/api";
+import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
 import { metadataSearchQuery, seriesQuery } from "@/lib/queries";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Poster } from "@/components/poster";
@@ -35,8 +36,23 @@ function candidateTitle(c: Candidate) {
   return c.romaji || c.english || c.native || `${c.provider} ${c.provider_id}`;
 }
 
+// The choice has to be made before the add, not after: a new series is
+// never-searched, which sorts it to the front of the sweep queue, and one pass
+// grabs every eligible candidate -- so a 1050-episode back catalogue starts
+// landing well before anyone can click a thousand checkboxes.
+const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
+  { value: "all", label: "All episodes", hint: "Including the back catalogue" },
+  {
+    value: "future",
+    label: "Future only",
+    hint: "From the next broadcast onwards",
+  },
+  { value: "none", label: "None", hint: "Track the series, grab nothing" },
+];
+
 function AddSeriesBody({ onDone }: { onDone: () => void }) {
   const [term, setTerm] = useState("");
+  const [monitorItems, setMonitorItems] = useState<MonitorItems>("all");
   const debounced = useDebounce(term, 350);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -49,7 +65,8 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
   });
 
   const add = useMutation({
-    mutationFn: (c: Candidate) => api.addSeries(c.provider, c.provider_id),
+    mutationFn: (c: Candidate) =>
+      api.addSeries(c.provider, c.provider_id, monitorItems),
     onSuccess: (series) => {
       queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
       toast.success("Series added", {
@@ -84,6 +101,33 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
           className="pl-9"
         />
       </div>
+
+      <fieldset className="mt-3 flex flex-wrap items-center gap-2">
+        <legend className="sr-only">Which episodes to monitor</legend>
+        <span className="text-[13px] text-muted-foreground">Monitor</span>
+        {monitorChoices.map((c) => (
+          <label
+            key={c.value}
+            title={c.hint}
+            className={cn(
+              "cursor-pointer rounded-full border px-3 py-1 text-[12.5px] font-medium",
+              monitorItems === c.value
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <input
+              type="radio"
+              name="monitor-items"
+              className="sr-only"
+              value={c.value}
+              checked={monitorItems === c.value}
+              onChange={() => setMonitorItems(c.value)}
+            />
+            {c.label}
+          </label>
+        ))}
+      </fieldset>
 
       <div className="mt-2 max-h-[56vh] min-h-[8rem] overflow-y-auto">
         {/* A paused retry (browser offline) reports neither fetching nor error. */}

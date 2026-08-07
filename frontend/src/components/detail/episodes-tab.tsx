@@ -1,4 +1,4 @@
-import { Search } from "lucide-react";
+import { Eye, EyeOff, Search } from "lucide-react";
 import type { SeriesDetail, WantedItem } from "@/lib/api";
 import { airDate, pad2 } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -17,19 +17,35 @@ export function EpisodesTab({
   detail,
   onSearchAll,
   onSearchItem,
+  selected,
+  onToggleSelect,
+  onSetMonitored,
 }: {
   detail: SeriesDetail;
   onSearchAll: () => void;
   onSearchItem: (n: number) => void;
+  selected: Set<number>;
+  onToggleSelect: (id: number) => void;
+  onSetMonitored: (ids: number[], monitored: boolean) => void;
 }) {
   const items = detail.items;
-  const total = items.length;
-  const inLibrary = items.filter((i) => i.status === "in_library").length;
-  const downloading = items.filter((i) => i.status === "downloading").length;
-  const stuck = items.filter((i) => i.status === "stuck").length;
-  const deferred = items.filter((i) => i.status === "deferred").length;
+  // Progress is measured against what is actually being pursued, matching the
+  // server's tracked count on the series list -- otherwise one bar reads 3 / 3
+  // and the other 3 / 1050 for the same narrowed long-runner.
+  const tracked = items.filter((i) => i.monitored);
+  const total = tracked.length;
+  const unmonitored = items.length - total;
+  const count = (s: WantedItem["status"]) =>
+    tracked.filter((i) => i.status === s).length;
+  const inLibrary = count("in_library");
+  const downloading = count("downloading");
+  const stuck = count("stuck");
+  const deferred = count("deferred");
   const wanted = total - inLibrary - downloading - stuck - deferred;
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+
+  const selectedItems = items.filter((i) => selected.has(i.id));
+  const selectedIds = selectedItems.map((i) => i.id);
 
   return (
     <div>
@@ -83,6 +99,12 @@ export function EpisodesTab({
             )}
             <span className="mx-1 text-faint">·</span>
             {wanted} wanted
+            {unmonitored > 0 && (
+              <>
+                <span className="mx-1 text-faint">·</span>
+                <span className="text-faint">{unmonitored} not monitored</span>
+              </>
+            )}
           </div>
         </div>
         <Button
@@ -96,11 +118,36 @@ export function EpisodesTab({
         </Button>
       </div>
 
+      {selectedIds.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border bg-panel-2 px-3.5 py-2.5">
+          <span className="text-[13px] font-medium">
+            {selectedIds.length} selected
+          </span>
+          <div className="ml-auto flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSetMonitored(selectedIds, true)}
+            >
+              <Eye className="size-4" /> Monitor {selectedIds.length}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onSetMonitored(selectedIds, false)}
+            >
+              <EyeOff className="size-4" /> Unmonitor {selectedIds.length}
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8" />
                 <TableHead className="w-[70px]">Ep</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden w-32 md:table-cell">
@@ -112,7 +159,14 @@ export function EpisodesTab({
             </TableHeader>
             <TableBody>
               {items.map((item) => (
-                <EpisodeRow key={item.id} item={item} onSearch={onSearchItem} />
+                <EpisodeRow
+                  key={item.id}
+                  item={item}
+                  selected={selected.has(item.id)}
+                  onToggleSelect={onToggleSelect}
+                  onSetMonitored={onSetMonitored}
+                  onSearch={onSearchItem}
+                />
               ))}
             </TableBody>
           </Table>
@@ -124,15 +178,35 @@ export function EpisodesTab({
 
 function EpisodeRow({
   item,
+  selected,
+  onToggleSelect,
+  onSetMonitored,
   onSearch,
 }: {
   item: WantedItem;
+  selected: boolean;
+  onToggleSelect: (id: number) => void;
+  onSetMonitored: (ids: number[], monitored: boolean) => void;
   onSearch: (n: number) => void;
 }) {
   return (
     <TableRow
-      className={cn(item.status === "wanted" && "text-muted-foreground")}
+      className={cn(
+        item.status === "wanted" && "text-muted-foreground",
+        !item.monitored && "opacity-60",
+      )}
     >
+      <TableCell>
+        {/* A raw checkbox, as on the Wanted page: there is no shadcn Checkbox
+            in this project and this is not the change that adds one. */}
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelect(item.id)}
+          className="size-3.5 accent-primary"
+          aria-label={`Select episode ${item.number}`}
+        />
+      </TableCell>
       <TableCell className="font-mono font-semibold tabular-nums">
         {pad2(item.number)}
       </TableCell>
@@ -159,14 +233,34 @@ function EpisodeRow({
         )}
       </TableCell>
       <TableCell className="text-right">
-        {(item.status === "wanted" || item.status === "deferred") && (
+        <div className="flex items-center justify-end gap-2">
+          {/* Search stays offered on an unmonitored episode: monitoring never
+              gates a manual path (PR #57, generalised by #188). */}
+          {(item.status === "wanted" || item.status === "deferred") && (
+            <button
+              className="text-sm font-medium text-accent-foreground hover:underline"
+              onClick={() => onSearch(item.number)}
+            >
+              Search
+            </button>
+          )}
           <button
-            className="text-sm font-medium text-accent-foreground hover:underline"
-            onClick={() => onSearch(item.number)}
+            className="text-faint hover:text-foreground"
+            title={item.monitored ? "Stop monitoring" : "Monitor"}
+            aria-label={
+              item.monitored
+                ? `Stop monitoring episode ${item.number}`
+                : `Monitor episode ${item.number}`
+            }
+            onClick={() => onSetMonitored([item.id], !item.monitored)}
           >
-            Search
+            {item.monitored ? (
+              <Eye className="size-4" />
+            ) : (
+              <EyeOff className="size-4" />
+            )}
           </button>
-        )}
+        </div>
       </TableCell>
     </TableRow>
   );

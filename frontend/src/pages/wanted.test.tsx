@@ -23,6 +23,7 @@ afterAll(() => server.close());
 const missing = (over: Partial<MissingItem>): MissingItem => ({
   id: 1,
   number: 4,
+  monitored: true,
   ...over,
 });
 
@@ -42,6 +43,7 @@ const group = (
 const cutoff = (over: Partial<CutoffItem>): CutoffItem => ({
   id: 11,
   number: 2,
+  monitored: true,
   status: "in_library",
   held_release: "[FakeGroup] Signal Anomaly - 02 [720p]",
   score: 2100,
@@ -74,6 +76,7 @@ function useHandlers(opts: {
   cutoffPages?: Record<string, { groups: CutoffGroup[]; next_cursor?: string }>;
   onSearch?: (body: { series_ids?: number[] }) => void;
   onMissing?: (query: URLSearchParams) => void;
+  onSetMonitored?: (body: { item_ids: number[]; monitored: boolean }) => void;
 }) {
   server.use(
     http.get("/api/v1/wanted/missing", ({ request }) => {
@@ -88,6 +91,17 @@ function useHandlers(opts: {
         return HttpResponse.json(opts.cutoffPages[cursor] ?? { groups: [] });
       }
       return HttpResponse.json({ groups: opts.cutoffGroups ?? [] });
+    }),
+    http.patch("/api/v1/wanted/items", async ({ request }) => {
+      const body = (await request.json()) as {
+        item_ids: number[];
+        monitored: boolean;
+      };
+      opts.onSetMonitored?.(body);
+      return HttpResponse.json({
+        updated: body.item_ids.length,
+        series_queued: body.monitored ? 1 : 0,
+      });
     }),
     http.post("/api/v1/wanted/search", async ({ request }) => {
       const body = (await request.json()) as { series_ids?: number[] };
@@ -590,4 +604,57 @@ it("words the queued-search toast for what actually happened", () => {
     title: "Search queued for 1 series.",
     description: "The next scheduled sweep will pick it up.",
   });
+});
+
+// #188: an unmonitored row is only reachable behind the toggle, so it has to
+// say why it is quiet -- and the pass tier it may still carry is suppressed,
+// since nothing will ever revisit it.
+it("labels an unmonitored row and offers to re-monitor it", async () => {
+  const calls: { item_ids: number[]; monitored: boolean }[] = [];
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({}, [
+            missing({
+              id: 9,
+              number: 4,
+              monitored: false,
+              reason: "unmonitored",
+            }),
+          ]),
+        ],
+      },
+    },
+    onSetMonitored: (body) => calls.push(body),
+  });
+  renderPage();
+
+  expect(await screen.findByText("Not monitored")).toBeInTheDocument();
+
+  const user = userEvent.setup();
+  await user.click(
+    screen.getByRole("button", { name: /^monitor episode 4$/i }),
+  );
+  await waitFor(() =>
+    expect(calls).toEqual([{ item_ids: [9], monitored: true }]),
+  );
+});
+
+// The click that hides a row is one request, from the row itself.
+it("unmonitors a missing row in place", async () => {
+  const calls: { item_ids: number[]; monitored: boolean }[] = [];
+  useHandlers({
+    pages: { "": { groups: [group({}, [missing({ id: 3, number: 6 })])] } },
+    onSetMonitored: (body) => calls.push(body),
+  });
+  renderPage();
+
+  const user = userEvent.setup();
+  await user.click(
+    await screen.findByRole("button", { name: /stop monitoring episode 6/i }),
+  );
+  await waitFor(() =>
+    expect(calls).toEqual([{ item_ids: [3], monitored: false }]),
+  );
 });

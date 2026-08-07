@@ -27,6 +27,7 @@ const item = (number: number, status: WantedItem["status"]): WantedItem => ({
   id: number,
   number,
   in_library: status === "in_library",
+  monitored: true,
   status,
 });
 

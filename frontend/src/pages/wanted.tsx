@@ -10,6 +10,7 @@ import {
   CalendarClock,
   ChevronDown,
   ChevronRight,
+  Eye,
   EyeOff,
   ListChecks,
   RefreshCw,
@@ -73,6 +74,7 @@ const seriesReasonTone: Record<SeriesMissingReason, string> = {
 // The row tier. The last five are #181's: what the last pass decided about this
 // episode, which is the half the user can act on.
 const itemReasonLabel: Record<ItemMissingReason, string> = {
+  unmonitored: "Not monitored",
   unaired: "Not aired yet",
   grab_failed: "Last grab failed",
   no_match: "Nothing matched",
@@ -85,6 +87,7 @@ const itemReasonLabel: Record<ItemMissingReason, string> = {
 // A refused add is a failure like a failed grab; a decline is the mid tone,
 // because there is a setting behind it to change.
 const itemReasonTone: Record<ItemMissingReason, string> = {
+  unmonitored: "border-border bg-panel-2 text-faint",
   unaired: "border-border bg-panel-2 text-faint",
   grab_failed: "border-destructive/40 text-destructive",
   add_failed: "border-destructive/40 text-destructive",
@@ -286,6 +289,50 @@ function GroupSection({
 }
 
 // overflowRow links to the series for what the group cap left out.
+// One state-setter for both listings. It invalidates the whole wanted key
+// rather than patching a page: unmonitoring removes the row from the default
+// view entirely, which no in-place edit could express.
+function useSetItemMonitored() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, monitored }: { id: number; monitored: boolean }) =>
+      api.setItemsMonitored([id], monitored),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wanted"] }),
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiError ? err.message : "Could not update monitoring",
+      ),
+  });
+}
+
+function MonitorToggle({
+  itemId,
+  number,
+  monitored,
+}: {
+  itemId: number;
+  number: number;
+  monitored: boolean;
+}) {
+  const set = useSetItemMonitored();
+  const Icon = monitored ? Eye : EyeOff;
+  return (
+    <button
+      className="shrink-0 text-faint hover:text-foreground"
+      disabled={set.isPending}
+      title={monitored ? "Stop monitoring" : "Monitor"}
+      aria-label={
+        monitored
+          ? `Stop monitoring episode ${number}`
+          : `Monitor episode ${number}`
+      }
+      onClick={() => set.mutate({ id: itemId, monitored: !monitored })}
+    >
+      <Icon className="size-4" />
+    </button>
+  );
+}
+
 function OverflowRow({ seriesId, label }: { seriesId: number; label: string }) {
   return (
     <Link
@@ -380,6 +427,11 @@ function MissingRow({
           <Search className="size-4" /> Search
         </Link>
       </Button>
+      <MonitorToggle
+        itemId={item.id}
+        number={item.number}
+        monitored={item.monitored}
+      />
     </div>
   );
 }
@@ -599,6 +651,11 @@ function CutoffRow({
           <Search className="size-4" /> Search
         </Link>
       </Button>
+      <MonitorToggle
+        itemId={item.id}
+        number={item.number}
+        monitored={item.monitored}
+      />
     </div>
   );
 }
