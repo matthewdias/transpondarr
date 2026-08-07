@@ -16,7 +16,7 @@ SELECT
     g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
-    w.in_library   AS item_in_library,
+    w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
     s.format AS series_format
@@ -69,7 +69,7 @@ SELECT
     g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
-    w.in_library   AS item_in_library,
+    w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
     s.format AS series_format
@@ -182,7 +182,7 @@ SELECT
     g.missing_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
-    w.in_library   AS item_in_library,
+    w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
     s.format AS series_format

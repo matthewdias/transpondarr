@@ -363,7 +363,7 @@ func TestSyncTailFillsOnlyInsideItsOwnSpan(t *testing.T) {
 	}
 }
 
-func TestSyncUpsertDoesNotClobberHave(t *testing.T) {
+func TestSyncUpsertDoesNotClobberInLibrary(t *testing.T) {
 	st := coretest.NewStore(t)
 	seriesID := seedSeries(t, st, 100, 1)
 	if _, err := st.DB.ExecContext(context.Background(),

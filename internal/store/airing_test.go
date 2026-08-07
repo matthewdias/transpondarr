@@ -52,17 +52,17 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 		t.Fatalf("re-apply airing migration over duplicates: %v", err)
 	}
 
-	var count, have int
+	var count, inLibrary int
 	if err := st.DB.QueryRowContext(ctx,
 		`SELECT COUNT(*), COALESCE(MAX(in_library), 0) FROM wanted_items WHERE series_id = ?`,
-		seriesID).Scan(&count, &have); err != nil {
+		seriesID).Scan(&count, &inLibrary); err != nil {
 		t.Fatalf("count items: %v", err)
 	}
 	if count != 1 {
 		t.Fatalf("got %d items after the upgrade, want 1", count)
 	}
-	if have != 1 {
-		t.Error("dedupe kept the empty row and dropped the one marked have")
+	if inLibrary != 1 {
+		t.Error("dedupe kept the empty row and dropped the one already in the library")
 	}
 }
 

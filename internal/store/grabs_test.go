@@ -19,7 +19,7 @@ func tempStore(t *testing.T) *Store {
 	return st
 }
 
-func TestUpsertGrabIsOnePerItemAndLeavesHaveUntouched(t *testing.T) {
+func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 
@@ -78,7 +78,7 @@ func TestUpsertGrabIsOnePerItemAndLeavesHaveUntouched(t *testing.T) {
 		t.Fatalf("list wanted items: %v", err)
 	}
 	if items[0].InLibrary != 0 {
-		t.Errorf("have = %d after grab, want 0 (import sets have, not grab)", items[0].InLibrary)
+		t.Errorf("in_library = %d after grab, want 0 (import sets it, not grab)", items[0].InLibrary)
 	}
 }
 

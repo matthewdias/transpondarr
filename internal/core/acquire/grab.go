@@ -179,7 +179,7 @@ func (s *Service) Grab(ctx context.Context, seriesID int64, cand decide.Candidat
 		if !ok {
 			continue
 		}
-		// have stays false — only a successful import marks an item as had.
+		// in_library stays false — only a successful import puts a file there.
 		if _, err := q.UpsertGrab(ctx, db.UpsertGrabParams{
 			WantedItemID: id,
 			InfoHash:     res.Hash,

@@ -22,7 +22,7 @@ func seedSearchSeries(t *testing.T, st *Store, title string, monitored int64) in
 }
 
 // seedSearchItem inserts one wanted item; airsAt is optional (nil = unscheduled).
-func seedSearchItem(t *testing.T, st *Store, seriesID int64, number int, have int64, airsAt *time.Time) int64 {
+func seedSearchItem(t *testing.T, st *Store, seriesID int64, number int, inLibrary int64, airsAt *time.Time) int64 {
 	t.Helper()
 	var at sql.NullString
 	if airsAt != nil {
@@ -31,7 +31,7 @@ func seedSearchItem(t *testing.T, st *Store, seriesID int64, number int, have in
 	item, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
 		SeriesID: seriesID, Kind: "episode",
 		Number:    sql.NullInt64{Int64: int64(number), Valid: true},
-		InLibrary: have,
+		InLibrary: inLibrary,
 	})
 	if err != nil {
 		t.Fatalf("create item %d: %v", number, err)
@@ -273,10 +273,10 @@ func TestListBackedOffSeriesWantedInWindowOrdersFurthestFirstAndLimits(t *testin
 }
 
 // mustSeed inserts a series with one wanted item and returns the series id.
-func mustSeed(t *testing.T, st *Store, title string, monitored int64, number int, have int64, airsAt *time.Time) int64 {
+func mustSeed(t *testing.T, st *Store, title string, monitored int64, number int, inLibrary int64, airsAt *time.Time) int64 {
 	t.Helper()
 	id := seedSearchSeries(t, st, title, monitored)
-	seedSearchItem(t, st, id, number, have, airsAt)
+	seedSearchItem(t, st, id, number, inLibrary, airsAt)
 	return id
 }
 

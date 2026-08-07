@@ -60,8 +60,8 @@ type missingGroupDTO struct {
 // cutoffItemDTO is one held item whose release scores below its profile's
 // cutoff, with the numbers behind that claim. The cutoff itself lives on the
 // group, being the profile's rather than any one item's. There is no import
-// error here: a held item derives to have/downloading and never to stuck, so a
-// failing upgrade's reason is the Activity queue's to show, alongside the
+// error here: a held item derives to in_library/downloading and never to stuck,
+// so a failing upgrade's reason is the Activity queue's to show, alongside the
 // deferred imports this listing also leaves to it.
 type cutoffItemDTO struct {
 	ID          int64          `json:"id"`

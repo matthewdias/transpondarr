@@ -548,8 +548,8 @@ func (s *Service) loadSweepItems(ctx context.Context, seriesID int64, now time.T
 	return out, nil
 }
 
-// nextAiring is the earliest broadcast still ahead of us among items we do not
-// have, or the zero time when nothing is scheduled.
+// nextAiring is the earliest broadcast still ahead of us among items the
+// library does not hold, or the zero time when nothing is scheduled.
 func nextAiring(sweep []sweepItem, now time.Time) time.Time {
 	var next time.Time
 	for _, it := range sweep {

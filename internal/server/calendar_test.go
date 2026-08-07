@@ -110,7 +110,7 @@ func TestCalendarDerivesItemStatus(t *testing.T) {
 	if err := h.store.Q.SetWantedItemInLibrary(ctx, db.SetWantedItemInLibraryParams{
 		InLibrary: 1, ID: itemID(t, h.store, seriesID, 1),
 	}); err != nil {
-		t.Fatalf("set have: %v", err)
+		t.Fatalf("set in_library: %v", err)
 	}
 	grab := func(number int, status string) db.Grab {
 		g, err := h.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
@@ -162,7 +162,7 @@ func TestCalendarSurfacesUnscheduledSeries(t *testing.T) {
 	if err := h.store.Q.SetWantedItemInLibrary(ctx, db.SetWantedItemInLibraryParams{
 		InLibrary: 1, ID: itemID(t, h.store, complete, 1),
 	}); err != nil {
-		t.Fatalf("set have: %v", err)
+		t.Fatalf("set in_library: %v", err)
 	}
 
 	unmonitored := seedSeries(t, h.store, "Unmonitored NoSched", 1)

@@ -241,15 +241,15 @@ func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 			t.Errorf("item %d = %q, want imported", g.ItemNumber.Int64, g.Status)
 		}
 	}
-	var haveAll = true
+	var allInLibrary = true
 	items, _ := st.Q.ListWantedItems(ctx, rows[0].SeriesID)
 	for _, it := range items {
 		if it.InLibrary != 1 {
-			haveAll = false
+			allInLibrary = false
 		}
 	}
-	if !haveAll {
-		t.Errorf("items = %+v, want every one marked had", items)
+	if !allInLibrary {
+		t.Errorf("items = %+v, want every one in the library", items)
 	}
 }
 
