@@ -1,7 +1,7 @@
 import { memo, useCallback, useMemo, useRef } from "react";
 import { Eye, EyeOff, Search } from "lucide-react";
 import type { SeriesDetail, WantedItem } from "@/lib/api";
-import { airDate, pad2 } from "@/lib/format";
+import { airDate, pad2, parseTimestamp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
@@ -13,6 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+function Sep() {
+  return <span className="mx-1 text-faint">·</span>;
+}
 
 export function EpisodesTab({
   detail,
@@ -36,19 +40,27 @@ export function EpisodesTab({
   // Memoized because a 1,200-row series recomputes these on every selection
   // change otherwise, and none of them depend on the selection.
   const counts = useMemo(() => {
-    // Progress is measured against what the series is pursuing, matching the
-    // server's tracked count on the series list -- otherwise one bar reads
-    // 3 / 3 and the other 3 / 1050 for the same narrowed long-runner.
-    const tracked = items.filter((i) => i.monitored);
+    // Exactly ListSeriesWithProgress's definition of tracked -- monitored AND
+    // already broadcast -- so this strip and the series-list bar can never
+    // disagree about the same series. A null air date reads as aired, because
+    // AniList's schedule coverage is thin by design.
+    const now = Date.now();
+    const aired = (i: WantedItem) =>
+      !i.airs_at || parseTimestamp(i.airs_at) <= now;
+    const tracked = items.filter((i) => i.monitored && aired(i));
     const of = (s: WantedItem["status"]) =>
       tracked.filter((i) => i.status === s).length;
     const inLibrary = of("in_library");
     const downloading = of("downloading");
     const stuck = of("stuck");
     const deferred = of("deferred");
+    // The three categories partition every item, so a reader can add them up to
+    // the total -- which is why unaired has to be named rather than dropped.
+    const unmonitored = items.filter((i) => !i.monitored).length;
     return {
       total: tracked.length,
-      unmonitored: items.length - tracked.length,
+      unaired: items.length - tracked.length - unmonitored,
+      unmonitored,
       inLibrary,
       downloading,
       stuck,
@@ -58,6 +70,7 @@ export function EpisodesTab({
   }, [items]);
   const {
     total,
+    unaired,
     unmonitored,
     inLibrary,
     downloading,
@@ -66,6 +79,9 @@ export function EpisodesTab({
     wanted,
   } = counts;
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+  // "0 / 0" reads as "this series has no episodes", which is exactly wrong for
+  // a show you are waiting on.
+  const nothingAired = total === 0 && items.length > 0;
 
   // The shift-click anchor is the last row clicked, not part of the selection,
   // and moving it must not re-render 1,200 rows -- hence a ref.
@@ -90,7 +106,7 @@ export function EpisodesTab({
         <div className="flex min-w-0 flex-1 items-center gap-3.5">
           <div
             className="flex h-2.5 w-[120px] flex-none overflow-hidden rounded-md bg-foreground/10 ring-1 ring-inset ring-foreground/[0.07] sm:w-[200px]"
-            title={`${inLibrary} in library · ${downloading} downloading · ${stuck} import blocked · ${deferred} batch downloaded · ${wanted} wanted`}
+            title={`${inLibrary} in library · ${downloading} downloading · ${stuck} import blocked · ${deferred} batch downloaded · ${wanted} wanted · ${unaired} not yet aired · ${unmonitored} not monitored`}
           >
             {inLibrary > 0 && (
               <span
@@ -106,40 +122,60 @@ export function EpisodesTab({
             )}
           </div>
           <div className="min-w-0 text-[13px] text-muted-foreground">
-            <b className="font-semibold tabular-nums text-foreground">
-              {inLibrary} / {total}
-            </b>{" "}
-            in library
-            {downloading > 0 && (
+            {nothingAired ? (
+              <b className="font-semibold text-foreground">Nothing aired yet</b>
+            ) : (
               <>
-                <span className="mx-1 text-faint">·</span>
-                <span className="font-semibold text-dl">
-                  {downloading} downloading
-                </span>
+                <b className="font-semibold tabular-nums text-foreground">
+                  {inLibrary} / {total}
+                </b>{" "}
+                in library
+                {downloading > 0 && (
+                  <>
+                    <Sep />
+                    <span className="font-semibold text-dl">
+                      {downloading} downloading
+                    </span>
+                  </>
+                )}
+                {stuck > 0 && (
+                  <>
+                    <Sep />
+                    <span className="font-semibold text-destructive">
+                      {stuck} import blocked
+                    </span>
+                  </>
+                )}
+                {deferred > 0 && (
+                  <>
+                    <Sep />
+                    <span className="font-semibold text-dl">
+                      {deferred} batch downloaded
+                    </span>
+                  </>
+                )}
+                <Sep />
+                {wanted} wanted
               </>
             )}
-            {stuck > 0 && (
+            {unaired > 0 && (
               <>
-                <span className="mx-1 text-faint">·</span>
-                <span className="font-semibold text-destructive">
-                  {stuck} import blocked
-                </span>
+                <Sep />
+                <span className="text-faint">{unaired} not yet aired</span>
               </>
             )}
-            {deferred > 0 && (
-              <>
-                <span className="mx-1 text-faint">·</span>
-                <span className="font-semibold text-dl">
-                  {deferred} batch downloaded
-                </span>
-              </>
-            )}
-            <span className="mx-1 text-faint">·</span>
-            {wanted} wanted
             {unmonitored > 0 && (
               <>
-                <span className="mx-1 text-faint">·</span>
+                <Sep />
                 <span className="text-faint">{unmonitored} not monitored</span>
+              </>
+            )}
+            {/* The denominator is a subset, so the raw count has to stay on the
+                strip that carries the ratio -- as the series-list bar does. */}
+            {total !== items.length && (
+              <>
+                <Sep />
+                <span className="text-faint">{items.length} total</span>
               </>
             )}
           </div>

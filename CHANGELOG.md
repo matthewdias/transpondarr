@@ -38,9 +38,20 @@ All notable changes to this project are documented here. The format is based on
   on **every** series, including ones with nothing unmonitored: a 12-episode show
   three episodes in goes from `3 / 12` to `3 / 3 (12 total)`. A null air date
   counts as aired, because AniList's schedule coverage is thin by design and the
-  inverted reading would make half a library report 100%. The API keeps `total`
-  unchanged and adds `tracked` alongside it, so a client reading the old field
-  still gets the old number.
+  inverted reading would make half a library report 100%.
+
+  The aired half has a second consequence worth stating plainly: a series where
+  **nothing** has aired yet — an ordinary seasonal show added the week before it
+  premieres — has a denominator of zero. That reads `0 / 12` today; it now reads
+  **"Nothing aired yet (12 total)"** rather than `0 / 0`, which would claim the
+  series has no episodes at all. The episode table's summary strip follows the
+  same definition, and names all three groups — tracked, not yet aired, not
+  monitored — so they still add up to the episode count. "Search all wanted" is
+  correspondingly disabled while nothing monitored has aired, which is right:
+  there is nothing to search for yet.
+
+  The API keeps `total` unchanged and adds `tracked` alongside it, so a client
+  reading the old field still gets the old number.
 - **The item status `have` is now `in_library`, and so is the field it derives
   from.** `have` was the odd one out in a vocabulary of `downloading` / `stuck` /
   `deferred` / `wanted` — `status: have` never read as a state — and the web UI

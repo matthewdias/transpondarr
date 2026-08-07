@@ -69,6 +69,24 @@ describe("EpisodesTab search buttons", () => {
   });
 });
 
+const past = new Date(Date.now() - 86_400_000).toISOString();
+const future = new Date(Date.now() + 86_400_000).toISOString();
+
+// The summary strip is what these assert; the callbacks are noise here.
+function renderStrip(items: WantedItem[]) {
+  render(
+    <EpisodesTab
+      detail={detail(items)}
+      onSearchAll={vi.fn()}
+      onSearchItem={vi.fn()}
+      selected={new Set()}
+      onToggleSelect={vi.fn()}
+      onSelectRange={vi.fn()}
+      onSetMonitored={vi.fn()}
+    />,
+  );
+}
+
 describe("EpisodesTab monitoring", () => {
   // The bulk toolbar is the point: #160's long-runner is narrowed by selecting a
   // range, not by clicking a thousand rows against a 15-minute sweep clock.
@@ -116,27 +134,88 @@ describe("EpisodesTab monitoring", () => {
   });
 
   // The header count and the series-list bar must read the same denominator, or
-  // one says 3 / 3 while the other says 3 / 1050.
-  it("counts only monitored episodes in the header", () => {
-    render(
-      <EpisodesTab
-        detail={detail([
-          item({ id: 1, number: 1, in_library: true, status: "in_library" }),
-          item({ id: 2, number: 2 }),
-          item({ id: 3, number: 3, monitored: false }),
-          item({ id: 4, number: 4, monitored: false }),
-        ])}
-        onSearchAll={vi.fn()}
-        onSearchItem={vi.fn()}
-        selected={new Set()}
-        onToggleSelect={vi.fn()}
-        onSelectRange={vi.fn()}
-        onSetMonitored={vi.fn()}
-      />,
-    );
+  // one says 3 / 3 while the other says 3 / 1050. That means the server's exact
+  // definition of tracked: monitored AND already broadcast.
+  it("counts only monitored, aired episodes in the header", () => {
+    renderStrip([
+      item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+      item({ id: 2, number: 2 }),
+      item({ id: 3, number: 3, monitored: false }),
+      item({ id: 4, number: 4, monitored: false }),
+    ]);
 
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
     expect(screen.getByText(/2 not monitored/i)).toBeInTheDocument();
+  });
+
+  // A null air date reads as aired -- AniList's coverage is thin by design --
+  // so the denominator is neither 0 nor the full monitored count here.
+  it("keeps an unaired monitored episode out of the denominator", () => {
+    renderStrip([
+      item({
+        id: 1,
+        number: 1,
+        in_library: true,
+        status: "in_library",
+        airs_at: past,
+      }),
+      item({ id: 2, number: 2, airs_at: past }),
+      item({ id: 3, number: 3 }), // no air date: searchable, so tracked
+      item({ id: 4, number: 4, airs_at: future }),
+      item({ id: 5, number: 5, airs_at: future }),
+    ]);
+
+    expect(screen.getByText("1 / 3")).toBeInTheDocument();
+    expect(screen.getByText(/2 not yet aired/i)).toBeInTheDocument();
+  });
+
+  // The three categories partition every item, so a reader can add them up.
+  it("accounts for every item across tracked, unaired and unmonitored", () => {
+    renderStrip([
+      item({
+        id: 1,
+        number: 1,
+        in_library: true,
+        status: "in_library",
+        airs_at: past,
+      }),
+      item({ id: 2, number: 2, airs_at: past }),
+      item({ id: 3, number: 3, airs_at: future }),
+      item({ id: 4, number: 4, monitored: false }),
+      item({ id: 5, number: 5, monitored: false }),
+      item({ id: 6, number: 6, monitored: false }),
+    ]);
+
+    // 2 tracked + 1 unaired + 3 unmonitored = 6
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByText(/1 not yet aired/i)).toBeInTheDocument();
+    expect(screen.getByText(/3 not monitored/i)).toBeInTheDocument();
+    expect(screen.getByText(/6 total/i)).toBeInTheDocument();
+  });
+
+  // "0 / 0" reads as "this series has no episodes", which is exactly wrong for
+  // a seasonal show added the week before it premieres.
+  it("words the zero state and keeps the total beside it", () => {
+    renderStrip([
+      item({ id: 1, number: 1, airs_at: future }),
+      item({ id: 2, number: 2, airs_at: future }),
+    ]);
+
+    expect(screen.getByText("Nothing aired yet")).toBeInTheDocument();
+    expect(screen.queryByText("0 / 0")).not.toBeInTheDocument();
+    expect(screen.getByText(/2 not yet aired/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 total/i)).toBeInTheDocument();
+  });
+
+  // The raw count is redundant once it is already the denominator.
+  it("drops the total when everything is tracked", () => {
+    renderStrip([
+      item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+      item({ id: 2, number: 2 }),
+    ]);
+
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.queryByText(/total/i)).not.toBeInTheDocument();
   });
 });
 
