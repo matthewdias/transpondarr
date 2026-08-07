@@ -702,3 +702,25 @@ it("keeps the plain count when the group is truncated", async () => {
 
   expect(await screen.findByText("90 episodes missing")).toBeInTheDocument();
 });
+
+// Every Cutoff Unmet row is in the library by definition, so the wanted
+// substitution can never fire there and the qualifier is its only marking.
+it("marks an unmonitored cutoff row beside its status", async () => {
+  useHandlers({
+    cutoffGroups: [
+      cutoffGroup({}, [
+        cutoff({ id: 11, number: 2 }),
+        cutoff({ id: 12, number: 3, monitored: false }),
+      ]),
+    ],
+  });
+  renderPage();
+
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
+
+  // The status badge stays: the library really does hold both of these.
+  expect(await screen.findAllByText("In library")).toHaveLength(2);
+  const marks = screen.getAllByRole("img", { name: "Not monitored" });
+  expect(marks).toHaveLength(1);
+});

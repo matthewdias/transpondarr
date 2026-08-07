@@ -5,7 +5,11 @@ import { airDate, pad2, parseTimestamp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
+import {
+  ItemStatusBadge,
+  UnmonitoredItemBadge,
+  UnmonitoredMarker,
+} from "@/components/badges";
 import { MonitorToggle } from "@/components/monitor-toggle";
 import {
   Table,
@@ -310,11 +314,16 @@ const EpisodeRow = memo(function EpisodeRow({
         {pad2(item.number)}
       </TableCell>
       <TableCell>
-        {unmonitoredWanted ? (
-          <UnmonitoredItemBadge />
-        ) : (
-          <ItemStatusBadge status={item.status} error={item.import_error} />
-        )}
+        <div className="flex items-center gap-1.5">
+          {unmonitoredWanted ? (
+            <UnmonitoredItemBadge />
+          ) : (
+            <ItemStatusBadge status={item.status} error={item.import_error} />
+          )}
+          {/* The substitution only covers "wanted"; every other status stays
+              true unmonitored and needs the qualifier instead. */}
+          {!item.monitored && !unmonitoredWanted && <UnmonitoredMarker />}
+        </div>
       </TableCell>
       <TableCell
         className="hidden whitespace-nowrap text-muted-foreground md:table-cell"

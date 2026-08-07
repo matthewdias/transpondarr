@@ -295,32 +295,69 @@ describe("EpisodesTab unmonitored status", () => {
   // "Wanted" is the one status that becomes false when an item is unmonitored;
   // nothing is wanting it. The others stay true and are left alone.
   it("replaces only the wanted badge", () => {
-    render(
-      <EpisodesTab
-        detail={detail([
-          item({ id: 1, number: 1, monitored: false, status: "wanted" }),
-          item({
-            id: 2,
-            number: 2,
-            monitored: false,
-            status: "downloading",
-            release_title: "[SynthSubs] Placeholder Saga - 02 [1080p]",
-          }),
-        ])}
-        onSearchAll={vi.fn()}
-        onSearchItem={vi.fn()}
-        selected={new Set()}
-        onToggleSelect={vi.fn()}
-        onSelectRange={vi.fn()}
-        onSetSelection={vi.fn()}
-        onSetMonitored={vi.fn()}
-      />,
-    );
+    renderStrip([
+      item({ id: 1, number: 1, monitored: false, status: "wanted" }),
+      item({
+        id: 2,
+        number: 2,
+        monitored: false,
+        status: "downloading",
+        release_title: "[SynthSubs] Placeholder Saga - 02 [1080p]",
+      }),
+    ]);
 
     expect(screen.getByText("Not monitored")).toBeInTheDocument();
     expect(screen.queryByText("Wanted")).not.toBeInTheDocument();
     // An unmonitored episode with a grab in flight really is downloading.
     expect(screen.getByText("Downloading")).toBeInTheDocument();
+  });
+
+  // Every status but "wanted" stays true unmonitored, so the substitution
+  // cannot fire and the row would otherwise carry no marking at all. Holding an
+  // episode you then unmonitor is the pre-existing-library workflow.
+  it("marks an unmonitored row whose status the substitution cannot replace", () => {
+    renderStrip([
+      item({
+        id: 1,
+        number: 1,
+        monitored: false,
+        in_library: true,
+        status: "in_library",
+      }),
+      item({ id: 2, number: 2, monitored: false, status: "downloading" }),
+      item({ id: 3, number: 3, monitored: false, status: "stuck" }),
+      item({ id: 4, number: 4, monitored: false, status: "deferred" }),
+    ]);
+
+    // The status badge is kept -- it is still a true statement -- and the
+    // qualifier sits beside it.
+    expect(screen.getByText("In library")).toBeInTheDocument();
+    expect(screen.getByText("Downloading")).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: "Not monitored" })).toHaveLength(
+      4,
+    );
+  });
+
+  // The wanted row already says it in words; a second marker would be noise.
+  it("does not double-mark a row the substitution already covers", () => {
+    renderStrip([
+      item({ id: 1, number: 1, monitored: false, status: "wanted" }),
+    ]);
+
+    expect(screen.getByText("Not monitored")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: "Not monitored" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("leaves a monitored row unmarked", () => {
+    renderStrip([
+      item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+    ]);
+
+    expect(
+      screen.queryByRole("img", { name: "Not monitored" }),
+    ).not.toBeInTheDocument();
   });
 });
 

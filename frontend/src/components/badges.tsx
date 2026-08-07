@@ -51,6 +51,22 @@ export function UnmonitoredItemBadge() {
   );
 }
 
+// The qualifier for a status that stays true unmonitored -- In library and
+// Downloading still are -- so it sits beside the badge with no chrome of its
+// own, a rank below the thing it qualifies.
+export function UnmonitoredMarker() {
+  return (
+    <span
+      role="img"
+      aria-label="Not monitored"
+      title="Not monitored"
+      className="inline-flex shrink-0 items-center text-muted-foreground"
+    >
+      <EyeOff className="size-3.5" />
+    </span>
+  );
+}
+
 export function ItemStatusBadge({
   status,
   error,
