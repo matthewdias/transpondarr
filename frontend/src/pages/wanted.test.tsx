@@ -705,7 +705,7 @@ it("keeps the plain count when the group is truncated", async () => {
 
 // Every Cutoff Unmet row is in the library by definition, so the wanted
 // substitution can never fire there and the qualifier is its only marking.
-it("marks an unmonitored cutoff row beside its status", async () => {
+it("offers an unmonitored cutoff row its own monitor toggle", async () => {
   useHandlers({
     cutoffGroups: [
       cutoffGroup({}, [
@@ -719,8 +719,13 @@ it("marks an unmonitored cutoff row beside its status", async () => {
   const user = userEvent.setup();
   await user.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
 
-  // The status badge stays: the library really does hold both of these.
+  // The library really does hold both, so both keep that status; the toggle is
+  // what distinguishes them, and re-monitoring stays reachable from this tab.
   expect(await screen.findAllByText("In library")).toHaveLength(2);
-  const marks = screen.getAllByRole("img", { name: "Not monitored" });
-  expect(marks).toHaveLength(1);
+  expect(
+    screen.getByRole("button", { name: /^monitor episode 3$/i }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: /stop monitoring episode 2/i }),
+  ).toBeInTheDocument();
 });

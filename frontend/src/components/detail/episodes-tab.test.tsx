@@ -312,10 +312,9 @@ describe("EpisodesTab unmonitored status", () => {
     expect(screen.getByText("Downloading")).toBeInTheDocument();
   });
 
-  // Every status but "wanted" stays true unmonitored, so the substitution
-  // cannot fire and the row would otherwise carry no marking at all. Holding an
-  // episode you then unmonitor is the pre-existing-library workflow.
-  it("marks an unmonitored row whose status the substitution cannot replace", () => {
+  // An unmonitored item the library holds keeps its true status; the row's
+  // monitor toggle is what says it is unmonitored.
+  it("leaves every other status alone when unmonitored", () => {
     renderStrip([
       item({
         id: 1,
@@ -324,40 +323,14 @@ describe("EpisodesTab unmonitored status", () => {
         in_library: true,
         status: "in_library",
       }),
-      item({ id: 2, number: 2, monitored: false, status: "downloading" }),
-      item({ id: 3, number: 3, monitored: false, status: "stuck" }),
-      item({ id: 4, number: 4, monitored: false, status: "deferred" }),
+      item({ id: 2, number: 2, monitored: false, status: "stuck" }),
+      item({ id: 3, number: 3, monitored: false, status: "deferred" }),
     ]);
 
-    // The status badge is kept -- it is still a true statement -- and the
-    // qualifier sits beside it.
     expect(screen.getByText("In library")).toBeInTheDocument();
-    expect(screen.getByText("Downloading")).toBeInTheDocument();
-    expect(screen.getAllByRole("img", { name: "Not monitored" })).toHaveLength(
-      4,
-    );
-  });
-
-  // The wanted row already says it in words; a second marker would be noise.
-  it("does not double-mark a row the substitution already covers", () => {
-    renderStrip([
-      item({ id: 1, number: 1, monitored: false, status: "wanted" }),
-    ]);
-
-    expect(screen.getByText("Not monitored")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("img", { name: "Not monitored" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("leaves a monitored row unmarked", () => {
-    renderStrip([
-      item({ id: 1, number: 1, in_library: true, status: "in_library" }),
-    ]);
-
-    expect(
-      screen.queryByRole("img", { name: "Not monitored" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText("Import blocked")).toBeInTheDocument();
+    expect(screen.getByText("Batch downloaded")).toBeInTheDocument();
+    expect(screen.queryByText("Not monitored")).not.toBeInTheDocument();
   });
 });
 

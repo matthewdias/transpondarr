@@ -33,7 +33,7 @@ import { airDate, countdownOrDate, pad2, plural, timeAgo } from "@/lib/format";
 import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 import { cn } from "@/lib/utils";
-import { ItemStatusBadge, UnmonitoredMarker } from "@/components/badges";
+import { ItemStatusBadge } from "@/components/badges";
 import { MonitorToggle } from "@/components/monitor-toggle";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Topbar } from "@/components/topbar";
@@ -644,9 +644,6 @@ function CutoffRow({
       <span className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:block">
         {item.score} / {cutoff}
       </span>
-      {/* Every row here is in the library, so the wanted substitution can never
-          fire and the qualifier is the only marking this tab gets. */}
-      {!item.monitored && <UnmonitoredMarker />}
       <ItemStatusBadge status={item.status} />
       <Button variant="outline" size="sm" asChild>
         <Link to={`/series/${seriesId}?item=${item.number}`}>
