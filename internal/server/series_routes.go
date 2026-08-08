@@ -25,13 +25,14 @@ import (
 // keeps its old meaning because narrowing it in place would be a silent break
 // for API clients.
 type seriesDTO struct {
-	ID        int64  `json:"id"`
-	Title     string `json:"title"`
-	Format    string `json:"format"`
-	Monitored bool   `json:"monitored"`
-	Total     int    `json:"total"`
-	Tracked   int    `json:"tracked" doc:"Items this series is pursuing: monitored and already broadcast"`
-	InLibrary int    `json:"in_library" doc:"Held items inside the tracked set, so progress can never exceed it"`
+	ID             int64  `json:"id"`
+	Title          string `json:"title"`
+	Format         string `json:"format"`
+	Monitored      bool   `json:"monitored"`
+	Total          int    `json:"total"`
+	Tracked        int    `json:"tracked" doc:"Items this series is pursuing: monitored and already broadcast"`
+	MonitoredItems int    `json:"monitored_items" doc:"Monitored items whether or not they have aired, so a zero tracked count can name its cause"`
+	InLibrary      int    `json:"in_library" doc:"Held items inside the tracked set, so progress can never exceed it"`
 }
 
 type listSeriesOutput struct {
@@ -283,13 +284,14 @@ func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listSerie
 	out.Body.Series = make([]seriesDTO, 0, len(rows))
 	for _, s := range rows {
 		out.Body.Series = append(out.Body.Series, seriesDTO{
-			ID:        s.ID,
-			Title:     s.Title,
-			Format:    s.Format,
-			Monitored: s.Monitored == 1,
-			Total:     int(s.TotalItems),
-			Tracked:   int(s.TrackedItems),
-			InLibrary: int(s.InLibraryItems),
+			ID:             s.ID,
+			Title:          s.Title,
+			Format:         s.Format,
+			Monitored:      s.Monitored == 1,
+			Total:          int(s.TotalItems),
+			Tracked:        int(s.TrackedItems),
+			MonitoredItems: int(s.MonitoredItems),
+			InLibrary:      int(s.InLibraryItems),
 		})
 	}
 	return out, nil

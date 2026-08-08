@@ -1737,6 +1737,11 @@ export interface components {
              */
             in_library: number;
             monitored: boolean;
+            /**
+             * Format: int64
+             * @description Monitored items whether or not they have aired, so a zero tracked count can name its cause
+             */
+            monitored_items: number;
             title: string;
             /** Format: int64 */
             total: number;

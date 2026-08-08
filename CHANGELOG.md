@@ -12,10 +12,10 @@ All notable changes to this project are documented here. The format is based on
   once an item existed the sweep chased it until a file landed — forever. Now
   every episode carries its own flag: unmonitor a recap, an episode you already
   have, or 1,038 episodes of a back catalogue, and automation stops looking for
-  them. Adding a series now asks which episodes to monitor — **all**, **future
-  only** (from the next broadcast onwards), or **none** — which is the only
-  answer that works for a currently-airing long-runner, since a new series sorts
-  to the front of the search queue and one pass grabs every eligible candidate.
+  them. Adding a series now asks which episodes to monitor — **all**, or
+  **future only** (from the next broadcast onwards), which is the only answer
+  that works for a currently-airing long-runner, since a new series sorts to the
+  front of the search queue and one pass grabs every eligible candidate.
   The choice is stored as a numeric cut, so an episode created six months later
   is monitored without any follow-up: that is what "continue from 1050" means,
   and it survives the airing sync's gap-fill and metadata-refresh growth, both of
@@ -48,10 +48,13 @@ All notable changes to this project are documented here. The format is based on
   same definition, and names all three groups — tracked, not yet aired, not
   monitored — so they still add up to the episode count. "Search all wanted" is
   correspondingly disabled while nothing monitored has aired, which is right:
-  there is nothing to search for yet.
+  there is nothing to search for yet. Unmonitoring *every* episode empties the
+  denominator the same way but for a different reason, and both surfaces say
+  which: **"Nothing monitored"** rather than "Nothing aired yet".
 
   The API keeps `total` unchanged and adds `tracked` alongside it, so a client
-  reading the old field still gets the old number. **`in_library` is a different
+  reading the old field still gets the old number. `monitored_items` is added
+  next to it, which is what lets a zero denominator name its own cause. **`in_library` is a different
   number, though**: it now carries the identical monitored-and-aired filter, so
   that a held unaired or held unmonitored episode cannot push a series past its
   own denominator. That is visible in the direction people notice — unmonitoring

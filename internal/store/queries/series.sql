@@ -7,12 +7,14 @@ ORDER BY title;
 -- Progress is measured against what is being pursued (#188): monitored and
 -- already broadcast, numerator and denominator carrying the identical filter so
 -- a held unaired item cannot push a series past its own total. A null air date
--- reads as aired, as everywhere else here.
+-- reads as aired, as everywhere else here. monitored_items rides along so a zero
+-- denominator can name its own cause: nothing aired yet, or nothing monitored.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 SELECT
     s.*,
     COUNT(w.id)                            AS total_items,
+    CAST(COALESCE(SUM(w.monitored = 1), 0) AS INTEGER) AS monitored_items,
     CAST(COALESCE(SUM(
         w.monitored = 1 AND (w.airs_at IS NULL OR w.airs_at <= ?)
     ), 0) AS INTEGER)                      AS tracked_items,

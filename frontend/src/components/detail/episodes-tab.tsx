@@ -100,20 +100,30 @@ export function EpisodesTab({
     wanted,
   } = counts;
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
-  const nothingAired = total === 0 && items.length > 0;
+  // A zero denominator has two causes, and naming the wrong one is a plain false
+  // statement on a series whose episodes have all aired and all been switched off.
+  const empty = total === 0 && items.length > 0;
+  const emptyLabel =
+    unmonitored === items.length ? "Nothing monitored" : "Nothing aired yet";
 
-  // Not part of the selection, and moving it must not re-render 1,200 rows.
+  // An id, not an index: a refetch between two clicks can renumber the rows, and
+  // a stale id resolves to -1 and degrades to a plain toggle rather than to the
+  // wrong range. Not part of the selection, so moving it re-renders nothing.
   const anchor = useRef<number | null>(null);
   const onSelect = useCallback(
-    (id: number, index: number, shift: boolean) => {
+    (id: number, shift: boolean) => {
       const from = anchor.current;
-      if (shift && from !== null && from !== index) {
-        const [lo, hi] = from < index ? [from, index] : [index, from];
+      const fromIndex =
+        from === null ? -1 : items.findIndex((i) => i.id === from);
+      const index = items.findIndex((i) => i.id === id);
+      if (shift && fromIndex >= 0 && index >= 0 && fromIndex !== index) {
+        const [lo, hi] =
+          fromIndex < index ? [fromIndex, index] : [index, fromIndex];
         onSelectRange(items.slice(lo, hi + 1).map((i) => i.id));
       } else {
         onToggleSelect(id);
       }
-      anchor.current = index;
+      anchor.current = id;
     },
     [items, onSelectRange, onToggleSelect],
   );
@@ -140,8 +150,8 @@ export function EpisodesTab({
             )}
           </div>
           <div className="min-w-0 text-[13px] text-muted-foreground">
-            {nothingAired ? (
-              <b className="font-semibold text-foreground">Nothing aired yet</b>
+            {empty ? (
+              <b className="font-semibold text-foreground">{emptyLabel}</b>
             ) : (
               <>
                 <b className="font-semibold tabular-nums text-foreground">
@@ -231,11 +241,10 @@ export function EpisodesTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((item, index) => (
+              {items.map((item) => (
                 <EpisodeRow
                   key={item.id}
                   item={item}
-                  index={index}
                   selected={selected.has(item.id)}
                   onSelect={onSelect}
                   onSetMonitored={onSetMonitored}
@@ -280,16 +289,14 @@ export function EpisodesTab({
 // checkbox re-renders one row instead of the whole series.
 const EpisodeRow = memo(function EpisodeRow({
   item,
-  index,
   selected,
   onSelect,
   onSetMonitored,
   onSearch,
 }: {
   item: WantedItem;
-  index: number;
   selected: boolean;
-  onSelect: (id: number, index: number, shift: boolean) => void;
+  onSelect: (id: number, shift: boolean) => void;
   onSetMonitored: (ids: number[], monitored: boolean) => void;
   onSearch: (n: number) => void;
 }) {
@@ -302,7 +309,7 @@ const EpisodeRow = memo(function EpisodeRow({
         {/* onClick, not onCheckedChange: it is what carries shiftKey. */}
         <Checkbox
           checked={selected}
-          onClick={(e) => onSelect(item.id, index, e.shiftKey)}
+          onClick={(e) => onSelect(item.id, e.shiftKey)}
           aria-label={`Select episode ${item.number}`}
         />
       </TableCell>

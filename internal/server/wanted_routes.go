@@ -466,11 +466,12 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
 		}
 	}
-	out.Body.SeriesQueued = len(seriesIDs)
 	if err := tx.Commit(); err != nil {
 		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
 	}
+	// Both counts describe committed work, so neither is reported before it is.
 	out.Body.Updated = int(updated)
+	out.Body.SeriesQueued = len(seriesIDs)
 	return out, nil
 }
 

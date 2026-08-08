@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
@@ -119,12 +120,30 @@ func TestAddSeriesAppliesTheMonitorMode(t *testing.T) {
 	}
 }
 
+// The zero value must not read as a choice: coercing it to "all" would have a
+// caller that forgot the argument silently chase a back catalogue.
+func TestAddSeriesRejectsAModeItDoesNotKnow(t *testing.T) {
+	for _, mode := range []MonitorMode{"", "none", "nonsense"} {
+		st := coretest.NewStore(t)
+		prov := longRunner(7)
+		svc := NewService(st, prov)
+
+		_, err := svc.AddSeries(context.Background(), prov.Name(), 42, true, mode)
+		if !errors.Is(err, ErrUnknownMonitorMode) {
+			t.Errorf("AddSeries(%q) = %v, want ErrUnknownMonitorMode", mode, err)
+		}
+	}
+}
+
 // Every mode is self-healing, which is why there is no "none": a null cut
 // monitors nothing new forever, and nothing can edit the cut after the add.
 func TestNoModeWritesANullCut(t *testing.T) {
 	for _, mode := range []MonitorMode{MonitorAll, MonitorFuture} {
 		for _, next := range []int{0, 7} {
-			cut := monitorCut(mode, metadata.TitleMeta{NextItem: next}, 6)
+			cut, err := monitorCut(mode, metadata.TitleMeta{NextItem: next}, 6)
+			if err != nil {
+				t.Fatalf("monitorCut(%q): %v", mode, err)
+			}
 			if !cut.Valid {
 				t.Errorf("mode %q with next %d wrote a null cut, which is permanent", mode, next)
 			}
@@ -136,7 +155,10 @@ func TestNoModeWritesANullCut(t *testing.T) {
 // boundary so an episode created six months later needs no follow-up write, and
 // so a re-evaluated "future" can never unmonitor something already waited for.
 func TestMonitorCutIsEvaluableByStoreMonitorNew(t *testing.T) {
-	cut := monitorCut(MonitorFuture, metadata.TitleMeta{NextItem: 1051}, 1050)
+	cut, err := monitorCut(MonitorFuture, metadata.TitleMeta{NextItem: 1051}, 1050)
+	if err != nil {
+		t.Fatalf("monitorCut: %v", err)
+	}
 	if got := store.MonitorNew(cut, sql.NullInt64{Int64: 1051, Valid: true}); got != 1 {
 		t.Errorf("the next episode reads as %d, want monitored", got)
 	}

@@ -6,22 +6,27 @@ import { cn } from "@/lib/utils";
 export function LibraryProgress({
   inLibrary,
   tracked,
+  monitored,
   total,
 }: {
   inLibrary: number;
   tracked: number;
+  monitored: number;
   total: number;
 }) {
   const pct = tracked > 0 ? (inLibrary / tracked) * 100 : 0;
   const complete = tracked > 0 && inLibrary >= tracked;
   // "0 / 0" would read as "this series has no episodes", which is exactly wrong
-  // for a seasonal show added the week before it premieres.
-  const nothingAired = tracked === 0 && total > 0;
+  // for a seasonal show added the week before it premieres. A zero denominator
+  // has two causes, and naming the wrong one is a plain false statement.
+  const empty = tracked === 0 && total > 0;
+  const emptyLabel =
+    monitored === 0 ? "Nothing monitored" : "Nothing aired yet";
   return (
     <div className="flex items-center gap-2.5 sm:min-w-[140px]">
       {/* the bar needs room; on mobile we keep just the count to avoid overflow.
-          With nothing aired it would collapse to a few pixels beside the words. */}
-      {!nothingAired && (
+          With a zero denominator it collapses to a few pixels beside the words. */}
+      {!empty && (
         <div className="hidden h-1.5 flex-1 overflow-hidden rounded border border-border bg-panel-2 sm:block">
           <div
             className={cn("h-full", complete ? "bg-have" : "bg-primary")}
@@ -30,8 +35,8 @@ export function LibraryProgress({
         </div>
       )}
       <span className="text-xs tabular-nums text-muted-foreground">
-        {nothingAired ? (
-          <span className="whitespace-nowrap">Nothing aired yet</span>
+        {empty ? (
+          <span className="whitespace-nowrap">{emptyLabel}</span>
         ) : (
           <>
             {inLibrary} / {tracked}

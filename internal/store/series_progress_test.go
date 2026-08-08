@@ -56,6 +56,11 @@ func TestListSeriesWithProgressCountsMonitoredAndAired(t *testing.T) {
 	if got.TrackedItems != 3 {
 		t.Errorf("tracked_items = %d, want 3 (monitored and aired)", got.TrackedItems)
 	}
+	// Counted without the aired half, so a zero denominator can say which of the
+	// two emptied it rather than asserting the wrong one.
+	if got.MonitoredItems != 5 {
+		t.Errorf("monitored_items = %d, want 5 (monitored, aired or not)", got.MonitoredItems)
+	}
 	// The numerator carries the identical filter, or the held unaired and held
 	// unmonitored items above would push this past its own denominator.
 	if got.InLibraryItems != 1 {
@@ -70,7 +75,7 @@ func TestListSeriesWithProgressHandlesAnEmptySeries(t *testing.T) {
 	seedSearchSeries(t, st, "empty", 1)
 
 	got := progressOf(t, st, time.Now(), "empty")
-	if got.TotalItems != 0 || got.TrackedItems != 0 || got.InLibraryItems != 0 {
+	if got.TotalItems != 0 || got.TrackedItems != 0 || got.MonitoredItems != 0 || got.InLibraryItems != 0 {
 		t.Errorf("progress = %d/%d (%d total), want all zero",
 			got.InLibraryItems, got.TrackedItems, got.TotalItems)
 	}

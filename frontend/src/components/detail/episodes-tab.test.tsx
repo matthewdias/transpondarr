@@ -207,6 +207,19 @@ describe("EpisodesTab monitoring", () => {
     expect(screen.getByText(/2 total/i)).toBeInTheDocument();
   });
 
+  // The same empty denominator, the other cause: every episode has aired and
+  // every one was switched off, where "nothing aired yet" is simply false.
+  it("names monitoring when that is what emptied the denominator", () => {
+    renderStrip([
+      item({ id: 1, number: 1, monitored: false }),
+      item({ id: 2, number: 2, monitored: false }),
+    ]);
+
+    expect(screen.getByText("Nothing monitored")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing aired yet")).not.toBeInTheDocument();
+    expect(screen.getByText(/2 not monitored/i)).toBeInTheDocument();
+  });
+
   // The raw count is redundant once it is already the denominator.
   it("drops the total when everything is tracked", () => {
     renderStrip([
@@ -288,6 +301,49 @@ describe("EpisodesTab selection range", () => {
     );
     await user.keyboard("{/Shift}");
     expect(onSelectRange).toHaveBeenCalledWith([10, 20, 30]);
+  });
+
+  // The anchor is an item id, not a row position: a refetch between the two
+  // clicks renumbers the rows, and an index would then span the wrong episodes.
+  it("re-resolves the anchor against the rows it is given", async () => {
+    const onSelectRange = vi.fn();
+    const user = userEvent.setup();
+    const props = {
+      onSearchAll: vi.fn(),
+      onSearchItem: vi.fn(),
+      selected: new Set<number>(),
+      onToggleSelect: vi.fn(),
+      onSelectRange,
+      onSetSelection: vi.fn(),
+      onSetMonitored: vi.fn(),
+    };
+    const rows = [
+      item({ id: 10, number: 1 }),
+      item({ id: 20, number: 2 }),
+      item({ id: 30, number: 3 }),
+      item({ id: 40, number: 4 }),
+    ];
+    const { rerender } = render(
+      <EpisodesTab detail={detail(rows)} {...props} />,
+    );
+
+    await user.click(
+      screen.getByRole("checkbox", { name: /select episode 2/i }),
+    );
+    // Episode 1 arrives late, pushing every anchored index along by one.
+    rerender(
+      <EpisodesTab
+        detail={detail([item({ id: 5, number: 0 }), ...rows])}
+        {...props}
+      />,
+    );
+
+    await user.keyboard("{Shift>}");
+    await user.click(
+      screen.getByRole("checkbox", { name: /select episode 4/i }),
+    );
+    await user.keyboard("{/Shift}");
+    expect(onSelectRange).toHaveBeenCalledWith([20, 30, 40]);
   });
 });
 

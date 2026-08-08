@@ -349,6 +349,7 @@ const listSeriesWithProgress = `-- name: ListSeriesWithProgress :many
 SELECT
     s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from,
     COUNT(w.id)                            AS total_items,
+    CAST(COALESCE(SUM(w.monitored = 1), 0) AS INTEGER) AS monitored_items,
     CAST(COALESCE(SUM(
         w.monitored = 1 AND (w.airs_at IS NULL OR w.airs_at <= ?)
     ), 0) AS INTEGER)                      AS tracked_items,
@@ -384,6 +385,7 @@ type ListSeriesWithProgressRow struct {
 	SearchEpoch      int64          `json:"search_epoch"`
 	MonitorNewFrom   sql.NullInt64  `json:"monitor_new_from"`
 	TotalItems       int64          `json:"total_items"`
+	MonitoredItems   int64          `json:"monitored_items"`
 	TrackedItems     int64          `json:"tracked_items"`
 	InLibraryItems   int64          `json:"in_library_items"`
 }
@@ -391,7 +393,8 @@ type ListSeriesWithProgressRow struct {
 // Progress is measured against what is being pursued (#188): monitored and
 // already broadcast, numerator and denominator carrying the identical filter so
 // a held unaired item cannot push a series past its own total. A null air date
-// reads as aired, as everywhere else here.
+// reads as aired, as everywhere else here. monitored_items rides along so a zero
+// denominator can name its own cause: nothing aired yet, or nothing monitored.
 // NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 // rune offsets and silently truncates the emitted SQL on a multi-byte character.
 func (q *Queries) ListSeriesWithProgress(ctx context.Context, arg ListSeriesWithProgressParams) ([]ListSeriesWithProgressRow, error) {
@@ -421,6 +424,7 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context, arg ListSeriesWith
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
 			&i.TotalItems,
+			&i.MonitoredItems,
 			&i.TrackedItems,
 			&i.InLibraryItems,
 		); err != nil {
