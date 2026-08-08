@@ -85,63 +85,22 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
-- **An episode you already have can be searched from the Episodes tab.** The
-  row's **Search** button was offered only for `wanted` and `deferred` items,
-  which was correct before quality upgrades existed and stale ever since: a held
-  episode has been a legitimate grab candidate since 0.5.0, and Cutoff Unmet has
-  been linking to the very same episode-filtered Releases view all along. So the
-  capability was offered from one surface and hidden on another — and an episode
-  held *at or above* cutoff, which Cutoff Unmet never lists, could not be
-  searched from anywhere in the UI at all. Nothing on the server changes; the
-  manual search and grab endpoints have always accepted a held item, because
-  quality profiles inform manual actions and gate only automation.
-
-  The button is now offered on **every** row, `downloading` and `stuck`
-  included. Withholding those two was considered — each means a grab is still
-  in flight — and rejected: the button only shortcuts to the Releases tab, which
-  grabs at any status, so hiding it would remove a shortcut without preventing
-  anything. And a stuck import retries the same release indefinitely, which
-  makes reaching for a different one the whole point. Closes
-  [#195](https://github.com/matthewdias/transpondarr/issues/195).
-
-- **A download nothing is waiting on is now visible, and removable, by hand.**
-  A grab row is unique per episode, so a second grab for one **overwrites** the
-  row pointing at the first torrent — and nothing else referenced it, because the
-  importer's scan and the Activity queue both enumerate from grab rows. The
-  superseded torrent kept downloading, kept its payload, and could not be seen or
-  stopped from Transpondarr at all. Automation cannot cause this (it refuses to
-  grab over an item whose grab has not settled), but a **manual** grab superseding
-  a downloading or deferred one can, and so can the client accepting a torrent
-  moments before the grab is recorded and the record failing. **Deleting a series
-  while keeping its downloads is the third source, and in practice the largest**:
-  the grab rows go with the series, so every torrent it left behind is unmatched
-  from then on — correctly, since nothing is waiting on them, but expect the
-  section to be a standing list rather than an empty one if you have ever done
-  that.
-
-  Activity gains an **Unmatched downloads** section listing every torrent in
-  Transpondarr's download category that no grab row references, each shown with
-  its name, size, age and live state — there is no grab row to identify it from,
-  so the row itself has to carry enough to recognise it by — and each removable
-  with an opt-out for its downloaded data. The section is absent entirely when
-  there is nothing to show. Deleting the superseded torrent automatically was the
-  first instinct and was rejected: a payload awaiting an import fix is exactly
-  what someone was about to sort out by hand, so superseding it already strands it
-  and deleting it would destroy it — and auto-removal would fix neither the
-  invisibility nor the orphans already on disk. Sonarr takes the same stance.
-
-  Two boundaries are deliberate. **The download category is the entire safety
-  boundary**: a torrent outside it is the user's, and is never listed, never
-  counted and never removable through this view. And **every grab status counts as
-  a reference**, `imported` and `failed` included — an imported torrent is seeding
-  legitimately, and a failed one is described by a row already visible in history —
-  so "unmatched" means *nothing* points at it, not nothing useful does. The
-  removal re-derives the set before it acts, so a page left open cannot delete a
-  torrent that a scan or a new grab has adopted since it rendered. Whether an
-  episode should be able to carry more than one grab at all — the cause rather
-  than the effect — is left open in
-  [#197](https://github.com/matthewdias/transpondarr/issues/197). Closes
-  [#131](https://github.com/matthewdias/transpondarr/issues/131).
+- **An episode you already have can now be searched from the Episodes tab.** The
+  row's **Search** button appeared only on wanted and deferred episodes, so an
+  episode already in your library could not be searched from the series page at
+  all — even though Cutoff Unmet linked to the same view and the server had
+  always accepted the request. It is now on every row, in-flight grabs included.
+  Closes [#195](https://github.com/matthewdias/transpondarr/issues/195).
+- **Downloads nothing is waiting on are now visible in Activity.** A torrent
+  could be left in the download client with nothing pointing at it — after a
+  second grab replaced the first, or after deleting a series and choosing to keep
+  its downloads — where it kept downloading, took up disk, and could not be seen
+  or stopped from Transpondarr. Activity gains an **Unmatched downloads** section
+  listing them with their size, age and state, each removable by hand with the
+  option to delete its data too. Nothing is removed automatically, since the
+  payload may be one you meant to keep, and only Transpondarr's own download
+  category is ever listed — torrents outside it are yours and are never touched.
+  Closes [#131](https://github.com/matthewdias/transpondarr/issues/131).
 
 ### Upgrade notes
 
