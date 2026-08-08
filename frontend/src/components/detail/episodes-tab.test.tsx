@@ -57,6 +57,27 @@ describe("EpisodesTab search buttons", () => {
     expect(onSearchAll).not.toHaveBeenCalled();
   });
 
+  // A held episode is a legitimate grab candidate since #97, and Cutoff Unmet
+  // already links to this same episode-filtered view.
+  it("offers a held episode the same row search", async () => {
+    const { onSearchItem, user } = renderTab([
+      item({ id: 1, number: 4, in_library: true, status: "in_library" }),
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    expect(onSearchItem).toHaveBeenCalledWith(4);
+  });
+
+  // Both statuses mean a live grab, and a second one would overwrite its row.
+  it("withholds the row search while a grab is unsettled", () => {
+    renderTab([
+      item({ id: 1, number: 5, status: "downloading" }),
+      item({ id: 2, number: 6, status: "stuck" }),
+    ]);
+
+    expect(screen.queryByRole("button", { name: "Search" })).toBeNull();
+  });
+
   it("keeps the header button series-wide", async () => {
     const { onSearchAll, onSearchItem, user } = renderTab([
       item({ number: 7, status: "wanted" }),

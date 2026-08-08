@@ -83,6 +83,23 @@ All notable changes to this project are documented here. The format is based on
   be dropped and no `CHECK` can be bolted on after the fact. Closes
   [#74](https://github.com/matthewdias/transpondarr/issues/74).
 
+### Fixed
+
+- **An episode you already have can be searched from the Episodes tab.** The
+  row's **Search** button was offered only for `wanted` and `deferred` items,
+  which was correct before quality upgrades existed and stale ever since: a held
+  episode has been a legitimate grab candidate since 0.5.0, and Cutoff Unmet has
+  been linking to the very same episode-filtered Releases view all along. So the
+  capability was offered from one surface and hidden on another — and an episode
+  held *at or above* cutoff, which Cutoff Unmet never lists, could not be
+  searched from anywhere in the UI at all. Nothing on the server changes; the
+  manual search and grab endpoints have always accepted a held item, because
+  quality profiles inform manual actions and gate only automation.
+  `downloading` and `stuck` stay hidden, now deliberately: both mean a live
+  grab, and the grab row is per wanted item, so a second grab would overwrite it
+  and leave the first torrent with nothing pointing at it. Closes
+  [#195](https://github.com/matthewdias/transpondarr/issues/195).
+
 ### Upgrade notes
 
 - **API clients using `X-Api-Key` need one search-and-replace; the web UI needs

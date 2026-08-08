@@ -346,8 +346,10 @@ const EpisodeRow = memo(function EpisodeRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2">
-          {/* Monitoring never gates a manual path (PR #57, generalised by #188). */}
-          {(item.status === "wanted" || item.status === "deferred") && (
+          {/* Nothing gates a manual path (PR #57, generalised by #188), so a held
+              item is offered as an upgrade; the two withheld statuses are exactly
+              the unsettled grab, whose row a second grab would overwrite. */}
+          {item.status !== "downloading" && item.status !== "stuck" && (
             <button
               className="text-sm font-medium text-accent-foreground hover:underline"
               onClick={() => onSearch(item.number)}
