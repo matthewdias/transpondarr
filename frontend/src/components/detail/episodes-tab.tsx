@@ -346,17 +346,15 @@ const EpisodeRow = memo(function EpisodeRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2">
-          {/* Nothing gates a manual path (PR #57, generalised by #188), so a held
-              item is offered as an upgrade; the two withheld statuses are exactly
-              the unsettled grab, whose row a second grab would overwrite. */}
-          {item.status !== "downloading" && item.status !== "stuck" && (
-            <button
-              className="text-sm font-medium text-accent-foreground hover:underline"
-              onClick={() => onSearch(item.number)}
-            >
-              Search
-            </button>
-          )}
+          {/* Unconditional: nothing gates a manual path (PR #57, generalised by
+              #188), and this is only a shortcut to the Releases tab, which grabs
+              at any status anyway -- a condition here would gate nothing. */}
+          <button
+            className="text-sm font-medium text-accent-foreground hover:underline"
+            onClick={() => onSearch(item.number)}
+          >
+            Search
+          </button>
           <MonitorToggle
             monitored={item.monitored}
             itemNumber={item.number}

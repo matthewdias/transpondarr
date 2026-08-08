@@ -95,9 +95,13 @@ All notable changes to this project are documented here. The format is based on
   searched from anywhere in the UI at all. Nothing on the server changes; the
   manual search and grab endpoints have always accepted a held item, because
   quality profiles inform manual actions and gate only automation.
-  `downloading` and `stuck` stay hidden, now deliberately: both mean a live
-  grab, and the grab row is per wanted item, so a second grab would overwrite it
-  and leave the first torrent with nothing pointing at it. Closes
+
+  The button is now offered on **every** row, `downloading` and `stuck`
+  included. Withholding those two was considered — each means a grab is still
+  in flight — and rejected: the button only shortcuts to the Releases tab, which
+  grabs at any status, so hiding it would remove a shortcut without preventing
+  anything. And a stuck import retries the same release indefinitely, which
+  makes reaching for a different one the whole point. Closes
   [#195](https://github.com/matthewdias/transpondarr/issues/195).
 
 ### Upgrade notes
