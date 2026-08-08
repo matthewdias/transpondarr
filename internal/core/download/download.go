@@ -8,6 +8,7 @@ package download
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // ErrBadRelease marks an Add failure the release caused, not the adapter's own
@@ -78,6 +79,11 @@ type Status struct {
 	// tells our torrents from the user's, so nothing may act on a torrent
 	// carrying someone else's.
 	Category string
+	// Size is the payload's total size in bytes.
+	Size int64
+	// AddedAt is when the client accepted the torrent, zero when it reports none:
+	// for a download no grab row explains, size and age are the identifying detail.
+	AddedAt time.Time
 }
 
 // Client is a download client Transpondarr can drive.

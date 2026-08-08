@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/download"
 )
@@ -229,7 +230,7 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 		case "/api/v2/torrents/info":
 			gotHashesFilter = r.FormValue("hashes")
 			_, _ = w.Write([]byte(`[
-				{"hash":"aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111","name":"Placeholder Saga S1E01","state":"downloading","progress":0.5,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E01.mkv","category":"transpondarr"},
+				{"hash":"aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111","name":"Placeholder Saga S1E01","state":"downloading","progress":0.5,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E01.mkv","category":"transpondarr","size":734003200,"added_on":1754524800},
 				{"hash":"bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222","name":"Placeholder Saga S1E02","state":"uploading","progress":1,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E02.mkv","category":"someone-elses"}
 			]`))
 		default:
@@ -273,6 +274,20 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 	// so it has to survive the parse verbatim, other people's torrents included.
 	if first.Category != "transpondarr" {
 		t.Errorf("category = %q, want transpondarr", first.Category)
+	}
+
+	// Size and added time are what identify an unmatched torrent to a human, who
+	// has no grab row to read it off (#131).
+	if first.Size != 734003200 {
+		t.Errorf("size = %d, want 734003200", first.Size)
+	}
+	if got := first.AddedAt.UTC().Format(time.RFC3339); got != "2025-08-07T00:00:00Z" {
+		t.Errorf("added_at = %q, want 2025-08-07T00:00:00Z", got)
+	}
+	// A client that reports no add time leaves the zero value, never the epoch:
+	// the DTO omits it rather than claiming the torrent arrived in 1970.
+	if !got[1].AddedAt.IsZero() {
+		t.Errorf("second added_at = %v, want the zero time when unreported", got[1].AddedAt)
 	}
 
 	// The seeding torrent maps to the complete state the importer treats as ready.

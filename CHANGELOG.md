@@ -115,7 +115,9 @@ All notable changes to this project are documented here. The format is based on
   moments before the grab is recorded and the record failing.
 
   Activity gains an **Unmatched downloads** section listing every torrent in
-  Transpondarr's download category that no grab row references, each removable
+  Transpondarr's download category that no grab row references, each shown with
+  its name, size, age and live state — there is no grab row to identify it from,
+  so the row itself has to carry enough to recognise it by — and each removable
   with an opt-out for its downloaded data. The section is absent entirely when
   there is nothing to show. Deleting the superseded torrent automatically was the
   first instinct and was rejected: a payload awaiting an import fix is exactly
@@ -133,7 +135,8 @@ All notable changes to this project are documented here. The format is based on
   torrent that a scan or a new grab has adopted since it rendered. Whether an
   episode should be able to carry more than one grab at all — the cause rather
   than the effect — is left open in
-  [#197](https://github.com/matthewdias/transpondarr/issues/197).
+  [#197](https://github.com/matthewdias/transpondarr/issues/197). Closes
+  [#131](https://github.com/matthewdias/transpondarr/issues/131).
 
 ### Upgrade notes
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -136,6 +137,8 @@ type unmatchedItemDTO struct {
 	ClientState string  `json:"client_state" enum:"downloading,complete,stalled,checking,paused,error,unknown"`
 	Progress    float64 `json:"progress" minimum:"0" maximum:"1"`
 	SavePath    string  `json:"save_path,omitempty"`
+	Size        int64   `json:"size" doc:"Payload size in bytes"`
+	AddedAt     string  `json:"added_at,omitempty" doc:"RFC3339; absent when the client reports no add time"`
 }
 
 type activityUnmatchedOutput struct {
@@ -389,13 +392,18 @@ func (h *activityHandler) listUnmatched(ctx context.Context, _ *struct{}) (*acti
 		return nil, huma.Error500InternalServerError("failed to list grab hashes", err)
 	}
 	for _, s := range pickUnmatched(statuses, referenced, category) {
-		out.Body.Items = append(out.Body.Items, unmatchedItemDTO{
+		item := unmatchedItemDTO{
 			InfoHash:    strings.ToLower(s.Hash),
 			Name:        s.Name,
 			ClientState: string(s.State),
 			Progress:    s.Progress,
 			SavePath:    s.SavePath,
-		})
+			Size:        s.Size,
+		}
+		if !s.AddedAt.IsZero() {
+			item.AddedAt = s.AddedAt.UTC().Format(time.RFC3339)
+		}
+		out.Body.Items = append(out.Body.Items, item)
 	}
 	return out, nil
 }

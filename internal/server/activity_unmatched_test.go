@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/coretest"
@@ -15,6 +16,8 @@ type unmatchedItemJSON struct {
 	ClientState string  `json:"client_state"`
 	Progress    float64 `json:"progress"`
 	SavePath    string  `json:"save_path"`
+	Size        int64   `json:"size"`
+	AddedAt     string  `json:"added_at"`
 }
 
 type unmatchedJSON struct {
@@ -60,6 +63,38 @@ func TestUnmatchedDownloadsListsOnlyTorrentsNoGrabReferences(t *testing.T) {
 	}
 	if item.ClientState != "downloading" || item.Progress != 0.25 || item.SavePath != "/downloads" {
 		t.Errorf("item = %+v, want the live client detail carried through", item)
+	}
+}
+
+// An unmatched torrent has no grab row behind it, so the listing is the only
+// place a human can identify it from — which takes size and age, not just a name
+// and a hash (#131).
+func TestUnmatchedDownloadsCarrySizeAndAddedTime(t *testing.T) {
+	added := time.Date(2025, 8, 7, 12, 0, 0, 0, time.UTC)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "eeee5555", Name: "the orphan", Category: "transpondarr",
+			State: download.StateDownloading, Size: 734003200, AddedAt: added},
+		{Hash: "ffff6666", Name: "no add time reported", Category: "transpondarr",
+			State: download.StateComplete, Size: 100},
+	}}
+	h := newHarness(t, nil, dl)
+
+	var got unmatchedJSON
+	if code := h.get(t, "/api/v1/activity/unmatched", &got); code != http.StatusOK {
+		t.Fatalf("unmatched status = %d, want 200", code)
+	}
+	if len(got.Items) != 2 {
+		t.Fatalf("items = %+v, want both orphans", got.Items)
+	}
+	if got.Items[0].Size != 734003200 {
+		t.Errorf("size = %d, want 734003200", got.Items[0].Size)
+	}
+	if got.Items[0].AddedAt != "2025-08-07T12:00:00Z" {
+		t.Errorf("added_at = %q, want RFC3339 UTC", got.Items[0].AddedAt)
+	}
+	// Omitted rather than sent as the epoch, which would read as a 1970 torrent.
+	if got.Items[1].AddedAt != "" {
+		t.Errorf("added_at = %q, want empty when the client reports none", got.Items[1].AddedAt)
 	}
 }
 

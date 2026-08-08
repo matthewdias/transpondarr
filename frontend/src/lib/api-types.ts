@@ -1972,6 +1972,8 @@ export interface components {
             status: string;
         };
         UnmatchedItemDTO: {
+            /** @description RFC3339; absent when the client reports no add time */
+            added_at?: string;
             /** @enum {string} */
             client_state: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "unknown";
             infohash: string;
@@ -1979,6 +1981,11 @@ export interface components {
             /** Format: double */
             progress: number;
             save_path?: string;
+            /**
+             * Format: int64
+             * @description Payload size in bytes
+             */
+            size: number;
         };
         UnscheduledSeriesDTO: {
             /** Format: int64 */

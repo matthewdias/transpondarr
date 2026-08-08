@@ -232,6 +232,8 @@ describe("unmatched downloads", () => {
     client_state: "downloading" as const,
     progress: 0.25,
     save_path: "/downloads",
+    size: 734003200,
+    added_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
   };
 
   // A rare state: an always-present empty section would be noise on every visit.
@@ -242,6 +244,26 @@ describe("unmatched downloads", () => {
 
     expect(await screen.findByText(/Nothing downloading/i)).toBeInTheDocument();
     expect(screen.queryByText(/Unmatched downloads/i)).not.toBeInTheDocument();
+  });
+
+  // No grab row stands behind these, so the row itself has to carry enough to
+  // recognise the torrent by: how big it is and how long it has been sitting.
+  it("identifies the orphan by size and age", async () => {
+    useHandlers(
+      { client_ok: true, items: [] },
+      { "": { events: [] } },
+      undefined,
+      {
+        items: [orphan],
+        client_ok: true,
+        scoped: true,
+      },
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/700 MB/)).toBeInTheDocument();
+    expect(screen.getByText(/3d ago/)).toBeInTheDocument();
   });
 
   it("lists the orphan and removes it with its data by default", async () => {

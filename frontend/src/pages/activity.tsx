@@ -21,7 +21,7 @@ import {
   activityQueueQuery,
   activityUnmatchedQuery,
 } from "@/lib/queries";
-import { timeAgo } from "@/lib/format";
+import { formatBytes, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { GrabEventRow } from "@/components/grab-event-row";
 import { RemoveUnmatchedDialog } from "@/components/remove-unmatched-dialog";
@@ -268,7 +268,11 @@ function UnmatchedRow({ item }: { item: UnmatchedDownload }) {
       </ItemMedia>
       <ItemContent className="min-w-0 gap-0.5">
         <div className="line-clamp-1 font-mono text-[13px]">{item.name}</div>
-        <div className="font-mono text-[12px] text-faint">{item.infohash}</div>
+        <div className="text-[12px] text-faint">
+          <span className="font-mono">{item.infohash}</span>
+          {item.size > 0 && <> · {formatBytes(item.size)}</>}
+          {item.added_at && <> · added {timeAgo(item.added_at)}</>}
+        </div>
       </ItemContent>
       <ItemActions className="flex-col items-end gap-1">
         <RemoveUnmatchedDialog item={item} />

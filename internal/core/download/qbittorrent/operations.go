@@ -186,7 +186,7 @@ func (c *Client) Status(ctx context.Context, hashes ...string) ([]download.Statu
 	}
 	out := make([]download.Status, 0, len(torrents))
 	for _, t := range torrents {
-		out = append(out, download.Status{
+		s := download.Status{
 			Hash:        t.Hash,
 			Name:        t.Name,
 			State:       mapState(string(t.State)),
@@ -194,7 +194,14 @@ func (c *Client) Status(ctx context.Context, hashes ...string) ([]download.Statu
 			SavePath:    t.SavePath,
 			ContentPath: t.ContentPath,
 			Category:    t.Category,
-		})
+			Size:        t.Size,
+		}
+		// Left zero when unreported, so the caller can omit it rather than
+		// claiming the torrent was added at the epoch.
+		if t.AddedOn > 0 {
+			s.AddedAt = time.Unix(t.AddedOn, 0).UTC()
+		}
+		out = append(out, s)
 	}
 	return out, nil
 }
