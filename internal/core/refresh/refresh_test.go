@@ -424,3 +424,44 @@ func TestRefreshContinuesPastAFailingSeries(t *testing.T) {
 		t.Errorf("series 2 got %d items, want 12 despite series 1 failing", len(got))
 	}
 }
+
+// Refresh growth reads the same cut, with the two consequences of an insert
+// disentangled: the air-date sync ignores monitoring entirely, so the stamp
+// still clears, while the search cadence is only worth resetting for something
+// the sweep will actually look for.
+func TestRefreshHonoursTheSeriesMonitorCut(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := newFakeProvider()
+	prov.episodes[100] = 13
+	id := seedSeries(t, st, 100, 12)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET monitor_new_from = NULL, search_backoff = 8, next_search_at = ? WHERE id = ?`,
+		store.FormatTimestamp(time.Now().Add(24*time.Hour)), id); err != nil {
+		t.Fatalf("narrow the series and seed a long backoff: %v", err)
+	}
+	setSyncedAt(t, st, id, time.Now())
+
+	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+		t.Fatalf("RefreshOnce: %v", err)
+	}
+
+	var monitored int64
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT monitored FROM wanted_items WHERE series_id = ? AND number = 13`, id).Scan(&monitored); err != nil {
+		t.Fatalf("read the new item: %v", err)
+	}
+	if monitored != 0 {
+		t.Errorf("new item monitored = %d, want 0 under a null cut", monitored)
+	}
+	if stamp, ok := syncedAt(t, st, id); ok {
+		t.Errorf("airing_synced_at = %q, want cleared -- the air-date sync ignores monitoring", stamp)
+	}
+	var backoff int
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT search_backoff FROM series WHERE id = ?`, id).Scan(&backoff); err != nil {
+		t.Fatalf("read search cadence: %v", err)
+	}
+	if backoff != 8 {
+		t.Errorf("search_backoff = %d, want the accumulated 8 -- an unmonitored insert is not news", backoff)
+	}
+}

@@ -38,8 +38,9 @@ type missingItemDTO struct {
 	ID           int64        `json:"id"`
 	Number       int          `json:"number"`
 	Name         string       `json:"name,omitempty"`
+	Monitored    bool         `json:"monitored" doc:"False rows appear only under ?unmonitored=true, so the click that hid one can be undone"`
 	AirsAt       string       `json:"airs_at,omitempty" doc:"Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule"`
-	Reason       string       `json:"reason,omitempty" enum:"unaired,grab_failed,no_match,declined,pin_held,would_grab,add_failed" doc:"This item's own story; absent when the group and page tell it all"`
+	Reason       string       `json:"reason,omitempty" enum:"unmonitored,unaired,grab_failed,no_match,declined,pin_held,would_grab,add_failed" doc:"This item's own story; absent when the group and page tell it all"`
 	ReasonDetail string       `json:"reason_detail,omitempty" doc:"Why the last grab failed, or why the pass turned a release down"`
 	LastPass     *lastPassDTO `json:"last_pass,omitempty" doc:"Present only when the reason is the last pass's answer, which is dated because it can go stale"`
 }
@@ -67,6 +68,7 @@ type cutoffItemDTO struct {
 	ID          int64          `json:"id"`
 	Number      int            `json:"number"`
 	Name        string         `json:"name,omitempty"`
+	Monitored   bool           `json:"monitored" doc:"False rows appear only under ?unmonitored=true"`
 	AirsAt      string         `json:"airs_at,omitempty" format:"date-time"`
 	Status      string         `json:"status" enum:"in_library,downloading" doc:"Derived acquisition state; downloading while an upgrade is in flight"`
 	HeldRelease string         `json:"held_release" doc:"What the library holds, and what the score below rates"`
@@ -121,6 +123,22 @@ type queueSearchOutput struct {
 	}
 }
 
+// setItemsMonitoredInput is one state-setter for both call sites; a single
+// toggle is a one-element array. The client chunks against maxItems.
+type setItemsMonitoredInput struct {
+	Body struct {
+		ItemIDs   []int64 `json:"item_ids" required:"true" maxItems:"1000" doc:"Wanted items to set; ids that no longer exist are skipped"`
+		Monitored bool    `json:"monitored" doc:"Whether automation should pursue these items"`
+	}
+}
+
+type setItemsMonitoredOutput struct {
+	Body struct {
+		Updated      int `json:"updated" doc:"Items actually changed; below len(item_ids) when some were deleted"`
+		SeriesQueued int `json:"series_queued" doc:"Distinct series put back at the front of the sweep queue; always 0 when unmonitoring"`
+	}
+}
+
 // wantedHandler groups the cross-series wanted queue: the two listings and the
 // cadence reset behind their bulk actions.
 type wantedHandler struct {
@@ -156,6 +174,15 @@ func registerWantedRoutes(api huma.API, deps routeDeps) {
 		Tags:          []string{"wanted"},
 		DefaultStatus: http.StatusAccepted,
 	}, h.queueSearch)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "set-wanted-items-monitored",
+		Method:      http.MethodPatch,
+		Path:        "/api/v1/wanted/items",
+		Summary:     "Set whether automation pursues these wanted items",
+		Description: "Monitoring gates search and grab, never a manual action: a manual search or grab on an unmonitored item still works, and a pack grabbed for its monitored neighbours still imports the file.",
+		Tags:        []string{"wanted"},
+	}, h.setItemsMonitored)
 }
 
 func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*missingOutput, error) {
@@ -219,7 +246,8 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	}
 	itemRows, err := h.deps.store.Q.ListMissingItemsBySeries(ctx, db.ListMissingItemsBySeriesParams{
 		SeriesIds: ids,
-		Column2:   boolParam(in.Unaired),
+		Column2:   boolParam(in.Unmonitored),
+		Column3:   boolParam(in.Unaired),
 		AirsAt:    nowStored,
 	})
 	if err != nil {
@@ -231,6 +259,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 			continue
 		}
 		facts := itemFacts{
+			Monitored:  r.Monitored == 1,
 			AirsAt:     storedTime(r.AirsAt),
 			GrabFailed: r.GrabStatus.Valid,
 			GrabbedAt:  storedTime(r.GrabCreatedAt),
@@ -244,11 +273,12 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		}
 		reason, fromPass := itemReason(facts, now)
 		item := missingItemDTO{
-			ID:     r.ID,
-			Number: int(r.Number.Int64),
-			Name:   r.Title.String,
-			AirsAt: storedTimeRFC3339(r.AirsAt),
-			Reason: reason,
+			ID:        r.ID,
+			Number:    int(r.Number.Int64),
+			Name:      r.Title.String,
+			Monitored: facts.Monitored,
+			AirsAt:    storedTimeRFC3339(r.AirsAt),
+			Reason:    reason,
 		}
 		switch {
 		case fromPass:
@@ -355,6 +385,7 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 				ID:          it.ID,
 				Number:      it.Number,
 				Name:        it.Name,
+				Monitored:   it.Monitored,
 				AirsAt:      storedTimeRFC3339(sql.NullString{String: it.AirsAt, Valid: it.AirsAt != ""}),
 				Status:      state.Status,
 				HeldRelease: it.HeldReleaseTitle,
@@ -395,6 +426,52 @@ func (h *wantedHandler) queueSearch(ctx context.Context, in *queueSearchInput) (
 			out.Body.RunTriggered = true
 		}
 	}
+	return out, nil
+}
+
+// setItemsMonitored applies the flag to a whole selection in one transaction.
+// An unknown id is skipped rather than 404ing the batch, deliberately, unlike
+// resetSelected beside it (#188).
+func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonitoredInput) (*setItemsMonitoredOutput, error) {
+	out := &setItemsMonitoredOutput{}
+	if len(in.Body.ItemIDs) == 0 {
+		return out, nil
+	}
+
+	tx, err := h.deps.store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	qtx := h.deps.store.Q.WithTx(tx)
+
+	// Only where something will actually move: the update reports a row count,
+	// not which series it touched.
+	var seriesIDs []int64
+	if in.Body.Monitored {
+		seriesIDs, err = qtx.ListSeriesIDsForUnmonitoredItems(ctx, in.Body.ItemIDs)
+		if err != nil {
+			return nil, huma.Error500InternalServerError("failed to load the items", err)
+		}
+	}
+	updated, err := qtx.SetWantedItemsMonitored(ctx, db.SetWantedItemsMonitoredParams{
+		Monitored: boolToInt(in.Body.Monitored),
+		Ids:       in.Body.ItemIDs,
+	})
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
+	}
+	for _, id := range seriesIDs {
+		if err := qtx.ResetSeriesSearchState(ctx, id); err != nil {
+			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
+	}
+	// Both counts describe committed work, so neither is reported before it is.
+	out.Body.Updated = int(updated)
+	out.Body.SeriesQueued = len(seriesIDs)
 	return out, nil
 }
 

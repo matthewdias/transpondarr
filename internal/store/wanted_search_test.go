@@ -32,6 +32,7 @@ func seedSearchItem(t *testing.T, st *Store, seriesID int64, number int, inLibra
 		SeriesID: seriesID, Kind: "episode",
 		Number:    sql.NullInt64{Int64: int64(number), Valid: true},
 		InLibrary: inLibrary,
+		Monitored: 1,
 	})
 	if err != nil {
 		t.Fatalf("create item %d: %v", number, err)
@@ -99,8 +100,15 @@ func TestListSeriesDueWantedSearchPredicate(t *testing.T) {
 	failed := seedSearchSeries(t, st, "failed-grab", 1)
 	seedSearchGrab(t, st, seedSearchItem(t, st, failed, 1, 0, &past), "failed")
 
+	// Included: only one of the two items is unmonitored, which is the normal case.
+	mixed := seedSearchSeries(t, st, "mixed", 1)
+	unmonitorItem(t, st, seedSearchItem(t, st, mixed, 1, 0, &past))
+	seedSearchItem(t, st, mixed, 2, 0, &past)
+
 	// Excluded: unmonitored.
 	seedSearchItem(t, st, seedSearchSeries(t, st, "unmonitored", 0), 1, 0, &past)
+	// Excluded: monitored series, but the only thing wanted is not.
+	unmonitorItem(t, st, seedSearchItem(t, st, seedSearchSeries(t, st, "narrowed-away", 1), 1, 0, &past))
 	// Excluded: everything already had.
 	seedSearchItem(t, st, seedSearchSeries(t, st, "all-had", 1), 1, 1, &past)
 	// Excluded: the only wanted item is already in flight.
@@ -120,19 +128,32 @@ func TestListSeriesDueWantedSearchPredicate(t *testing.T) {
 	}
 
 	got := dueTitles(t, st, now, 100)
-	for _, want := range []string{"aired", "unscheduled", "failed-grab"} {
+	for _, want := range []string{"aired", "unscheduled", "failed-grab", "mixed"} {
 		if !contains(got, want) {
 			t.Errorf("due set %v is missing %q", got, want)
 		}
 	}
-	for _, unwanted := range []string{"unmonitored", "all-had", "in-flight", "deferred", "future-only", "backed-off"} {
+	for _, unwanted := range []string{
+		"unmonitored", "narrowed-away", "all-had", "in-flight", "deferred", "future-only", "backed-off",
+	} {
 		if contains(got, unwanted) {
 			t.Errorf("due set %v wrongly includes %q", got, unwanted)
 		}
 	}
-	if len(got) != 3 {
-		t.Errorf("due set = %v, want exactly the three searchable series", got)
+	if len(got) != 4 {
+		t.Errorf("due set = %v, want exactly the four searchable series", got)
 	}
+}
+
+// unmonitorItem narrows one item, which is what the sweep and feed predicates
+// have to see.
+func unmonitorItem(t *testing.T, st *Store, itemID int64) int64 {
+	t.Helper()
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE wanted_items SET monitored = 0 WHERE id = ?`, itemID); err != nil {
+		t.Fatalf("unmonitor item %d: %v", itemID, err)
+	}
+	return itemID
 }
 
 // Never-searched series sort first so a freshly added title is not queued behind
@@ -216,6 +237,11 @@ func TestListBackedOffSeriesWantedInWindowPredicate(t *testing.T) {
 
 	// Excluded: unmonitored.
 	setNextSearchAt(t, st, mustSeed(t, st, "unmonitored", 0, 1, 0, &inside), later)
+	// Excluded: the item that aired inside the gap is not monitored, so no reset
+	// buys anything -- the sweep would drop the series again on arrival.
+	narrowed := mustSeed(t, st, "narrowed-away", 1, 1, 0, &inside)
+	unmonitorItem(t, st, itemOf(t, st, narrowed))
+	setNextSearchAt(t, st, narrowed, later)
 	// Excluded: already due -- the sweep reaches it on the next tick regardless.
 	setNextSearchAt(t, st, mustSeed(t, st, "already-due", 1, 1, 0, &inside), now.Add(-time.Minute))
 	// Excluded: never searched, so it is at the front of the queue already.

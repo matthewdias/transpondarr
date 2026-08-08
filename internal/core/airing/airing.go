@@ -106,27 +106,34 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	q := s.store.Q.WithTx(tx)
 
 	for _, a := range schedule {
+		number := sql.NullInt64{Int64: int64(a.Number), Valid: true}
 		if err := q.UpsertWantedItemAiring(ctx, db.UpsertWantedItemAiringParams{
-			SeriesID: series.ID,
-			Kind:     string(domain.KindEpisode),
-			Number:   sql.NullInt64{Int64: int64(a.Number), Valid: true},
-			AirsAt:   sql.NullString{String: store.FormatTimestamp(a.AirsAt), Valid: true},
+			SeriesID:  series.ID,
+			Kind:      string(domain.KindEpisode),
+			Number:    number,
+			AirsAt:    sql.NullString{String: store.FormatTimestamp(a.AirsAt), Valid: true},
+			Monitored: store.MonitorNew(series.MonitorNewFrom, number),
 		}); err != nil {
 			return fmt.Errorf("upsert airing for item %d: %w", a.Number, err)
 		}
 	}
 
+	// Only monitored fills count: for a narrowed long-runner the fill range is
+	// the back catalogue, and nothing will grab it.
 	var filled int64
 	for _, n := range skipped(schedule, !notYetAired) {
+		number := sql.NullInt64{Int64: int64(n), Valid: true}
+		monitored := store.MonitorNew(series.MonitorNewFrom, number)
 		rows, err := q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
-			SeriesID: series.ID,
-			Kind:     string(domain.KindEpisode),
-			Number:   sql.NullInt64{Int64: int64(n), Valid: true},
+			SeriesID:  series.ID,
+			Kind:      string(domain.KindEpisode),
+			Number:    number,
+			Monitored: monitored,
 		})
 		if err != nil {
 			return fmt.Errorf("create item %d for a skipped schedule entry: %w", n, err)
 		}
-		filled += rows
+		filled += rows * monitored
 	}
 	// A filled item has no air date, so it is exactly what airedSince cannot see.
 	if filled > 0 {

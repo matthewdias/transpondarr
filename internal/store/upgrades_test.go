@@ -104,13 +104,25 @@ func TestListSeriesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 	setSeriesProfile(t, st, deferred, profile)
 	seedHeldItem(t, st, deferred, 1, "[ExampleSubs] Some Show - 01 (480p)", "import_deferred")
 
+	// Excluded: unmonitored (#188). Both halves need the clause -- without it on
+	// the upgrade half, a narrowed held item makes its series feed-due every poll.
+	narrowedUpgrade := seedSearchSeries(t, st, "unmonitored-upgrade", 1)
+	setSeriesProfile(t, st, narrowedUpgrade, profile)
+	unmonitorItem(t, st,
+		seedHeldItem(t, st, narrowedUpgrade, 1, "[ExampleSubs] Some Show - 01 (480p)", "imported"))
+	// Excluded: the wanted half, narrowed.
+	unmonitorItem(t, st, seedSearchItem(t, st, seedSearchSeries(t, st, "unmonitored-wanted", 1), 1, 0, &past))
+
 	got := feedTitles(t, st, now)
 	for _, want := range []string{"wanted", "held-imported", "held-failed-upgrade"} {
 		if !contains(got, want) {
 			t.Errorf("feed set %v is missing %q", got, want)
 		}
 	}
-	for _, unwanted := range []string{"upgrades-off", "no-held-title", "upgrade-in-flight", "upgrade-deferred"} {
+	for _, unwanted := range []string{
+		"upgrades-off", "no-held-title", "upgrade-in-flight", "upgrade-deferred",
+		"unmonitored-upgrade", "unmonitored-wanted",
+	} {
 		if contains(got, unwanted) {
 			t.Errorf("feed set %v wrongly includes %q", got, unwanted)
 		}

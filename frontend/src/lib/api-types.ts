@@ -660,6 +660,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/wanted/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set whether automation pursues these wanted items
+         * @description Monitoring gates search and grab, never a manual action: a manual search or grab on an unmonitored item still works, and a pack grabbed for its monitored neighbours still imports the file.
+         */
+        patch: operations["set-wanted-items-monitored"];
+        trace?: never;
+    };
     "/api/v1/wanted/missing": {
         parameters: {
             query?: never;
@@ -746,6 +766,12 @@ export interface components {
              * @example https://example.com/schemas/AddSeriesInputBody.json
              */
             readonly $schema?: string;
+            /**
+             * @description Which items to monitor, now and as the series grows: all, or only from the next broadcast onwards
+             * @default all
+             * @enum {string}
+             */
+            monitor_items: "all" | "future";
             /** @description Whether to monitor for downloads (default true) */
             monitored?: boolean;
             /**
@@ -1014,6 +1040,8 @@ export interface components {
             held_release: string;
             /** Format: int64 */
             id: number;
+            /** @description False rows appear only under ?unmonitored=true */
+            monitored: boolean;
             name?: string;
             /** Format: int64 */
             number: number;
@@ -1049,6 +1077,8 @@ export interface components {
             /** @description Why the last import attempt failed (status stuck) */
             import_error?: string;
             in_library: boolean;
+            /** @description Whether automation pursues this item; candidacy and possession stay separate fields */
+            monitored: boolean;
             name?: string;
             /** Format: int64 */
             number: number;
@@ -1316,6 +1346,8 @@ export interface components {
             id: number;
             /** @description Present only when the reason is the last pass's answer, which is dated because it can go stale */
             last_pass?: components["schemas"]["LastPassDTO"];
+            /** @description False rows appear only under ?unmonitored=true, so the click that hid one can be undone */
+            monitored: boolean;
             name?: string;
             /** Format: int64 */
             number: number;
@@ -1323,7 +1355,7 @@ export interface components {
              * @description This item's own story; absent when the group and page tell it all
              * @enum {string}
              */
-            reason?: "unaired" | "grab_failed" | "no_match" | "declined" | "pin_held" | "would_grab" | "add_failed";
+            reason?: "unmonitored" | "unaired" | "grab_failed" | "no_match" | "declined" | "pin_held" | "would_grab" | "add_failed";
             /** @description Why the last grab failed, or why the pass turned a release down */
             reason_detail?: string;
         };
@@ -1699,12 +1731,25 @@ export interface components {
             format: string;
             /** Format: int64 */
             id: number;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Held items inside the tracked set, so progress can never exceed it
+             */
             in_library: number;
             monitored: boolean;
+            /**
+             * Format: int64
+             * @description Monitored items whether or not they have aired, so a zero tracked count can name its cause
+             */
+            monitored_items: number;
             title: string;
             /** Format: int64 */
             total: number;
+            /**
+             * Format: int64
+             * @description Items this series is pursuing: monitored and already broadcast
+             */
+            tracked: number;
         };
         SeriesDetailDTO: {
             /**
@@ -1764,6 +1809,36 @@ export interface components {
             readonly $schema?: string;
             events: components["schemas"]["GrabEventDTO"][];
             series: string;
+        };
+        SetItemsMonitoredInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetItemsMonitoredInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Wanted items to set; ids that no longer exist are skipped */
+            item_ids: number[];
+            /** @description Whether automation should pursue these items */
+            monitored: boolean;
+        };
+        SetItemsMonitoredOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetItemsMonitoredOutputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description Distinct series put back at the front of the sweep queue; always 0 when unmonitoring
+             */
+            series_queued: number;
+            /**
+             * Format: int64
+             * @description Items actually changed; below len(item_ids) when some were deleted
+             */
+            updated: number;
         };
         SetMonitoredInputBody: {
             /**
@@ -3327,6 +3402,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CutoffOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "set-wanted-items-monitored": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetItemsMonitoredInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetItemsMonitoredOutputBody"];
                 };
             };
             /** @description Error */

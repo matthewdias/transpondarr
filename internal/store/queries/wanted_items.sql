@@ -5,15 +5,15 @@ WHERE series_id = ?
 ORDER BY number;
 
 -- name: CreateWantedItem :one
-INSERT INTO wanted_items (series_id, kind, number, title, in_library)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO wanted_items (series_id, kind, number, title, in_library, monitored)
+VALUES (?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpsertWantedItem :execrows
--- DO NOTHING keeps refresh from ever clobbering an existing item's in_library or
--- title; the row count tells the caller whether the series actually grew.
-INSERT INTO wanted_items (series_id, kind, number, title, in_library)
-VALUES (?, ?, ?, ?, 0)
+-- DO NOTHING keeps refresh from ever clobbering an existing item's in_library,
+-- title or monitored; the row count tells the caller whether the series grew.
+INSERT INTO wanted_items (series_id, kind, number, title, in_library, monitored)
+VALUES (?, ?, ?, ?, 0, ?)
 ON CONFLICT (series_id, kind, number) DO NOTHING;
 
 -- name: GetWantedItemByNumber :one
@@ -24,6 +24,19 @@ SELECT w.*, g.status AS grab_status
 FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ? AND w.kind = ? AND w.number = ?;
+
+-- name: SetWantedItemsMonitored :execrows
+-- The bulk state-setter behind both monitoring UIs. Unknown ids are simply not
+-- matched, which is what lets a concurrent series delete cost only those ids.
+UPDATE wanted_items SET monitored = ? WHERE id IN (sqlc.slice('ids'));
+
+-- name: ListSeriesIDsForUnmonitoredItems :many
+-- The series a re-monitor will actually change, so the cadence reset lands once
+-- per series and only where something moved. Read before the update, in the
+-- same transaction, since the update reports only a row count.
+SELECT DISTINCT series_id
+FROM wanted_items
+WHERE id IN (sqlc.slice('ids')) AND monitored = 0;
 
 -- name: SetWantedItemInLibrary :exec
 UPDATE wanted_items SET in_library = ? WHERE id = ?;
@@ -59,7 +72,8 @@ ORDER BY s.title;
 
 -- name: UpsertWantedItemAiring :exec
 -- Creating the item matters for a null-count long-runner: the schedule is the
--- only source that knows its episodes exist. Only airs_at moves on conflict.
-INSERT INTO wanted_items (series_id, kind, number, airs_at)
-VALUES (?, ?, ?, ?)
+-- only source that knows its episodes exist. Only airs_at moves on conflict, so
+-- a stored monitored flag survives every resync.
+INSERT INTO wanted_items (series_id, kind, number, airs_at, monitored)
+VALUES (?, ?, ?, ?, ?)
 ON CONFLICT (series_id, kind, number) DO UPDATE SET airs_at = excluded.airs_at;

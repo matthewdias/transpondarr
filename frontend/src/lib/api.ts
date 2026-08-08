@@ -103,6 +103,11 @@ export type Candidate = Schemas["CandidateDTO"];
 // The id space a provider_id is numbered in; the spec's enum, so a new provider
 // widens this type rather than passing an arbitrary string.
 export type Provider = Schemas["AddSeriesInputBody"]["provider"];
+// The add-time item-monitoring choice; "all" is the server default, which is
+// what an add call that offers no choice (Discovery) must keep meaning.
+export type MonitorItems = NonNullable<
+  Schemas["AddSeriesInputBody"]["monitor_items"]
+>;
 export type SeasonEntry = Schemas["SeasonEntryDTO"];
 export type SeasonChart = Schemas["BrowseSeasonOutputBody"];
 export type WantedItem = Schemas["DetailItemDTO"];
@@ -175,6 +180,45 @@ export interface AuthStatus {
 
 // Mutations deliberately take no AbortSignal: a grab or a settings write must
 // not die on a stray unmount.
+// Mirrors the endpoint's maxItems; a select-all on a long-runner exceeds it.
+const MONITOR_BATCH = 1000;
+
+/** A chunked batch that failed partway. applied is what actually landed. */
+export class PartialBatchError extends Error {
+  applied: number;
+  total: number;
+  reason: unknown;
+  constructor(applied: number, total: number, reason: unknown) {
+    const detail = reason instanceof Error ? reason.message : String(reason);
+    super(`Updated ${applied} of ${total} episodes, then failed: ${detail}`);
+    this.name = "PartialBatchError";
+    this.applied = applied;
+    this.total = total;
+    this.reason = reason;
+  }
+}
+
+// Sequential, not parallel: on a failure the caller has to know how much
+// landed. The flag is idempotent, so retrying the whole selection is safe.
+async function setItemsMonitoredChunked(itemIds: number[], monitored: boolean) {
+  let updated = 0;
+  for (let i = 0; i < itemIds.length; i += MONITOR_BATCH) {
+    const chunk = itemIds.slice(i, i + MONITOR_BATCH);
+    try {
+      const res = await client
+        .PATCH("/api/v1/wanted/items", {
+          body: { item_ids: chunk, monitored },
+        })
+        .then(unwrap);
+      updated += res.updated;
+    } catch (err) {
+      if (i === 0) throw err;
+      throw new PartialBatchError(updated, itemIds.length, err);
+    }
+  }
+  return { updated };
+}
+
 export const api = {
   health: (signal?: AbortSignal) =>
     client.GET("/api/v1/health", { signal }).then(unwrap),
@@ -313,16 +357,29 @@ export const api = {
       .POST("/api/v1/wanted/search", { body: { series_ids: seriesIds } })
       .then(unwrap),
 
+  setItemsMonitored: (itemIds: number[], monitored: boolean) =>
+    setItemsMonitoredChunked(itemIds, monitored),
+
   searchMetadata: (term: string, signal?: AbortSignal) =>
     client
       .GET("/api/v1/metadata/search", { params: { query: { term } }, signal })
       .then(unwrap)
       .then((r) => r.results),
 
-  addSeries: (provider: Provider, providerId: number, monitored = true) =>
+  addSeries: (
+    provider: Provider,
+    providerId: number,
+    monitorItems: MonitorItems = "all",
+    monitored = true,
+  ) =>
     client
       .POST("/api/v1/series", {
-        body: { provider, provider_id: providerId, monitored },
+        body: {
+          provider,
+          provider_id: providerId,
+          monitored,
+          monitor_items: monitorItems,
+        },
       })
       .then(unwrap),
 

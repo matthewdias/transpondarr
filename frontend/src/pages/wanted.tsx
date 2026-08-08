@@ -19,6 +19,7 @@ import {
 import {
   api,
   ApiError,
+  PartialBatchError,
   type CutoffGroup,
   type CutoffItem,
   type GlobalMissingReason,
@@ -33,6 +34,8 @@ import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 import { cn } from "@/lib/utils";
 import { ItemStatusBadge } from "@/components/badges";
+import { MonitorToggle } from "@/components/monitor-toggle";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -73,6 +76,7 @@ const seriesReasonTone: Record<SeriesMissingReason, string> = {
 // The row tier. The last five are #181's: what the last pass decided about this
 // episode, which is the half the user can act on.
 const itemReasonLabel: Record<ItemMissingReason, string> = {
+  unmonitored: "Not monitored",
   unaired: "Not aired yet",
   grab_failed: "Last grab failed",
   no_match: "Nothing matched",
@@ -85,6 +89,7 @@ const itemReasonLabel: Record<ItemMissingReason, string> = {
 // A refused add is a failure like a failed grab; a decline is the mid tone,
 // because there is a setting behind it to change.
 const itemReasonTone: Record<ItemMissingReason, string> = {
+  unmonitored: "border-border bg-panel-2 text-faint",
   unaired: "border-border bg-panel-2 text-faint",
   grab_failed: "border-destructive/40 text-destructive",
   add_failed: "border-destructive/40 text-destructive",
@@ -285,6 +290,43 @@ function GroupSection({
   );
 }
 
+// Invalidates rather than patching a page: unmonitoring removes the row from
+// the default view entirely, which no in-place edit could express.
+function useSetItemMonitored() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, monitored }: { id: number; monitored: boolean }) =>
+      api.setItemsMonitored([id], monitored),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wanted"] }),
+    onError: (err) =>
+      toast.error(
+        err instanceof ApiError || err instanceof PartialBatchError
+          ? err.message
+          : "Could not update monitoring",
+      ),
+  });
+}
+
+function RowMonitorToggle({
+  itemId,
+  number,
+  monitored,
+}: {
+  itemId: number;
+  number: number;
+  monitored: boolean;
+}) {
+  const set = useSetItemMonitored();
+  return (
+    <MonitorToggle
+      monitored={monitored}
+      itemNumber={number}
+      disabled={set.isPending}
+      onChange={(v) => set.mutate({ id: itemId, monitored: v })}
+    />
+  );
+}
+
 // overflowRow links to the series for what the group cap left out.
 function OverflowRow({ seriesId, label }: { seriesId: number; label: string }) {
   return (
@@ -310,16 +352,18 @@ function MissingGroupCard({
   onToggle: () => void;
 }) {
   const hidden = group.missing - group.items.length;
+  // Only split a whole group: with items paged the loaded rows are a sample, so
+  // counting them would understate what is switched off.
+  const unmonitored =
+    hidden === 0 ? group.items.filter((i) => !i.monitored).length : 0;
   return (
     <GroupSection
       title={group.series_title}
       header={
         <>
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selected}
-            onChange={onToggle}
-            className="size-3.5 accent-primary"
+            onCheckedChange={onToggle}
             aria-label={`Select ${group.series_title}`}
           />
           <Link
@@ -329,7 +373,9 @@ function MissingGroupCard({
             {group.series_title}
           </Link>
           <span className="text-xs text-faint tabular-nums">
-            {plural(group.missing, "episode")} missing
+            {unmonitored > 0
+              ? `${group.missing - unmonitored} missing · ${unmonitored} not monitored`
+              : `${plural(group.missing, "episode")} missing`}
           </span>
           <SeriesReasonBadge group={group} />
         </>
@@ -380,6 +426,11 @@ function MissingRow({
           <Search className="size-4" /> Search
         </Link>
       </Button>
+      <RowMonitorToggle
+        itemId={item.id}
+        number={item.number}
+        monitored={item.monitored}
+      />
     </div>
   );
 }
@@ -599,6 +650,11 @@ function CutoffRow({
           <Search className="size-4" /> Search
         </Link>
       </Button>
+      <RowMonitorToggle
+        itemId={item.id}
+        number={item.number}
+        monitored={item.monitored}
+      />
     </div>
   );
 }

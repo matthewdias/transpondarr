@@ -1,4 +1,10 @@
-import { Check, Download, FolderClock, TriangleAlert } from "lucide-react";
+import {
+  Check,
+  Download,
+  EyeOff,
+  FolderClock,
+  TriangleAlert,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ItemStatus } from "@/lib/api";
 
@@ -31,6 +37,16 @@ export function MonitoredBadge({ monitored }: { monitored: boolean }) {
   ) : (
     <span className={cn(badgeBase, "border-border bg-panel-2 text-faint")}>
       Unmonitored
+    </span>
+  );
+}
+
+// Replaces "wanted" alone, at the render site: the other statuses stay true
+// when unmonitored, and deriveItemState knows nothing about monitoring.
+export function UnmonitoredItemBadge() {
+  return (
+    <span className={cn(badgeBase, "border-border bg-panel-2 text-faint")}>
+      <EyeOff className="size-3" /> Not monitored
     </span>
   );
 }

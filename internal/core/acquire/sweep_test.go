@@ -19,12 +19,15 @@ import (
 
 // sweepItem describes one wanted item to seed: its number, whether it is in the library,
 // its air time (nil = the provider published none), and any grab against it.
+// The monitoring field is negative (#188) so the Go zero value stays "monitored",
+// which is what every existing seed here already means.
 type sweepItem struct {
-	number    int
-	inLibrary bool
-	airsAt    *time.Time
-	grab      string
-	heldTitle string // the release the library holds, for an upgrade pass (#97)
+	number      int
+	inLibrary   bool
+	airsAt      *time.Time
+	grab        string
+	heldTitle   string // the release the library holds, for an upgrade pass (#97)
+	unmonitored bool
 }
 
 // seedSweep inserts a series with the given items and returns its id.
@@ -44,10 +47,15 @@ func seedSweep(t *testing.T, st *store.Store, title string, monitored bool, item
 		if it.inLibrary {
 			inLibrary = 1
 		}
+		monitored := int64(1)
+		if it.unmonitored {
+			monitored = 0
+		}
 		row, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 			SeriesID: s.ID, Kind: "episode",
 			Number:    sql.NullInt64{Int64: int64(it.number), Valid: true},
 			InLibrary: inLibrary,
+			Monitored: monitored,
 		})
 		if err != nil {
 			t.Fatalf("create item %d: %v", it.number, err)

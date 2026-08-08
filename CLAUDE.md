@@ -286,6 +286,12 @@ Behaviour changes are test-driven. Work red → green → refactor:
   only as the tombstone that invalidates an older refusal (a listed item's grab
   plainly did not hold, and `grab_failed` owns that row), and `contended`'s
   honest message is "the queue is working", which the group tier already says.
+  Item monitoring only *narrows* the write set, so the guard below still holds —
+  but it introduces a second, permanent staleness source, since a pass never
+  writes for an unmonitored item and nothing later invalidates what it wrote
+  before the toggle. That one the read side **suppresses** (`itemReason` returns
+  `unmonitored` above every other tier) rather than invalidating, so the stored
+  answer returns intact when the item is monitored again.
   **Blame drops decide's coverage tier** and re-ranks Pinned → Score → Seeders,
   because coverage buys grab efficiency (#126) and says nothing about which
   release came closest *for one episode* — inheriting it would let a wide
@@ -461,6 +467,40 @@ Behaviour changes are test-driven. Work red → green → refactor:
   derive one from the other outside `acquire.passItem`, which is where each entry
   point states its own. #97's upgrade path is a held item that is grabbable
   anyway, which is exactly the case the old single field could not express.
+  **Item monitoring (#188) is one more input to `Grabbable`, which is why it
+  costs `decide` and the importer nothing**: `wanted_items.monitored` is
+  conjoined into `loadSweepItems`' single grabbability line, so it gates sweep
+  search, feed grab and the upgrade pool at once, while `maxItem` still spans
+  the item and a pack covering an unmonitored episode still matches the rest.
+  Two things sit deliberately outside that gate. **Monitoring never gates a
+  manual path** — search, grab, and later file adoption (#157) — which
+  generalises PR #57 rather than enumerating the paths that exist today; and the
+  importer keeps no gate at all, so a pack grabbed for its monitored neighbours
+  still places every file it carries. The bytes are already spent, a hardlink
+  costs no disk, and the hole is transitional: `unclaimedItem` already refuses a
+  had item, so adoption closes it with no importer change.
+- **The two cadence helpers gate on `monitored`, not on `grabbable`.** An unaired
+  item is never grabbable by construction, so filtering `nextAiring` on
+  grabbability would return the zero time always and silently delete #100's
+  next-broadcast clamp for every feedless install. `airedSince` takes the same
+  gate for a weaker reason — the grabbable filter is merely over-broad there, and
+  would also stop an in-flight grab resetting the ladder.
+- **A monitor decision is stored as a numeric cut, not as a mode.** The add-time
+  choice (`all` / `future` / `none`) maps to `series.monitor_new_from`, read
+  everywhere through the one helper `store.MonitorNew`. A mode could not work:
+  the airing gap-fill and refresh growth both create items through
+  `UpsertWantedItem`, which deliberately writes no `airs_at`, so `future` would
+  have nothing to test there. A number also records the decision as *taken*
+  rather than as a policy to re-derive — a re-evaluated `future` would unmonitor
+  episodes someone has been waiting weeks for — and it is self-maintaining, so
+  episode 1051 created six months later is monitored with no follow-up write.
+  `monitor_new_from` is left to its schema default in `CreateSeries` and narrowed
+  by `SetSeriesMonitorNewFrom`: an omitted sqlc params field writes NULL, which
+  reads as "monitor nothing new", so the insert is the one place that must not be
+  able to say it. Both later create sites also **split the reset counter** — an
+  unmonitored fill must not put a narrowed long-runner back at the front of the
+  search queue on every sync — while refresh still clears the airing stamp on
+  *any* insert, since the air-date sync ignores monitoring.
 - **The library flag and the derived item status share one name, deliberately
   (#84): `in_library`.** `wanted_items.in_library` sources the status
   `deriveItemState` returns, so renaming either alone would hide the derivation.

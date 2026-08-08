@@ -133,6 +133,7 @@ func seedAnilistSeries(t *testing.T, h *harness, title string, anilistID int64, 
 	for n := 1; n <= count; n++ {
 		if _, err := h.store.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 			SeriesID: s.ID, Kind: "episode", Number: sql.NullInt64{Int64: int64(n), Valid: true},
+			Monitored: 1,
 		}); err != nil {
 			t.Fatalf("create item %d: %v", n, err)
 		}

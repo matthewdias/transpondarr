@@ -24,6 +24,7 @@ type lastPass struct {
 type missingItem struct {
 	ID           int64     `json:"id"`
 	Number       int       `json:"number"`
+	Monitored    bool      `json:"monitored"`
 	AirsAt       string    `json:"airs_at"`
 	Reason       string    `json:"reason"`
 	ReasonDetail string    `json:"reason_detail"`

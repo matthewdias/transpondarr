@@ -3,10 +3,17 @@ import { useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from "lucide-react";
-import { api, ApiError, type Candidate } from "@/lib/api";
+import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
 import { metadataSearchQuery, seriesQuery } from "@/lib/queries";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Poster } from "@/components/poster";
@@ -35,8 +42,27 @@ function candidateTitle(c: Candidate) {
   return c.romaji || c.english || c.native || `${c.provider} ${c.provider_id}`;
 }
 
+// Before the add, not after: a new series sorts to the front of the sweep queue
+// and one pass grabs everything eligible.
+const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
+  { value: "all", label: "All episodes", hint: "Including the back catalogue" },
+  {
+    value: "future",
+    label: "Future only",
+    hint: "From the next broadcast onwards",
+  },
+];
+
+// The mode control is far from the button, so the button carries the
+// consequence. Only a departure from the default is worth saying.
+const monitorAnnotation: Record<MonitorItems, string> = {
+  all: "",
+  future: "future only",
+};
+
 function AddSeriesBody({ onDone }: { onDone: () => void }) {
   const [term, setTerm] = useState("");
+  const [monitorItems, setMonitorItems] = useState<MonitorItems>("all");
   const debounced = useDebounce(term, 350);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -49,7 +75,8 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
   });
 
   const add = useMutation({
-    mutationFn: (c: Candidate) => api.addSeries(c.provider, c.provider_id),
+    mutationFn: (c: Candidate) =>
+      api.addSeries(c.provider, c.provider_id, monitorItems),
     onSuccess: (series) => {
       queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
       toast.success("Series added", {
@@ -71,6 +98,8 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
   });
 
   const results = search.data ?? [];
+  const annotation = monitorAnnotation[monitorItems];
+  const addLabel = annotation ? `Add · ${annotation}` : "Add";
 
   return (
     <div>
@@ -83,6 +112,27 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
           placeholder="Search AniList…"
           className="pl-9"
         />
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <span className="text-[13px] text-muted-foreground">
+          Monitor on add
+        </span>
+        <Select
+          value={monitorItems}
+          onValueChange={(v) => setMonitorItems(v as MonitorItems)}
+        >
+          <SelectTrigger size="sm" aria-label="Monitor on add">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {monitorChoices.map((c) => (
+              <SelectItem key={c.value} value={c.value} description={c.hint}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="mt-2 max-h-[56vh] min-h-[8rem] overflow-y-auto">
@@ -155,6 +205,13 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
                 <Button
                   size="sm"
                   disabled={isMovie || add.isPending}
+                  // Every row's visible label is identical, so the accessible
+                  // name carries the title.
+                  aria-label={
+                    annotation
+                      ? `Add ${candidateTitle(c)} · ${annotation}`
+                      : `Add ${candidateTitle(c)}`
+                  }
                   onClick={() => add.mutate(c)}
                 >
                   {add.isPending &&
@@ -162,7 +219,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
                     add.variables?.provider_id === c.provider_id && (
                       <Loader2 className="size-3.5 animate-spin" />
                     )}
-                  Add
+                  <span className="whitespace-nowrap">{addLabel}</span>
                 </Button>
               </ItemActions>
             </Item>

@@ -99,6 +99,19 @@ func TestItemReasonRanking(t *testing.T) {
 		}, reasonDeclined, true},
 		{"unaired outranks a pass answer",
 			itemFacts{AirsAt: now.Add(time.Hour), Pass: pass(acquire.OutcomeDeclined)}, reasonUnaired, false},
+		// Unmonitored is widest of all, and the only permanent staleness source
+		// (#188, decision 9): persistOutcomes skips a non-grabbable item, so a
+		// stored refusal on one would never be revisited or invalidated.
+		{"unmonitored outranks everything",
+			itemFacts{AirsAt: aired, GrabFailed: true, Pass: pass(acquire.OutcomeDeclined)},
+			reasonUnmonitored, false},
+		{"unmonitored outranks unaired",
+			itemFacts{AirsAt: now.Add(time.Hour)}, reasonUnmonitored, false},
+	}
+	// The two unmonitored cases share the flag; every other case above is
+	// monitored, which is what the listing's own default filter means.
+	for i := range cases {
+		cases[i].f.Monitored = cases[i].want != reasonUnmonitored
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -118,8 +131,9 @@ func TestGrabbedAndContendedSurfaceNothing(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
 	for _, outcome := range []string{acquire.OutcomeGrabbed, acquire.OutcomeContended} {
 		f := itemFacts{
-			AirsAt: now.Add(-24 * time.Hour),
-			Pass:   passFacts{Outcome: outcome, RecordedAt: now.Add(-time.Hour)},
+			Monitored: true,
+			AirsAt:    now.Add(-24 * time.Hour),
+			Pass:      passFacts{Outcome: outcome, RecordedAt: now.Add(-time.Hour)},
 		}
 		if got, fromPass := itemReason(f, now); got != "" || fromPass {
 			t.Errorf("%s surfaced as %q/%t, want nothing", outcome, got, fromPass)
@@ -134,7 +148,8 @@ func TestGrabbedAndContendedSurfaceNothing(t *testing.T) {
 func TestAPassAnswerOlderThanItsGrabIsSuppressed(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
 	stale := itemFacts{
-		AirsAt: now.Add(-48 * time.Hour), GrabFailed: true, GrabbedAt: now.Add(-2 * time.Hour),
+		Monitored: true,
+		AirsAt:    now.Add(-48 * time.Hour), GrabFailed: true, GrabbedAt: now.Add(-2 * time.Hour),
 		Pass: passFacts{Outcome: acquire.OutcomeDeclined, RecordedAt: now.Add(-6 * time.Hour)},
 	}
 	if got, fromPass := itemReason(stale, now); got != reasonGrabFailed || fromPass {
@@ -160,7 +175,7 @@ func TestAPassAnswerOlderThanItsGrabIsSuppressed(t *testing.T) {
 // is searchable -- the sweep's own reading -- and must never read as unaired.
 func TestItemReasonTreatsNoAirDateAsSearchable(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
-	if got, _ := itemReason(itemFacts{}, now); got != "" {
+	if got, _ := itemReason(itemFacts{Monitored: true}, now); got != "" {
 		t.Errorf("itemReason = %q, want none: an unscheduled item is searchable", got)
 	}
 }

@@ -12,7 +12,8 @@ func outcomeItem(t *testing.T, st *Store, seriesID int64, number int64) int64 {
 	t.Helper()
 	row, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
 		SeriesID: seriesID, Kind: "episode",
-		Number: sql.NullInt64{Int64: number, Valid: true},
+		Number:    sql.NullInt64{Int64: number, Valid: true},
+		Monitored: 1,
 	})
 	if err != nil {
 		t.Fatalf("create wanted item %d: %v", number, err)

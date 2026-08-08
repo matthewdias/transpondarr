@@ -87,6 +87,8 @@ export function SeriesListPage() {
                       <TableCell>
                         <LibraryProgress
                           inLibrary={s.in_library}
+                          tracked={s.tracked}
+                          monitored={s.monitored_items}
                           total={s.total}
                         />
                       </TableCell>

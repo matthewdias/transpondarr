@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -6,6 +6,7 @@ import { Pin, TriangleAlert } from "lucide-react";
 import {
   api,
   ApiError,
+  PartialBatchError,
   type AutomationMode,
   type SeriesDetail,
 } from "@/lib/api";
@@ -107,6 +108,57 @@ export function SeriesDetailPage() {
     },
   });
 
+  // The page's, not the tab's: Radix unmounts an inactive panel, so a selection
+  // held there would evaporate on a round trip to Releases. Every callback below
+  // is stable, which is what lets the memoized rows skip a re-render per toggle.
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  useEffect(() => setSelected(new Set()), [id]);
+  const toggleSelect = useCallback((itemId: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(itemId)) next.add(itemId);
+      return next;
+    });
+  }, []);
+  const selectRange = useCallback((ids: number[]) => {
+    setSelected((prev) => new Set([...prev, ...ids]));
+  }, []);
+  const setSelection = useCallback((ids: number[]) => {
+    setSelected(new Set(ids));
+  }, []);
+
+  const setItemsMonitored = useMutation({
+    mutationFn: ({ ids, monitored }: { ids: number[]; monitored: boolean }) =>
+      api.setItemsMonitored(ids, monitored),
+    onMutate: async ({ ids, monitored }) => {
+      await queryClient.cancelQueries({ queryKey: detailKey });
+      const prev = queryClient.getQueryData(detailKey);
+      const set = new Set(ids);
+      queryClient.setQueryData(detailKey, (old) =>
+        old
+          ? {
+              ...old,
+              items: old.items.map((it) =>
+                set.has(it.id) ? { ...it, monitored } : it,
+              ),
+            }
+          : old,
+      );
+      return { prev };
+    },
+    onError: (err, _v, ctx) => {
+      if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
+      toast.error("Could not update episode monitoring", {
+        description: err instanceof PartialBatchError ? err.message : undefined,
+      });
+    },
+    onSuccess: () => setSelected(new Set()),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: detailKey });
+      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
+    },
+  });
+
   const notFound = isError && error instanceof ApiError && error.status === 404;
 
   const breadcrumb = (
@@ -125,10 +177,17 @@ export function SeriesDetailPage() {
     setFocusItem(null);
     setTab("releases");
   };
-  const searchItem = (n: number) => {
+  const searchItem = useCallback((n: number) => {
     setFocusItem(n);
     setTab("releases");
-  };
+  }, []);
+
+  // Destructured because mutate is referentially stable and the mutation is not.
+  const { mutate: mutateMonitored } = setItemsMonitored;
+  const setMonitored = useCallback(
+    (ids: number[], monitored: boolean) => mutateMonitored({ ids, monitored }),
+    [mutateMonitored],
+  );
 
   return (
     <>
@@ -211,6 +270,11 @@ export function SeriesDetailPage() {
                   detail={detail}
                   onSearchAll={searchAll}
                   onSearchItem={searchItem}
+                  selected={selected}
+                  onToggleSelect={toggleSelect}
+                  onSelectRange={selectRange}
+                  onSetSelection={setSelection}
+                  onSetMonitored={setMonitored}
                 />
               </TabsContent>
               <TabsContent value="releases">

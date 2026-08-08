@@ -1,9 +1,10 @@
 -- name: ListSeriesDueWantedSearch :many
 -- Monitored series with something actually searchable right now: an item still
--- wanted (never grabbed, or a grab that failed) whose broadcast has happened or
--- was never published. Air dates are nullable by design, so a missing one must
--- read as searchable rather than as "not yet". Series never searched sort first;
--- the limit bounds how much of the indexer budget one pass can burn.
+-- wanted (never grabbed, or a grab that failed), itself monitored, whose
+-- broadcast has happened or was never published. Air dates are nullable by
+-- design, so a missing one must read as searchable rather than as "not yet".
+-- Series never searched sort first; the limit bounds how much of the indexer
+-- budget one pass can burn.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 SELECT s.*
@@ -16,6 +17,7 @@ WHERE s.monitored = 1
       LEFT JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
         AND w.in_library = 0
+        AND w.monitored = 1
         AND (g.wanted_item_id IS NULL OR g.status = 'failed')
         AND (w.airs_at IS NULL OR w.airs_at <= ?)
   )
@@ -30,8 +32,10 @@ LIMIT ?;
 -- character for character, so both entry points agree on what is grabbable.
 -- The upgrade half is the deliberate divergence (#97): a complete series is
 -- worth re-examining only against a page that cost nothing, so upgrades ride
--- the feed alone. Score versus cutoff is decided in Go, under the one profile
--- snapshot that also scores the candidates.
+-- the feed alone. Item monitoring gates both halves (#188), the upgrade one
+-- included, or an unmonitored held item makes its series feed-due every poll.
+-- Score versus cutoff is decided in Go, under the one profile snapshot that
+-- also scores the candidates.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 SELECT s.*
@@ -45,6 +49,7 @@ WHERE s.monitored = 1
           LEFT JOIN grabs g ON g.wanted_item_id = w.id
           WHERE w.series_id = s.id
             AND w.in_library = 0
+            AND w.monitored = 1
             AND (g.wanted_item_id IS NULL OR g.status = 'failed')
             AND (w.airs_at IS NULL OR w.airs_at <= ?)
       )
@@ -56,6 +61,7 @@ WHERE s.monitored = 1
               JOIN grabs g ON g.wanted_item_id = w.id
               WHERE w.series_id = s.id
                 AND w.in_library = 1
+                AND w.monitored = 1
                 AND w.held_release_title != ''
                 AND g.status IN ('imported', 'failed')
           )
@@ -68,7 +74,8 @@ ORDER BY s.id;
 -- feed poll resets after it detects a gap in its own coverage. Already-due
 -- series are excluded because a reset buys them nothing and would spend one of
 -- the bounded slots. The wanted predicate is the sweep's, character for
--- character. Furthest-postponed first, since the ladder would keep those
+-- character, item monitoring included. Furthest-postponed first, since the
+-- ladder would keep those
 -- waiting longest, and the LIMIT holds the reset to one sweep pass' throughput.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
@@ -83,6 +90,7 @@ WHERE s.monitored = 1
       LEFT JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
         AND w.in_library = 0
+        AND w.monitored = 1
         AND (g.wanted_item_id IS NULL OR g.status = 'failed')
         AND w.airs_at IS NOT NULL AND w.airs_at >= ? AND w.airs_at < ?
   )

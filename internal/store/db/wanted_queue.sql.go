@@ -92,7 +92,7 @@ func (q *Queries) ListActiveBlocklistCounts(ctx context.Context, arg ListActiveB
 }
 
 const listCutoffItemsBySeries = `-- name: ListCutoffItemsBySeries :many
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title,
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
        g.last_error    AS grab_last_error
@@ -100,10 +100,16 @@ FROM wanted_items w
 JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id IN (/*SLICE:series_ids*/?)
   AND w.in_library = 1
+  AND (? = 1 OR w.monitored = 1)
   AND w.held_release_title != ''
   AND g.status IN ('imported', 'failed', 'grabbed')
 ORDER BY w.series_id, w.number
 `
+
+type ListCutoffItemsBySeriesParams struct {
+	SeriesIds []int64     `json:"series_ids"`
+	Column2   interface{} `json:"column_2"`
+}
 
 type ListCutoffItemsBySeriesRow struct {
 	ID               int64          `json:"id"`
@@ -114,6 +120,7 @@ type ListCutoffItemsBySeriesRow struct {
 	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
+	Monitored        int64          `json:"monitored"`
 	GrabStatus       string         `json:"grab_status"`
 	GrabReleaseTitle string         `json:"grab_release_title"`
 	GrabLastError    sql.NullString `json:"grab_last_error"`
@@ -123,17 +130,18 @@ type ListCutoffItemsBySeriesRow struct {
 // cutoff test happen in Go under the one profile snapshot per series. The grab
 // join is inner and its status set matches the series page's, so a group's
 // items are exactly what made its series a candidate.
-func (q *Queries) ListCutoffItemsBySeries(ctx context.Context, seriesIds []int64) ([]ListCutoffItemsBySeriesRow, error) {
+func (q *Queries) ListCutoffItemsBySeries(ctx context.Context, arg ListCutoffItemsBySeriesParams) ([]ListCutoffItemsBySeriesRow, error) {
 	query := listCutoffItemsBySeries
 	var queryParams []interface{}
-	if len(seriesIds) > 0 {
-		for _, v := range seriesIds {
+	if len(arg.SeriesIds) > 0 {
+		for _, v := range arg.SeriesIds {
 			queryParams = append(queryParams, v)
 		}
-		query = strings.Replace(query, "/*SLICE:series_ids*/?", strings.Repeat(",?", len(seriesIds))[1:], 1)
+		query = strings.Replace(query, "/*SLICE:series_ids*/?", strings.Repeat(",?", len(arg.SeriesIds))[1:], 1)
 	} else {
 		query = strings.Replace(query, "/*SLICE:series_ids*/?", "NULL", 1)
 	}
+	queryParams = append(queryParams, arg.Column2)
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
@@ -151,6 +159,7 @@ func (q *Queries) ListCutoffItemsBySeries(ctx context.Context, seriesIds []int64
 			&i.InLibrary,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
+			&i.Monitored,
 			&i.GrabStatus,
 			&i.GrabReleaseTitle,
 			&i.GrabLastError,
@@ -183,6 +192,7 @@ WHERE qp.upgrades_enabled = 1
       JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
         AND w.in_library = 1
+        AND (? = 1 OR w.monitored = 1)
         AND w.held_release_title != ''
         AND g.status IN ('imported', 'failed', 'grabbed')
   )
@@ -193,6 +203,7 @@ LIMIT ?
 
 type ListCutoffSeriesPageParams struct {
 	Column1 interface{} `json:"column_1"`
+	Column2 interface{} `json:"column_2"`
 	Title   string      `json:"title"`
 	Title_2 string      `json:"title_2"`
 	ID      int64       `json:"id"`
@@ -221,6 +232,7 @@ type ListCutoffSeriesPageRow struct {
 func (q *Queries) ListCutoffSeriesPage(ctx context.Context, arg ListCutoffSeriesPageParams) ([]ListCutoffSeriesPageRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCutoffSeriesPage,
 		arg.Column1,
+		arg.Column2,
 		arg.Title,
 		arg.Title_2,
 		arg.ID,
@@ -255,7 +267,7 @@ func (q *Queries) ListCutoffSeriesPage(ctx context.Context, arg ListCutoffSeries
 }
 
 const listMissingItemsBySeries = `-- name: ListMissingItemsBySeries :many
-SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title,
+SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
        g.last_error    AS grab_last_error,
@@ -272,6 +284,7 @@ LEFT JOIN pass_outcomes p ON p.wanted_item_id = w.id
 WHERE w.series_id IN (/*SLICE:series_ids*/?)
   AND w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+  AND (? = 1 OR w.monitored = 1)
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
 ORDER BY w.series_id, w.number
 `
@@ -279,6 +292,7 @@ ORDER BY w.series_id, w.number
 type ListMissingItemsBySeriesParams struct {
 	SeriesIds []int64        `json:"series_ids"`
 	Column2   interface{}    `json:"column_2"`
+	Column3   interface{}    `json:"column_3"`
 	AirsAt    sql.NullString `json:"airs_at"`
 }
 
@@ -291,6 +305,7 @@ type ListMissingItemsBySeriesRow struct {
 	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
+	Monitored        int64          `json:"monitored"`
 	GrabStatus       sql.NullString `json:"grab_status"`
 	GrabReleaseTitle sql.NullString `json:"grab_release_title"`
 	GrabLastError    sql.NullString `json:"grab_last_error"`
@@ -303,9 +318,10 @@ type ListMissingItemsBySeriesRow struct {
 	PassRecordedAt   sql.NullString `json:"pass_recorded_at"`
 }
 
-// The items behind one page of groups. Same wanted predicate and unaired filter
-// as the series page, so a group and its items are computed from one reading of
-// the world. Number ascends within a series deliberately: a back catalogue
+// The items behind one page of groups. Same predicates as the series page, so a
+// group and its items are computed from one reading of the world; the series
+// half of the monitoring filter is the series page's business, since every id
+// here came from it. Number ascends within a series deliberately: a back catalogue
 // drains forwards, and episodes enumerate forwards however their dates fall.
 // Both joins are 1:1, so neither multiplies rows. The grab's created_at rides
 // along because the reason column ranks a stored pass outcome against it: an
@@ -322,6 +338,7 @@ func (q *Queries) ListMissingItemsBySeries(ctx context.Context, arg ListMissingI
 		query = strings.Replace(query, "/*SLICE:series_ids*/?", "NULL", 1)
 	}
 	queryParams = append(queryParams, arg.Column2)
+	queryParams = append(queryParams, arg.Column3)
 	queryParams = append(queryParams, arg.AirsAt)
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
@@ -340,6 +357,7 @@ func (q *Queries) ListMissingItemsBySeries(ctx context.Context, arg ListMissingI
 			&i.InLibrary,
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
+			&i.Monitored,
 			&i.GrabStatus,
 			&i.GrabReleaseTitle,
 			&i.GrabLastError,
@@ -374,7 +392,7 @@ JOIN series s ON s.id = w.series_id
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
-  AND (? = 1 OR s.monitored = 1)
+  AND (? = 1 OR (s.monitored = 1 AND w.monitored = 1))
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
 GROUP BY s.id
 HAVING MAX(COALESCE(w.airs_at, '')) < ? OR (MAX(COALESCE(w.airs_at, '')) = ? AND s.id > ?)
@@ -412,7 +430,9 @@ type ListMissingSeriesPageRow struct {
 // across a page boundary. The wanted half is the sweep's predicate character
 // for character (the EXISTS body of ListSeriesDueWantedSearch), which is what
 // keeps this page honest about what automation will go after; an in-flight
-// grab is absent by construction, being Activity's to show. Groups are ordered
+// grab is absent by construction, being Activity's to show. Monitoring and the
+// unaired cut are display filters, not exclusions: a row has to stay visible
+// after the click that hid it, or there is no way back. Groups are ordered
 // newest missing broadcast first, all-undated series last: COALESCE sorts a
 // null air date below every timestamp, and lexicographic compare on the one
 // stored layout is chronological. The keyset lives in HAVING because it binds

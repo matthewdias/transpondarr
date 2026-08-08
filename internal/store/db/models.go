@@ -115,6 +115,7 @@ type Series struct {
 	NextSearchAt     sql.NullString `json:"next_search_at"`
 	PinDelayHours    sql.NullInt64  `json:"pin_delay_hours"`
 	SearchEpoch      int64          `json:"search_epoch"`
+	MonitorNewFrom   sql.NullInt64  `json:"monitor_new_from"`
 }
 
 type Session struct {
@@ -139,4 +140,5 @@ type WantedItem struct {
 	InLibrary        int64          `json:"in_library"`
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
+	Monitored        int64          `json:"monitored"`
 }

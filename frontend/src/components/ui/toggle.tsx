@@ -18,12 +18,19 @@ const toggleVariants = cva(
         // am looking at". Distinct from Switch on purpose -- a switch says "I am
         // changing a stored preference", which is what Monitored is.
         chip: "rounded-full border border-border bg-transparent text-muted-foreground hover:bg-panel-2 hover:text-foreground data-[state=on]:border-transparent",
+        // Icon-only, no chrome in either state: pressed has to read at least as
+        // strongly as unpressed, or the visual disagrees with aria-pressed.
+        // Marking an unmonitored row is the status column's job, not this
+        // button's -- one property cannot be both an affordance and a row flag.
+        monitor:
+          "bg-transparent text-foreground hover:bg-panel-2 hover:text-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground data-[state=off]:text-muted-foreground",
       },
       size: {
         default: "h-9 min-w-9 px-2",
         sm: "h-8 min-w-8 px-1.5",
         lg: "h-10 min-w-10 px-2.5",
         chip: "h-7 gap-1.5 px-2.5 text-[11.5px] font-semibold [&_svg:not([class*='size-'])]:size-3",
+        icon: "size-7 p-0",
       },
     },
     defaultVariants: {

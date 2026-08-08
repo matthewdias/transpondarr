@@ -571,3 +571,82 @@ func TestSyncNoOpsWithoutTheAiringCapability(t *testing.T) {
 		t.Fatalf("SyncOnce on a provider without schedules: %v", err)
 	}
 }
+
+// setMonitorCut narrows a series the way the add dialog's "future only" does.
+func setMonitorCut(t *testing.T, st *store.Store, seriesID int64, from any) {
+	t.Helper()
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET monitor_new_from = ? WHERE id = ?`, from, seriesID); err != nil {
+		t.Fatalf("set monitor_new_from: %v", err)
+	}
+}
+
+func itemMonitored(t *testing.T, st *store.Store, seriesID int64, number int) int64 {
+	t.Helper()
+	var got int64
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT monitored FROM wanted_items WHERE series_id = ? AND number = ?`,
+		seriesID, number).Scan(&got); err != nil {
+		t.Fatalf("read monitored for item %d: %v", number, err)
+	}
+	return got
+}
+
+// Densification is what would otherwise undo a narrowed long-runner (#188,
+// decision 3): the fill range for one of those *is* the back catalogue, so a
+// sync 15 minutes after the add would re-create it monitored.
+func TestSyncHonoursTheSeriesMonitorCut(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 100, 0)
+	setMonitorCut(t, st, seriesID, 4)
+
+	prov := newFakeProvider()
+	prov.schedules[100] = []metadata.Airing{
+		{Number: 1, AirsAt: time.Date(2026, 1, 4, 15, 30, 0, 0, time.UTC)},
+		{Number: 5, AirsAt: time.Date(2026, 2, 1, 15, 30, 0, 0, time.UTC)},
+	}
+
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	for _, tc := range []struct {
+		number int
+		want   int64
+	}{
+		{1, 0}, // named by the schedule, below the cut
+		{2, 0}, // gap-filled, below the cut
+		{4, 1}, // gap-filled, at the cut
+		{5, 1}, // named by the schedule, above the cut
+	} {
+		if got := itemMonitored(t, st, seriesID, tc.number); got != tc.want {
+			t.Errorf("item %d monitored = %d, want %d", tc.number, got, tc.want)
+		}
+	}
+}
+
+// The other half decision 3 needs: an unnarrowed reset would put a narrowed
+// long-runner back at the front of the search queue on every sync, for items
+// nothing will ever grab.
+func TestGapFillBelowTheCutDoesNotResetSearchCadence(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedSeries(t, st, 100, 0)
+	setMonitorCut(t, st, seriesID, 10)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET search_backoff = 8, next_search_at = ? WHERE id = ?`,
+		store.FormatTimestamp(time.Now().Add(24*time.Hour)), seriesID); err != nil {
+		t.Fatalf("seed a long backoff: %v", err)
+	}
+
+	prov := newFakeProvider()
+	prov.schedules[100] = []metadata.Airing{
+		{Number: 1, AirsAt: time.Date(2026, 1, 4, 15, 30, 0, 0, time.UTC)},
+		{Number: 3, AirsAt: time.Date(2026, 1, 18, 15, 30, 0, 0, time.UTC)},
+	}
+
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if backoff, _ := searchCadence(t, st, seriesID); backoff != 8 {
+		t.Errorf("search_backoff = %d, want the accumulated 8 -- an unmonitored fill is not news", backoff)
+	}
+}

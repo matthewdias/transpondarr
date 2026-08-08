@@ -120,7 +120,7 @@ func TestAddSeriesPersistsTitleAndItems(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	title, err := svc.AddSeries(context.Background(), prov.Name(), 42, true)
+	title, err := svc.AddSeries(context.Background(), prov.Name(), 42, true, MonitorAll)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
@@ -184,11 +184,11 @@ func TestAddSeriesIsIdempotentByProviderID(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	if _, err := svc.AddSeries(context.Background(), prov.Name(), 7, true); err != nil {
+	if _, err := svc.AddSeries(context.Background(), prov.Name(), 7, true, MonitorAll); err != nil {
 		t.Fatalf("first AddSeries: %v", err)
 	}
 
-	_, err := svc.AddSeries(context.Background(), prov.Name(), 7, true)
+	_, err := svc.AddSeries(context.Background(), prov.Name(), 7, true, MonitorAll)
 	if !errors.Is(err, ErrAlreadyExists) {
 		t.Fatalf("second AddSeries error = %v, want ErrAlreadyExists", err)
 	}
@@ -218,13 +218,13 @@ func TestAddSeriesIdempotencyIsScopedToTheProvider(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	if _, err := svc.AddSeries(context.Background(), prov.Name(), 7, true); err != nil {
+	if _, err := svc.AddSeries(context.Background(), prov.Name(), 7, true, MonitorAll); err != nil {
 		t.Fatalf("first AddSeries: %v", err)
 	}
 	// The same number in another id space is another title, and this provider
 	// cannot read it -- so it is refused for naming an unreachable id space, never
 	// for colliding with the row above.
-	_, err := svc.AddSeries(context.Background(), "mal", 7, true)
+	_, err := svc.AddSeries(context.Background(), "mal", 7, true, MonitorAll)
 	if !errors.Is(err, ErrUnknownProvider) {
 		t.Fatalf("cross-provider AddSeries error = %v, want ErrUnknownProvider", err)
 	}
@@ -240,7 +240,7 @@ func TestAddSeriesWithUnknownEpisodeCount(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	title, err := svc.AddSeries(context.Background(), prov.Name(), 9, true)
+	title, err := svc.AddSeries(context.Background(), prov.Name(), 9, true, MonitorAll)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestAddSeriesProviderErrorPersistsNothing(t *testing.T) {
 	prov := &fakeProvider{getErr: errors.New("boom")}
 	svc := NewService(st, prov)
 
-	if _, err := svc.AddSeries(context.Background(), prov.Name(), 1, true); err == nil {
+	if _, err := svc.AddSeries(context.Background(), prov.Name(), 1, true, MonitorAll); err == nil {
 		t.Fatal("expected an error from a failing provider")
 	}
 	all, err := st.Q.ListSeries(context.Background())

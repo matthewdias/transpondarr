@@ -10,7 +10,9 @@
 -- across a page boundary. The wanted half is the sweep's predicate character
 -- for character (the EXISTS body of ListSeriesDueWantedSearch), which is what
 -- keeps this page honest about what automation will go after; an in-flight
--- grab is absent by construction, being Activity's to show. Groups are ordered
+-- grab is absent by construction, being Activity's to show. Monitoring and the
+-- unaired cut are display filters, not exclusions: a row has to stay visible
+-- after the click that hid it, or there is no way back. Groups are ordered
 -- newest missing broadcast first, all-undated series last: COALESCE sorts a
 -- null air date below every timestamp, and lexicographic compare on the one
 -- stored layout is chronological. The keyset lives in HAVING because it binds
@@ -25,7 +27,7 @@ JOIN series s ON s.id = w.series_id
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
-  AND (? = 1 OR s.monitored = 1)
+  AND (? = 1 OR (s.monitored = 1 AND w.monitored = 1))
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
 GROUP BY s.id
 HAVING MAX(COALESCE(w.airs_at, '')) < ? OR (MAX(COALESCE(w.airs_at, '')) = ? AND s.id > ?)
@@ -33,9 +35,10 @@ ORDER BY MAX(COALESCE(w.airs_at, '')) DESC, s.id
 LIMIT ?;
 
 -- name: ListMissingItemsBySeries :many
--- The items behind one page of groups. Same wanted predicate and unaired filter
--- as the series page, so a group and its items are computed from one reading of
--- the world. Number ascends within a series deliberately: a back catalogue
+-- The items behind one page of groups. Same predicates as the series page, so a
+-- group and its items are computed from one reading of the world; the series
+-- half of the monitoring filter is the series page's business, since every id
+-- here came from it. Number ascends within a series deliberately: a back catalogue
 -- drains forwards, and episodes enumerate forwards however their dates fall.
 -- Both joins are 1:1, so neither multiplies rows. The grab's created_at rides
 -- along because the reason column ranks a stored pass outcome against it: an
@@ -57,6 +60,7 @@ LEFT JOIN pass_outcomes p ON p.wanted_item_id = w.id
 WHERE w.series_id IN (sqlc.slice('series_ids'))
   AND w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
+  AND (? = 1 OR w.monitored = 1)
   AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
 ORDER BY w.series_id, w.number;
 
@@ -85,6 +89,7 @@ WHERE qp.upgrades_enabled = 1
       JOIN grabs g ON g.wanted_item_id = w.id
       WHERE w.series_id = s.id
         AND w.in_library = 1
+        AND (? = 1 OR w.monitored = 1)
         AND w.held_release_title != ''
         AND g.status IN ('imported', 'failed', 'grabbed')
   )
@@ -105,6 +110,7 @@ FROM wanted_items w
 JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id IN (sqlc.slice('series_ids'))
   AND w.in_library = 1
+  AND (? = 1 OR w.monitored = 1)
   AND w.held_release_title != ''
   AND g.status IN ('imported', 'failed', 'grabbed')
 ORDER BY w.series_id, w.number;
