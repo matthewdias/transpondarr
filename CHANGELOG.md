@@ -6,82 +6,67 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-08-08
+
+Monitoring, per episode: the release where you choose which episodes
+Transpondarr chases, not just which series. Unmonitor a recap, an episode you
+already have, or a thousand-episode back catalogue, and automation stops looking
+for it — and every progress count now reads against what you actually asked for
+rather than against every episode a series will ever have. Activity also gains a
+view of the downloads nothing is waiting on.
+
 ### Added
 
-- **Per-episode monitoring.** Monitoring used to be all or nothing per series, so
-  once an item existed the sweep chased it until a file landed — forever. Now
-  every episode carries its own flag: unmonitor a recap, an episode you already
-  have, or 1,038 episodes of a back catalogue, and automation stops looking for
-  them. Adding a series now asks which episodes to monitor — **all**, or
-  **future only** (from the next broadcast onwards), which is the only answer
-  that works for a currently-airing long-runner, since a new series sorts to the
-  front of the search queue and one pass grabs every eligible candidate.
-  The choice is stored as a numeric cut, so an episode created six months later
-  is monitored without any follow-up: that is what "continue from 1050" means,
-  and it survives the airing sync's gap-fill and metadata-refresh growth, both of
-  which would otherwise re-create the range you just narrowed. The Episodes table
-  gains row checkboxes and a bulk monitor/unmonitor toolbar; the Wanted page
-  gains an `unmonitored` reason and a per-row toggle, with unmonitored rows
-  hidden behind the existing Unmonitored chip rather than removed, so the click
-  is undoable. Two boundaries are deliberate. **Monitoring never gates a manual
-  path** — a manual search and a manual grab still work on an unmonitored
-  episode, as quality profiles already worked. And **monitoring gates search and
-  grab, not import**: a pack grabbed for its monitored episodes still places
-  every file it carries, because the bytes are already spent and, in hardlink
-  mode, cost no disk. Closes [#188](https://github.com/matthewdias/transpondarr/issues/188).
+- **Per-episode monitoring.** Monitoring was all or nothing per series: once an
+  episode existed, the sweep chased it until a file landed — forever. Every
+  episode now carries its own flag, so unmonitoring a recap, an episode you
+  already have, or 1,038 episodes of a back catalogue takes them out of
+  automation for good. Adding a series asks which episodes to monitor — **all**,
+  or **future only** from the next broadcast onwards — and the answer keeps
+  applying to episodes announced months later. The Episodes table gains row
+  checkboxes and a bulk monitor/unmonitor toolbar; Wanted gains a per-row toggle
+  and an `unmonitored` reason, with those rows behind the existing Unmonitored
+  chip rather than removed, so the click is undoable. A manual search and a
+  manual grab still work on an unmonitored episode, and a pack grabbed for its
+  monitored episodes still imports every file it carries. Adds migration 00021.
+  Closes [#188](https://github.com/matthewdias/transpondarr/issues/188).
+- **Downloads nothing is waiting on are now visible in Activity.** A torrent
+  could be left in the download client with nothing pointing at it — after a
+  second grab replaced the first, or after deleting a series and choosing to keep
+  its downloads — where it kept downloading, took up disk, and could not be seen
+  or stopped from Transpondarr. Activity gains an **Unmatched downloads** section
+  listing them with their size, age and state, each removable by hand with the
+  option to delete its data too. Nothing is removed automatically, and only
+  Transpondarr's own download category is ever listed — torrents outside it are
+  yours and are never touched.
+  Closes [#131](https://github.com/matthewdias/transpondarr/issues/131).
 
 ### Changed
 
 - **A series' progress is now measured against what it is pursuing, not against
-  every episode it will ever have.** The denominator is monitored *and* already
-  broadcast, following Sonarr, with the raw total kept beside it. This is visible
-  on **every** series, including ones with nothing unmonitored: a 12-episode show
-  three episodes in goes from `3 / 12` to `3 / 3 (12 total)`. A null air date
-  counts as aired, because AniList's schedule coverage is thin by design and the
-  inverted reading would make half a library report 100%.
-
-  The aired half has a second consequence worth stating plainly: a series where
-  **nothing** has aired yet — an ordinary seasonal show added the week before it
-  premieres — has a denominator of zero. That reads `0 / 12` today; it now reads
-  **"Nothing aired yet (12 total)"** rather than `0 / 0`, which would claim the
-  series has no episodes at all. The episode table's summary strip follows the
-  same definition, and names all three groups — tracked, not yet aired, not
-  monitored — so they still add up to the episode count. "Search all wanted" is
-  correspondingly disabled while nothing monitored has aired, which is right:
-  there is nothing to search for yet. Unmonitoring *every* episode empties the
-  denominator the same way but for a different reason, and both surfaces say
-  which: **"Nothing monitored"** rather than "Nothing aired yet".
-
-  The API keeps `total` unchanged and adds `tracked` alongside it, so a client
-  reading the old field still gets the old number. `monitored_items` is added
-  next to it, which is what lets a zero denominator name its own cause. **`in_library` is a different
-  number, though**: it now carries the identical monitored-and-aired filter, so
-  that a held unaired or held unmonitored episode cannot push a series past its
-  own denominator. That is visible in the direction people notice — unmonitoring
-  an episode you already hold takes a card from `12 / 12` to `11 / 11
-  (12 total)` rather than to `12 / 11`.
+  every episode it will ever have.** The denominator counts episodes that are
+  monitored *and* already broadcast, following Sonarr, with the raw total kept
+  beside it: a 12-episode show three episodes in reads `3 / 3 (12 total)`
+  instead of `3 / 12`. A series with nothing aired yet says **"Nothing aired yet
+  (12 total)"** and one with nothing monitored says **"Nothing monitored"**,
+  rather than `0 / 0`; "Search all wanted" is disabled in both cases, because
+  there is nothing to search for. The episode table's summary strip splits the
+  same three groups — tracked, not yet aired, not monitored.
 - **The item status `have` is now `in_library`, and so is the field it derives
   from.** `have` was the odd one out in a vocabulary of `downloading` / `stuck` /
-  `deferred` / `wanted` — `status: have` never read as a state — and the web UI
-  has always rendered it as "In library" anyway, so this is a rename in the API,
-  not in what you see. The target is deliberately *not* `imported`: adopting a
-  pre-existing library or identifying a file by hash would each put an episode in
-  the library without the importer touching it, and `imported` would then be
-  wrong in the contract rather than merely awkward. The `wanted_items.have`
-  column moves with it (migration 00019), since the column is what sources the
-  status. No behaviour changes. Closes [#84](https://github.com/matthewdias/transpondarr/issues/84).
+  `deferred` / `wanted`, and the web UI has always rendered it as "In library"
+  anyway, so this is a rename in the API, not in what you see. The target is
+  deliberately not `imported`: adopting a pre-existing library would put an
+  episode in the library without the importer touching it. The
+  `wanted_items.have` column moves with it (migration 00019). No behaviour
+  changes. Closes [#84](https://github.com/matthewdias/transpondarr/issues/84).
 - **A tracked title is now identified by which provider it came from and its id
   there, not by an AniList id column.** `series.anilist_id` becomes the pair
-  `(provider, provider_id)` — the same shape the metadata cache has always
-  used — with the pair unique and a constraint that both are set or neither is.
-  Nothing about behaviour changes: AniList remains the only provider and every
-  existing row migrates to it. What changes is that the database no longer names
-  its upstream in a column, so moving off AniList would be a migration rather
-  than a rewrite. Relating one title's ids *across* providers is a separate,
-  additive piece of work and is not part of this. The `series` table is rebuilt
-  to do it (migration 00020), since `anilist_id`'s implicit unique index cannot
-  be dropped and no `CHECK` can be bolted on after the fact. Closes
-  [#74](https://github.com/matthewdias/transpondarr/issues/74).
+  `(provider, provider_id)` — the same shape the metadata cache has always used.
+  AniList remains the only provider and every existing row migrates to it, so
+  nothing about behaviour changes; what changes is that the database no longer
+  names its upstream in a column. Rebuilds the `series` table (migration 00020).
+  Closes [#74](https://github.com/matthewdias/transpondarr/issues/74).
 
 ### Fixed
 
@@ -91,18 +76,17 @@ All notable changes to this project are documented here. The format is based on
   all — even though Cutoff Unmet linked to the same view and the server had
   always accepted the request. It is now on every row, in-flight grabs included.
   Closes [#195](https://github.com/matthewdias/transpondarr/issues/195).
-- **Downloads nothing is waiting on are now visible in Activity.** A torrent
-  could be left in the download client with nothing pointing at it — after a
-  second grab replaced the first, or after deleting a series and choosing to keep
-  its downloads — where it kept downloading, took up disk, and could not be seen
-  or stopped from Transpondarr. Activity gains an **Unmatched downloads** section
-  listing them with their size, age and state, each removable by hand with the
-  option to delete its data too. Nothing is removed automatically, since the
-  payload may be one you meant to keep, and only Transpondarr's own download
-  category is ever listed — torrents outside it are yours and are never touched.
-  Closes [#131](https://github.com/matthewdias/transpondarr/issues/131).
 
 ### Upgrade notes
+
+- **Every series card's progress changes on upgrade, including ones with nothing
+  unmonitored.** Nothing is recalculated or written — the denominator is simply
+  counted differently, and the old number stays visible as the total in
+  parentheses. The API keeps `total` unchanged and adds `tracked` and
+  `monitored_items` beside it, so a client reading the old field still gets the
+  old number. `in_library` does change: it now carries the same
+  monitored-and-aired filter, so a held unaired or unmonitored episode cannot
+  push a series past its own denominator.
 
 - **API clients using `X-Api-Key` need one search-and-replace; the web UI needs
   nothing.** Three fields change on the JSON responses:
@@ -789,7 +773,8 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/matthewdias/transpondarr/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/matthewdias/transpondarr/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/matthewdias/transpondarr/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/matthewdias/transpondarr/compare/v0.3.0...v0.4.0

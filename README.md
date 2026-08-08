@@ -26,8 +26,10 @@ that lives on AniList/AniDB rather than TVDB.
   Japanese broadcast times.
 - **Automated acquisition** — recent-feed polling grabs new releases within
   minutes of them appearing, and a scheduled sweep backs it up for everything
-  that already existed; per-series monitoring and a global off / notify-only / on
-  switch (off until you enable it). **Notify-only** rehearses the whole thing —
+  that already existed. Monitoring is per series **and per episode** — choose at
+  add time whether to chase a whole back catalogue or only what airs next, and
+  unmonitor anything you don't want chased — under a global off / notify-only /
+  on switch (off until you enable it). **Notify-only** rehearses the whole thing —
   real searches and real decisions, reported rather than grabbed. Requests can be
   filtered to specific indexer categories, and a poll that misses a page puts the
   series that aired inside the gap back at the front of the search queue.
@@ -38,7 +40,8 @@ that lives on AniList/AniDB rather than TVDB.
   pass found and declined, and why.
 - **Notifications and an activity feed** — Discord, generic webhook, and ntfy,
   with per-event toggles and a test button each; an Activity page collects the
-  in-flight queue and the grab/import history across every series.
+  in-flight queue, the grab/import history across every series, and any download
+  left in the client that nothing is waiting on.
 - **Anime-aware quality profiles** — release group is the dominant axis, then
   resolution/source, dual audio, and sub preferences, with a score floor and hard
   excludes. A per-series **pinned group** can also mean *wait for* — hold new
