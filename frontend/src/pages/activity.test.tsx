@@ -5,7 +5,12 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { ActivityEvent, ActivityQueue, QueueItem } from "@/lib/api";
+import type {
+  ActivityEvent,
+  ActivityQueue,
+  ActivityUnmatched,
+  QueueItem,
+} from "@/lib/api";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ActivityPage } from "@/pages/activity";
 
@@ -38,13 +43,21 @@ const historyEvent = (over: Partial<ActivityEvent>): ActivityEvent => ({
   ...over,
 });
 
+const noUnmatched: ActivityUnmatched = {
+  items: [],
+  client_ok: true,
+  scoped: true,
+};
+
 function useHandlers(
   queue: ActivityQueue,
   pages: Record<string, { events: ActivityEvent[]; next_cursor?: string }>,
   onHistory?: (cursor: string) => void,
+  unmatched: ActivityUnmatched = noUnmatched,
 ) {
   server.use(
     http.get("/api/v1/activity/queue", () => HttpResponse.json(queue)),
+    http.get("/api/v1/activity/unmatched", () => HttpResponse.json(unmatched)),
     http.get("/api/v1/activity/history", ({ request }) => {
       const cursor = new URL(request.url).searchParams.get("cursor") ?? "";
       onHistory?.(cursor);
@@ -166,6 +179,9 @@ describe("ActivityPage", () => {
     let historyCalls = 0;
     server.use(
       http.get("/api/v1/activity/queue", () => HttpResponse.json(queuePayload)),
+      http.get("/api/v1/activity/unmatched", () =>
+        HttpResponse.json(noUnmatched),
+      ),
       http.get("/api/v1/activity/history", () => {
         historyCalls++;
         return HttpResponse.json({ events: [historyEvent({ id: 11 })] });
@@ -206,6 +222,94 @@ describe("ActivityPage", () => {
     // The grab-state row still renders, without live state.
     expect(screen.getByText(/Episode 4/)).toBeInTheDocument();
     expect(screen.queryByText("Paused")).not.toBeInTheDocument();
+  });
+});
+
+describe("unmatched downloads", () => {
+  const orphan = {
+    infohash: "eeee5555",
+    name: "[FakeGroup] Signal Anomaly - 04 (1080p) [ABCD1234]",
+    client_state: "downloading" as const,
+    progress: 0.25,
+    save_path: "/downloads",
+  };
+
+  // A rare state: an always-present empty section would be noise on every visit.
+  it("stays out of the way when nothing is unmatched", async () => {
+    useHandlers({ client_ok: true, items: [] }, { "": { events: [] } });
+
+    renderPage();
+
+    expect(await screen.findByText(/Nothing downloading/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Unmatched downloads/i)).not.toBeInTheDocument();
+  });
+
+  it("lists the orphan and removes it with its data by default", async () => {
+    let removed: { hash: string; deleteData: string | null } | undefined;
+    useHandlers(
+      { client_ok: true, items: [] },
+      { "": { events: [] } },
+      undefined,
+      {
+        items: [orphan],
+        client_ok: true,
+        scoped: true,
+      },
+    );
+    server.use(
+      http.delete("/api/v1/activity/unmatched/:hash", ({ params, request }) => {
+        removed = {
+          hash: String(params.hash),
+          deleteData: new URL(request.url).searchParams.get("delete_data"),
+        };
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/Unmatched downloads/i)).toBeInTheDocument();
+    expect(screen.getByText(orphan.name)).toBeInTheDocument();
+    expect(screen.getByText(/25%/)).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^Remove$/ }));
+    await user.click(
+      await screen.findByRole("button", { name: /Remove download/ }),
+    );
+
+    await waitFor(() =>
+      expect(removed).toEqual({ hash: "eeee5555", deleteData: "true" }),
+    );
+  });
+
+  it("keeps the data on disk when the checkbox is cleared", async () => {
+    let deleteData: string | null = null;
+    useHandlers(
+      { client_ok: true, items: [] },
+      { "": { events: [] } },
+      undefined,
+      {
+        items: [orphan],
+        client_ok: true,
+        scoped: true,
+      },
+    );
+    server.use(
+      http.delete("/api/v1/activity/unmatched/:hash", ({ request }) => {
+        deleteData = new URL(request.url).searchParams.get("delete_data");
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderPage();
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: /^Remove$/ }));
+    await user.click(await screen.findByRole("checkbox"));
+    await user.click(screen.getByRole("button", { name: /Remove download/ }));
+
+    await waitFor(() => expect(deleteData).toBe("false"));
   });
 });
 

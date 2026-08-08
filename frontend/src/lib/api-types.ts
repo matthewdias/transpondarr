@@ -72,6 +72,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/activity/unmatched": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Torrents in Transpondarr's category that no grab row references */
+        get: operations["list-unmatched-downloads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/activity/unmatched/{hash}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one unmatched download from the client, optionally with its data */
+        delete: operations["remove-unmatched-download"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/blocklist": {
         parameters: {
             query?: never;
@@ -758,6 +792,19 @@ export interface components {
             /** @description False when the download client is missing or did not answer; rows then carry grab state only */
             client_ok: boolean;
             items: components["schemas"]["QueueItemDTO"][];
+        };
+        ActivityUnmatchedOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/ActivityUnmatchedOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description False when the download client is missing or did not answer; nothing can be listed without it */
+            client_ok: boolean;
+            items: components["schemas"]["UnmatchedItemDTO"][];
+            /** @description False when no download category is configured, which leaves our torrents indistinguishable from the user's; the list is then always empty */
+            scoped: boolean;
         };
         AddSeriesInputBody: {
             /**
@@ -1924,6 +1971,15 @@ export interface components {
             /** @example ok */
             status: string;
         };
+        UnmatchedItemDTO: {
+            /** @enum {string} */
+            client_state: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "unknown";
+            infohash: string;
+            name: string;
+            /** Format: double */
+            progress: number;
+            save_path?: string;
+        };
         UnscheduledSeriesDTO: {
             /** Format: int64 */
             series_id: number;
@@ -2070,6 +2126,68 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RetryImportOutputBody"];
                 };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-unmatched-downloads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityUnmatchedOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "remove-unmatched-download": {
+        parameters: {
+            query?: {
+                /** @description Also delete the downloaded payload from disk */
+                delete_data?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Info hash from the unmatched listing */
+                hash: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Error */
             default: {

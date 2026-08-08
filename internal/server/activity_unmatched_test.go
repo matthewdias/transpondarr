@@ -1,0 +1,206 @@
+package server_test
+
+import (
+	"errors"
+	"net/http"
+	"testing"
+
+	"github.com/matthewdias/transpondarr/internal/core/download"
+	"github.com/matthewdias/transpondarr/internal/coretest"
+)
+
+type unmatchedItemJSON struct {
+	InfoHash    string  `json:"infohash"`
+	Name        string  `json:"name"`
+	ClientState string  `json:"client_state"`
+	Progress    float64 `json:"progress"`
+	SavePath    string  `json:"save_path"`
+}
+
+type unmatchedJSON struct {
+	Items    []unmatchedItemJSON `json:"items"`
+	ClientOk bool                `json:"client_ok"`
+	Scoped   bool                `json:"scoped"`
+}
+
+// Every grab status counts as a reference — imported torrents seed legitimately
+// and a failed one is already visible in history — so only a torrent in our
+// category that nothing at all points at is unmatched.
+func TestUnmatchedDownloadsListsOnlyTorrentsNoGrabReferences(t *testing.T) {
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "AAAA1111", Name: "grabbed one", Category: "transpondarr", State: download.StateDownloading},
+		{Hash: "bbbb2222", Name: "deferred one", Category: "transpondarr", State: download.StateComplete},
+		{Hash: "cccc3333", Name: "imported one", Category: "transpondarr", State: download.StateComplete},
+		{Hash: "dddd4444", Name: "failed one", Category: "transpondarr", State: download.StateError},
+		{Hash: "eeee5555", Name: "the superseded orphan", Category: "transpondarr",
+			State: download.StateDownloading, Progress: 0.25, SavePath: "/downloads"},
+		{Hash: "ffff6666", Name: "the user's own torrent", Category: "movies", State: download.StateComplete},
+		{Hash: "9999aaaa", Name: "uncategorized", State: download.StateComplete},
+	}}
+	h := newHarness(t, nil, dl)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 6)
+	seedOpenGrab(t, h.store, seriesID, 1, "aaaa1111", "rel 1", "grabbed")
+	seedOpenGrab(t, h.store, seriesID, 2, "bbbb2222", "rel 2", "import_deferred")
+	seedOpenGrab(t, h.store, seriesID, 3, "cccc3333", "rel 3", "imported")
+	seedOpenGrab(t, h.store, seriesID, 4, "dddd4444", "rel 4", "failed")
+
+	var got unmatchedJSON
+	if code := h.get(t, "/api/v1/activity/unmatched", &got); code != http.StatusOK {
+		t.Fatalf("unmatched status = %d, want 200", code)
+	}
+	if !got.Scoped || !got.ClientOk {
+		t.Errorf("scoped = %v, client_ok = %v; want both true", got.Scoped, got.ClientOk)
+	}
+	if len(got.Items) != 1 {
+		t.Fatalf("items = %+v, want only the orphan in our category", got.Items)
+	}
+	item := got.Items[0]
+	if item.InfoHash != "eeee5555" || item.Name != "the superseded orphan" {
+		t.Errorf("item = %+v, want the eeee5555 orphan", item)
+	}
+	if item.ClientState != "downloading" || item.Progress != 0.25 || item.SavePath != "/downloads" {
+		t.Errorf("item = %+v, want the live client detail carried through", item)
+	}
+}
+
+// A referenced hash is matched however the client cases it: identity is the
+// lowercase info hash throughout the pipeline.
+func TestUnmatchedDownloadsMatchHashesCaseInsensitively(t *testing.T) {
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "AAAA1111AAAA1111", Name: "grabbed one", Category: "transpondarr", State: download.StateDownloading},
+	}}
+	h := newHarness(t, nil, dl)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 2)
+	seedOpenGrab(t, h.store, seriesID, 1, "aaaa1111aaaa1111", "rel 1", "grabbed")
+
+	var got unmatchedJSON
+	if code := h.get(t, "/api/v1/activity/unmatched", &got); code != http.StatusOK {
+		t.Fatalf("unmatched status = %d, want 200", code)
+	}
+	if len(got.Items) != 0 {
+		t.Errorf("items = %+v, want none — the grab references that hash", got.Items)
+	}
+}
+
+// Client trouble degrades to an empty list, matching the queue's stance that it
+// answers even when the client cannot. Guessing would be worse than silence: an
+// unanswered client cannot say whose torrents these are.
+func TestUnmatchedDownloadsDegradeWhenTheClientCannotAnswer(t *testing.T) {
+	t.Run("no client configured", func(t *testing.T) {
+		h := newHarness(t, nil, nil)
+		var got unmatchedJSON
+		if code := h.get(t, "/api/v1/activity/unmatched", &got); code != http.StatusOK {
+			t.Fatalf("unmatched status = %d, want 200 with no client", code)
+		}
+		if got.ClientOk || !got.Scoped || len(got.Items) != 0 {
+			t.Errorf("got %+v, want scoped with client_ok false and no items", got)
+		}
+	})
+	t.Run("client errors", func(t *testing.T) {
+		dl := &coretest.FakeDownload{StatusErr: errors.New("client unreachable")}
+		h := newHarness(t, nil, dl)
+		var got unmatchedJSON
+		if code := h.get(t, "/api/v1/activity/unmatched", &got); code != http.StatusOK {
+			t.Fatalf("unmatched status = %d, want 200 despite the client error", code)
+		}
+		if got.ClientOk || len(got.Items) != 0 {
+			t.Errorf("got %+v, want client_ok false and no items", got)
+		}
+	})
+}
+
+// The removal is opt-in on the data, and the flag reaches the client unchanged.
+func TestRemoveUnmatchedDownloadPassesDeleteDataThrough(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		query string
+		want  bool
+	}{
+		{"defaults to taking the data", "", true},
+		{"keeps the data when asked", "?delete_data=false", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			dl := &coretest.FakeDownload{Statuses: []download.Status{
+				{Hash: "EEEE5555", Name: "orphan", Category: "transpondarr", State: download.StateDownloading},
+			}}
+			h := newHarness(t, nil, dl)
+
+			code := do(t, h, http.MethodDelete, "/api/v1/activity/unmatched/eeee5555"+c.query, nil, nil)
+			if code != http.StatusNoContent {
+				t.Fatalf("delete status = %d, want 204", code)
+			}
+			if len(dl.Removes) != 1 {
+				t.Fatalf("Remove called %d times, want 1", len(dl.Removes))
+			}
+			call := dl.Removes[0]
+			if len(call.Hashes) != 1 || call.Hashes[0] != "eeee5555" {
+				t.Errorf("removed hashes = %v, want the one lowercased hash", call.Hashes)
+			}
+			if call.DeleteData != c.want {
+				t.Errorf("DeleteData = %v, want %v", call.DeleteData, c.want)
+			}
+		})
+	}
+}
+
+// The single most important guard: between the list rendering and the click, a
+// scan or a grab can adopt the hash. A stale UI must never delete a live grab's
+// torrent.
+func TestRemoveUnmatchedDownloadRefusesAHashThatBecameReferenced(t *testing.T) {
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "eeee5555", Name: "no longer an orphan", Category: "transpondarr", State: download.StateDownloading},
+	}}
+	h := newHarness(t, nil, dl)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 2)
+	seedOpenGrab(t, h.store, seriesID, 1, "eeee5555", "rel", "grabbed")
+
+	code := do(t, h, http.MethodDelete, "/api/v1/activity/unmatched/eeee5555", nil, nil)
+	if code != http.StatusConflict {
+		t.Fatalf("delete status = %d, want 409", code)
+	}
+	if len(dl.Removes) != 0 {
+		t.Errorf("Remove was called %v for a referenced hash", dl.Removes)
+	}
+}
+
+// The category is the entire safety boundary: a torrent outside it is the
+// user's, and this endpoint cannot touch it whatever hash it is handed.
+func TestRemoveUnmatchedDownloadRefusesATorrentOutsideOurCategory(t *testing.T) {
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "ffff6666", Name: "the user's own torrent", Category: "movies", State: download.StateComplete},
+	}}
+	h := newHarness(t, nil, dl)
+
+	for _, hash := range []string{"ffff6666", "0000nothing"} {
+		code := do(t, h, http.MethodDelete, "/api/v1/activity/unmatched/"+hash, nil, nil)
+		if code != http.StatusNotFound {
+			t.Errorf("delete %s status = %d, want 404", hash, code)
+		}
+	}
+	if len(dl.Removes) != 0 {
+		t.Errorf("Remove was called %v for a torrent outside our category", dl.Removes)
+	}
+}
+
+// A client that refuses the delete is a 502, as the series removal is: the
+// request was fine, the client said no.
+func TestRemoveUnmatchedDownloadReportsAClientRefusal(t *testing.T) {
+	dl := &coretest.FakeDownload{
+		Statuses:  []download.Status{{Hash: "eeee5555", Category: "transpondarr", State: download.StateDownloading}},
+		RemoveErr: errors.New("qbit: refused"),
+	}
+	h := newHarness(t, nil, dl)
+
+	if code := do(t, h, http.MethodDelete, "/api/v1/activity/unmatched/eeee5555", nil, nil); code != http.StatusBadGateway {
+		t.Errorf("delete status = %d, want 502", code)
+	}
+}
+
+// With no client there is nothing to enumerate, so the delete cannot establish
+// that the hash is ours — a 503, not a blind removal.
+func TestRemoveUnmatchedDownloadWithoutAClient(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	if code := do(t, h, http.MethodDelete, "/api/v1/activity/unmatched/eeee5555", nil, nil); code != http.StatusServiceUnavailable {
+		t.Errorf("delete status = %d, want 503", code)
+	}
+}

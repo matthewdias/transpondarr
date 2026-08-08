@@ -8,6 +8,7 @@ import (
 
 	"github.com/danielgtaylor/huma/v2"
 
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -127,8 +128,31 @@ type retryImportOutput struct {
 	}
 }
 
-// activityHandler groups the queue, history and import-fix routes, which share
-// the store and the one importer the scan runs on.
+// unmatchedItemDTO is one torrent in Transpondarr's category that no grab row
+// references. Every field is live client state; there is no row to read from.
+type unmatchedItemDTO struct {
+	InfoHash    string  `json:"infohash"`
+	Name        string  `json:"name"`
+	ClientState string  `json:"client_state" enum:"downloading,complete,stalled,checking,paused,error,unknown"`
+	Progress    float64 `json:"progress" minimum:"0" maximum:"1"`
+	SavePath    string  `json:"save_path,omitempty"`
+}
+
+type activityUnmatchedOutput struct {
+	Body struct {
+		Items    []unmatchedItemDTO `json:"items"`
+		ClientOk bool               `json:"client_ok" doc:"False when the download client is missing or did not answer; nothing can be listed without it"`
+		Scoped   bool               `json:"scoped" doc:"False when no download category is configured, which leaves our torrents indistinguishable from the user's; the list is then always empty"`
+	}
+}
+
+type removeUnmatchedInput struct {
+	Hash       string `path:"hash" doc:"Info hash from the unmatched listing"`
+	DeleteData bool   `query:"delete_data" default:"true" doc:"Also delete the downloaded payload from disk"`
+}
+
+// activityHandler groups the queue, history, import-fix and unmatched-download
+// routes, which share the store and the one importer the scan runs on.
 type activityHandler struct {
 	deps routeDeps
 }
@@ -151,6 +175,23 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 		Summary:     "Re-run a deferred grab's import, optionally naming which file is which episode",
 		Tags:        []string{"activity"},
 	}, h.retryImport)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "list-unmatched-downloads",
+		Method:      http.MethodGet,
+		Path:        "/api/v1/activity/unmatched",
+		Summary:     "Torrents in Transpondarr's category that no grab row references",
+		Tags:        []string{"activity"},
+	}, h.listUnmatched)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "remove-unmatched-download",
+		Method:        http.MethodDelete,
+		Path:          "/api/v1/activity/unmatched/{hash}",
+		Summary:       "Remove one unmatched download from the client, optionally with its data",
+		Tags:          []string{"activity"},
+		DefaultStatus: http.StatusNoContent,
+	}, h.removeUnmatched)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-activity-queue",
@@ -281,6 +322,122 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 		}
 		return out, nil
 	})
+}
+
+// downloadCategory is the safety boundary: only torrents carrying it are ours.
+// settings is nil only on the OpenAPI-dump path, where no handler runs.
+func (h *activityHandler) downloadCategory() string {
+	if h.deps.settings == nil {
+		return ""
+	}
+	return h.deps.settings.DownloadCategory()
+}
+
+// referencedHashes spans every grab status, settled ones included: unmatched
+// means nothing points at the torrent, not that nothing useful does.
+func (h *activityHandler) referencedHashes(ctx context.Context) (map[string]bool, error) {
+	rows, err := h.deps.store.Q.ListGrabInfoHashes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(rows))
+	for _, hash := range rows {
+		seen[strings.ToLower(hash)] = true
+	}
+	return seen, nil
+}
+
+// pickUnmatched keeps the torrents in our category that nothing references. A
+// blank category cannot tell ours from the user's, so it keeps nothing.
+func pickUnmatched(statuses []download.Status, referenced map[string]bool, category string) []download.Status {
+	if strings.TrimSpace(category) == "" {
+		return nil
+	}
+	out := make([]download.Status, 0, len(statuses))
+	for _, s := range statuses {
+		if s.Category != category || referenced[strings.ToLower(s.Hash)] {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// listUnmatched surfaces the downloads nothing is waiting on. Removal stays the
+// user's: a deferred payload is exactly what a human was about to fix by hand.
+func (h *activityHandler) listUnmatched(ctx context.Context, _ *struct{}) (*activityUnmatchedOutput, error) {
+	out := &activityUnmatchedOutput{}
+	out.Body.Items = []unmatchedItemDTO{}
+	category := h.downloadCategory()
+	out.Body.Scoped = strings.TrimSpace(category) != ""
+	if !out.Body.Scoped {
+		return out, nil
+	}
+
+	dl := h.deps.clients.Download()
+	if dl == nil {
+		return out, nil
+	}
+	out.Body.ClientOk = true
+	statuses, err := dl.Status(ctx)
+	if err != nil {
+		out.Body.ClientOk = false
+		return out, nil
+	}
+	referenced, err := h.referencedHashes(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list grab hashes", err)
+	}
+	for _, s := range pickUnmatched(statuses, referenced, category) {
+		out.Body.Items = append(out.Body.Items, unmatchedItemDTO{
+			InfoHash:    strings.ToLower(s.Hash),
+			Name:        s.Name,
+			ClientState: string(s.State),
+			Progress:    s.Progress,
+			SavePath:    s.SavePath,
+		})
+	}
+	return out, nil
+}
+
+// removeUnmatched re-derives the set rather than trusting the listing: a scan or
+// a grab can adopt the hash between the render and the click.
+func (h *activityHandler) removeUnmatched(ctx context.Context, in *removeUnmatchedInput) (*struct{}, error) {
+	category := h.downloadCategory()
+	if strings.TrimSpace(category) == "" {
+		return nil, huma.Error503ServiceUnavailable("no download category is configured, so Transpondarr's own downloads cannot be told apart")
+	}
+	dl := h.deps.clients.Download()
+	if dl == nil {
+		return nil, acquireHTTPError(acquire.ErrNoDownloadClient)
+	}
+	statuses, err := dl.Status(ctx)
+	if err != nil {
+		return nil, huma.Error502BadGateway("failed to read the download client", err)
+	}
+	referenced, err := h.referencedHashes(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list grab hashes", err)
+	}
+
+	hash := strings.ToLower(in.Hash)
+	ours := false
+	for _, s := range statuses {
+		if strings.ToLower(s.Hash) == hash && s.Category == category {
+			ours = true
+			break
+		}
+	}
+	if !ours {
+		return nil, huma.Error404NotFound("no download in Transpondarr's category has that hash")
+	}
+	if referenced[hash] {
+		return nil, huma.Error409Conflict("that download is referenced by a grab again; refresh the queue")
+	}
+	if err := dl.Remove(ctx, []string{hash}, in.DeleteData); err != nil {
+		return nil, huma.Error502BadGateway("failed to remove the download from the client", err)
+	}
+	return nil, nil
 }
 
 // getPayload lists a deferred grab's payload for the import-fix dialog.

@@ -148,6 +148,8 @@ export type QueueItem = Schemas["QueueItemDTO"];
 export type ActivityEvent = Schemas["ActivityEventDTO"];
 export type ActivityQueue = Schemas["ActivityQueueOutputBody"];
 export type ActivityHistoryPage = Schemas["ActivityHistoryOutputBody"];
+export type UnmatchedDownload = Schemas["UnmatchedItemDTO"];
+export type ActivityUnmatched = Schemas["ActivityUnmatchedOutputBody"];
 export type QueuePayload = Schemas["QueuePayloadOutputBody"];
 export type PayloadFile = Schemas["PayloadFileDTO"];
 export type PayloadArchive = Schemas["PayloadArchiveDTO"];
@@ -404,6 +406,18 @@ export const api = {
       .GET("/api/v1/activity/history", {
         params: { query: cursor ? { cursor } : {} },
         signal,
+      })
+      .then(unwrap),
+
+  activityUnmatched: (signal?: AbortSignal) =>
+    client.GET("/api/v1/activity/unmatched", { signal }).then(unwrap),
+
+  // delete_data is sent explicitly either way: the server defaults it to true,
+  // so omitting a cleared checkbox would delete the data it was cleared to keep.
+  removeUnmatchedDownload: (hash: string, deleteData: boolean) =>
+    client
+      .DELETE("/api/v1/activity/unmatched/{hash}", {
+        params: { path: { hash }, query: { delete_data: deleteData } },
       })
       .then(unwrap),
 

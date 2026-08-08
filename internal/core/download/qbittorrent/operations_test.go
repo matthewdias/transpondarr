@@ -229,8 +229,8 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 		case "/api/v2/torrents/info":
 			gotHashesFilter = r.FormValue("hashes")
 			_, _ = w.Write([]byte(`[
-				{"hash":"aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111","name":"Placeholder Saga S1E01","state":"downloading","progress":0.5,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E01.mkv"},
-				{"hash":"bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222","name":"Placeholder Saga S1E02","state":"uploading","progress":1,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E02.mkv"}
+				{"hash":"aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111","name":"Placeholder Saga S1E01","state":"downloading","progress":0.5,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E01.mkv","category":"transpondarr"},
+				{"hash":"bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222","name":"Placeholder Saga S1E02","state":"uploading","progress":1,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E02.mkv","category":"someone-elses"}
 			]`))
 		default:
 			w.WriteHeader(http.StatusOK)
@@ -269,9 +269,18 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 		t.Errorf("content_path = %q", first.ContentPath)
 	}
 
+	// The category is the whole safety boundary for the unmatched-downloads view,
+	// so it has to survive the parse verbatim, other people's torrents included.
+	if first.Category != "transpondarr" {
+		t.Errorf("category = %q, want transpondarr", first.Category)
+	}
+
 	// The seeding torrent maps to the complete state the importer treats as ready.
 	if got[1].State != download.StateComplete {
 		t.Errorf("second state = %v, want complete", got[1].State)
+	}
+	if got[1].Category != "someone-elses" {
+		t.Errorf("second category = %q, want someone-elses", got[1].Category)
 	}
 
 	if !strings.Contains(gotHashesFilter, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111") {

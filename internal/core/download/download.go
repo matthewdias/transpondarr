@@ -74,6 +74,10 @@ type Status struct {
 	// folder) in the client's filesystem context — the import pipeline
 	// hardlinks from here.
 	ContentPath string
+	// Category is the client-side tag AddOptions set. It is the only thing that
+	// tells our torrents from the user's, so nothing may act on a torrent
+	// carrying someone else's.
+	Category string
 }
 
 // Client is a download client Transpondarr can drive.

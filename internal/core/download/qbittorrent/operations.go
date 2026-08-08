@@ -193,6 +193,7 @@ func (c *Client) Status(ctx context.Context, hashes ...string) ([]download.Statu
 			Progress:    t.Progress,
 			SavePath:    t.SavePath,
 			ContentPath: t.ContentPath,
+			Category:    t.Category,
 		})
 	}
 	return out, nil
