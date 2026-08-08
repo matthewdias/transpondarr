@@ -17,6 +17,7 @@ import {
 import { Link } from "react-router";
 import { ApiError, type QueueItem, type UnmatchedDownload } from "@/lib/api";
 import {
+  ACTIVITY_QUEUE_POLL_MS,
   activityHistoryQuery,
   activityQueueQuery,
   activityUnmatchedQuery,
@@ -229,7 +230,14 @@ function QueueRow({ item }: { item: QueueItem }) {
 // visit. A load failure still speaks, since silence would be indistinguishable
 // from "nothing is wrong".
 function UnmatchedSection() {
-  const { data, isError, error, refetch } = useQuery(activityUnmatchedQuery());
+  // The poll is paused while a confirm dialog is open: a scan or a new grab
+  // adopting the hash would otherwise drop the row, unmounting the dialog the
+  // user was reading with no explanation.
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const { data, isError, error, refetch } = useQuery({
+    ...activityUnmatchedQuery(),
+    refetchInterval: confirming ? false : ACTIVITY_QUEUE_POLL_MS,
+  });
   if (!isError && (!data || data.items.length === 0)) return null;
 
   return (
@@ -245,11 +253,18 @@ function UnmatchedSection() {
         <>
           <p className="mb-2 text-[13px] text-muted-foreground">
             In Transpondarr’s category, but no episode is waiting on them —
-            usually a download a later grab replaced.
+            downloads a later grab replaced, and downloads kept when their
+            series was deleted. Removing one is up to you.
           </p>
           <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
             {data?.items.map((item) => (
-              <UnmatchedRow key={item.infohash} item={item} />
+              <UnmatchedRow
+                key={item.infohash}
+                item={item}
+                onConfirming={(open) =>
+                  setConfirming(open ? item.infohash : null)
+                }
+              />
             ))}
           </ItemGroup>
         </>
@@ -258,7 +273,13 @@ function UnmatchedSection() {
   );
 }
 
-function UnmatchedRow({ item }: { item: UnmatchedDownload }) {
+function UnmatchedRow({
+  item,
+  onConfirming,
+}: {
+  item: UnmatchedDownload;
+  onConfirming: (open: boolean) => void;
+}) {
   return (
     <Item className="gap-3">
       <ItemMedia>
@@ -275,7 +296,7 @@ function UnmatchedRow({ item }: { item: UnmatchedDownload }) {
         </div>
       </ItemContent>
       <ItemActions className="flex-col items-end gap-1">
-        <RemoveUnmatchedDialog item={item} />
+        <RemoveUnmatchedDialog item={item} onOpenChange={onConfirming} />
         <span className="text-xs font-medium">
           {clientStateLabel[item.client_state] ?? item.client_state}
           <span className="text-faint">

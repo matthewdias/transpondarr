@@ -112,7 +112,12 @@ All notable changes to this project are documented here. The format is based on
   stopped from Transpondarr at all. Automation cannot cause this (it refuses to
   grab over an item whose grab has not settled), but a **manual** grab superseding
   a downloading or deferred one can, and so can the client accepting a torrent
-  moments before the grab is recorded and the record failing.
+  moments before the grab is recorded and the record failing. **Deleting a series
+  while keeping its downloads is the third source, and in practice the largest**:
+  the grab rows go with the series, so every torrent it left behind is unmatched
+  from then on — correctly, since nothing is waiting on them, but expect the
+  section to be a standing list rather than an empty one if you have ever done
+  that.
 
   Activity gains an **Unmatched downloads** section listing every torrent in
   Transpondarr's download category that no grab row references, each shown with

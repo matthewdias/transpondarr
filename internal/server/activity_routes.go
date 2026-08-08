@@ -329,6 +329,9 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 
 // downloadCategory is the safety boundary: only torrents carrying it are ours.
 // settings is nil only on the OpenAPI-dump path, where no handler runs.
+// downloadCategory is empty only when settings are absent: the settings layer
+// substitutes the default for a blank one, so the value is never normalized here
+// — it is compared verbatim against what the same value wrote on the add.
 func (h *activityHandler) downloadCategory() string {
 	if h.deps.settings == nil {
 		return ""
@@ -351,9 +354,11 @@ func (h *activityHandler) referencedHashes(ctx context.Context) (map[string]bool
 }
 
 // pickUnmatched keeps the torrents in our category that nothing references. A
-// blank category cannot tell ours from the user's, so it keeps nothing.
+// blank category cannot tell ours from the user's, so it keeps nothing. It
+// re-checks the category even when the client already filtered: that filter is
+// an optional capability, so the fallback path arrives unfiltered.
 func pickUnmatched(statuses []download.Status, referenced map[string]bool, category string) []download.Status {
-	if strings.TrimSpace(category) == "" {
+	if category == "" {
 		return nil
 	}
 	out := make([]download.Status, 0, len(statuses))
@@ -372,17 +377,16 @@ func (h *activityHandler) listUnmatched(ctx context.Context, _ *struct{}) (*acti
 	out := &activityUnmatchedOutput{}
 	out.Body.Items = []unmatchedItemDTO{}
 	category := h.downloadCategory()
-	out.Body.Scoped = strings.TrimSpace(category) != ""
-	if !out.Body.Scoped {
+	dl := h.deps.clients.Download()
+	// Set before the scoped return: an unscoped listing asks the client nothing,
+	// so reporting a healthy client as unreachable would simply be false.
+	out.Body.ClientOk = dl != nil
+	out.Body.Scoped = category != ""
+	if !out.Body.Scoped || dl == nil {
 		return out, nil
 	}
 
-	dl := h.deps.clients.Download()
-	if dl == nil {
-		return out, nil
-	}
-	out.Body.ClientOk = true
-	statuses, err := dl.Status(ctx)
+	statuses, err := download.StatusInCategory(ctx, dl, category)
 	if err != nil {
 		out.Body.ClientOk = false
 		return out, nil
@@ -412,14 +416,14 @@ func (h *activityHandler) listUnmatched(ctx context.Context, _ *struct{}) (*acti
 // a grab can adopt the hash between the render and the click.
 func (h *activityHandler) removeUnmatched(ctx context.Context, in *removeUnmatchedInput) (*struct{}, error) {
 	category := h.downloadCategory()
-	if strings.TrimSpace(category) == "" {
+	if category == "" {
 		return nil, huma.Error503ServiceUnavailable("no download category is configured, so Transpondarr's own downloads cannot be told apart")
 	}
 	dl := h.deps.clients.Download()
 	if dl == nil {
 		return nil, acquireHTTPError(acquire.ErrNoDownloadClient)
 	}
-	statuses, err := dl.Status(ctx)
+	statuses, err := download.StatusInCategory(ctx, dl, category)
 	if err != nil {
 		return nil, huma.Error502BadGateway("failed to read the download client", err)
 	}

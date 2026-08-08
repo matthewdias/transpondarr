@@ -102,3 +102,21 @@ type Client interface {
 	// is set. Hashes the client does not know are ignored.
 	Remove(ctx context.Context, hashes []string, deleteData bool) error
 }
+
+// CategoryLister narrows a listing to one category at the client rather than
+// over the wire. A capability, not part of Client: the caller must degrade to
+// filtering an unfiltered Status itself, since a client without categories is a
+// supported configuration.
+type CategoryLister interface {
+	StatusByCategory(ctx context.Context, category string) ([]Status, error)
+}
+
+// StatusInCategory lists one category, pushing the filter down when the client
+// can take it — the unfiltered call returns the user's entire client, which for
+// a seedbox is thousands of torrents to answer a question about a handful.
+func StatusInCategory(ctx context.Context, c Client, category string) ([]Status, error) {
+	if l, ok := c.(CategoryLister); ok {
+		return l.StatusByCategory(ctx, category)
+	}
+	return c.Status(ctx)
+}

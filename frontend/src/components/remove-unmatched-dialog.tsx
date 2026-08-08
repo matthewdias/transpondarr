@@ -18,11 +18,22 @@ import {
 // Removing an unmatched download is destructive and manual by design: the
 // payload may be exactly what someone was about to fix by hand, so nothing
 // deletes it automatically.
-export function RemoveUnmatchedDialog({ item }: { item: UnmatchedDownload }) {
+export function RemoveUnmatchedDialog({
+  item,
+  onOpenChange,
+}: {
+  item: UnmatchedDownload;
+  onOpenChange?: (open: boolean) => void;
+}) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [deleteData, setDeleteData] = useState(true);
   const checkboxId = useId();
+
+  const setOpenState = (o: boolean) => {
+    setOpen(o);
+    onOpenChange?.(o);
+  };
 
   const remove = useMutation({
     mutationFn: () => api.removeUnmatchedDownload(item.infohash, deleteData),
@@ -31,7 +42,7 @@ export function RemoveUnmatchedDialog({ item }: { item: UnmatchedDownload }) {
       void queryClient.invalidateQueries({
         queryKey: activityUnmatchedQuery().queryKey,
       });
-      setOpen(false);
+      setOpenState(false);
     },
     onError: (e) =>
       toast.error("Remove failed", {
@@ -43,7 +54,7 @@ export function RemoveUnmatchedDialog({ item }: { item: UnmatchedDownload }) {
     <Dialog
       open={open}
       onOpenChange={(o) => {
-        setOpen(o);
+        setOpenState(o);
         if (o) setDeleteData(true);
       }}
     >
@@ -61,6 +72,13 @@ export function RemoveUnmatchedDialog({ item }: { item: UnmatchedDownload }) {
             waiting on it, and nothing in your library is touched.
           </DialogDescription>
         </DialogHeader>
+        {item.save_path && (
+          /* The one thing needed to find the payload by hand, which is the
+             alternative to deleting it. */
+          <p className="-mt-1 font-mono text-xs break-all text-faint">
+            {item.save_path}
+          </p>
+        )}
         <label
           htmlFor={checkboxId}
           className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border bg-panel-2 px-3 py-2.5 text-sm"
@@ -77,7 +95,7 @@ export function RemoveUnmatchedDialog({ item }: { item: UnmatchedDownload }) {
           </span>
         </label>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
+          <Button variant="outline" onClick={() => setOpenState(false)}>
             Cancel
           </Button>
           <Button

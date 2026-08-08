@@ -2,11 +2,13 @@ package server_test
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/download"
+	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 )
 
@@ -63,6 +65,50 @@ func TestUnmatchedDownloadsListsOnlyTorrentsNoGrabReferences(t *testing.T) {
 	}
 	if item.ClientState != "downloading" || item.Progress != 0.25 || item.SavePath != "/downloads" {
 		t.Errorf("item = %+v, want the live client detail carried through", item)
+	}
+}
+
+// The motivating sequence, driven through the real manual grab path rather than
+// seeded: two grabs for one episode, so UpsertGrab's ON CONFLICT overwrites the
+// row and the first torrent is left referenced by nothing. Every other test here
+// seeds grab rows, which would keep passing even if the supersede stopped
+// happening — this one fails loudly if #197 ever changes the shape.
+func TestASupersededGrabsTorrentBecomesUnmatched(t *testing.T) {
+	const (
+		firstURL  = "magnet:?xt=urn:btih:00000000000000000000000000000000000000aa"
+		secondURL = "magnet:?xt=urn:btih:00000000000000000000000000000000000000bb"
+	)
+	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
+		{Title: "[FakeGroup] Placeholder Saga - 04 [720p]", DownloadURL: firstURL, Seeders: 10},
+		{Title: "[FakeGroup] Placeholder Saga - 04 [1080p]", DownloadURL: secondURL, Seeders: 90},
+	}}
+	dl := &coretest.FakeDownload{}
+	// The client answers each add with its own hash, as a real one would.
+	byURL := map[string]string{firstURL: "aaaa1111", secondURL: "bbbb2222"}
+	dl.AddHook = func(opts download.AddOptions) {
+		dl.Result = download.AddResult{Hash: byURL[opts.URL], Outcome: download.AddSuccess}
+	}
+	h := newHarness(t, idx, dl)
+	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+
+	for _, url := range []string{firstURL, secondURL} {
+		if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+			map[string]any{"download_url": url}, nil); code != http.StatusCreated {
+			t.Fatalf("grab %s = %d, want 201", url, code)
+		}
+	}
+	// Both are in the client; only the second is still spoken for.
+	dl.Statuses = []download.Status{
+		{Hash: "aaaa1111", Name: "the superseded one", Category: "transpondarr", State: download.StateDownloading},
+		{Hash: "bbbb2222", Name: "the one that replaced it", Category: "transpondarr", State: download.StateDownloading},
+	}
+
+	var got unmatchedJSON
+	if code := h.get(t, "/api/v1/activity/unmatched", &got); code != http.StatusOK {
+		t.Fatalf("unmatched status = %d, want 200", code)
+	}
+	if len(got.Items) != 1 || got.Items[0].InfoHash != "aaaa1111" {
+		t.Fatalf("items = %+v, want only the superseded aaaa1111", got.Items)
 	}
 }
 

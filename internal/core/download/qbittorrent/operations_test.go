@@ -215,6 +215,43 @@ func TestAddClassifiesReleaseFaultsSeparatelyFromClientFaults(t *testing.T) {
 	}
 }
 
+// The filter has to reach qBittorrent, not just the result: listing unmatched
+// downloads otherwise pulls the user's entire client every poll (#131).
+func TestStatusByCategoryFiltersAtTheClient(t *testing.T) {
+	var gotCategory, gotFilter string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "test"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/info":
+			gotCategory = r.FormValue("category")
+			gotFilter = r.FormValue("filter")
+			_, _ = w.Write([]byte(`[{"hash":"aaaa1111","name":"ours","state":"downloading","category":"transpondarr"}]`))
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "u", "p")
+	var lister download.CategoryLister = c
+	got, err := lister.StatusByCategory(context.Background(), "transpondarr")
+	if err != nil {
+		t.Fatalf("StatusByCategory: %v", err)
+	}
+	if gotCategory != "transpondarr" {
+		t.Errorf("category sent to qBittorrent = %q, want transpondarr", gotCategory)
+	}
+	// A hash filter would contradict the category one; nothing must narrow it further.
+	if gotFilter != "" && gotFilter != "all" {
+		t.Errorf("filter sent to qBittorrent = %q, want none", gotFilter)
+	}
+	if len(got) != 1 || got[0].Category != "transpondarr" {
+		t.Errorf("statuses = %+v, want the one categorized torrent", got)
+	}
+}
+
 // Status deserializes qBittorrent's /torrents/info JSON into download.Status,
 // mapping every field the import pipeline relies on — most importantly
 // content_path and the normalized state — and forwards the requested hashes

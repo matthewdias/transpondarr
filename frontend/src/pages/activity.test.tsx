@@ -266,6 +266,24 @@ describe("unmatched downloads", () => {
     expect(screen.getByText(/3d ago/)).toBeInTheDocument();
   });
 
+  // Keeping the payload and finding it by hand is the alternative to deleting
+  // it, so the confirm step is where the path has to be readable.
+  it("names the payload's location in the confirm dialog", async () => {
+    useHandlers(
+      { client_ok: true, items: [] },
+      { "": { events: [] } },
+      undefined,
+      { items: [orphan], client_ok: true, scoped: true },
+    );
+
+    renderPage();
+
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: /^Remove$/ }));
+    expect(await screen.findByText("/downloads")).toBeInTheDocument();
+  });
+
   it("lists the orphan and removes it with its data by default", async () => {
     let removed: { hash: string; deleteData: string | null } | undefined;
     useHandlers(
