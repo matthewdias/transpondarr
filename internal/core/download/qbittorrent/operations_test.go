@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/download"
 )
@@ -214,6 +215,43 @@ func TestAddClassifiesReleaseFaultsSeparatelyFromClientFaults(t *testing.T) {
 	}
 }
 
+// The filter has to reach qBittorrent, not just the result: listing unmatched
+// downloads otherwise pulls the user's entire client every poll (#131).
+func TestStatusByCategoryFiltersAtTheClient(t *testing.T) {
+	var gotCategory, gotFilter string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "test"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/info":
+			gotCategory = r.FormValue("category")
+			gotFilter = r.FormValue("filter")
+			_, _ = w.Write([]byte(`[{"hash":"aaaa1111","name":"ours","state":"downloading","category":"transpondarr"}]`))
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "u", "p")
+	var lister download.CategoryLister = c
+	got, err := lister.StatusByCategory(context.Background(), "transpondarr")
+	if err != nil {
+		t.Fatalf("StatusByCategory: %v", err)
+	}
+	if gotCategory != "transpondarr" {
+		t.Errorf("category sent to qBittorrent = %q, want transpondarr", gotCategory)
+	}
+	// A hash filter would contradict the category one; nothing must narrow it further.
+	if gotFilter != "" && gotFilter != "all" {
+		t.Errorf("filter sent to qBittorrent = %q, want none", gotFilter)
+	}
+	if len(got) != 1 || got[0].Category != "transpondarr" {
+		t.Errorf("statuses = %+v, want the one categorized torrent", got)
+	}
+}
+
 // Status deserializes qBittorrent's /torrents/info JSON into download.Status,
 // mapping every field the import pipeline relies on — most importantly
 // content_path and the normalized state — and forwards the requested hashes
@@ -229,8 +267,8 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 		case "/api/v2/torrents/info":
 			gotHashesFilter = r.FormValue("hashes")
 			_, _ = w.Write([]byte(`[
-				{"hash":"aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111","name":"Placeholder Saga S1E01","state":"downloading","progress":0.5,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E01.mkv"},
-				{"hash":"bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222","name":"Placeholder Saga S1E02","state":"uploading","progress":1,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E02.mkv"}
+				{"hash":"aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111","name":"Placeholder Saga S1E01","state":"downloading","progress":0.5,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E01.mkv","category":"transpondarr","size":734003200,"added_on":1754524800},
+				{"hash":"bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222","name":"Placeholder Saga S1E02","state":"uploading","progress":1,"save_path":"/downloads","content_path":"/downloads/Placeholder Saga S1E02.mkv","category":"someone-elses"}
 			]`))
 		default:
 			w.WriteHeader(http.StatusOK)
@@ -269,9 +307,32 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 		t.Errorf("content_path = %q", first.ContentPath)
 	}
 
+	// The category is the whole safety boundary for the unmatched-downloads view,
+	// so it has to survive the parse verbatim, other people's torrents included.
+	if first.Category != "transpondarr" {
+		t.Errorf("category = %q, want transpondarr", first.Category)
+	}
+
+	// Size and added time are what identify an unmatched torrent to a human, who
+	// has no grab row to read it off (#131).
+	if first.Size != 734003200 {
+		t.Errorf("size = %d, want 734003200", first.Size)
+	}
+	if got := first.AddedAt.UTC().Format(time.RFC3339); got != "2025-08-07T00:00:00Z" {
+		t.Errorf("added_at = %q, want 2025-08-07T00:00:00Z", got)
+	}
+	// A client that reports no add time leaves the zero value, never the epoch:
+	// the DTO omits it rather than claiming the torrent arrived in 1970.
+	if !got[1].AddedAt.IsZero() {
+		t.Errorf("second added_at = %v, want the zero time when unreported", got[1].AddedAt)
+	}
+
 	// The seeding torrent maps to the complete state the importer treats as ready.
 	if got[1].State != download.StateComplete {
 		t.Errorf("second state = %v, want complete", got[1].State)
+	}
+	if got[1].Category != "someone-elses" {
+		t.Errorf("second category = %q, want someone-elses", got[1].Category)
 	}
 
 	if !strings.Contains(gotHashesFilter, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111") {

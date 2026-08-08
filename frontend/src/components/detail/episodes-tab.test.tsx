@@ -57,6 +57,32 @@ describe("EpisodesTab search buttons", () => {
     expect(onSearchAll).not.toHaveBeenCalled();
   });
 
+  // A held episode is a legitimate grab candidate since #97, and Cutoff Unmet
+  // already links to this same episode-filtered view.
+  it("offers a held episode the same row search", async () => {
+    const { onSearchItem, user } = renderTab([
+      item({ id: 1, number: 4, in_library: true, status: "in_library" }),
+    ]);
+
+    await user.click(screen.getByRole("button", { name: "Search" }));
+    expect(onSearchItem).toHaveBeenCalledWith(4);
+  });
+
+  // A live grab is no reason to hide it: the Releases tab grabs at any status,
+  // so a condition here would gate nothing -- and a stuck import, which retries
+  // the same release forever, is exactly when another release is wanted.
+  it("offers it while a grab is in flight or its import is stuck", async () => {
+    const { onSearchItem, user } = renderTab([
+      item({ id: 1, number: 5, status: "downloading" }),
+      item({ id: 2, number: 6, status: "stuck" }),
+    ]);
+
+    const rows = screen.getAllByRole("button", { name: "Search" });
+    expect(rows).toHaveLength(2);
+    await user.click(rows[1]);
+    expect(onSearchItem).toHaveBeenCalledWith(6);
+  });
+
   it("keeps the header button series-wide", async () => {
     const { onSearchAll, onSearchItem, user } = renderTab([
       item({ number: 7, status: "wanted" }),

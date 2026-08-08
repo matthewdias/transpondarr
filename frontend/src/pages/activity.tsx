@@ -6,6 +6,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import {
   Download,
+  FileQuestion,
   FolderClock,
   History,
   Pause,
@@ -14,11 +15,17 @@ import {
   Wrench,
 } from "lucide-react";
 import { Link } from "react-router";
-import { ApiError, type QueueItem } from "@/lib/api";
-import { activityHistoryQuery, activityQueueQuery } from "@/lib/queries";
-import { timeAgo } from "@/lib/format";
+import { ApiError, type QueueItem, type UnmatchedDownload } from "@/lib/api";
+import {
+  ACTIVITY_QUEUE_POLL_MS,
+  activityHistoryQuery,
+  activityQueueQuery,
+  activityUnmatchedQuery,
+} from "@/lib/queries";
+import { formatBytes, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { GrabEventRow } from "@/components/grab-event-row";
+import { RemoveUnmatchedDialog } from "@/components/remove-unmatched-dialog";
 import { RetryImportDialog } from "@/components/retry-import-dialog";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
@@ -37,6 +44,7 @@ export function ActivityPage() {
       <Topbar title="Activity" />
       <div className="space-y-8 px-4 py-6 sm:px-6">
         <QueueSection />
+        <UnmatchedSection />
         <HistorySection />
       </div>
     </>
@@ -212,6 +220,89 @@ function QueueRow({ item }: { item: QueueItem }) {
           </span>
         )}
         <span className="text-xs text-faint">{timeAgo(item.created_at)}</span>
+      </ItemActions>
+    </Item>
+  );
+}
+
+// Unlike the other two sections this one vanishes when empty: an orphaned
+// download is a rare state, and a permanent empty card would be noise on every
+// visit. A load failure still speaks, since silence would be indistinguishable
+// from "nothing is wrong".
+function UnmatchedSection() {
+  // The poll is paused while a confirm dialog is open: a scan or a new grab
+  // adopting the hash would otherwise drop the row, unmounting the dialog the
+  // user was reading with no explanation.
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const { data, isError, error, refetch } = useQuery({
+    ...activityUnmatchedQuery(),
+    refetchInterval: confirming ? false : ACTIVITY_QUEUE_POLL_MS,
+  });
+  if (!isError && (!data || data.items.length === 0)) return null;
+
+  return (
+    <section>
+      <h2 className="mb-2 text-sm font-semibold">Unmatched downloads</h2>
+      {isError ? (
+        <SectionError
+          what="unmatched downloads"
+          error={error}
+          onRetry={refetch}
+        />
+      ) : (
+        <>
+          <p className="mb-2 text-[13px] text-muted-foreground">
+            In Transpondarr’s category, but no episode is waiting on them —
+            downloads a later grab replaced, and downloads kept when their
+            series was deleted. Removing one is up to you.
+          </p>
+          <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
+            {data?.items.map((item) => (
+              <UnmatchedRow
+                key={item.infohash}
+                item={item}
+                onConfirming={(open) =>
+                  setConfirming(open ? item.infohash : null)
+                }
+              />
+            ))}
+          </ItemGroup>
+        </>
+      )}
+    </section>
+  );
+}
+
+function UnmatchedRow({
+  item,
+  onConfirming,
+}: {
+  item: UnmatchedDownload;
+  onConfirming: (open: boolean) => void;
+}) {
+  return (
+    <Item className="gap-3">
+      <ItemMedia>
+        <span className="grid size-8 place-items-center rounded-lg bg-panel-2 text-muted-foreground">
+          <FileQuestion className="size-4" />
+        </span>
+      </ItemMedia>
+      <ItemContent className="min-w-0 gap-0.5">
+        <div className="line-clamp-1 font-mono text-[13px]">{item.name}</div>
+        <div className="text-[12px] text-faint">
+          <span className="font-mono">{item.infohash}</span>
+          {item.size > 0 && <> · {formatBytes(item.size)}</>}
+          {item.added_at && <> · added {timeAgo(item.added_at)}</>}
+        </div>
+      </ItemContent>
+      <ItemActions className="flex-col items-end gap-1">
+        <RemoveUnmatchedDialog item={item} onOpenChange={onConfirming} />
+        <span className="text-xs font-medium">
+          {clientStateLabel[item.client_state] ?? item.client_state}
+          <span className="text-faint">
+            {` · ${Math.round(item.progress * 100)}%`}
+          </span>
+        </span>
       </ItemActions>
     </Item>
   );

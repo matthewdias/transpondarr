@@ -184,18 +184,41 @@ func (c *Client) Status(ctx context.Context, hashes ...string) ([]download.Statu
 	if err != nil {
 		return nil, fmt.Errorf("qbittorrent: status: %w", err)
 	}
+	return mapTorrents(torrents), nil
+}
+
+func mapTorrents(torrents []qbt.Torrent) []download.Status {
 	out := make([]download.Status, 0, len(torrents))
 	for _, t := range torrents {
-		out = append(out, download.Status{
+		s := download.Status{
 			Hash:        t.Hash,
 			Name:        t.Name,
 			State:       mapState(string(t.State)),
 			Progress:    t.Progress,
 			SavePath:    t.SavePath,
 			ContentPath: t.ContentPath,
-		})
+			Category:    t.Category,
+			Size:        t.Size,
+		}
+		// Left zero when unreported, so the caller can omit it rather than
+		// claiming the torrent was added at the epoch.
+		if t.AddedOn > 0 {
+			s.AddedAt = time.Unix(t.AddedOn, 0).UTC()
+		}
+		out = append(out, s)
 	}
-	return out, nil
+	return out
+}
+
+// StatusByCategory implements download.CategoryLister: qBittorrent filters
+// server-side, so an unmatched listing costs one category rather than the
+// user's whole client.
+func (c *Client) StatusByCategory(ctx context.Context, category string) ([]download.Status, error) {
+	torrents, err := c.qb.GetTorrentsCtx(ctx, qbt.TorrentFilterOptions{Category: category})
+	if err != nil {
+		return nil, fmt.Errorf("qbittorrent: status by category: %w", err)
+	}
+	return mapTorrents(torrents), nil
 }
 
 // Remove deletes the given torrents (and their payload data when deleteData).

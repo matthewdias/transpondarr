@@ -83,6 +83,25 @@ All notable changes to this project are documented here. The format is based on
   be dropped and no `CHECK` can be bolted on after the fact. Closes
   [#74](https://github.com/matthewdias/transpondarr/issues/74).
 
+### Fixed
+
+- **An episode you already have can now be searched from the Episodes tab.** The
+  row's **Search** button appeared only on wanted and deferred episodes, so an
+  episode already in your library could not be searched from the series page at
+  all — even though Cutoff Unmet linked to the same view and the server had
+  always accepted the request. It is now on every row, in-flight grabs included.
+  Closes [#195](https://github.com/matthewdias/transpondarr/issues/195).
+- **Downloads nothing is waiting on are now visible in Activity.** A torrent
+  could be left in the download client with nothing pointing at it — after a
+  second grab replaced the first, or after deleting a series and choosing to keep
+  its downloads — where it kept downloading, took up disk, and could not be seen
+  or stopped from Transpondarr. Activity gains an **Unmatched downloads** section
+  listing them with their size, age and state, each removable by hand with the
+  option to delete its data too. Nothing is removed automatically, since the
+  payload may be one you meant to keep, and only Transpondarr's own download
+  category is ever listed — torrents outside it are yours and are never touched.
+  Closes [#131](https://github.com/matthewdias/transpondarr/issues/131).
+
 ### Upgrade notes
 
 - **API clients using `X-Api-Key` need one search-and-replace; the web UI needs

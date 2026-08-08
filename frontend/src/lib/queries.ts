@@ -141,6 +141,15 @@ export const activityQueueQuery = () =>
     refetchInterval: ACTIVITY_QUEUE_POLL_MS,
   });
 
+// Polls with the queue: an orphan appears the moment a grab supersedes another,
+// and disappears the moment something adopts its hash.
+export const activityUnmatchedQuery = () =>
+  queryOptions({
+    queryKey: ["activity-unmatched"],
+    queryFn: ({ signal }) => api.activityUnmatched(signal),
+    refetchInterval: ACTIVITY_QUEUE_POLL_MS,
+  });
+
 // Keyset pagination: each page carries the cursor for the next, absent on the last.
 export const activityHistoryQuery = () =>
   infiniteQueryOptions({

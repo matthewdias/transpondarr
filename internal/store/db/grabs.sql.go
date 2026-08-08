@@ -63,6 +63,35 @@ func (q *Queries) GetGrabByID(ctx context.Context, id int64) (GetGrabByIDRow, er
 	return i, err
 }
 
+const listGrabInfoHashes = `-- name: ListGrabInfoHashes :many
+SELECT DISTINCT info_hash FROM grabs WHERE info_hash != ''
+`
+
+// Every hash any grab row points at, settled ones included: a torrent nothing
+// references is what "unmatched" means, not one nothing useful references.
+func (q *Queries) ListGrabInfoHashes(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listGrabInfoHashes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var info_hash string
+		if err := rows.Scan(&info_hash); err != nil {
+			return nil, err
+		}
+		items = append(items, info_hash)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listGrabsByInfoHash = `-- name: ListGrabsByInfoHash :many
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
