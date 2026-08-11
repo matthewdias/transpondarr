@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Internal
+
+- **Duplicate-name detection reads SQLite's result code instead of matching on
+  the error message**, so a driver that rewords its errors can no longer turn a
+  conflict into a 500.
+  Closes [#92](https://github.com/matthewdias/transpondarr/issues/92).
+
 ## [0.7.0] — 2026-08-08
 
 Monitoring, per episode: the release where you choose which episodes

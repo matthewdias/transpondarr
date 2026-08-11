@@ -258,9 +258,9 @@ func writeGroups(ctx context.Context, q *db.Queries, profileID int64, groups []p
 	return nil
 }
 
-func isUniqueNameErr(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: quality_profiles.name")
-}
+// Neither the create nor the update statement writes is_default, so name is the
+// only unique constraint they can violate.
+func isUniqueNameErr(err error) bool { return store.IsUniqueViolation(err) }
 
 func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesOutput, error) {
 	rows, err := h.store.Q.ListQualityProfiles(ctx)
