@@ -495,6 +495,44 @@ func TestDimensionResolutionHardExcludeMakesIneligible(t *testing.T) {
 	}
 }
 
+// Every axis Score rewards a token for must also be hard-excludable, or a
+// profile silently ignores a token the editor accepted. Group is the deliberate
+// exception, asserted the other way: BlockedGroups owns blocking a group, and a
+// hard-exclude reaching it would be a second, undocumented way to do it.
+func TestEveryScoredAxisIsHardExcludable(t *testing.T) {
+	for _, tc := range []struct {
+		axis  string
+		title string
+		token string
+	}{
+		{"subs", "[ExampleSubs] Placeholder Saga - 03 [1080p][Hardsub]", "hardsub"},
+		{"codec", "[ExampleSubs] Placeholder Saga - 03 [1080p][HEVC]", "h265"},
+		{"source", "[ExampleSubs] Placeholder Saga - 03 [WEB 1080p]", "web"},
+		{"resolution", "[ExampleSubs] Placeholder Saga - 03 [480p]", "480p"},
+	} {
+		t.Run(tc.axis, func(t *testing.T) {
+			prof := domain.QualityProfile{HardExcludes: []string{tc.token}}
+			rels := []indexer.Release{{Title: tc.title, Seeders: 10}}
+			got := Match(items(12), []string{"Placeholder Saga"}, rels, prof)
+			if got[0].Eligible {
+				t.Fatalf("%s axis: %q should be ineligible under a %q exclude", tc.axis, tc.title, tc.token)
+			}
+			if !strings.Contains(got[0].IneligibleReason, tc.token) {
+				t.Errorf("reason = %q, want mention of %q", got[0].IneligibleReason, tc.token)
+			}
+		})
+	}
+
+	t.Run("group", func(t *testing.T) {
+		prof := domain.QualityProfile{HardExcludes: []string{"ExampleSubs"}}
+		rels := []indexer.Release{{Title: "[ExampleSubs] Placeholder Saga - 03 [1080p]", Seeders: 10}}
+		got := Match(items(12), []string{"Placeholder Saga"}, rels, prof)
+		if !got[0].Eligible {
+			t.Errorf("a hard-exclude naming a group refused it (%q); that is BlockedGroups' job", got[0].IneligibleReason)
+		}
+	})
+}
+
 func TestMinScoreFloorMeansNothingYet(t *testing.T) {
 	prof := domain.QualityProfile{
 		Groups:   []string{"TrustedCorp"},

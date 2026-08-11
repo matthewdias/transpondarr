@@ -326,6 +326,7 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 		return fmt.Sprintf("group %s is blocked by the profile", p.Group)
 	}
 	for _, tok := range profile.HardExcludes {
+		// Every axis Score rewards except group, which BlockedGroups owns.
 		for _, v := range []string{p.Subs, p.Codec, p.Source, p.Resolution} {
 			if v != "" && strings.EqualFold(v, strings.TrimSpace(tok)) {
 				what := strings.ToLower(v)

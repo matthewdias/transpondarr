@@ -155,8 +155,9 @@ var (
 
 // validate rejects axis values the parser can never produce — a profile naming
 // them would silently never match (#14's "should not name axes the parser
-// cannot fill"). hard_excludes and resolution_order stay unchecked: the UI must
-// round-trip stored tokens it does not offer, and the resolution axis is open.
+// cannot fill"). hard_excludes and resolution_order stay unchecked, settled by
+// #94 (wontfix): the UI must round-trip stored tokens it does not offer, and
+// the resolution axis is open.
 func validate(b profileBody) error {
 	if strings.TrimSpace(b.Name) == "" {
 		return errors.New("name must not be blank")
