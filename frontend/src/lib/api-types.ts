@@ -1533,7 +1533,7 @@ export interface components {
             cutoff_score?: number;
             /** @description Ranked group preference, most preferred first */
             groups?: components["schemas"]["ProfileGroupDTO"][];
-            /** @description Axis values a release must never carry, e.g. hardsub */
+            /** @description Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire */
             hard_excludes?: string[];
             /**
              * Format: int64
@@ -1544,7 +1544,7 @@ export interface components {
             prefer_dual_audio?: boolean;
             /** @description web, bd, tv or dvd; empty for no preference */
             preferred_source?: string;
-            /** @description Best first; an unlisted resolution scores zero */
+            /** @description Best first, as height tiers like 1080p; an unlisted resolution scores zero */
             resolution_order?: string[];
             /** @description softsub or hardsub; empty for no preference */
             sub_pref?: string;

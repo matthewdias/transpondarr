@@ -42,12 +42,12 @@ type qualityProfileDTO struct {
 
 type profileBody struct {
 	Name            string            `json:"name" required:"true" minLength:"1" maxLength:"120"`
-	ResolutionOrder []string          `json:"resolution_order,omitempty" doc:"Best first; an unlisted resolution scores zero"`
+	ResolutionOrder []string          `json:"resolution_order,omitempty" doc:"Best first, as height tiers like 1080p; an unlisted resolution scores zero"`
 	PreferredSource string            `json:"preferred_source,omitempty" doc:"web, bd, tv or dvd; empty for no preference"`
 	SubPref         string            `json:"sub_pref,omitempty" doc:"softsub or hardsub; empty for no preference"`
 	PreferDualAudio bool              `json:"prefer_dual_audio,omitempty"`
 	CodecPref       string            `json:"codec_pref,omitempty" doc:"h264, h265 or av1; empty for no preference"`
-	HardExcludes    []string          `json:"hard_excludes,omitempty" doc:"Axis values a release must never carry, e.g. hardsub"`
+	HardExcludes    []string          `json:"hard_excludes,omitempty" doc:"Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire"`
 	MinScore        int64             `json:"min_score,omitempty" minimum:"0" doc:"Floor: candidates scoring below are ineligible"`
 	Groups          []profileGroupDTO `json:"groups,omitempty" doc:"Ranked group preference, most preferred first"`
 
@@ -155,8 +155,9 @@ var (
 
 // validate rejects axis values the parser can never produce — a profile naming
 // them would silently never match (#14's "should not name axes the parser
-// cannot fill"). hard_excludes and resolution_order stay unchecked: the UI must
-// round-trip stored tokens it does not offer, and the resolution axis is open.
+// cannot fill"). hard_excludes and resolution_order stay unchecked, settled by
+// #94 (wontfix): the UI must round-trip stored tokens it does not offer, and
+// the resolution axis is open.
 func validate(b profileBody) error {
 	if strings.TrimSpace(b.Name) == "" {
 		return errors.New("name must not be blank")
