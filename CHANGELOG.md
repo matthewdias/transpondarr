@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **Profile names no longer collide only by case.** Saving a profile named
+  `Anime` while `anime` exists is refused with the same conflict a duplicate name
+  has always given, matching how group names within a profile are compared.
+  Closes [#90](https://github.com/matthewdias/transpondarr/issues/90).
+
 ### Internal
 
 - **Duplicate-name detection reads SQLite's result code instead of matching on

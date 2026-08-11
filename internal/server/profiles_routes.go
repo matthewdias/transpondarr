@@ -258,6 +258,22 @@ func writeGroups(ctx context.Context, q *db.Queries, profileID int64, groups []p
 	return nil
 }
 
+// requireNameFree applies to profile names the case-insensitive rule validate
+// already applies to group names; exceptID is the profile being updated.
+func requireNameFree(ctx context.Context, q *db.Queries, name string, exceptID int64) error {
+	existing, err := q.GetQualityProfileByName(ctx, name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return huma.Error500InternalServerError("failed to check profile name", err)
+	}
+	if existing.ID == exceptID {
+		return nil
+	}
+	return huma.Error409Conflict("a profile with that name already exists")
+}
+
 // Neither the create nor the update statement writes is_default, so name is the
 // only unique constraint they can violate.
 func isUniqueNameErr(err error) bool { return store.IsUniqueViolation(err) }
@@ -290,8 +306,13 @@ func (h *profilesHandler) create(ctx context.Context, in *createProfileInput) (*
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.store.Q.WithTx(tx)
 
+	name := strings.TrimSpace(in.Body.Name)
+	if nerr := requireNameFree(ctx, qtx, name, 0); nerr != nil {
+		return nil, nerr
+	}
+
 	row, err := qtx.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
-		Name:            strings.TrimSpace(in.Body.Name),
+		Name:            name,
 		ResolutionOrder: jsonArray(in.Body.ResolutionOrder),
 		PreferredSource: in.Body.PreferredSource,
 		SubPref:         in.Body.SubPref,
@@ -335,8 +356,19 @@ func (h *profilesHandler) update(ctx context.Context, in *updateProfileInput) (*
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.store.Q.WithTx(tx)
 
+	// An unknown id is a 404, not a name clash, so existence is checked first.
+	if _, gerr := qtx.GetQualityProfile(ctx, in.ID); errors.Is(gerr, sql.ErrNoRows) {
+		return nil, huma.Error404NotFound("profile not found")
+	} else if gerr != nil {
+		return nil, huma.Error500InternalServerError("failed to load profile", gerr)
+	}
+	name := strings.TrimSpace(in.Body.Name)
+	if nerr := requireNameFree(ctx, qtx, name, in.ID); nerr != nil {
+		return nil, nerr
+	}
+
 	row, err := qtx.UpdateQualityProfile(ctx, db.UpdateQualityProfileParams{
-		Name:            strings.TrimSpace(in.Body.Name),
+		Name:            name,
 		ResolutionOrder: jsonArray(in.Body.ResolutionOrder),
 		PreferredSource: in.Body.PreferredSource,
 		SubPref:         in.Body.SubPref,
