@@ -40,6 +40,12 @@ function renderPage() {
   );
 }
 
+const profilesHandler = http.get("/api/v1/profiles", () =>
+  HttpResponse.json({
+    profiles: [{ id: 1, name: "Default", is_default: true }],
+  }),
+);
+
 const chartHandler = (entries: SeasonEntry[]) =>
   http.get("/api/v1/browse/season", ({ request }) => {
     const url = new URL(request.url);
@@ -55,6 +61,7 @@ describe("DiscoveryPage", () => {
     const inTwoDays = new Date(Date.now() + 2.5 * 86400_000).toISOString();
     const threeHoursAgo = new Date(Date.now() - 3 * 3600_000).toISOString();
     server.use(
+      profilesHandler,
       chartHandler([
         entry({
           provider_id: 101,
@@ -110,9 +117,18 @@ describe("DiscoveryPage", () => {
     expect(
       within(dialog).getByRole("link", { name: /open on anilist/i }),
     ).toHaveAttribute("href", "https://anilist.co/anime/101");
+
+    // Adding from the detail hands over to the add form rather than stacking a
+    // second dialog on top of the first.
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: /^add$/i }),
+    );
     expect(
-      within(dialog).getByRole("button", { name: /add/i }),
+      await screen.findByRole("combobox", { name: "Monitor" }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText("A hero rises. Adapted from the manga."),
+    ).not.toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
 
     // Every card links out to its AniList page.
@@ -148,12 +164,16 @@ describe("DiscoveryPage", () => {
       // The add flow invalidates the series list, which the sidebar-less test
       // page never queries; tolerate it if something does.
       http.get("/api/v1/series", () => HttpResponse.json({ series: [] })),
+      profilesHandler,
     );
 
     renderPage();
 
     await screen.findByText("Alpha Adventure");
     await userEvent.click(screen.getByRole("button", { name: /^add$/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Add Alpha Adventure" }),
+    );
 
     expect(
       await screen.findByRole("link", { name: /in library/i }),

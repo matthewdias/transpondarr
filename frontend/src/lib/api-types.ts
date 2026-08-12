@@ -831,6 +831,11 @@ export interface components {
              * @description The provider's id for the title to add
              */
             provider_id: number;
+            /**
+             * Format: int64
+             * @description Quality profile to assign; omitted takes the default profile
+             */
+            quality_profile_id?: number;
         };
         ApiKeyOutputBody: {
             /**

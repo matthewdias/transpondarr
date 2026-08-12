@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- **Adding a series now opens a form for that title, carrying both add-time
+  decisions.** The monitor choice was a single control above the whole result
+  list, and the quality profile was not asked for at all — an added series took
+  the default and had to be re-assigned from its own page afterwards. Clicking
+  **Add** on a result now opens a form for that title with **Monitor** and
+  **Quality profile** on it, defaulted for the common case, so a seasonal show is
+  still one confirmation and a long-runner is narrowed before its first search.
+  The global "Monitor on add" control and the `Add · future only` button
+  annotation are gone, and Discovery opens the same form.
+  Closes [#194](https://github.com/matthewdias/transpondarr/issues/194).
+
 ### Fixed
 
 - **The quality-profile chip on a series page no longer vanishes while it loads

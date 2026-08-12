@@ -1,0 +1,261 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { ChevronLeft, Loader2 } from "lucide-react";
+import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
+import { formatLabel, statusLabel } from "@/lib/chart";
+import { profilesQuery, seriesQuery } from "@/lib/queries";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+
+/** CandidateDTO and SeasonEntryDTO both satisfy this structurally. */
+export type AddTitle = Pick<
+  Candidate,
+  "provider" | "provider_id" | "episodes" | "status" | "format"
+>;
+
+type AddedSeries = Awaited<ReturnType<typeof api.addSeries>>;
+
+// Before the add, not after: a new series sorts to the front of the sweep queue
+// and one pass grabs everything eligible.
+const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
+  { value: "all", label: "All episodes", hint: "Including the back catalogue" },
+  {
+    value: "future",
+    label: "Future only",
+    hint: "From the next broadcast onwards",
+  },
+];
+
+/**
+ * The add-time decisions for one title: which items to monitor and which
+ * quality profile to score its releases against.
+ */
+export function AddTitleForm({
+  title,
+  target,
+  onAdded,
+  onExists,
+  onBack,
+}: {
+  title: string;
+  target: AddTitle;
+  onAdded: (series: AddedSeries) => void;
+  onExists?: () => void;
+  onBack?: () => void;
+}) {
+  const [monitorItems, setMonitorItems] = useState<MonitorItems>("all");
+  const [profileId, setProfileId] = useState<number | null>(null);
+  const queryClient = useQueryClient();
+  const profiles = useQuery(profilesQuery());
+
+  const shown = profileId ?? profiles.data?.find((p) => p.is_default)?.id;
+  const meta = [
+    target.format && formatLabel(target.format),
+    target.episodes ? `${target.episodes} ep` : null,
+    target.status && statusLabel(target.status),
+  ].filter(Boolean) as string[];
+
+  const add = useMutation({
+    mutationFn: () =>
+      api.addSeries(target.provider, target.provider_id, {
+        monitorItems,
+        // Untouched sends nothing, so the server's default profile applies and
+        // the common case stays one click.
+        ...(profileId ? { qualityProfileId: profileId } : {}),
+      }),
+    onSuccess: (series) => {
+      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
+      toast.success("Series added", {
+        description: `${series.title} — ${series.items.length} wanted items expanded`,
+      });
+      onAdded(series);
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 409) {
+        toast.info("Already tracking", { description: title });
+        onExists?.();
+        return;
+      }
+      toast.error("Could not add series", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    },
+  });
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        add.mutate();
+      }}
+    >
+      <div className="space-y-3">
+        {meta.length > 0 && (
+          <p className="text-[12.5px] text-faint">{meta.join(" · ")}</p>
+        )}
+
+        <div className="space-y-1">
+          <span className="block text-xs font-medium text-muted-foreground">
+            Monitor
+          </span>
+          <Select
+            value={monitorItems}
+            onValueChange={(v) => setMonitorItems(v as MonitorItems)}
+          >
+            <SelectTrigger aria-label="Monitor" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {monitorChoices.map((c) => (
+                <SelectItem key={c.value} value={c.value} description={c.hint}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* The row is held but never blocking: the add omits the profile until
+            one is picked, so a slow or failed fetch just takes the server's
+            default rather than standing between the user and the button. */}
+        {(profiles.isPending || profiles.isPaused) && (
+          <div className="space-y-1">
+            <span className="block text-xs font-medium text-muted-foreground">
+              Quality profile
+            </span>
+            <Skeleton className="h-9 w-full rounded-md" />
+          </div>
+        )}
+
+        {!!profiles.data?.length && shown !== undefined && (
+          <div className="space-y-1">
+            <span className="block text-xs font-medium text-muted-foreground">
+              Quality profile
+            </span>
+            <Select
+              value={String(shown)}
+              onValueChange={(v) => setProfileId(Number(v))}
+            >
+              <SelectTrigger aria-label="Quality profile" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {profiles.data.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      {/* DialogFooter in a drawer too: below sm it stacks the primary action on
+          top, which is exactly the mobile container's shape. */}
+      <DialogFooter className="mt-4">
+        {onBack && (
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onBack}
+            className="sm:mr-auto"
+          >
+            <ChevronLeft className="size-4" /> Back
+          </Button>
+        )}
+        <Button
+          type="submit"
+          disabled={add.isPending}
+          // The plain "Add" buttons behind the form share this visible label,
+          // so the accessible name carries the title.
+          aria-label={`Add ${title}`}
+        >
+          {add.isPending && <Loader2 className="size-3.5 animate-spin" />}
+          Add
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
+
+/** AddTitleForm in its own dialog (drawer on mobile), for callers with no
+ * container of their own to host it. */
+export function AddTitleDialog({
+  title,
+  target,
+  open,
+  onOpenChange,
+  onAdded,
+  onExists,
+}: {
+  title: string;
+  target: AddTitle;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAdded: (series: AddedSeries) => void;
+  onExists?: () => void;
+}) {
+  const isMobile = useIsMobile();
+  const description = "Choose what to monitor and how releases are scored.";
+  // Mounting only while open reseeds the form per title, so a previous title's
+  // choices can never ride along.
+  const form = open && (
+    <AddTitleForm
+      title={title}
+      target={target}
+      onAdded={onAdded}
+      onExists={onExists}
+    />
+  );
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent className="px-4 pb-6">
+          <DrawerHeader className="px-0">
+            <DrawerTitle>{title}</DrawerTitle>
+            <DrawerDescription>{description}</DrawerDescription>
+          </DrawerHeader>
+          {form}
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="pr-6">{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+        {form}
+      </DialogContent>
+    </Dialog>
+  );
+}

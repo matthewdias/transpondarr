@@ -1,19 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from "lucide-react";
-import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
-import { metadataSearchQuery, seriesQuery } from "@/lib/queries";
+import { ApiError, type Candidate } from "@/lib/api";
+import { metadataSearchQuery } from "@/lib/queries";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { AddTitleForm } from "@/components/add-title-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Poster } from "@/components/poster";
@@ -36,36 +29,27 @@ import {
   ItemContent,
   ItemMedia,
   ItemActions,
+  ItemTitle,
 } from "@/components/ui/item";
 
 function candidateTitle(c: Candidate) {
   return c.romaji || c.english || c.native || `${c.provider} ${c.provider_id}`;
 }
 
-// Before the add, not after: a new series sorts to the front of the sweep queue
-// and one pass grabs everything eligible.
-const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
-  { value: "all", label: "All episodes", hint: "Including the back catalogue" },
-  {
-    value: "future",
-    label: "Future only",
-    hint: "From the next broadcast onwards",
-  },
-];
-
-// The mode control is far from the button, so the button carries the
-// consequence. Only a departure from the default is worth saying.
-const monitorAnnotation: Record<MonitorItems, string> = {
-  all: "",
-  future: "future only",
-};
-
-function AddSeriesBody({ onDone }: { onDone: () => void }) {
+// selected is the container's, not this body's: Escape is dispatched on the
+// dialog, so only the container can turn it into a step back.
+function AddSeriesBody({
+  onDone,
+  selected,
+  onSelect,
+}: {
+  onDone: () => void;
+  selected: Candidate | null;
+  onSelect: (candidate: Candidate | null) => void;
+}) {
   const [term, setTerm] = useState("");
-  const [monitorItems, setMonitorItems] = useState<MonitorItems>("all");
   const debounced = useDebounce(term, 350);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const query = debounced.trim();
 
@@ -74,32 +58,43 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
     enabled: query.length > 0,
   });
 
-  const add = useMutation({
-    mutationFn: (c: Candidate) =>
-      api.addSeries(c.provider, c.provider_id, monitorItems),
-    onSuccess: (series) => {
-      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
-      toast.success("Series added", {
-        description: `${series.title} — ${series.items.length} wanted items expanded`,
-      });
-      onDone();
-      navigate(`/series/${series.id}`);
-    },
-    onError: (err, c) => {
-      if (err instanceof ApiError && err.status === 409) {
-        toast.info("Already tracking", { description: candidateTitle(c) });
-        onDone();
-        return;
-      }
-      toast.error("Could not add series", {
-        description: err instanceof Error ? err.message : String(err),
-      });
-    },
-  });
-
   const results = search.data ?? [];
-  const annotation = monitorAnnotation[monitorItems];
-  const addLabel = annotation ? `Add · ${annotation}` : "Add";
+
+  // A step rather than a stacked dialog: this body stays mounted, so Back
+  // returns to the search term and results that led here.
+  if (selected) {
+    return (
+      <div>
+        {/* The dialog header names the flow, so the step names the title -- as
+            the same row it was picked from, which is the continuity a step
+            owes the list behind it. */}
+        <Item variant="muted" size="sm" className="mb-3 gap-3">
+          <ItemMedia>
+            <Poster
+              title={candidateTitle(selected)}
+              coverUrl={selected.cover_url}
+            />
+          </ItemMedia>
+          <ItemContent className="min-w-0">
+            <ItemTitle className="max-w-full truncate">
+              {candidateTitle(selected)}
+            </ItemTitle>
+          </ItemContent>
+        </Item>
+        <AddTitleForm
+          key={`${selected.provider}:${selected.provider_id}`}
+          title={candidateTitle(selected)}
+          target={selected}
+          onBack={() => onSelect(null)}
+          onAdded={(series) => {
+            onDone();
+            navigate(`/series/${series.id}`);
+          }}
+          onExists={onDone}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -114,28 +109,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
         />
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <span className="text-[13px] text-muted-foreground">
-          Monitor on add
-        </span>
-        <Select
-          value={monitorItems}
-          onValueChange={(v) => setMonitorItems(v as MonitorItems)}
-        >
-          <SelectTrigger size="sm" aria-label="Monitor on add">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {monitorChoices.map((c) => (
-              <SelectItem key={c.value} value={c.value} description={c.hint}>
-                {c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="mt-2 max-h-[56vh] min-h-[8rem] overflow-y-auto">
+      <div className="mt-3 max-h-[56vh] min-h-[8rem] overflow-y-auto">
         {/* A paused retry (browser offline) reports neither fetching nor error. */}
         {(search.isFetching || search.isPaused) && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
@@ -204,22 +178,13 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
               <ItemActions>
                 <Button
                   size="sm"
-                  disabled={isMovie || add.isPending}
+                  disabled={isMovie}
                   // Every row's visible label is identical, so the accessible
                   // name carries the title.
-                  aria-label={
-                    annotation
-                      ? `Add ${candidateTitle(c)} · ${annotation}`
-                      : `Add ${candidateTitle(c)}`
-                  }
-                  onClick={() => add.mutate(c)}
+                  aria-label={`Add ${candidateTitle(c)}`}
+                  onClick={() => onSelect(c)}
                 >
-                  {add.isPending &&
-                    add.variables?.provider === c.provider &&
-                    add.variables?.provider_id === c.provider_id && (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    )}
-                  <span className="whitespace-nowrap">{addLabel}</span>
+                  Add
                 </Button>
               </ItemActions>
             </Item>
@@ -232,8 +197,28 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
 
 export function AddSeriesButton() {
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Candidate | null>(null);
   const isMobile = useIsMobile();
-  const close = () => setOpen(false);
+  // The next open starts at the search; the closed dialog keeps no step.
+  const setDialogOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) setSelected(null);
+  };
+  const close = () => setDialogOpen(false);
+
+  // Escape leaves the step, not the whole dialog: the form is a layer over the
+  // results, and the stacked dialog it replaced would have peeled off one at a
+  // time. Radix dispatches this from a capture-phase document listener, so
+  // preventing it here is the only way to intercept it.
+  const stepBackOnEscape = (event: KeyboardEvent) => {
+    if (!selected) return;
+    event.preventDefault();
+    setSelected(null);
+  };
+
+  const body = (
+    <AddSeriesBody onDone={close} selected={selected} onSelect={setSelected} />
+  );
 
   const trigger = (
     <Button onClick={() => setOpen(true)}>
@@ -245,15 +230,18 @@ export function AddSeriesButton() {
     return (
       <>
         {trigger}
-        <Drawer open={open} onOpenChange={setOpen}>
-          <DrawerContent className="px-4 pb-6">
+        <Drawer open={open} onOpenChange={setDialogOpen}>
+          <DrawerContent
+            className="px-4 pb-6"
+            onEscapeKeyDown={stepBackOnEscape}
+          >
             <DrawerHeader className="px-0">
               <DrawerTitle>Add series</DrawerTitle>
               <DrawerDescription>
                 Search AniList and pick a title to track.
               </DrawerDescription>
             </DrawerHeader>
-            <AddSeriesBody onDone={close} />
+            {body}
           </DrawerContent>
         </Drawer>
       </>
@@ -263,15 +251,15 @@ export function AddSeriesButton() {
   return (
     <>
       {trigger}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl">
+      <Dialog open={open} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-xl" onEscapeKeyDown={stepBackOnEscape}>
           <DialogHeader>
             <DialogTitle>Add series</DialogTitle>
             <DialogDescription>
               Search AniList and pick a title to track.
             </DialogDescription>
           </DialogHeader>
-          <AddSeriesBody onDone={close} />
+          {body}
         </DialogContent>
       </Dialog>
     </>

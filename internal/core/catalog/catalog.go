@@ -24,6 +24,7 @@ var (
 	// A mode the caller never set is the zero value, which must not read as a
 	// choice: coercing it would silently pick one of the two for them.
 	ErrUnknownMonitorMode = errors.New("catalog: unknown monitor mode")
+	ErrUnknownProfile     = errors.New("catalog: unknown quality profile")
 )
 
 // MonitorMode is the add-time choice of which items to monitor, stored as a
@@ -94,8 +95,9 @@ func dedupeNonEmpty(vals ...string) []string {
 // together with its expanded WantedItems in a single transaction. It is
 // idempotent-ish: a title already tracked returns ErrAlreadyExists rather than a
 // duplicate. Deduping is per id space — the same title known to two providers is
-// two rows until the cross-reference layer (#189) can relate them.
-func (s *Service) AddSeries(ctx context.Context, provider string, providerID int64, monitored bool, mode MonitorMode) (domain.Title, error) {
+// two rows until the cross-reference layer (#189) can relate them. A zero
+// profileID leaves the column default, which is the seeded is-default profile.
+func (s *Service) AddSeries(ctx context.Context, provider string, providerID int64, monitored bool, mode MonitorMode, profileID int64) (domain.Title, error) {
 	if provider != s.provider.Name() {
 		return domain.Title{}, fmt.Errorf("%w: %q", ErrUnknownProvider, provider)
 	}
@@ -145,6 +147,20 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 		MonitorNewFrom: cut, ID: srow.ID,
 	}); err != nil {
 		return domain.Title{}, fmt.Errorf("set the item monitor cut: %w", err)
+	}
+
+	if profileID != 0 {
+		// Inside the tx: a profile that does not exist takes the series with it,
+		// rather than leaving one on a profile the caller never asked for.
+		rows, err := q.SetSeriesProfile(ctx, db.SetSeriesProfileParams{
+			QualityProfileID: profileID, ID: srow.ID, ID_2: profileID,
+		})
+		if err != nil {
+			return domain.Title{}, fmt.Errorf("set the quality profile: %w", err)
+		}
+		if rows == 0 {
+			return domain.Title{}, fmt.Errorf("%w: %d", ErrUnknownProfile, profileID)
+		}
 	}
 
 	title := domain.Title{

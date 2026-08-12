@@ -104,7 +104,7 @@ export type Candidate = Schemas["CandidateDTO"];
 // widens this type rather than passing an arbitrary string.
 export type Provider = Schemas["AddSeriesInputBody"]["provider"];
 // The add-time item-monitoring choice; "all" is the server default, which is
-// what an add call that offers no choice (Discovery) must keep meaning.
+// what an add call that omits the field must keep meaning.
 export type MonitorItems = NonNullable<
   Schemas["AddSeriesInputBody"]["monitor_items"]
 >;
@@ -368,11 +368,20 @@ export const api = {
       .then(unwrap)
       .then((r) => r.results),
 
+  // qualityProfileId is omitted rather than defaulted client-side: the server's
+  // default profile is the one answer that stays right as it changes.
   addSeries: (
     provider: Provider,
     providerId: number,
-    monitorItems: MonitorItems = "all",
-    monitored = true,
+    {
+      monitorItems = "all",
+      monitored = true,
+      qualityProfileId,
+    }: {
+      monitorItems?: MonitorItems;
+      monitored?: boolean;
+      qualityProfileId?: number;
+    } = {},
   ) =>
     client
       .POST("/api/v1/series", {
@@ -381,6 +390,7 @@ export const api = {
           provider_id: providerId,
           monitored,
           monitor_items: monitorItems,
+          ...(qualityProfileId ? { quality_profile_id: qualityProfileId } : {}),
         },
       })
       .then(unwrap),

@@ -23,10 +23,37 @@ const server = setupServer(
       ],
     }),
   ),
+  http.get("/api/v1/profiles", () =>
+    HttpResponse.json({
+      profiles: [
+        { id: 1, name: "Default", is_default: true },
+        { id: 2, name: "Sharper", is_default: false },
+      ],
+    }),
+  ),
+  // The add invalidates the series list, which this page never observes;
+  // tolerate the request if something does.
+  http.get("/api/v1/series", () => HttpResponse.json({ series: [] })),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
+
+// Records what the add actually sent, which is the only place the form's two
+// choices become observable.
+function captureAdd() {
+  const bodies: Record<string, unknown>[] = [];
+  server.use(
+    http.post("/api/v1/series", async ({ request }) => {
+      bodies.push((await request.json()) as Record<string, unknown>);
+      return HttpResponse.json(
+        { id: 9, title: "Placeholder Saga", monitored: true, items: [] },
+        { status: 201 },
+      );
+    }),
+  );
+  return bodies;
+}
 
 async function openWithResults() {
   const user = userEvent.setup();
@@ -50,23 +77,137 @@ async function openWithResults() {
   return user;
 }
 
-// The mode control sits above the result list, so the Add button is what has to
-// carry it: flipping the Select rewrites every button, which is the only
-// confirmation a distant control gives.
-it("annotates the add button with the chosen mode", async () => {
+// Every add-time decision now belongs to the title it is about, so the row
+// button opens a form rather than adding on the spot -- and the search behind
+// it survives, because picking the wrong title is the common misstep.
+it("opens a per-title form and keeps the search behind it", async () => {
   const user = await openWithResults();
 
-  // "all" is the default and needs no qualifier.
   expect(
-    screen.getByRole("button", { name: "Add Placeholder Saga" }),
-  ).toHaveTextContent("Add");
+    screen.queryByRole("combobox", { name: /monitor on add/i }),
+  ).not.toBeInTheDocument();
+  const row = screen.getByRole("button", { name: "Add Placeholder Saga" });
+  expect(row).toHaveTextContent("Add");
   expect(screen.queryByText(/Add ·/)).not.toBeInTheDocument();
 
-  await user.click(screen.getByRole("combobox", { name: /monitor on add/i }));
-  await user.click(screen.getByRole("option", { name: /future only/i }));
-  await waitFor(() =>
-    expect(screen.getByText("Add · future only")).toBeInTheDocument(),
+  await user.click(row);
+
+  // A seasonal show is the common case, so the defaults are the whole form.
+  expect(
+    await screen.findByRole("combobox", { name: "Monitor" }),
+  ).toHaveTextContent("All episodes");
+  expect(
+    screen.getByRole("combobox", { name: /quality profile/i }),
+  ).toHaveTextContent("Default");
+  expect(
+    screen.queryByPlaceholderText(/search anilist/i),
+  ).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: /back/i }));
+
+  expect(screen.getByPlaceholderText(/search anilist/i)).toHaveValue(
+    "placeholder",
   );
+  expect(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  ).toBeInTheDocument();
+});
+
+// A stacked dialog would have dismissed one layer at a time; the step it was
+// replaced with owes the same, or Escape silently costs the typed search that
+// Back preserves.
+it("steps back from the form on Escape, and closes on the next one", async () => {
+  const user = await openWithResults();
+
+  await user.click(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  );
+  await screen.findByRole("combobox", { name: "Monitor" });
+
+  await user.keyboard("{Escape}");
+
+  expect(screen.getByPlaceholderText(/search anilist/i)).toHaveValue(
+    "placeholder",
+  );
+  expect(
+    screen.queryByRole("combobox", { name: "Monitor" }),
+  ).not.toBeInTheDocument();
+
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+});
+
+// Untouched is not a choice: an omitted profile has to leave the server's
+// default alone, or every add would have to name one.
+it("confirms with the defaults in one click and sends no profile", async () => {
+  const bodies = captureAdd();
+  const user = await openWithResults();
+
+  await user.click(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  );
+  // The row button is gone; this is the form's submit.
+  await user.click(
+    await screen.findByRole("button", { name: "Add Placeholder Saga" }),
+  );
+
+  await waitFor(() => expect(bodies).toHaveLength(1));
+  expect(bodies[0].monitor_items).toBe("all");
+  expect(bodies[0]).not.toHaveProperty("quality_profile_id");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+});
+
+// The profile fetch must never stand between the user and the button: a failed
+// one (or a slow one) degrades to the server's default, which is the same
+// answer an untouched picker gives.
+it("adds when the profiles cannot be fetched", async () => {
+  const bodies = captureAdd();
+  server.use(http.get("/api/v1/profiles", () => HttpResponse.error()));
+  const user = await openWithResults();
+
+  await user.click(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  );
+  const submit = await screen.findByRole("button", {
+    name: "Add Placeholder Saga",
+  });
+  expect(
+    screen.queryByRole("combobox", { name: /quality profile/i }),
+  ).not.toBeInTheDocument();
+  expect(submit).toBeEnabled();
+
+  await user.click(submit);
+
+  await waitFor(() => expect(bodies).toHaveLength(1));
+  expect(bodies[0]).not.toHaveProperty("quality_profile_id");
+});
+
+it("sends both choices when they are made", async () => {
+  const bodies = captureAdd();
+  const user = await openWithResults();
+
+  await user.click(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  );
+
+  await user.click(await screen.findByRole("combobox", { name: "Monitor" }));
+  await user.click(screen.getByRole("option", { name: /future only/i }));
+  await user.click(screen.getByRole("combobox", { name: /quality profile/i }));
+  await user.click(screen.getByRole("option", { name: "Sharper" }));
+
+  await user.click(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  );
+
+  await waitFor(() => expect(bodies).toHaveLength(1));
+  expect(bodies[0]).toMatchObject({
+    monitor_items: "future",
+    quality_profile_id: 2,
+  });
 });
 
 // "none" would store a cut that monitors nothing new forever, and nothing can
@@ -74,25 +215,13 @@ it("annotates the add button with the chosen mode", async () => {
 it("offers no way to add a series that monitors nothing", async () => {
   const user = await openWithResults();
 
-  await user.click(screen.getByRole("combobox", { name: /monitor on add/i }));
+  await user.click(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  );
+  await user.click(await screen.findByRole("combobox", { name: "Monitor" }));
+
   expect(screen.getAllByRole("option")).toHaveLength(2);
   expect(
     screen.queryByRole("option", { name: /^none/i }),
   ).not.toBeInTheDocument();
-});
-
-// The visible label is identical on every row, so the accessible name is what
-// distinguishes them -- and it must keep the annotation too.
-it("keeps the candidate's title in the accessible name", async () => {
-  const user = await openWithResults();
-
-  await user.click(screen.getByRole("combobox", { name: /monitor on add/i }));
-  await user.click(screen.getByRole("option", { name: /future only/i }));
-  await waitFor(() =>
-    expect(
-      screen.getByRole("button", {
-        name: "Add Placeholder Saga · future only",
-      }),
-    ).toBeInTheDocument(),
-  );
 });

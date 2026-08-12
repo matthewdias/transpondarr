@@ -65,9 +65,12 @@ type addSeriesInput struct {
 		Provider   string `json:"provider" required:"true" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
 		ProviderID int64  `json:"provider_id" required:"true" minimum:"1" doc:"The provider's id for the title to add"`
 		Monitored  *bool  `json:"monitored,omitempty" doc:"Whether to monitor for downloads (default true)"`
-		// The default must stay "all": Discovery adds a title without offering the
-		// choice, and today's behaviour is what an omitted field has to mean.
+		// The default must stay "all": an omitted field has to keep meaning
+		// today's behaviour for a client that never learned about the choice.
 		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future" default:"all" doc:"Which items to monitor, now and as the series grows: all, or only from the next broadcast onwards"`
+		// Carried in the add so it is one atomic write; omitted (0) takes the
+		// default profile, which stays right as that default changes.
+		QualityProfileID int64 `json:"quality_profile_id,omitempty" minimum:"1" doc:"Quality profile to assign; omitted takes the default profile"`
 	}
 }
 
@@ -308,9 +311,12 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 		mode = catalog.MonitorMode(in.Body.MonitorItems)
 	}
 
-	title, err := h.catalog.AddSeries(ctx, in.Body.Provider, in.Body.ProviderID, monitored, mode)
+	title, err := h.catalog.AddSeries(ctx, in.Body.Provider, in.Body.ProviderID, monitored, mode, in.Body.QualityProfileID)
 	if errors.Is(err, catalog.ErrAlreadyExists) {
 		return nil, huma.Error409Conflict("series already exists")
+	}
+	if errors.Is(err, catalog.ErrUnknownProfile) {
+		return nil, huma.Error422UnprocessableEntity("profile does not exist")
 	}
 	// Unreachable while the request enum lists exactly the configured provider --
 	// huma rejects anything else at validation with a 422. It fires once the enum

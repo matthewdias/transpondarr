@@ -79,3 +79,43 @@ func TestAddSeriesTakesTheProviderPair(t *testing.T) {
 		t.Errorf("POST /series naming an unconfigured provider = %d, want 422", code)
 	}
 }
+
+// The profile travels in the add request, so the add is atomic: the alternative
+// is a client-side add-then-assign whose second half can fail on its own.
+func TestAddSeriesTakesTheQualityProfile(t *testing.T) {
+	provider := variantProvider{meta: metadata.TitleMeta{
+		Titles: metadata.Titles{Romaji: "Profiled Show"}, Format: "TV",
+	}}
+	h := newHarnessWithProvider(t, nil, nil, provider)
+
+	var created profileJSON
+	if code := do(t, h, http.MethodPost, "/api/v1/profiles",
+		map[string]any{"name": "Sharper"}, &created); code != http.StatusCreated {
+		t.Fatalf("POST /profiles = %d, want 201", code)
+	}
+
+	var added struct {
+		ID int64 `json:"id"`
+	}
+	if code := do(t, h, http.MethodPost, "/api/v1/series", map[string]any{
+		"provider": "anilist", "provider_id": 4321, "quality_profile_id": created.ID,
+	}, &added); code != http.StatusCreated {
+		t.Fatalf("POST /series with a profile = %d, want 201", code)
+	}
+	var detail struct {
+		QualityProfileID int64 `json:"quality_profile_id"`
+	}
+	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d", added.ID), &detail); code != http.StatusOK {
+		t.Fatalf("GET series detail = %d, want 200", code)
+	}
+	if detail.QualityProfileID != created.ID {
+		t.Errorf("quality_profile_id = %d, want the requested %d", detail.QualityProfileID, created.ID)
+	}
+
+	var ignored struct{}
+	if code := do(t, h, http.MethodPost, "/api/v1/series", map[string]any{
+		"provider": "anilist", "provider_id": 4322, "quality_profile_id": 9999,
+	}, &ignored); code != http.StatusUnprocessableEntity {
+		t.Errorf("POST /series naming an unknown profile = %d, want 422", code)
+	}
+}
