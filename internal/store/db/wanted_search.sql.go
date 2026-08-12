@@ -11,7 +11,7 @@ import (
 )
 
 const listBackedOffSeriesWantedInWindow = `-- name: ListBackedOffSeriesWantedInWindow :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
 FROM series s
 WHERE s.monitored = 1
   AND s.next_search_at IS NOT NULL
@@ -77,6 +77,7 @@ func (q *Queries) ListBackedOffSeriesWantedInWindow(ctx context.Context, arg Lis
 			&i.PinDelayHours,
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
+			&i.Year,
 		); err != nil {
 			return nil, err
 		}
@@ -92,9 +93,10 @@ func (q *Queries) ListBackedOffSeriesWantedInWindow(ctx context.Context, arg Lis
 }
 
 const listSeriesDueWantedSearch = `-- name: ListSeriesDueWantedSearch :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
 FROM series s
 WHERE s.monitored = 1
+  AND s.format <> 'MOVIE'
   AND (s.next_search_at IS NULL OR s.next_search_at <= ?)
   AND EXISTS (
       SELECT 1
@@ -124,6 +126,10 @@ type ListSeriesDueWantedSearchParams struct {
 // budget one pass can burn.
 // NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 // rune offsets and silently truncates the emitted SQL on a multi-byte character.
+// Movies are excluded here rather than in Go (#208): decide cannot match one
+// yet, so next_search_at would never advance and the movie would permanently
+// hold a slot at the head of this LIMIT-ordered queue, burning one indexer
+// search per pass. Revert with #209.
 func (q *Queries) ListSeriesDueWantedSearch(ctx context.Context, arg ListSeriesDueWantedSearchParams) ([]Series, error) {
 	rows, err := q.db.QueryContext(ctx, listSeriesDueWantedSearch, arg.NextSearchAt, arg.AirsAt, arg.Limit)
 	if err != nil {
@@ -150,6 +156,7 @@ func (q *Queries) ListSeriesDueWantedSearch(ctx context.Context, arg ListSeriesD
 			&i.PinDelayHours,
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
+			&i.Year,
 		); err != nil {
 			return nil, err
 		}
@@ -165,7 +172,7 @@ func (q *Queries) ListSeriesDueWantedSearch(ctx context.Context, arg ListSeriesD
 }
 
 const listSeriesWithWantedItems = `-- name: ListSeriesWithWantedItems :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
 FROM series s
 JOIN quality_profiles qp ON qp.id = s.quality_profile_id
 WHERE s.monitored = 1
@@ -236,6 +243,7 @@ func (q *Queries) ListSeriesWithWantedItems(ctx context.Context, airsAt sql.Null
 			&i.PinDelayHours,
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
+			&i.Year,
 		); err != nil {
 			return nil, err
 		}

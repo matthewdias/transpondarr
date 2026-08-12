@@ -22,9 +22,9 @@ func (q *Queries) ClearSeriesAiringSyncedAt(ctx context.Context, id int64) error
 }
 
 const createSeries = `-- name: CreateSeries :one
-INSERT INTO series (provider, provider_id, title, format, monitored)
-VALUES (?, ?, ?, ?, ?)
-RETURNING id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from
+INSERT INTO series (provider, provider_id, title, format, monitored, year)
+VALUES (?, ?, ?, ?, ?, ?)
+RETURNING id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year
 `
 
 type CreateSeriesParams struct {
@@ -33,6 +33,7 @@ type CreateSeriesParams struct {
 	Title      string         `json:"title"`
 	Format     string         `json:"format"`
 	Monitored  int64          `json:"monitored"`
+	Year       int64          `json:"year"`
 }
 
 // monitor_new_from is left to its schema default: an omitted sqlc params field
@@ -44,6 +45,7 @@ func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Ser
 		arg.Title,
 		arg.Format,
 		arg.Monitored,
+		arg.Year,
 	)
 	var i Series
 	err := row.Scan(
@@ -63,6 +65,7 @@ func (q *Queries) CreateSeries(ctx context.Context, arg CreateSeriesParams) (Ser
 		&i.PinDelayHours,
 		&i.SearchEpoch,
 		&i.MonitorNewFrom,
+		&i.Year,
 	)
 	return i, err
 }
@@ -80,7 +83,7 @@ func (q *Queries) DeleteSeries(ctx context.Context, id int64) (int64, error) {
 }
 
 const getSeries = `-- name: GetSeries :one
-SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year
 FROM series
 WHERE id = ?
 LIMIT 1
@@ -106,12 +109,13 @@ func (q *Queries) GetSeries(ctx context.Context, id int64) (Series, error) {
 		&i.PinDelayHours,
 		&i.SearchEpoch,
 		&i.MonitorNewFrom,
+		&i.Year,
 	)
 	return i, err
 }
 
 const getSeriesByProviderID = `-- name: GetSeriesByProviderID :one
-SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year
 FROM series
 WHERE provider = ? AND provider_id = ?
 LIMIT 1
@@ -143,12 +147,13 @@ func (q *Queries) GetSeriesByProviderID(ctx context.Context, arg GetSeriesByProv
 		&i.PinDelayHours,
 		&i.SearchEpoch,
 		&i.MonitorNewFrom,
+		&i.Year,
 	)
 	return i, err
 }
 
 const listSeries = `-- name: ListSeries :many
-SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year
 FROM series
 ORDER BY title
 `
@@ -179,6 +184,7 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 			&i.PinDelayHours,
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
+			&i.Year,
 		); err != nil {
 			return nil, err
 		}
@@ -194,7 +200,7 @@ func (q *Queries) ListSeries(ctx context.Context) ([]Series, error) {
 }
 
 const listSeriesDueAiringSync = `-- name: ListSeriesDueAiringSync :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
@@ -256,6 +262,7 @@ func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDue
 			&i.PinDelayHours,
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
+			&i.Year,
 		); err != nil {
 			return nil, err
 		}
@@ -271,7 +278,7 @@ func (q *Queries) ListSeriesDueAiringSync(ctx context.Context, arg ListSeriesDue
 }
 
 const listSeriesDueMetadataRefresh = `-- name: ListSeriesDueMetadataRefresh :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.monitored = 1
@@ -331,6 +338,7 @@ func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeri
 			&i.PinDelayHours,
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
+			&i.Year,
 		); err != nil {
 			return nil, err
 		}
@@ -347,7 +355,7 @@ func (q *Queries) ListSeriesDueMetadataRefresh(ctx context.Context, arg ListSeri
 
 const listSeriesWithProgress = `-- name: ListSeriesWithProgress :many
 SELECT
-    s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from,
+    s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year,
     COUNT(w.id)                            AS total_items,
     CAST(COALESCE(SUM(w.monitored = 1), 0) AS INTEGER) AS monitored_items,
     CAST(COALESCE(SUM(
@@ -384,6 +392,7 @@ type ListSeriesWithProgressRow struct {
 	PinDelayHours    sql.NullInt64  `json:"pin_delay_hours"`
 	SearchEpoch      int64          `json:"search_epoch"`
 	MonitorNewFrom   sql.NullInt64  `json:"monitor_new_from"`
+	Year             int64          `json:"year"`
 	TotalItems       int64          `json:"total_items"`
 	MonitoredItems   int64          `json:"monitored_items"`
 	TrackedItems     int64          `json:"tracked_items"`
@@ -423,6 +432,7 @@ func (q *Queries) ListSeriesWithProgress(ctx context.Context, arg ListSeriesWith
 			&i.PinDelayHours,
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
+			&i.Year,
 			&i.TotalItems,
 			&i.MonitoredItems,
 			&i.TrackedItems,
@@ -573,4 +583,22 @@ func (q *Queries) SetSeriesPinnedGroup(ctx context.Context, arg SetSeriesPinnedG
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const setSeriesYear = `-- name: SetSeriesYear :exec
+UPDATE series SET year = ? WHERE id = ? AND ? > 0
+`
+
+type SetSeriesYearParams struct {
+	Year    int64       `json:"year"`
+	ID      int64       `json:"id"`
+	Column3 interface{} `json:"column_3"`
+}
+
+// Guarded in SQL so no future caller can bypass it: a transient upstream null
+// must never erase a stored year, which the naming layer reads and where zero
+// means "not on record".
+func (q *Queries) SetSeriesYear(ctx context.Context, arg SetSeriesYearParams) error {
+	_, err := q.db.ExecContext(ctx, setSeriesYear, arg.Year, arg.ID, arg.Column3)
+	return err
 }

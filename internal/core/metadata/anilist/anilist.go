@@ -77,7 +77,10 @@ type media struct {
 	Episodes    *int       `json:"episodes"`
 	Status      string     `json:"status"`
 	SeasonYear  *int       `json:"seasonYear"`
-	CoverImage  struct {
+	StartDate   struct {
+		Year *int `json:"year"`
+	} `json:"startDate"`
+	CoverImage struct {
 		Large string `json:"large"`
 	} `json:"coverImage"`
 	Genres       []string `json:"genres"`
@@ -109,9 +112,27 @@ func (m media) episodes() int {
 	return *m.Episodes
 }
 
+// year prefers startDate over seasonYear: AniList assigns a season later than a
+// year becomes known, and its WINTER bucket spans December, so seasonYear can
+// name the year after the premiere that release names carry.
+func (m media) year() int {
+	if m.StartDate.Year != nil {
+		return *m.StartDate.Year
+	}
+	if m.SeasonYear != nil {
+		return *m.SeasonYear
+	}
+	return 0
+}
+
 // highestItem is the last episode number the title is known to reach. A published
 // count wins outright: a schedule can carry an entry past the announced end.
 func (m media) highestItem() int {
+	// Format is the discriminator and the count never is: three shorts released
+	// as one film carry episodes: 3 and are still one acquirable item.
+	if mapFormat(m.Format) == domain.FormatMovie {
+		return 1
+	}
 	if n := m.episodes(); n > 0 {
 		return n
 	}
@@ -146,6 +167,7 @@ query ($search: String!, $perPage: Int!) {
       episodes
       status
       seasonYear
+      startDate { year }
       coverImage { large }
     }
   }
@@ -165,17 +187,13 @@ func (c *Client) Search(ctx context.Context, term string) ([]metadata.Candidate,
 
 	out := make([]metadata.Candidate, 0, len(data.Page.Media))
 	for _, m := range data.Page.Media {
-		year := 0
-		if m.SeasonYear != nil {
-			year = *m.SeasonYear
-		}
 		out = append(out, metadata.Candidate{
 			ProviderID: m.ID,
 			Titles:     m.titles(),
 			Format:     m.Format,
 			Episodes:   m.episodes(),
 			Status:     m.Status,
-			Year:       year,
+			Year:       m.year(),
 			CoverURL:   m.CoverImage.Large,
 		})
 	}
@@ -192,6 +210,8 @@ query ($id: Int!, $perPage: Int!) {
     format
     episodes
     status
+    seasonYear
+    startDate { year }
     coverImage { large }
     nextAiringEpisode { episode }
     airingSchedule(page: 1, perPage: $perPage) {
@@ -221,6 +241,7 @@ func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []
 		Episodes:   m.episodes(),
 		Status:     m.Status,
 		CoverURL:   m.CoverImage.Large,
+		Year:       m.year(),
 		NextItem:   nextItem(m),
 	}
 

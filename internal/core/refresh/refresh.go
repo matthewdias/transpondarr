@@ -78,7 +78,7 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 // cadence in the same transaction is the other half of that handshake — a new
 // episode is worth looking for now, whatever backoff had accumulated.
 func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
-	_, items, err := s.provider.GetTitle(ctx, series.ProviderID.Int64)
+	meta, items, err := s.provider.GetTitle(ctx, series.ProviderID.Int64)
 	if err != nil {
 		return fmt.Errorf("fetch metadata: %w", err)
 	}
@@ -93,12 +93,13 @@ func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
 	// Counted apart (#188): the air-date sync ignores monitoring, so any growth
 	// clears the stamp, but only a monitored insert is worth searching for.
 	var inserted, monitoredInserts int64
+	kind := domain.KindFor(domain.Format(series.Format))
 	for _, it := range items {
 		number := sql.NullInt64{Int64: int64(it.Number), Valid: true}
 		monitored := store.MonitorNew(series.MonitorNewFrom, number)
 		n, err := q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
 			SeriesID:  series.ID,
-			Kind:      string(domain.KindEpisode),
+			Kind:      string(kind),
 			Number:    number,
 			Title:     nullString(it.Name),
 			Monitored: monitored,
@@ -108,6 +109,13 @@ func (s *Service) refreshSeries(ctx context.Context, series db.Series) error {
 		}
 		inserted += n
 		monitoredInserts += n * monitored
+	}
+	// Unconditional: the query is its own no-op, so a film added before AniList
+	// published a date gains one on cadence and a null never erases one.
+	if err := q.SetSeriesYear(ctx, db.SetSeriesYearParams{
+		Year: int64(meta.Year), ID: series.ID, Column3: int64(meta.Year),
+	}); err != nil {
+		return fmt.Errorf("set the year: %w", err)
 	}
 	if inserted > 0 {
 		if err := q.ClearSeriesAiringSyncedAt(ctx, series.ID); err != nil {

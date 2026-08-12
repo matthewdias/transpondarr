@@ -116,6 +116,7 @@ type Series struct {
 	PinDelayHours    sql.NullInt64  `json:"pin_delay_hours"`
 	SearchEpoch      int64          `json:"search_epoch"`
 	MonitorNewFrom   sql.NullInt64  `json:"monitor_new_from"`
+	Year             int64          `json:"year"`
 }
 
 type Session struct {

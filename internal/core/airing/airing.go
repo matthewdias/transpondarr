@@ -94,6 +94,11 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		return fmt.Errorf("fetch schedule: %w", err)
 	}
 
+	kind := domain.KindFor(domain.Format(series.Format))
+	if kind == domain.KindMovie {
+		schedule = premiereOnly(schedule)
+	}
+
 	// One transaction, opened after the fetch so no write lock is held across the
 	// network: a never-synced long-runner writes thousands of rows, and in
 	// autocommit each is its own fsync — ~60x the wall clock, spent holding off
@@ -109,7 +114,7 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		number := sql.NullInt64{Int64: int64(a.Number), Valid: true}
 		if err := q.UpsertWantedItemAiring(ctx, db.UpsertWantedItemAiringParams{
 			SeriesID:  series.ID,
-			Kind:      string(domain.KindEpisode),
+			Kind:      string(kind),
 			Number:    number,
 			AirsAt:    sql.NullString{String: store.FormatTimestamp(a.AirsAt), Valid: true},
 			Monitored: store.MonitorNew(series.MonitorNewFrom, number),
@@ -126,7 +131,7 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		monitored := store.MonitorNew(series.MonitorNewFrom, number)
 		rows, err := q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
 			SeriesID:  series.ID,
-			Kind:      string(domain.KindEpisode),
+			Kind:      string(kind),
 			Number:    number,
 			Monitored: monitored,
 		})
@@ -154,6 +159,18 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 		return fmt.Errorf("commit: %w", err)
 	}
 	s.log.Debug("airing schedule synced", "series", series.ID, "airings", len(schedule), "tail_only", notYetAired)
+	return nil
+}
+
+// premiereOnly clamps a film's schedule to its single item: AniList publishes
+// nodes for films with a TV premiere, and one numbered past 1 would create items
+// 2..N. Collapsing to one node makes the gap fill below a no-op by construction.
+func premiereOnly(schedule []metadata.Airing) []metadata.Airing {
+	for _, a := range schedule {
+		if a.Number == 1 {
+			return []metadata.Airing{a}
+		}
+	}
 	return nil
 }
 

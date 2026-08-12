@@ -1916,6 +1916,11 @@ export interface components {
              * @description Items this title is pursuing: monitored and already broadcast
              */
             tracked: number;
+            /**
+             * Format: int64
+             * @description Release year; absent when the provider publishes none
+             */
+            year?: number;
         };
         TitleDetailDTO: {
             /**
@@ -1933,6 +1938,11 @@ export interface components {
             /** Format: int64 */
             provider_id: number;
             title: string;
+            /**
+             * Format: int64
+             * @description Release year; absent when the provider publishes none
+             */
+            year?: number;
         };
         TitleDetailReadDTO: {
             /**
@@ -1965,6 +1975,11 @@ export interface components {
             /** @description Provider status (e.g. RELEASING, FINISHED) */
             status?: string;
             title: string;
+            /**
+             * Format: int64
+             * @description Release year; absent when the provider publishes none
+             */
+            year?: number;
         };
         TitleGrabsOutputBody: {
             /**

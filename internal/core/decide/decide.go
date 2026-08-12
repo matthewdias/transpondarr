@@ -76,6 +76,9 @@ func (c Candidate) takeCount() int {
 type MatchOpts struct {
 	PinnedGroup string
 	Blocked     BlockedSet
+	// Format gates movie matching (#208). The zero value reads as non-movie, so
+	// a caller that passes no opts is unaffected.
+	Format domain.Format
 }
 
 // BlockedSet is the series' active release blocklist as plain data, so decide
@@ -162,9 +165,11 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 	}
 	pin := ""
 	var blocked BlockedSet
+	var format domain.Format
 	if len(opts) > 0 {
 		pin = opts[0].PinnedGroup
 		blocked = opts[0].Blocked
+		format = opts[0].Format
 	}
 	variants := normalizeVariants(titleVariants)
 	// Which season this entry represents, derived from its own title (AniList
@@ -175,7 +180,7 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 
 	out := make([]Candidate, 0, len(releases))
 	for _, rel := range releases {
-		c := evaluate(rel, variants, expectedSeason, itemSet, maxItem, held)
+		c := evaluate(rel, variants, expectedSeason, itemSet, maxItem, held, format)
 		c.Score, c.ScoreParts = Score(c.Parsed, c.Release, profile)
 		c.IneligibleReason = ineligibleReason(c.Release, c.Parsed, profile, blocked, c.Score)
 		c.Eligible = c.IneligibleReason == ""
@@ -419,7 +424,7 @@ func indexFold(list []string, v string) int {
 	return -1
 }
 
-func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSet map[int]bool, maxItem int, held map[int]heldRelease) Candidate {
+func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSet map[int]bool, maxItem int, held map[int]heldRelease, format domain.Format) Candidate {
 	p := parser.Parse(rel.Title)
 	// Enrich the release with parsed attributes (the fields the indexer left blank).
 	rel.ReleaseGroup = p.Group
@@ -430,6 +435,14 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 
 	if !titleBelongs(p.Title, variants) {
 		c.Reason = "title does not match this series"
+		return c
+	}
+
+	// A matching statement, not an eligibility one: a movie release carries no
+	// episode number, so a numberless pack would otherwise fill its single item.
+	// Revert with #209, which teaches decide title + year.
+	if format == domain.FormatMovie {
+		c.Reason = "movie releases are not matched yet"
 		return c
 	}
 

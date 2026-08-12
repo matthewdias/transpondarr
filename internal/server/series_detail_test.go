@@ -119,3 +119,61 @@ func TestAddSeriesTakesTheQualityProfile(t *testing.T) {
 		t.Errorf("POST /series naming an unknown profile = %d, want 422", code)
 	}
 }
+
+// The year reaches every title surface: decide matches on it (#209) and Place
+// names the folder with it (#198), so a client can show what was stored.
+func TestTitleYearOnEveryTitleSurface(t *testing.T) {
+	provider := variantProvider{meta: metadata.TitleMeta{
+		Titles: metadata.Titles{Romaji: "Sample Film"}, Format: "MOVIE", Year: 2020,
+	}}
+	h := newHarnessWithProvider(t, nil, nil, provider)
+
+	var added struct {
+		ID   int64 `json:"id"`
+		Year int   `json:"year"`
+	}
+	if code := do(t, h, http.MethodPost, "/api/v1/titles",
+		map[string]any{"provider": "anilist", "provider_id": 4321}, &added); code != http.StatusCreated {
+		t.Fatalf("POST /titles = %d, want 201", code)
+	}
+	if added.Year != 2020 {
+		t.Errorf("add response year = %d, want 2020", added.Year)
+	}
+
+	var detail struct {
+		Year int `json:"year"`
+	}
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", added.ID), &detail); code != http.StatusOK {
+		t.Fatalf("GET title detail = %d, want 200", code)
+	}
+	if detail.Year != 2020 {
+		t.Errorf("detail year = %d, want 2020", detail.Year)
+	}
+
+	var list struct {
+		Titles []struct {
+			ID   int64 `json:"id"`
+			Year int   `json:"year"`
+		} `json:"titles"`
+	}
+	if code := h.get(t, "/api/v1/titles", &list); code != http.StatusOK {
+		t.Fatalf("GET titles = %d, want 200", code)
+	}
+	if len(list.Titles) != 1 || list.Titles[0].Year != 2020 {
+		t.Errorf("list = %+v, want one title with year 2020", list.Titles)
+	}
+}
+
+// Zero means "not on record", so it is omitted rather than published as 0.
+func TestTitleYearOmittedWhenUnknown(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	seriesID := seedSeries(t, h.store, "Undated Show", 1)
+
+	var raw map[string]any
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &raw); code != http.StatusOK {
+		t.Fatalf("GET title detail = %d, want 200", code)
+	}
+	if _, present := raw["year"]; present {
+		t.Errorf("year present as %v on a title with none on record, want it omitted", raw["year"])
+	}
+}

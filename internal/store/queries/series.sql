@@ -42,9 +42,15 @@ LIMIT 1;
 -- name: CreateSeries :one
 -- monitor_new_from is left to its schema default: an omitted sqlc params field
 -- would write NULL, which reads as "monitor nothing new".
-INSERT INTO series (provider, provider_id, title, format, monitored)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO series (provider, provider_id, title, format, monitored, year)
+VALUES (?, ?, ?, ?, ?, ?)
 RETURNING *;
+
+-- name: SetSeriesYear :exec
+-- Guarded in SQL so no future caller can bypass it: a transient upstream null
+-- must never erase a stored year, which the naming layer reads and where zero
+-- means "not on record".
+UPDATE series SET year = ? WHERE id = ? AND ? > 0;
 
 -- name: SetSeriesMonitorNewFrom :exec
 -- The cut every later create site reads: an item numbered at or above it is

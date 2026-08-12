@@ -305,7 +305,11 @@ func (s *Service) evaluate(ctx context.Context, series db.Series, items []passIt
 		Term:   term,
 		Items:  wantedItems(items),
 		Candidates: decide.Match(matchItems(items), variants, releases, profile,
-			decide.MatchOpts{PinnedGroup: series.PinnedGroup.String, Blocked: blocked}),
+			decide.MatchOpts{
+				PinnedGroup: series.PinnedGroup.String,
+				Blocked:     blocked,
+				Format:      domain.Format(series.Format),
+			}),
 	}, nil
 }
 
