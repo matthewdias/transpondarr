@@ -50,6 +50,9 @@ import { HistoryTab } from "@/components/detail/history-tab";
 
 type TabKey = "episodes" | "releases" | "history";
 
+const chipClass =
+  "inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground";
+
 export function SeriesDetailPage() {
   const params = useParams();
   const id = Number(params.id);
@@ -298,7 +301,7 @@ export function SeriesDetailPage() {
 
 // ProfilePicker sits in the chips row: the profile is context you glance at and
 // occasionally change, not a form you fill in.
-function ProfilePicker({ detail }: { detail: SeriesDetail }) {
+export function ProfilePicker({ detail }: { detail: SeriesDetail }) {
   const queryClient = useQueryClient();
   const profiles = useQuery(profilesQuery());
   const assign = useMutation({
@@ -318,7 +321,35 @@ function ProfilePicker({ detail }: { detail: SeriesDetail }) {
       }),
   });
 
-  if (!profiles.data?.length) return null;
+  // Data present wins, so a failed background refetch never nukes a working picker.
+  if (profiles.isPending || profiles.isPaused)
+    return <Skeleton className="h-[26px] w-24 rounded-md" />;
+  if (!profiles.data?.length)
+    return profiles.isError ? (
+      <button
+        type="button"
+        // The visible text is the label's prefix, so the retry stays announced.
+        aria-label="Profile unavailable — retry"
+        title={
+          profiles.error instanceof ApiError
+            ? profiles.error.message
+            : String(profiles.error)
+        }
+        onClick={() => void profiles.refetch()}
+        className={cn(chipClass, "hover:text-accent-foreground")}
+      >
+        {/* Icon only: the amber token is under 4.5:1 as text at this size. */}
+        <TriangleAlert className="size-3 flex-none text-dl" aria-hidden />
+        Profile unavailable
+      </button>
+    ) : (
+      <Link
+        to="/settings"
+        className={cn(chipClass, "hover:text-accent-foreground")}
+      >
+        No profiles
+      </Link>
+    );
   return (
     <Select
       value={String(detail.quality_profile_id)}
@@ -399,7 +430,7 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
       <DialogTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-accent-foreground"
+          className={cn(chipClass, "hover:text-accent-foreground")}
         >
           <Pin className="size-3" aria-hidden />
           {current ? `Pin: ${current}${delaySuffix}` : "Pin group"}

@@ -225,6 +225,36 @@ func (q *Queries) GetQualityProfile(ctx context.Context, id int64) (QualityProfi
 	return i, err
 }
 
+const getQualityProfileByName = `-- name: GetQualityProfileByName :one
+SELECT id, name, is_default, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, created_at, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff
+FROM quality_profiles
+WHERE name = ? COLLATE NOCASE
+LIMIT 1
+`
+
+// NOCASE folds case so "Dup" and "dup" are one name; the caller trims.
+func (q *Queries) GetQualityProfileByName(ctx context.Context, name string) (QualityProfile, error) {
+	row := q.db.QueryRowContext(ctx, getQualityProfileByName, name)
+	var i QualityProfile
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.IsDefault,
+		&i.ResolutionOrder,
+		&i.PreferredSource,
+		&i.SubPref,
+		&i.PreferDualAudio,
+		&i.CodecPref,
+		&i.HardExcludes,
+		&i.MinScore,
+		&i.CreatedAt,
+		&i.UpgradesEnabled,
+		&i.CutoffScore,
+		&i.UpgradeV2AboveCutoff,
+	)
+	return i, err
+}
+
 const listAllProfileGroups = `-- name: ListAllProfileGroups :many
 SELECT id, profile_id, rank, group_name, blocked
 FROM quality_profile_groups

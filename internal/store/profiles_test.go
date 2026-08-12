@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -231,6 +233,37 @@ func TestProfileGroupsOrderedUnblockedFirstThenByRank(t *testing.T) {
 		ProfileID: def.ID, Rank: 5, GroupName: "FirstChoice",
 	}); err == nil {
 		t.Error("duplicate group name in one profile should error")
+	}
+}
+
+func TestGetQualityProfileByNameFoldsCase(t *testing.T) {
+	st := tempStore(t)
+	ctx := context.Background()
+
+	strict, err := st.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
+		Name: "Strict", ResolutionOrder: `[]`, HardExcludes: `[]`,
+	})
+	if err != nil {
+		t.Fatalf("create profile: %v", err)
+	}
+
+	for _, name := range []string{"Strict", "strict", "STRICT"} {
+		got, gerr := st.Q.GetQualityProfileByName(ctx, name)
+		if gerr != nil {
+			t.Fatalf("lookup %q: %v", name, gerr)
+		}
+		if got.ID != strict.ID {
+			t.Errorf("lookup %q = profile %d, want %d", name, got.ID, strict.ID)
+		}
+	}
+	if _, gerr := st.Q.GetQualityProfileByName(ctx, "default"); gerr != nil {
+		t.Errorf("lookup of the seeded profile: %v", gerr)
+	}
+	// The query folds case; trimming is the caller's, so padding must not match.
+	for _, name := range []string{"Other", " strict "} {
+		if _, gerr := st.Q.GetQualityProfileByName(ctx, name); !errors.Is(gerr, sql.ErrNoRows) {
+			t.Errorf("lookup %q err = %v, want sql.ErrNoRows", name, gerr)
+		}
 	}
 }
 

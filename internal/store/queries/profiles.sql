@@ -19,6 +19,13 @@ FROM quality_profiles
 WHERE is_default = 1
 LIMIT 1;
 
+-- name: GetQualityProfileByName :one
+-- NOCASE folds case so "Dup" and "dup" are one name; the caller trims.
+SELECT *
+FROM quality_profiles
+WHERE name = ? COLLATE NOCASE
+LIMIT 1;
+
 -- name: CreateQualityProfile :one
 INSERT INTO quality_profiles (name, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

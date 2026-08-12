@@ -259,9 +259,23 @@ func writeGroups(ctx context.Context, q *db.Queries, profileID int64, groups []p
 	return nil
 }
 
-func isUniqueNameErr(err error) bool {
-	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: quality_profiles.name")
+// requireNameFree applies to profile names the case-insensitive rule validate
+// already applies to group names. Callers must skip it when the name is not
+// changing, since a row can hold a name this refuses (see update).
+func requireNameFree(ctx context.Context, q *db.Queries, name string) error {
+	_, err := q.GetQualityProfileByName(ctx, name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return huma.Error500InternalServerError("failed to check profile name", err)
+	}
+	return huma.Error409Conflict("a profile with that name already exists")
 }
+
+// Neither the create nor the update statement writes is_default, so name is the
+// only unique constraint they can violate.
+func isUniqueNameErr(err error) bool { return store.IsUniqueViolation(err) }
 
 // The listing is unpaginated, so there is no id set to scope by (#91): one query
 // for groups, one for counts, three whatever the profile count.
@@ -313,8 +327,13 @@ func (h *profilesHandler) create(ctx context.Context, in *createProfileInput) (*
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.store.Q.WithTx(tx)
 
+	name := strings.TrimSpace(in.Body.Name)
+	if nerr := requireNameFree(ctx, qtx, name); nerr != nil {
+		return nil, nerr
+	}
+
 	row, err := qtx.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
-		Name:            strings.TrimSpace(in.Body.Name),
+		Name:            name,
 		ResolutionOrder: jsonArray(in.Body.ResolutionOrder),
 		PreferredSource: in.Body.PreferredSource,
 		SubPref:         in.Body.SubPref,
@@ -358,8 +377,24 @@ func (h *profilesHandler) update(ctx context.Context, in *updateProfileInput) (*
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.store.Q.WithTx(tx)
 
+	// An unknown id is a 404, not a name clash, so existence is checked first.
+	current, gerr := qtx.GetQualityProfile(ctx, in.ID)
+	if errors.Is(gerr, sql.ErrNoRows) {
+		return nil, huma.Error404NotFound("profile not found")
+	} else if gerr != nil {
+		return nil, huma.Error500InternalServerError("failed to load profile", gerr)
+	}
+	// Only an actual rename is checked: an install predating this rule can hold
+	// Anime and anime, and the second row's own lookup returns the first.
+	name := strings.TrimSpace(in.Body.Name)
+	if !strings.EqualFold(name, current.Name) {
+		if nerr := requireNameFree(ctx, qtx, name); nerr != nil {
+			return nil, nerr
+		}
+	}
+
 	row, err := qtx.UpdateQualityProfile(ctx, db.UpdateQualityProfileParams{
-		Name:            strings.TrimSpace(in.Body.Name),
+		Name:            name,
 		ResolutionOrder: jsonArray(in.Body.ResolutionOrder),
 		PreferredSource: in.Body.PreferredSource,
 		SubPref:         in.Body.SubPref,

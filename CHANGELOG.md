@@ -6,8 +6,26 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **The quality-profile chip on a series page no longer vanishes while it loads
+  or when it fails.** The picker rendered nothing until the profile list
+  arrived, so the chips row shifted on every visit, and a failed fetch left no
+  trace at all — just a missing control. It now holds its place while loading,
+  shows a **Profile unavailable** chip you can click to try again, and links to
+  Settings when there are no profiles to pick.
+  Closes [#93](https://github.com/matthewdias/transpondarr/issues/93).
+- **Profile names no longer collide only by case.** Saving a profile named
+  `Anime` while `anime` exists is refused with the same conflict a duplicate name
+  has always given, matching how group names within a profile are compared.
+  Closes [#90](https://github.com/matthewdias/transpondarr/issues/90).
+
 ### Internal
 
+- **Duplicate-name detection reads SQLite's result code instead of matching on
+  the error message**, so a driver that rewords its errors can no longer turn a
+  conflict into a 500.
+  Closes [#92](https://github.com/matthewdias/transpondarr/issues/92).
 - **The profiles list reads groups and usage counts in bulk.** `GET
   /api/v1/profiles` fetched both one profile at a time, so every profile cost a
   full scan of the series table. Groups and counts now come back in one query
