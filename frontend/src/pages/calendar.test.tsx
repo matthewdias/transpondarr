@@ -24,8 +24,8 @@ const todayNoon = () => {
 
 const item = (over: Partial<CalendarItem>): CalendarItem => ({
   id: 1,
-  series_id: 7,
-  series_title: "Signal Anomaly",
+  title_id: 7,
+  title: "Signal Anomaly",
   monitored: true,
   number: 4,
   airs_at: todayNoon(),
@@ -61,7 +61,7 @@ function renderPage() {
 describe("CalendarPage", () => {
   it("renders today's episodes on the month grid and names unscheduled series", async () => {
     server.use(
-      calendarHandler([item({})], [{ series_id: 103, title: "Dusty Archive" }]),
+      calendarHandler([item({})], [{ title_id: 103, title: "Dusty Archive" }]),
     );
 
     renderPage();
@@ -90,8 +90,8 @@ describe("CalendarPage", () => {
         item({}),
         item({
           id: 2,
-          series_id: 8,
-          series_title: "Backlog Kaiju",
+          title_id: 8,
+          title: "Backlog Kaiju",
           number: 1,
           status: "stuck",
           import_error: "library offline",

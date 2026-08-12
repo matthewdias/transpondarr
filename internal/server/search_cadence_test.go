@@ -34,7 +34,7 @@ func TestEnableMonitoringResetsSearchCadence(t *testing.T) {
 		t.Fatalf("seed a paused, backed-off series: %v", err)
 	}
 
-	if code := do(t, h, "PATCH", fmt.Sprintf("/api/v1/series/%d", seriesID),
+	if code := do(t, h, "PATCH", fmt.Sprintf("/api/v1/titles/%d", seriesID),
 		map[string]any{"monitored": true}, nil); code != http.StatusOK {
 		t.Fatalf("monitor status = %d, want 200", code)
 	}
@@ -67,7 +67,7 @@ func TestRepinningResetsSearchCadence(t *testing.T) {
 				t.Fatalf("seed a held, backed-off series: %v", err)
 			}
 
-			if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/pinned-group", seriesID),
+			if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/pinned-group", seriesID),
 				tc.body, nil); code != http.StatusOK {
 				t.Fatalf("pin status = %d, want 200", code)
 			}
@@ -90,7 +90,7 @@ func TestDisableMonitoringLeavesSearchCadence(t *testing.T) {
 		t.Fatalf("seed a backed-off series: %v", err)
 	}
 
-	if code := do(t, h, "PATCH", fmt.Sprintf("/api/v1/series/%d", seriesID),
+	if code := do(t, h, "PATCH", fmt.Sprintf("/api/v1/titles/%d", seriesID),
 		map[string]any{"monitored": false}, nil); code != http.StatusOK {
 		t.Fatalf("unmonitor status = %d, want 200", code)
 	}

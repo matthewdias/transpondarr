@@ -67,8 +67,8 @@ func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 	}
 
 	ev := wantRehearsalEvent(t, h.fn)
-	if ev.SeriesTitle != "Placeholder Saga" {
-		t.Errorf("series = %q", ev.SeriesTitle)
+	if ev.Title != "Placeholder Saga" {
+		t.Errorf("title = %q", ev.Title)
 	}
 	if ev.ReleaseTitle != "[ExampleSubs] Placeholder Saga - 05 [1080p]" {
 		t.Errorf("release = %q, want the release it would have grabbed", ev.ReleaseTitle)

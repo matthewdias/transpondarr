@@ -322,7 +322,7 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 			}
 			d.Dispatch(ctx, notify.Event{
 				Kind:         notify.KindGrabbed,
-				SeriesTitle:  series.Title,
+				Title:        series.Title,
 				ItemNumber:   item,
 				ReleaseTitle: c.Release.Title,
 			})
@@ -430,7 +430,7 @@ func (s *Service) dispatchRehearsal(ctx context.Context, series db.Series, items
 	}
 	d.Dispatch(ctx, notify.Event{
 		Kind:         notify.KindRehearsal,
-		SeriesTitle:  series.Title,
+		Title:        series.Title,
 		ItemNumber:   item,
 		ReleaseTitle: release,
 		Error:        outcome,

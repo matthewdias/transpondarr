@@ -43,8 +43,8 @@ func look(k notify.Kind) (title, priority, tags string) {
 		return "Import stuck", "high", "warning"
 	case notify.KindGrabFailed:
 		return "Grab failed", "high", "x"
-	case notify.KindSeriesAdded:
-		return "Series added", "default", "new"
+	case notify.KindTitleAdded:
+		return "Title added", "default", "new"
 	case notify.KindRehearsal:
 		// A rehearsal is a firehose by design (#116); it must never buzz like a
 		// stuck import.
@@ -57,8 +57,8 @@ func look(k notify.Kind) (title, priority, tags string) {
 // body flattens the event's detail into the push's plain-text message.
 func body(ev notify.Event) string {
 	var lines []string
-	if ev.SeriesTitle != "" {
-		lines = append(lines, ev.SeriesTitle)
+	if ev.Title != "" {
+		lines = append(lines, ev.Title)
 	}
 	if ev.ItemNumber > 0 {
 		lines = append(lines, "Episode "+strconv.Itoa(ev.ItemNumber))

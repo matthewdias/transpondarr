@@ -78,7 +78,7 @@ describe("DeleteSeriesDialog", () => {
   it("deletes without touching downloads by default", async () => {
     let url: URL | undefined;
     server.use(
-      http.delete("/api/v1/series/7", ({ request }) => {
+      http.delete("/api/v1/titles/7", ({ request }) => {
         url = new URL(request.url);
         return new HttpResponse(null, { status: 204 });
       }),
@@ -101,7 +101,7 @@ describe("DeleteSeriesDialog", () => {
   it("sends remove_downloads=true when the box is checked", async () => {
     let url: URL | undefined;
     server.use(
-      http.delete("/api/v1/series/7", ({ request }) => {
+      http.delete("/api/v1/titles/7", ({ request }) => {
         url = new URL(request.url);
         return new HttpResponse(null, { status: 204 });
       }),
@@ -121,12 +121,12 @@ describe("DeleteSeriesDialog", () => {
   it("drops the mounted detail query instead of refetching it into a 404", async () => {
     let detailGets = 0;
     server.use(
-      http.get("/api/v1/series/7", () => {
+      http.get("/api/v1/titles/7", () => {
         detailGets++;
         return HttpResponse.json(detail);
       }),
       http.delete(
-        "/api/v1/series/7",
+        "/api/v1/titles/7",
         () => new HttpResponse(null, { status: 204 }),
       ),
     );
@@ -160,7 +160,7 @@ describe("DeleteSeriesDialog", () => {
 
   it("keeps the dialog open and reports a failed delete", async () => {
     server.use(
-      http.delete("/api/v1/series/7", () =>
+      http.delete("/api/v1/titles/7", () =>
         HttpResponse.json(
           { title: "Bad Gateway", detail: "failed to remove downloads" },
           { status: 502 },

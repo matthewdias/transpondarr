@@ -36,7 +36,7 @@ func capture(t *testing.T) (*httptest.Server, *captured) {
 func TestSendPostsToServerSlashTopic(t *testing.T) {
 	ts, got := capture(t)
 	if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{
-		Kind: notify.KindImported, SeriesTitle: "Placeholder Saga", ItemNumber: 5,
+		Kind: notify.KindImported, Title: "Placeholder Saga", ItemNumber: 5,
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestSendEscapesTheTopic(t *testing.T) {
 func TestSendMarksStuckHighPriority(t *testing.T) {
 	ts, got := capture(t)
 	if err := New(ts.URL, "topic", "").Send(context.Background(), notify.Event{
-		Kind: notify.KindImportStuck, SeriesTitle: "Placeholder Saga", Error: "source not accessible",
+		Kind: notify.KindImportStuck, Title: "Placeholder Saga", Error: "source not accessible",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestSendReportsNon2xx(t *testing.T) {
 func TestSendRendersMultipleEpisodesOnOneLine(t *testing.T) {
 	ts, got := capture(t)
 	if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{
-		Kind: notify.KindImported, SeriesTitle: "Placeholder Saga", Items: []int{1, 2, 3, 5},
+		Kind: notify.KindImported, Title: "Placeholder Saga", Items: []int{1, 2, 3, 5},
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}

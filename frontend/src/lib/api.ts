@@ -98,15 +98,15 @@ async function rawFetch<T>(
 
 type Schemas = components["schemas"];
 
-export type Series = Schemas["SeriesDTO"];
+export type Series = Schemas["TitleDTO"];
 export type Candidate = Schemas["CandidateDTO"];
 // The id space a provider_id is numbered in; the spec's enum, so a new provider
 // widens this type rather than passing an arbitrary string.
-export type Provider = Schemas["AddSeriesInputBody"]["provider"];
+export type Provider = Schemas["AddTitleInputBody"]["provider"];
 // The add-time item-monitoring choice; "all" is the server default, which is
 // what an add call that omits the field must keep meaning.
 export type MonitorItems = NonNullable<
-  Schemas["AddSeriesInputBody"]["monitor_items"]
+  Schemas["AddTitleInputBody"]["monitor_items"]
 >;
 export type SeasonEntry = Schemas["SeasonEntryDTO"];
 export type SeasonChart = Schemas["BrowseSeasonOutputBody"];
@@ -114,7 +114,7 @@ export type WantedItem = Schemas["DetailItemDTO"];
 export type ItemStatus = WantedItem["status"]; // 'in_library' | 'downloading' | 'stuck' | 'deferred' | 'wanted'
 export type CandidateRelease = Schemas["CandidateReleaseDTO"];
 export type CalendarItem = Schemas["CalendarItemDTO"];
-export type UnscheduledSeries = Schemas["UnscheduledSeriesDTO"];
+export type UnscheduledSeries = Schemas["UnscheduledTitleDTO"];
 export type Calendar = Schemas["CalendarOutputBody"];
 export type GrabEvent = Schemas["GrabEventDTO"];
 export type MissingItem = Schemas["MissingItemDTO"];
@@ -128,7 +128,7 @@ export type CutoffItem = Schemas["CutoffItemDTO"];
 export type CutoffGroup = Schemas["CutoffGroupDTO"];
 export type BlocklistEntry = Schemas["BlocklistEntryDTO"];
 export type BlocklistSummary = Schemas["BlocklistSummaryOutputBody"];
-export type GrabResult = Schemas["GrabSeriesOutputBody"];
+export type GrabResult = Schemas["GrabTitleOutputBody"];
 export type DownloadSettings = Schemas["DownloadSettingsDTO"];
 export type IndexerSettings = Schemas["IndexerSettingsDTO"];
 export type LibrarySettings = Schemas["LibrarySettingsDTO"];
@@ -159,7 +159,7 @@ export type RetryResult = Schemas["RetryResultDTO"];
 // The read model for a single series with its wanted items. Arrays are
 // non-nullable in the OpenAPI schema (Huma's DefaultArrayNullable is off; the
 // backend always emits []), so this is a plain alias — no null remapping needed.
-export type SeriesDetail = Schemas["SeriesDetailReadDTO"];
+export type SeriesDetail = Schemas["TitleDetailReadDTO"];
 export type QualityProfile = Schemas["QualityProfileDTO"];
 export type ProfileGroup = Schemas["ProfileGroupDTO"];
 export type ProfileInput = Schemas["ProfileBody"];
@@ -273,20 +273,20 @@ export const api = {
 
   listSeries: (signal?: AbortSignal) =>
     client
-      .GET("/api/v1/series", { signal })
+      .GET("/api/v1/titles", { signal })
       .then(unwrap)
-      .then((r) => r.series),
+      .then((r) => r.titles),
 
   getSeries: (id: number, signal?: AbortSignal) =>
     client
-      .GET("/api/v1/series/{id}", { params: { path: { id } }, signal })
+      .GET("/api/v1/titles/{id}", { params: { path: { id } }, signal })
       .then(unwrap),
 
   // remove_downloads rides as `true` or not at all, so the default request
   // carries no param.
   deleteSeries: (id: number, removeDownloads?: boolean) =>
     client
-      .DELETE("/api/v1/series/{id}", {
+      .DELETE("/api/v1/titles/{id}", {
         params: {
           path: { id },
           query: { remove_downloads: removeDownloads || undefined },
@@ -296,7 +296,7 @@ export const api = {
 
   setMonitored: (id: number, monitored: boolean) =>
     client
-      .PATCH("/api/v1/series/{id}", {
+      .PATCH("/api/v1/titles/{id}", {
         params: { path: { id } },
         body: { monitored },
       })
@@ -356,7 +356,7 @@ export const api = {
 
   queueWantedSearch: (seriesIds: number[]) =>
     client
-      .POST("/api/v1/wanted/search", { body: { series_ids: seriesIds } })
+      .POST("/api/v1/wanted/search", { body: { title_ids: seriesIds } })
       .then(unwrap),
 
   setItemsMonitored: (itemIds: number[], monitored: boolean) =>
@@ -384,7 +384,7 @@ export const api = {
     } = {},
   ) =>
     client
-      .POST("/api/v1/series", {
+      .POST("/api/v1/titles", {
         body: {
           provider,
           provider_id: providerId,
@@ -397,12 +397,12 @@ export const api = {
 
   searchReleases: (id: number, signal?: AbortSignal) =>
     client
-      .GET("/api/v1/series/{id}/search", { params: { path: { id } }, signal })
+      .GET("/api/v1/titles/{id}/search", { params: { path: { id } }, signal })
       .then(unwrap),
 
   grabRelease: (id: number, downloadUrl: string, paused = false) =>
     client
-      .POST("/api/v1/series/{id}/grab", {
+      .POST("/api/v1/titles/{id}/grab", {
         params: { path: { id } },
         body: { download_url: downloadUrl, paused },
       })
@@ -450,13 +450,13 @@ export const api = {
 
   listGrabs: (id: number, signal?: AbortSignal) =>
     client
-      .GET("/api/v1/series/{id}/grabs", { params: { path: { id } }, signal })
+      .GET("/api/v1/titles/{id}/grabs", { params: { path: { id } }, signal })
       .then(unwrap)
       .then((r) => r.events),
 
   listBlocklist: (id: number, signal?: AbortSignal) =>
     client
-      .GET("/api/v1/series/{id}/blocklist", {
+      .GET("/api/v1/titles/{id}/blocklist", {
         params: { path: { id } },
         signal,
       })
@@ -474,7 +474,7 @@ export const api = {
 
   clearSeriesBlocklist: (id: number, expiredOnly = false) =>
     client
-      .DELETE("/api/v1/series/{id}/blocklist", {
+      .DELETE("/api/v1/titles/{id}/blocklist", {
         params: {
           path: { id },
           ...(expiredOnly ? { query: { expired: true } } : {}),
@@ -485,7 +485,7 @@ export const api = {
 
   clearBlocklistEntry: (id: number, entryId: number) =>
     client
-      .DELETE("/api/v1/series/{id}/blocklist/{entryId}", {
+      .DELETE("/api/v1/titles/{id}/blocklist/{entryId}", {
         params: { path: { id, entryId } },
       })
       .then(unwrap),
@@ -560,7 +560,7 @@ export const api = {
 
   assignSeriesProfile: (seriesId: number, profileId: number) =>
     client
-      .PUT("/api/v1/series/{id}/profile", {
+      .PUT("/api/v1/titles/{id}/profile", {
         params: { path: { id: seriesId } },
         body: { profile_id: profileId },
       })
@@ -573,7 +573,7 @@ export const api = {
     delayHours?: number,
   ) =>
     client
-      .PUT("/api/v1/series/{id}/pinned-group", {
+      .PUT("/api/v1/titles/{id}/pinned-group", {
         params: { path: { id: seriesId } },
         body:
           delayHours === undefined

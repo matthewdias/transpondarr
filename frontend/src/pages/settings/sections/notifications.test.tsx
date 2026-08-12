@@ -17,7 +17,7 @@ const offEvents = {
   on_imported: false,
   on_stuck: false,
   on_grab_failed: false,
-  on_series_added: false,
+  on_title_added: false,
   on_rehearsal: false,
 };
 
@@ -26,7 +26,7 @@ const onEvents = {
   on_imported: true,
   on_stuck: true,
   on_grab_failed: true,
-  on_series_added: true,
+  on_title_added: true,
   on_rehearsal: true,
 };
 

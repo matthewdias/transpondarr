@@ -12,27 +12,27 @@ import (
 )
 
 type notifyAdapterJSON struct {
-	Configured    bool   `json:"configured"`
-	URL           string `json:"url"`
-	OnGrabbed     bool   `json:"on_grabbed"`
-	OnImported    bool   `json:"on_imported"`
-	OnStuck       bool   `json:"on_stuck"`
-	OnGrabFailed  bool   `json:"on_grab_failed"`
-	OnSeriesAdded bool   `json:"on_series_added"`
-	OnRehearsal   bool   `json:"on_rehearsal"`
+	Configured   bool   `json:"configured"`
+	URL          string `json:"url"`
+	OnGrabbed    bool   `json:"on_grabbed"`
+	OnImported   bool   `json:"on_imported"`
+	OnStuck      bool   `json:"on_stuck"`
+	OnGrabFailed bool   `json:"on_grab_failed"`
+	OnTitleAdded bool   `json:"on_title_added"`
+	OnRehearsal  bool   `json:"on_rehearsal"`
 }
 
 type ntfyJSON struct {
-	Configured    bool   `json:"configured"`
-	Server        string `json:"server"`
-	Topic         string `json:"topic"`
-	TokenSet      bool   `json:"token_set"`
-	OnGrabbed     bool   `json:"on_grabbed"`
-	OnImported    bool   `json:"on_imported"`
-	OnStuck       bool   `json:"on_stuck"`
-	OnGrabFailed  bool   `json:"on_grab_failed"`
-	OnSeriesAdded bool   `json:"on_series_added"`
-	OnRehearsal   bool   `json:"on_rehearsal"`
+	Configured   bool   `json:"configured"`
+	Server       string `json:"server"`
+	Topic        string `json:"topic"`
+	TokenSet     bool   `json:"token_set"`
+	OnGrabbed    bool   `json:"on_grabbed"`
+	OnImported   bool   `json:"on_imported"`
+	OnStuck      bool   `json:"on_stuck"`
+	OnGrabFailed bool   `json:"on_grab_failed"`
+	OnTitleAdded bool   `json:"on_title_added"`
+	OnRehearsal  bool   `json:"on_rehearsal"`
 }
 
 type notificationsJSON struct {
@@ -48,7 +48,7 @@ type notifySettingsJSON struct {
 func adapterBody(url string) map[string]any {
 	return map[string]any{
 		"url": url, "on_grabbed": true, "on_imported": true,
-		"on_stuck": true, "on_grab_failed": true, "on_series_added": true,
+		"on_stuck": true, "on_grab_failed": true, "on_title_added": true,
 		"on_rehearsal": true,
 	}
 }
@@ -60,7 +60,7 @@ func notificationsBody(discordURL, webhookURL, ntfyServer, ntfyTopic, ntfyToken 
 		"ntfy": map[string]any{
 			"server": ntfyServer, "topic": ntfyTopic, "token": ntfyToken,
 			"on_grabbed": true, "on_imported": false, "on_stuck": true,
-			"on_grab_failed": true, "on_series_added": true, "on_rehearsal": true,
+			"on_grab_failed": true, "on_title_added": true, "on_rehearsal": true,
 		},
 	}
 }
@@ -155,27 +155,27 @@ func TestNotificationTestEndpoints(t *testing.T) {
 	}
 }
 
-func TestAddSeriesDispatchesSeriesAdded(t *testing.T) {
+func TestAddTitleDispatchesTitleAdded(t *testing.T) {
 	provider := variantProvider{meta: metadata.TitleMeta{
 		Titles: metadata.Titles{Romaji: "Placeholder Saga"}, Format: "TV",
 	}}
 	h := newHarnessWithProvider(t, nil, nil, provider)
 	fn := coretest.NewFakeNotifier()
 	h.reg.SetNotify(notify.NewDispatcher(discardLogger(),
-		notify.Route{Notifier: fn, Kinds: map[notify.Kind]bool{notify.KindSeriesAdded: true}}))
+		notify.Route{Notifier: fn, Kinds: map[notify.Kind]bool{notify.KindTitleAdded: true}}))
 
 	var out struct{}
-	if code := do(t, h, http.MethodPost, "/api/v1/series",
+	if code := do(t, h, http.MethodPost, "/api/v1/titles",
 		map[string]any{"provider": "anilist", "provider_id": 42}, &out); code != http.StatusCreated {
 		t.Fatalf("POST /series = %d, want 201", code)
 	}
 
 	select {
 	case ev := <-fn.Events:
-		if ev.Kind != notify.KindSeriesAdded || ev.SeriesTitle != "Placeholder Saga" {
-			t.Errorf("event = %+v, want series_added for Placeholder Saga", ev)
+		if ev.Kind != notify.KindTitleAdded || ev.Title != "Placeholder Saga" {
+			t.Errorf("event = %+v, want title_added for Placeholder Saga", ev)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for the series_added event")
+		t.Fatal("timed out waiting for the title_added event")
 	}
 }

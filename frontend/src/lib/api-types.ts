@@ -255,165 +255,8 @@ export interface paths {
         /** Update a quality profile, replacing its ranked groups */
         put: operations["update-quality-profile"];
         post?: never;
-        /** Delete a quality profile, migrating its series to reassign_to first */
+        /** Delete a quality profile, migrating its titles to reassign_to first */
         delete: operations["delete-quality-profile"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/series": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List monitored series */
-        get: operations["list-series"];
-        put?: never;
-        /** Add a series by AniList id (expands its wanted items) */
-        post: operations["add-series"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/series/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get a series with its wanted items and their acquisition state */
-        get: operations["get-series"];
-        put?: never;
-        post?: never;
-        /** Delete a series and everything tracked for it; library files are never touched */
-        delete: operations["delete-series"];
-        options?: never;
-        head?: never;
-        /** Update whether a series is monitored */
-        patch: operations["set-series-monitored"];
-        trace?: never;
-    };
-    "/api/v1/series/{id}/blocklist": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List releases remembered as failed for a series */
-        get: operations["list-series-blocklist"];
-        put?: never;
-        post?: never;
-        /** Unblock every remembered release for a series */
-        delete: operations["clear-series-blocklist"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/series/{id}/blocklist/{entryId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Unblock a release, making it eligible again */
-        delete: operations["clear-series-blocklist-entry"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/series/{id}/grab": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Grab a chosen release: add it to the download client and record it against the wanted items it covers */
-        post: operations["grab-series-release"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/series/{id}/grabs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List grab/import history for a series */
-        get: operations["list-series-grabs"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/series/{id}/pinned-group": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Pin a release group for a series (an absolute tier above profile scoring) */
-        put: operations["set-series-pinned-group"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/series/{id}/profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Assign a quality profile to a series */
-        put: operations["assign-series-profile"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/series/{id}/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Find and match indexer releases against a series' wanted items (read-only; does not grab) */
-        get: operations["search-series-releases"];
-        put?: never;
-        post?: never;
-        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -677,6 +520,163 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/titles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List monitored titles */
+        get: operations["list-titles"];
+        put?: never;
+        /** Add a title by AniList id (expands its wanted items) */
+        post: operations["add-title"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/titles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a title with its wanted items and their acquisition state */
+        get: operations["get-title"];
+        put?: never;
+        post?: never;
+        /** Delete a title and everything tracked for it; library files are never touched */
+        delete: operations["delete-title"];
+        options?: never;
+        head?: never;
+        /** Update whether a title is monitored */
+        patch: operations["set-title-monitored"];
+        trace?: never;
+    };
+    "/api/v1/titles/{id}/blocklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List releases remembered as failed for a title */
+        get: operations["list-title-blocklist"];
+        put?: never;
+        post?: never;
+        /** Unblock every remembered release for a title */
+        delete: operations["clear-title-blocklist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/titles/{id}/blocklist/{entryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Unblock a release, making it eligible again */
+        delete: operations["clear-title-blocklist-entry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/titles/{id}/grab": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grab a chosen release: add it to the download client and record it against the wanted items it covers */
+        post: operations["grab-title-release"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/titles/{id}/grabs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List grab/import history for a title */
+        get: operations["list-title-grabs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/titles/{id}/pinned-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Pin a release group for a title (an absolute tier above profile scoring) */
+        put: operations["set-title-pinned-group"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/titles/{id}/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Assign a quality profile to a title */
+        put: operations["assign-title-profile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/titles/{id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Find and match indexer releases against a title's wanted items (read-only; does not grab) */
+        get: operations["search-title-releases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/wanted/cutoff-unmet": {
         parameters: {
             query?: never;
@@ -741,7 +741,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Put series back at the front of the sweep queue and run the sweep now
+         * Put titles back at the front of the sweep queue and run the sweep now
          * @description Queues work rather than searching: the sweep's per-pass limit is the indexer budget the search design protects, so a library-wide reset drains over several passes.
          */
         post: operations["queue-wanted-search"];
@@ -765,11 +765,11 @@ export interface components {
             /** Format: int64 */
             item_number: number;
             release_title: string;
-            /** Format: int64 */
-            series_id: number;
-            series_title: string;
             /** @enum {string} */
             status: "grabbed" | "imported" | "import_deferred" | "failed";
+            title: string;
+            /** Format: int64 */
+            title_id: number;
         };
         ActivityHistoryOutputBody: {
             /**
@@ -806,15 +806,15 @@ export interface components {
             /** @description False when no download category is configured, which leaves our torrents indistinguishable from the user's; the list is then always empty */
             scoped: boolean;
         };
-        AddSeriesInputBody: {
+        AddTitleInputBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/AddSeriesInputBody.json
+             * @example https://example.com/schemas/AddTitleInputBody.json
              */
             readonly $schema?: string;
             /**
-             * @description Which items to monitor, now and as the series grows: all, or only from the next broadcast onwards
+             * @description Which items to monitor, now and as the title grows: all, or only from the next broadcast onwards
              * @default all
              * @enum {string}
              */
@@ -846,27 +846,27 @@ export interface components {
             readonly $schema?: string;
             api_key: string;
         };
-        AssignSeriesProfileInputBody: {
+        AssignTitleProfileInputBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/AssignSeriesProfileInputBody.json
+             * @example https://example.com/schemas/AssignTitleProfileInputBody.json
              */
             readonly $schema?: string;
             /** Format: int64 */
             profile_id: number;
         };
-        AssignSeriesProfileOutputBody: {
+        AssignTitleProfileOutputBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/AssignSeriesProfileOutputBody.json
+             * @example https://example.com/schemas/AssignTitleProfileOutputBody.json
              */
             readonly $schema?: string;
             /** Format: int64 */
             profile_id: number;
             /** Format: int64 */
-            series_id: number;
+            title_id: number;
         };
         AuthSettingsDTO: {
             configured: boolean;
@@ -936,9 +936,9 @@ export interface components {
             breaker: components["schemas"]["BreakerDTO"];
             /**
              * Format: int64
-             * @description How many series they span
+             * @description How many titles they span
              */
-            series: number;
+            titles: number;
         };
         BreakerDTO: {
             /**
@@ -987,14 +987,14 @@ export interface components {
             name?: string;
             /** Format: int64 */
             number: number;
-            /** Format: int64 */
-            series_id: number;
-            series_title: string;
             /**
              * @description Derived acquisition state
              * @enum {string}
              */
             status: "in_library" | "downloading" | "stuck" | "deferred" | "wanted";
+            title: string;
+            /** Format: int64 */
+            title_id: number;
         };
         CalendarOutputBody: {
             /**
@@ -1004,8 +1004,8 @@ export interface components {
              */
             readonly $schema?: string;
             items: components["schemas"]["CalendarItemDTO"][];
-            /** @description Monitored series missing episodes with no schedule data */
-            unscheduled: components["schemas"]["UnscheduledSeriesDTO"][];
+            /** @description Monitored titles missing episodes with no schedule data */
+            unscheduled: components["schemas"]["UnscheduledTitleDTO"][];
         };
         CandidateDTO: {
             cover_url?: string;
@@ -1035,7 +1035,7 @@ export interface components {
             infohash?: string;
             items?: number[];
             matched: boolean;
-            /** @description Release group is the series' pinned group; ranks above profile score when eligible */
+            /** @description Release group is the title's pinned group; ranks above profile score when eligible */
             pinned: boolean;
             reason: string;
             release_group?: string;
@@ -1073,7 +1073,7 @@ export interface components {
         CutoffGroupDTO: {
             /**
              * Format: int64
-             * @description Items below the cutoff in the whole series; may exceed len(items), which is capped
+             * @description Items below the cutoff in the whole title; may exceed len(items), which is capped
              */
             below: number;
             /** Format: int64 */
@@ -1081,9 +1081,9 @@ export interface components {
             items: components["schemas"]["CutoffItemDTO"][];
             monitored: boolean;
             profile_name: string;
+            title: string;
             /** Format: int64 */
-            series_id: number;
-            series_title: string;
+            title_id: number;
         };
         CutoffItemDTO: {
             /** Format: date-time */
@@ -1229,26 +1229,26 @@ export interface components {
             /** @enum {string} */
             status: "grabbed" | "imported" | "import_deferred" | "failed";
         };
-        GrabSeriesInputBody: {
+        GrabTitleInputBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/GrabSeriesInputBody.json
+             * @example https://example.com/schemas/GrabTitleInputBody.json
              */
             readonly $schema?: string;
-            /** @description download_url of a matched release from the series search */
+            /** @description download_url of a matched release from the title search */
             download_url: string;
             /** @description Add the torrent stopped (no data transfer) — useful for testing the grab flow */
             paused?: boolean;
         };
-        GrabSeriesOutputBody: {
+        GrabTitleOutputBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/GrabSeriesOutputBody.json
+             * @example https://example.com/schemas/GrabTitleOutputBody.json
              */
             readonly $schema?: string;
-            /** @description Set when the grabbed release falls outside the series' quality profile — informational, the grab still succeeds */
+            /** @description Set when the grabbed release falls outside the title's quality profile — informational, the grab still succeeds */
             ineligible_reason?: string;
             infohash: string;
             items: number[];
@@ -1358,19 +1358,19 @@ export interface components {
             readonly $schema?: string;
             profiles: components["schemas"]["QualityProfileDTO"][];
         };
-        ListSeriesOutputBody: {
+        ListTitlesOutputBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/ListSeriesOutputBody.json
+             * @example https://example.com/schemas/ListTitlesOutputBody.json
              */
             readonly $schema?: string;
-            series: components["schemas"]["SeriesDTO"][];
+            titles: components["schemas"]["TitleDTO"][];
         };
         MissingGroupDTO: {
             /**
              * Format: int64
-             * @description Releases this series is currently refusing (reason blocklisted)
+             * @description Releases this title is currently refusing (reason blocklisted)
              */
             blocked_releases?: number;
             items: components["schemas"]["MissingItemDTO"][];
@@ -1380,16 +1380,16 @@ export interface components {
              */
             missing: number;
             monitored: boolean;
-            /** @description When the sweep next reaches this series (reason search_backoff) */
+            /** @description When the sweep next reaches this title (reason search_backoff) */
             next_search_at?: string;
             /**
-             * @description The series' standing in the sweep queue, derived from stored state at request time
+             * @description The title's standing in the sweep queue, derived from stored state at request time
              * @enum {string}
              */
             reason: "unmonitored" | "blocklisted" | "never_searched" | "search_backoff" | "search_due";
+            title: string;
             /** Format: int64 */
-            series_id: number;
-            series_title: string;
+            title_id: number;
         };
         MissingItemDTO: {
             /** @description Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule */
@@ -1449,8 +1449,8 @@ export interface components {
             on_grabbed: boolean;
             on_imported: boolean;
             on_rehearsal: boolean;
-            on_series_added: boolean;
             on_stuck: boolean;
+            on_title_added: boolean;
             url: string;
         };
         NotifyAdapterInput: {
@@ -1458,8 +1458,8 @@ export interface components {
             on_grabbed: boolean;
             on_imported: boolean;
             on_rehearsal: boolean;
-            on_series_added: boolean;
             on_stuck: boolean;
+            on_title_added: boolean;
             url?: string;
         };
         NtfyInput: {
@@ -1467,8 +1467,8 @@ export interface components {
             on_grabbed: boolean;
             on_imported: boolean;
             on_rehearsal: boolean;
-            on_series_added: boolean;
             on_stuck: boolean;
+            on_title_added: boolean;
             server?: string;
             /** @description Leave empty to keep the stored token */
             token?: string;
@@ -1480,8 +1480,8 @@ export interface components {
             on_grabbed: boolean;
             on_imported: boolean;
             on_rehearsal: boolean;
-            on_series_added: boolean;
             on_stuck: boolean;
+            on_title_added: boolean;
             server: string;
             token_set: boolean;
             topic: string;
@@ -1585,12 +1585,12 @@ export interface components {
             prefer_dual_audio: boolean;
             preferred_source: string;
             resolution_order: string[];
+            sub_pref: string;
             /**
              * Format: int64
-             * @description How many series are assigned this profile
+             * @description How many titles are assigned this profile
              */
-            series_count: number;
-            sub_pref: string;
+            title_count: number;
             upgrade_v2_above_cutoff: boolean;
             upgrades_enabled: boolean;
         };
@@ -1611,11 +1611,11 @@ export interface components {
             /** Format: double */
             progress?: number;
             release_title: string;
-            /** Format: int64 */
-            series_id: number;
-            series_title: string;
             /** @enum {string} */
             status: "downloading" | "stuck" | "deferred";
+            title: string;
+            /** Format: int64 */
+            title_id: number;
         };
         QueuePayloadOutputBody: {
             /**
@@ -1637,8 +1637,8 @@ export interface components {
              * @example https://example.com/schemas/QueueSearchInputBody.json
              */
             readonly $schema?: string;
-            /** @description Series to put back at the front of the sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident */
-            series_ids: number[];
+            /** @description Titles to put back at the front of the sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident */
+            title_ids: number[];
         };
         QueueSearchOutputBody: {
             /**
@@ -1656,9 +1656,9 @@ export interface components {
             run_triggered: boolean;
             /**
              * Format: int64
-             * @description Series whose search cadence was reset; -1 when the whole library was
+             * @description Titles whose search cadence was reset; -1 when the whole library was
              */
-            series_queued: number;
+            titles_queued: number;
         };
         ReleaseDTO: {
             download_url: string;
@@ -1725,16 +1725,16 @@ export interface components {
             readonly $schema?: string;
             results: components["schemas"]["CandidateDTO"][];
         };
-        SearchSeriesOutputBody: {
+        SearchTitleOutputBody: {
             /**
              * Format: uri
              * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/SearchSeriesOutputBody.json
+             * @example https://example.com/schemas/SearchTitleOutputBody.json
              */
             readonly $schema?: string;
             results: components["schemas"]["CandidateReleaseDTO"][];
-            series: string;
             term: string;
+            title: string;
         };
         SeasonEntryDTO: {
             /** Format: int64 */
@@ -1760,107 +1760,14 @@ export interface components {
             /** Format: int64 */
             provider_id: number;
             romaji?: string;
-            /**
-             * Format: int64
-             * @description Local series id when tracked
-             */
-            series_id?: number;
             status?: string;
             studio?: string;
+            /**
+             * Format: int64
+             * @description Local title id when tracked
+             */
+            title_id?: number;
             tracked: boolean;
-        };
-        SeriesBlocklistOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/SeriesBlocklistOutputBody.json
-             */
-            readonly $schema?: string;
-            entries: components["schemas"]["BlocklistEntryDTO"][];
-            series: string;
-        };
-        SeriesDTO: {
-            format: string;
-            /** Format: int64 */
-            id: number;
-            /**
-             * Format: int64
-             * @description Held items inside the tracked set, so progress can never exceed it
-             */
-            in_library: number;
-            monitored: boolean;
-            /**
-             * Format: int64
-             * @description Monitored items whether or not they have aired, so a zero tracked count can name its cause
-             */
-            monitored_items: number;
-            title: string;
-            /** Format: int64 */
-            total: number;
-            /**
-             * Format: int64
-             * @description Items this series is pursuing: monitored and already broadcast
-             */
-            tracked: number;
-        };
-        SeriesDetailDTO: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/SeriesDetailDTO.json
-             */
-            readonly $schema?: string;
-            format: string;
-            /** Format: int64 */
-            id: number;
-            items: components["schemas"]["WantedItemDTO"][];
-            monitored: boolean;
-            provider: string;
-            /** Format: int64 */
-            provider_id: number;
-            title: string;
-        };
-        SeriesDetailReadDTO: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/SeriesDetailReadDTO.json
-             */
-            readonly $schema?: string;
-            cover_url?: string;
-            english?: string;
-            format: string;
-            /** Format: int64 */
-            id: number;
-            items: components["schemas"]["DetailItemDTO"][];
-            monitored: boolean;
-            native?: string;
-            /**
-             * Format: int64
-             * @description Per-series override of how long the sweep waits for the pinned group; absent means the global default
-             */
-            pin_delay_hours?: number;
-            /** @description Release group pinned above profile scoring; absent when none */
-            pinned_group?: string;
-            /** @description Metadata provider this series is keyed on; absent when untracked */
-            provider?: string;
-            /** Format: int64 */
-            provider_id?: number;
-            /** Format: int64 */
-            quality_profile_id: number;
-            /** @description Provider status (e.g. RELEASING, FINISHED) */
-            status?: string;
-            title: string;
-        };
-        SeriesGrabsOutputBody: {
-            /**
-             * Format: uri
-             * @description A URL to the JSON Schema for this object.
-             * @example https://example.com/schemas/SeriesGrabsOutputBody.json
-             */
-            readonly $schema?: string;
-            events: components["schemas"]["GrabEventDTO"][];
-            series: string;
         };
         SetItemsMonitoredInputBody: {
             /**
@@ -1883,9 +1790,9 @@ export interface components {
             readonly $schema?: string;
             /**
              * Format: int64
-             * @description Distinct series put back at the front of the sweep queue; always 0 when unmonitoring
+             * @description Distinct titles put back at the front of the sweep queue; always 0 when unmonitoring
              */
-            series_queued: number;
+            titles_queued: number;
             /**
              * Format: int64
              * @description Items actually changed; below len(item_ids) when some were deleted
@@ -1899,7 +1806,7 @@ export interface components {
              * @example https://example.com/schemas/SetMonitoredInputBody.json
              */
             readonly $schema?: string;
-            /** @description Whether to monitor the series for downloads */
+            /** @description Whether to monitor the title for downloads */
             monitored: boolean;
         };
         SetMonitoredOutputBody: {
@@ -1937,7 +1844,7 @@ export interface components {
             readonly $schema?: string;
             pinned_group?: string;
             /** Format: int64 */
-            series_id: number;
+            title_id: number;
         };
         SettingsDTO: {
             /**
@@ -1976,6 +1883,99 @@ export interface components {
             /** @example ok */
             status: string;
         };
+        TitleBlocklistOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/TitleBlocklistOutputBody.json
+             */
+            readonly $schema?: string;
+            entries: components["schemas"]["BlocklistEntryDTO"][];
+            title: string;
+        };
+        TitleDTO: {
+            format: string;
+            /** Format: int64 */
+            id: number;
+            /**
+             * Format: int64
+             * @description Held items inside the tracked set, so progress can never exceed it
+             */
+            in_library: number;
+            monitored: boolean;
+            /**
+             * Format: int64
+             * @description Monitored items whether or not they have aired, so a zero tracked count can name its cause
+             */
+            monitored_items: number;
+            title: string;
+            /** Format: int64 */
+            total: number;
+            /**
+             * Format: int64
+             * @description Items this title is pursuing: monitored and already broadcast
+             */
+            tracked: number;
+        };
+        TitleDetailDTO: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/TitleDetailDTO.json
+             */
+            readonly $schema?: string;
+            format: string;
+            /** Format: int64 */
+            id: number;
+            items: components["schemas"]["WantedItemDTO"][];
+            monitored: boolean;
+            provider: string;
+            /** Format: int64 */
+            provider_id: number;
+            title: string;
+        };
+        TitleDetailReadDTO: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/TitleDetailReadDTO.json
+             */
+            readonly $schema?: string;
+            cover_url?: string;
+            english?: string;
+            format: string;
+            /** Format: int64 */
+            id: number;
+            items: components["schemas"]["DetailItemDTO"][];
+            monitored: boolean;
+            native?: string;
+            /**
+             * Format: int64
+             * @description Per-title override of how long the sweep waits for the pinned group; absent means the global default
+             */
+            pin_delay_hours?: number;
+            /** @description Release group pinned above profile scoring; absent when none */
+            pinned_group?: string;
+            /** @description Metadata provider this title is keyed on; absent when untracked */
+            provider?: string;
+            /** Format: int64 */
+            provider_id?: number;
+            /** Format: int64 */
+            quality_profile_id: number;
+            /** @description Provider status (e.g. RELEASING, FINISHED) */
+            status?: string;
+            title: string;
+        };
+        TitleGrabsOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/TitleGrabsOutputBody.json
+             */
+            readonly $schema?: string;
+            events: components["schemas"]["GrabEventDTO"][];
+            title: string;
+        };
         UnmatchedItemDTO: {
             /** @description RFC3339; absent when the client reports no add time */
             added_at?: string;
@@ -1992,10 +1992,10 @@ export interface components {
              */
             size: number;
         };
-        UnscheduledSeriesDTO: {
-            /** Format: int64 */
-            series_id: number;
+        UnscheduledTitleDTO: {
             title: string;
+            /** Format: int64 */
+            title_id: number;
         };
         UpgradeBlockedDTO: {
             /** Format: int64 */
@@ -2311,7 +2311,7 @@ export interface operations {
                 start: string;
                 /** @description Range end, exclusive (RFC 3339) */
                 end: string;
-                /** @description Include unmonitored series */
+                /** @description Include unmonitored titles */
                 unmonitored?: boolean;
             };
             header?: never;
@@ -2563,7 +2563,7 @@ export interface operations {
     "delete-quality-profile": {
         parameters: {
             query?: {
-                /** @description Profile to move this profile's series to; required when the profile is in use */
+                /** @description Profile to move this profile's titles to; required when the profile is in use */
                 reassign_to?: number;
             };
             header?: never;
@@ -2581,440 +2581,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-series": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ListSeriesOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "add-series": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AddSeriesInputBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeriesDetailDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "get-series": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeriesDetailReadDTO"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "delete-series": {
-        parameters: {
-            query?: {
-                /** @description Also remove the series' torrents (and their data) from the download client; otherwise they are left seeding */
-                remove_downloads?: boolean;
-            };
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "set-series-monitored": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetMonitoredInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SetMonitoredOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-series-blocklist": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeriesBlocklistOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "clear-series-blocklist": {
-        parameters: {
-            query?: {
-                /** @description Clear only the entries whose block has lapsed, keeping what still blocks */
-                expired?: boolean;
-            };
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ClearedOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "clear-series-blocklist-entry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-                /** @description Blocklist entry id */
-                entryId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No Content */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "grab-series-release": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GrabSeriesInputBody"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["GrabSeriesOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "list-series-grabs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SeriesGrabsOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "set-series-pinned-group": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SetPinnedGroupInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SetPinnedGroupOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "assign-series-profile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Series id */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AssignSeriesProfileInputBody"];
-            };
-        };
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AssignSeriesProfileOutputBody"];
-                };
-            };
-            /** @description Error */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ErrorModel"];
-                };
-            };
-        };
-    };
-    "search-series-releases": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Series id to find releases for */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description OK */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SearchSeriesOutputBody"];
-                };
             };
             /** @description Error */
             default: {
@@ -3507,14 +3073,448 @@ export interface operations {
             };
         };
     };
+    "list-titles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListTitlesOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "add-title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddTitleInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleDetailDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "get-title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleDetailReadDTO"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "delete-title": {
+        parameters: {
+            query?: {
+                /** @description Also remove the title's torrents (and their data) from the download client; otherwise they are left seeding */
+                remove_downloads?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "set-title-monitored": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetMonitoredInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetMonitoredOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-title-blocklist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleBlocklistOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "clear-title-blocklist": {
+        parameters: {
+            query?: {
+                /** @description Clear only the entries whose block has lapsed, keeping what still blocks */
+                expired?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClearedOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "clear-title-blocklist-entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+                /** @description Blocklist entry id */
+                entryId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "grab-title-release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GrabTitleInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrabTitleOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "list-title-grabs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TitleGrabsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "set-title-pinned-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPinnedGroupInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetPinnedGroupOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "assign-title-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignTitleProfileInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignTitleProfileOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "search-title-releases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id to find releases for */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchTitleOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "list-wanted-cutoff-unmet": {
         parameters: {
             query?: {
-                /** @description Series groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
+                /** @description Title groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;
-                /** @description Include items from unmonitored series */
+                /** @description Include items from unmonitored titles */
                 unmonitored?: boolean;
                 /** @description Include items whose broadcast is still ahead; the Calendar owns the forward-looking view */
                 unaired?: boolean;
@@ -3581,11 +3581,11 @@ export interface operations {
     "list-wanted-missing": {
         parameters: {
             query?: {
-                /** @description Series groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
+                /** @description Title groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;
-                /** @description Include items from unmonitored series */
+                /** @description Include items from unmonitored titles */
                 unmonitored?: boolean;
                 /** @description Include items whose broadcast is still ahead; the Calendar owns the forward-looking view */
                 unaired?: boolean;

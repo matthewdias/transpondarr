@@ -59,27 +59,27 @@ type authSettingsDTO struct {
 }
 
 type notifyAdapterDTO struct {
-	Configured    bool   `json:"configured"`
-	URL           string `json:"url"`
-	OnGrabbed     bool   `json:"on_grabbed"`
-	OnImported    bool   `json:"on_imported"`
-	OnStuck       bool   `json:"on_stuck"`
-	OnGrabFailed  bool   `json:"on_grab_failed"`
-	OnSeriesAdded bool   `json:"on_series_added"`
-	OnRehearsal   bool   `json:"on_rehearsal"`
+	Configured   bool   `json:"configured"`
+	URL          string `json:"url"`
+	OnGrabbed    bool   `json:"on_grabbed"`
+	OnImported   bool   `json:"on_imported"`
+	OnStuck      bool   `json:"on_stuck"`
+	OnGrabFailed bool   `json:"on_grab_failed"`
+	OnTitleAdded bool   `json:"on_title_added"`
+	OnRehearsal  bool   `json:"on_rehearsal"`
 }
 
 type ntfySettingsDTO struct {
-	Configured    bool   `json:"configured"`
-	Server        string `json:"server"`
-	Topic         string `json:"topic"`
-	TokenSet      bool   `json:"token_set"`
-	OnGrabbed     bool   `json:"on_grabbed"`
-	OnImported    bool   `json:"on_imported"`
-	OnStuck       bool   `json:"on_stuck"`
-	OnGrabFailed  bool   `json:"on_grab_failed"`
-	OnSeriesAdded bool   `json:"on_series_added"`
-	OnRehearsal   bool   `json:"on_rehearsal"`
+	Configured   bool   `json:"configured"`
+	Server       string `json:"server"`
+	Topic        string `json:"topic"`
+	TokenSet     bool   `json:"token_set"`
+	OnGrabbed    bool   `json:"on_grabbed"`
+	OnImported   bool   `json:"on_imported"`
+	OnStuck      bool   `json:"on_stuck"`
+	OnGrabFailed bool   `json:"on_grab_failed"`
+	OnTitleAdded bool   `json:"on_title_added"`
+	OnRehearsal  bool   `json:"on_rehearsal"`
 }
 
 type notificationsSettingsDTO struct {
@@ -128,14 +128,14 @@ func automationDTO(c settings.AutomationConfig) automationSettingsDTO {
 
 func notifyAdapterDTOFrom(url string, ev settings.NotifyEvents) notifyAdapterDTO {
 	return notifyAdapterDTO{
-		Configured:    url != "",
-		URL:           url,
-		OnGrabbed:     ev.Grabbed,
-		OnImported:    ev.Imported,
-		OnStuck:       ev.Stuck,
-		OnGrabFailed:  ev.GrabFailed,
-		OnSeriesAdded: ev.SeriesAdded,
-		OnRehearsal:   ev.Rehearsal,
+		Configured:   url != "",
+		URL:          url,
+		OnGrabbed:    ev.Grabbed,
+		OnImported:   ev.Imported,
+		OnStuck:      ev.Stuck,
+		OnGrabFailed: ev.GrabFailed,
+		OnTitleAdded: ev.TitleAdded,
+		OnRehearsal:  ev.Rehearsal,
 	}
 }
 
@@ -144,16 +144,16 @@ func notificationsDTO(c settings.NotifyConfig) notificationsSettingsDTO {
 		Discord: notifyAdapterDTOFrom(c.DiscordURL, c.DiscordEvents),
 		Webhook: notifyAdapterDTOFrom(c.WebhookURL, c.WebhookEvents),
 		Ntfy: ntfySettingsDTO{
-			Configured:    c.NtfyTopic != "",
-			Server:        c.NtfyServer,
-			Topic:         c.NtfyTopic,
-			TokenSet:      c.NtfyToken != "",
-			OnGrabbed:     c.NtfyEvents.Grabbed,
-			OnImported:    c.NtfyEvents.Imported,
-			OnStuck:       c.NtfyEvents.Stuck,
-			OnGrabFailed:  c.NtfyEvents.GrabFailed,
-			OnSeriesAdded: c.NtfyEvents.SeriesAdded,
-			OnRehearsal:   c.NtfyEvents.Rehearsal,
+			Configured:   c.NtfyTopic != "",
+			Server:       c.NtfyServer,
+			Topic:        c.NtfyTopic,
+			TokenSet:     c.NtfyToken != "",
+			OnGrabbed:    c.NtfyEvents.Grabbed,
+			OnImported:   c.NtfyEvents.Imported,
+			OnStuck:      c.NtfyEvents.Stuck,
+			OnGrabFailed: c.NtfyEvents.GrabFailed,
+			OnTitleAdded: c.NtfyEvents.TitleAdded,
+			OnRehearsal:  c.NtfyEvents.Rehearsal,
 		},
 	}
 }
@@ -220,25 +220,25 @@ type automationInput struct {
 // (the automationInput precedent — bools have no unset encoding); an empty URL
 // disables the adapter.
 type notifyAdapterInput struct {
-	URL           string `json:"url,omitempty"`
-	OnGrabbed     bool   `json:"on_grabbed"`
-	OnImported    bool   `json:"on_imported"`
-	OnStuck       bool   `json:"on_stuck"`
-	OnGrabFailed  bool   `json:"on_grab_failed"`
-	OnSeriesAdded bool   `json:"on_series_added"`
-	OnRehearsal   bool   `json:"on_rehearsal"`
+	URL          string `json:"url,omitempty"`
+	OnGrabbed    bool   `json:"on_grabbed"`
+	OnImported   bool   `json:"on_imported"`
+	OnStuck      bool   `json:"on_stuck"`
+	OnGrabFailed bool   `json:"on_grab_failed"`
+	OnTitleAdded bool   `json:"on_title_added"`
+	OnRehearsal  bool   `json:"on_rehearsal"`
 }
 
 type ntfyInput struct {
-	Server        string `json:"server,omitempty"`
-	Topic         string `json:"topic,omitempty"`
-	Token         string `json:"token,omitempty" doc:"Leave empty to keep the stored token"`
-	OnGrabbed     bool   `json:"on_grabbed"`
-	OnImported    bool   `json:"on_imported"`
-	OnStuck       bool   `json:"on_stuck"`
-	OnGrabFailed  bool   `json:"on_grab_failed"`
-	OnSeriesAdded bool   `json:"on_series_added"`
-	OnRehearsal   bool   `json:"on_rehearsal"`
+	Server       string `json:"server,omitempty"`
+	Topic        string `json:"topic,omitempty"`
+	Token        string `json:"token,omitempty" doc:"Leave empty to keep the stored token"`
+	OnGrabbed    bool   `json:"on_grabbed"`
+	OnImported   bool   `json:"on_imported"`
+	OnStuck      bool   `json:"on_stuck"`
+	OnGrabFailed bool   `json:"on_grab_failed"`
+	OnTitleAdded bool   `json:"on_title_added"`
+	OnRehearsal  bool   `json:"on_rehearsal"`
 }
 
 // One body serves the save and all three per-adapter tests, so the UI sends the
@@ -496,12 +496,12 @@ func (h *settingsHandler) updateAutomation(ctx context.Context, in *automationIn
 func notifyConfigFrom(in *notificationsInput) settings.NotifyConfig {
 	events := func(a notifyAdapterInput) settings.NotifyEvents {
 		return settings.NotifyEvents{
-			Grabbed:     a.OnGrabbed,
-			Imported:    a.OnImported,
-			Stuck:       a.OnStuck,
-			GrabFailed:  a.OnGrabFailed,
-			SeriesAdded: a.OnSeriesAdded,
-			Rehearsal:   a.OnRehearsal,
+			Grabbed:    a.OnGrabbed,
+			Imported:   a.OnImported,
+			Stuck:      a.OnStuck,
+			GrabFailed: a.OnGrabFailed,
+			TitleAdded: a.OnTitleAdded,
+			Rehearsal:  a.OnRehearsal,
 		}
 	}
 	return settings.NotifyConfig{
@@ -513,12 +513,12 @@ func notifyConfigFrom(in *notificationsInput) settings.NotifyConfig {
 		NtfyTopic:     in.Body.Ntfy.Topic,
 		NtfyToken:     in.Body.Ntfy.Token,
 		NtfyEvents: settings.NotifyEvents{
-			Grabbed:     in.Body.Ntfy.OnGrabbed,
-			Imported:    in.Body.Ntfy.OnImported,
-			Stuck:       in.Body.Ntfy.OnStuck,
-			GrabFailed:  in.Body.Ntfy.OnGrabFailed,
-			SeriesAdded: in.Body.Ntfy.OnSeriesAdded,
-			Rehearsal:   in.Body.Ntfy.OnRehearsal,
+			Grabbed:    in.Body.Ntfy.OnGrabbed,
+			Imported:   in.Body.Ntfy.OnImported,
+			Stuck:      in.Body.Ntfy.OnStuck,
+			GrabFailed: in.Body.Ntfy.OnGrabFailed,
+			TitleAdded: in.Body.Ntfy.OnTitleAdded,
+			Rehearsal:  in.Body.Ntfy.OnRehearsal,
 		},
 	}
 }

@@ -4,8 +4,8 @@
 //
 //	{
 //	  "application": "transpondarr",
-//	  "event": "grabbed" | "imported" | "import_stuck" | "grab_failed" | "series_added" | "rehearsal" | "test",
-//	  "series_title": "…",
+//	  "event": "grabbed" | "imported" | "import_stuck" | "grab_failed" | "title_added" | "rehearsal" | "test",
+//	  "title": "…",
 //	  "item_number": 0,
 //	  "items": [1, 2, 3],
 //	  "release_title": "…",
@@ -56,7 +56,7 @@ func (n *Notifier) Name() string { return "webhook" }
 type payload struct {
 	Application  string `json:"application"`
 	Event        string `json:"event"`
-	SeriesTitle  string `json:"series_title"`
+	Title        string `json:"title"`
 	ItemNumber   int    `json:"item_number"`
 	Items        []int  `json:"items"`
 	ReleaseTitle string `json:"release_title"`
@@ -76,7 +76,7 @@ func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
 	body, err := json.Marshal(payload{
 		Application:  "transpondarr",
 		Event:        string(ev.Kind),
-		SeriesTitle:  ev.SeriesTitle,
+		Title:        ev.Title,
 		ItemNumber:   ev.ItemNumber,
 		Items:        items,
 		ReleaseTitle: ev.ReleaseTitle,

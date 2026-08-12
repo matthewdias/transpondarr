@@ -65,6 +65,10 @@ const (
 	keyNotifyNtfyServer = "notify.ntfy.server"
 	keyNotifyNtfyTopic  = "notify.ntfy.topic"
 	keyNotifyNtfyToken  = "notify.ntfy.token"
+
+	// The stored event name kept its pre-#207 spelling: renaming it would read
+	// every saved toggle as absent, which means enabled.
+	eventTitleAdded = "series_added"
 )
 
 // notifyToggleKey names one adapter's per-event switch, e.g.
@@ -128,12 +132,12 @@ type AutomationConfig struct {
 // NotifyEvents is one adapter's per-event switches (the Sonarr model): a
 // configured adapter defaults to all-on, each kind toggleable off.
 type NotifyEvents struct {
-	Grabbed     bool
-	Imported    bool
-	Stuck       bool
-	GrabFailed  bool
-	SeriesAdded bool
-	Rehearsal   bool
+	Grabbed    bool
+	Imported   bool
+	Stuck      bool
+	GrabFailed bool
+	TitleAdded bool
+	Rehearsal  bool
 }
 
 // NotifyConfig is the notification adapters' configuration. An adapter is
@@ -295,12 +299,12 @@ func overlayToggles(m map[string]string, adapter string) NotifyEvents {
 		return err != nil || b
 	}
 	return NotifyEvents{
-		Grabbed:     on("grabbed"),
-		Imported:    on("imported"),
-		Stuck:       on("stuck"),
-		GrabFailed:  on("grab_failed"),
-		SeriesAdded: on("series_added"),
-		Rehearsal:   on("rehearsal"),
+		Grabbed:    on("grabbed"),
+		Imported:   on("imported"),
+		Stuck:      on("stuck"),
+		GrabFailed: on("grab_failed"),
+		TitleAdded: on(eventTitleAdded),
+		Rehearsal:  on("rehearsal"),
 	}
 }
 
@@ -582,7 +586,7 @@ func persistToggles(kv map[string]string, adapter string, ev NotifyEvents) {
 	kv[notifyToggleKey(adapter, "imported")] = strconv.FormatBool(ev.Imported)
 	kv[notifyToggleKey(adapter, "stuck")] = strconv.FormatBool(ev.Stuck)
 	kv[notifyToggleKey(adapter, "grab_failed")] = strconv.FormatBool(ev.GrabFailed)
-	kv[notifyToggleKey(adapter, "series_added")] = strconv.FormatBool(ev.SeriesAdded)
+	kv[notifyToggleKey(adapter, eventTitleAdded)] = strconv.FormatBool(ev.TitleAdded)
 	kv[notifyToggleKey(adapter, "rehearsal")] = strconv.FormatBool(ev.Rehearsal)
 }
 
@@ -592,7 +596,7 @@ func notifyKinds(ev NotifyEvents) map[notify.Kind]bool {
 		notify.KindImported:    ev.Imported,
 		notify.KindImportStuck: ev.Stuck,
 		notify.KindGrabFailed:  ev.GrabFailed,
-		notify.KindSeriesAdded: ev.SeriesAdded,
+		notify.KindTitleAdded:  ev.TitleAdded,
 		notify.KindRehearsal:   ev.Rehearsal,
 	}
 }

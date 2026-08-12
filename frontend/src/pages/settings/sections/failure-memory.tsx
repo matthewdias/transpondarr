@@ -87,7 +87,7 @@ export function FailureMemorySection() {
                 <span className="font-medium text-foreground">
                   {plural(data.blocked, "release")}
                 </span>{" "}
-                skipped across {plural(data.series, "series", "series")}.
+                skipped across {plural(data.titles, "series", "series")}.
               </p>
               {confirming ? (
                 <span className="flex flex-none items-center gap-2">

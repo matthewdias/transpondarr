@@ -26,7 +26,7 @@ const (
 	KindImported    Kind = "imported"
 	KindImportStuck Kind = "import_stuck"
 	KindGrabFailed  Kind = "grab_failed"
-	KindSeriesAdded Kind = "series_added"
+	KindTitleAdded  Kind = "title_added"
 	// KindRehearsal is a notify-only pass reporting what automation would have
 	// done (#116): ReleaseTitle set means "would have grabbed"; otherwise Error
 	// carries why nothing would have been.
@@ -36,7 +36,7 @@ const (
 // Event is the one structured payload; adapters flatten it, emitters never do.
 type Event struct {
 	Kind         Kind
-	SeriesTitle  string
+	Title        string
 	ItemNumber   int    // 0 when not item-scoped or multi-item
 	Items        []int  // sorted item numbers when one release covered several; nil otherwise
 	ReleaseTitle string // empty when not release-scoped

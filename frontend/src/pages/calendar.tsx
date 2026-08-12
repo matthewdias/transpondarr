@@ -180,9 +180,9 @@ export function CalendarPage() {
                 <CalendarOff className="size-3.5 self-center text-faint" />
                 <span className="font-medium">No schedule data:</span>
                 {cal.data.unscheduled.map((s, i) => (
-                  <span key={s.series_id}>
+                  <span key={s.title_id}>
                     <Link
-                      to={`/series/${s.series_id}`}
+                      to={`/series/${s.title_id}`}
                       className="underline-offset-2 hover:underline"
                     >
                       {s.title}
@@ -206,9 +206,9 @@ export function CalendarPage() {
 function EntryLine({ item }: { item: CalendarItem }) {
   return (
     <Link
-      to={`/series/${item.series_id}`}
+      to={`/series/${item.title_id}`}
       className="block truncate rounded px-1 py-0.5 text-xs leading-5 hover:bg-panel-2"
-      title={`${item.series_title} — episode ${item.number} (${item.status})`}
+      title={`${item.title} — episode ${item.number} (${item.status})`}
     >
       <span
         className={cn(
@@ -217,7 +217,7 @@ function EntryLine({ item }: { item: CalendarItem }) {
         )}
       />
       <span className="tabular-nums text-faint">{pad2(item.number)}</span>{" "}
-      {item.series_title}
+      {item.title}
     </Link>
   );
 }
@@ -313,11 +313,11 @@ function WeekGrid({
               {items.map((item) => (
                 <Link
                   key={item.id}
-                  to={`/series/${item.series_id}`}
+                  to={`/series/${item.title_id}`}
                   className="block overflow-hidden rounded-md border bg-panel-2/40 p-2 hover:bg-panel-2"
                 >
                   <div className="truncate text-xs font-medium">
-                    {item.series_title}
+                    {item.title}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
                     Ep {item.number} · {timeLabel(item.airs_at)}
@@ -388,14 +388,14 @@ function Agenda({
               {(buckets.get(key) ?? []).map((item) => (
                 <Link
                   key={item.id}
-                  to={`/series/${item.series_id}`}
+                  to={`/series/${item.title_id}`}
                   className="flex items-center gap-3 px-3 py-2.5 hover:bg-panel-2/50"
                 >
                   <span className="w-16 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
                     {timeLabel(item.airs_at)}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm">
-                    {item.series_title}
+                    {item.title}
                     <span className="ml-1.5 text-xs text-faint">
                       Ep {item.number}
                     </span>

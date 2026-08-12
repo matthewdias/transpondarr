@@ -108,7 +108,7 @@ func TestGrabOfAHeldOnlyReleaseSucceeds(t *testing.T) {
 			} `json:"upgrade_blocked"`
 		} `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &searchOut); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &searchOut); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(searchOut.Results) != 1 || !searchOut.Results[0].Matched {
@@ -130,7 +130,7 @@ func TestGrabOfAHeldOnlyReleaseSucceeds(t *testing.T) {
 	var grabOut struct {
 		Items []int `json:"items"`
 	}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": matchURL}, &grabOut); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)
 	}
@@ -155,7 +155,7 @@ func TestHeldItemWithAnOpenGrabReadsAsDownloading(t *testing.T) {
 	if got := itemStatus(t, h, seriesID, 3); got != "in_library" {
 		t.Fatalf("held item status = %q, want in_library before the upgrade", got)
 	}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}

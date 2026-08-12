@@ -271,7 +271,7 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 		}
 		im.notify(ctx, notify.Event{
 			Kind:         notify.KindGrabFailed,
-			SeriesTitle:  rows[0].seriesTitle,
+			Title:        rows[0].seriesTitle,
 			ItemNumber:   item,
 			ReleaseTitle: rows[0].releaseTitle,
 			Error:        rows[0].reason,
@@ -620,7 +620,7 @@ func (im *Importer) notifyImported(ctx context.Context, g db.ListGrabsByStatusRo
 	sort.Ints(nums)
 	ev := notify.Event{
 		Kind:         notify.KindImported,
-		SeriesTitle:  g.SeriesTitle,
+		Title:        g.SeriesTitle,
 		ReleaseTitle: g.ReleaseTitle,
 	}
 	if len(nums) == 1 {
@@ -668,7 +668,7 @@ func (im *Importer) setLastError(ctx context.Context, g db.ListGrabsByStatusRow,
 	}
 	im.notify(ctx, notify.Event{
 		Kind:         notify.KindImportStuck,
-		SeriesTitle:  g.SeriesTitle,
+		Title:        g.SeriesTitle,
 		ItemNumber:   int(g.ItemNumber.Int64),
 		ReleaseTitle: g.ReleaseTitle,
 		Error:        msg,

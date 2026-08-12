@@ -32,8 +32,8 @@ type missingItem struct {
 }
 
 type missingGroup struct {
-	SeriesID        int64         `json:"series_id"`
-	SeriesTitle     string        `json:"series_title"`
+	TitleID         int64         `json:"title_id"`
+	Title           string        `json:"title"`
 	Monitored       bool          `json:"monitored"`
 	Reason          string        `json:"reason"`
 	BlockedReleases int           `json:"blocked_releases"`
@@ -59,8 +59,8 @@ func (r missingResponse) items() []missingItem {
 
 type cutoffResponse struct {
 	Groups []struct {
-		SeriesID    int64  `json:"series_id"`
-		SeriesTitle string `json:"series_title"`
+		TitleID     int64  `json:"title_id"`
+		Title       string `json:"title"`
 		ProfileName string `json:"profile_name"`
 		CutoffScore int    `json:"cutoff_score"`
 		Below       int    `json:"below"`
@@ -80,7 +80,7 @@ type cutoffResponse struct {
 }
 
 type queueSearchResponse struct {
-	SeriesQueued int    `json:"series_queued"`
+	TitlesQueued int    `json:"titles_queued"`
 	Automation   string `json:"automation"`
 	RunTriggered bool   `json:"run_triggered"`
 }
@@ -137,7 +137,7 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 		t.Fatalf("groups = %+v, want one for the series", out.Groups)
 	}
 	g := out.Groups[0]
-	if g.SeriesID != seriesID || g.SeriesTitle != "Placeholder Saga" || !g.Monitored || g.Missing != 2 {
+	if g.TitleID != seriesID || g.Title != "Placeholder Saga" || !g.Monitored || g.Missing != 2 {
 		t.Errorf("group = %+v, want Placeholder Saga with 2 missing", g)
 	}
 	got := map[int]missingItem{}
@@ -346,7 +346,7 @@ func TestMissingReasonReadsStoredState(t *testing.T) {
 	}
 	bySeries := map[int64]missingGroup{}
 	for _, g := range out.Groups {
-		bySeries[g.SeriesID] = g
+		bySeries[g.TitleID] = g
 	}
 	for _, tc := range []struct {
 		id   int64
@@ -389,9 +389,9 @@ func TestMissingOrdersRecentGroupsFirstAndEpisodesForwards(t *testing.T) {
 	if len(out.Groups) != 3 {
 		t.Fatalf("groups = %+v, want three series", out.Groups)
 	}
-	if out.Groups[0].SeriesID != current || out.Groups[1].SeriesID != older || out.Groups[2].SeriesID != undated {
+	if out.Groups[0].TitleID != current || out.Groups[1].TitleID != older || out.Groups[2].TitleID != undated {
 		t.Fatalf("group order = %v %v %v, want newest broadcast first and the undated series last",
-			out.Groups[0].SeriesTitle, out.Groups[1].SeriesTitle, out.Groups[2].SeriesTitle)
+			out.Groups[0].Title, out.Groups[1].Title, out.Groups[2].Title)
 	}
 	var numbers []int
 	for _, it := range out.Groups[0].Items {
@@ -448,10 +448,10 @@ func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
 		}
 		shown := 0
 		for _, g := range out.Groups {
-			if seen[g.SeriesID] {
-				t.Fatalf("series %d returned on two pages", g.SeriesID)
+			if seen[g.TitleID] {
+				t.Fatalf("series %d returned on two pages", g.TitleID)
 			}
-			seen[g.SeriesID] = true
+			seen[g.TitleID] = true
 			shown += len(g.Items)
 		}
 		if shown > 200 {
@@ -533,12 +533,12 @@ func TestMissingPaginatesByGroup(t *testing.T) {
 			t.Fatalf("page of %d groups, want at most the limit", len(out.Groups))
 		}
 		for _, g := range out.Groups {
-			if seen[g.SeriesID] {
-				t.Fatalf("series %d returned on two pages", g.SeriesID)
+			if seen[g.TitleID] {
+				t.Fatalf("series %d returned on two pages", g.TitleID)
 			}
-			seen[g.SeriesID] = true
+			seen[g.TitleID] = true
 			if len(g.Items) != 2 {
-				t.Fatalf("group %s arrived split: %d items, want its whole 2", g.SeriesTitle, len(g.Items))
+				t.Fatalf("group %s arrived split: %d items, want its whole 2", g.Title, len(g.Items))
 			}
 		}
 		pages++
@@ -596,7 +596,7 @@ func TestCutoffUnmetRoute(t *testing.T) {
 		t.Fatalf("groups = %+v, want one for the series", out.Groups)
 	}
 	g := out.Groups[0]
-	if g.SeriesID != seriesID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
+	if g.TitleID != seriesID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
 		t.Errorf("group = %+v, want the profile and cutoff hoisted to the header", g)
 	}
 	if len(g.Items) != 1 {
@@ -639,13 +639,13 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	searchedAt(t, h.store, two, store.FormatTimestamp(time.Now()), future)
 
 	body := struct {
-		SeriesIDs []int64 `json:"series_ids"`
-	}{SeriesIDs: []int64{one}}
+		TitleIDs []int64 `json:"title_ids"`
+	}{TitleIDs: []int64{one}}
 	var out queueSearchResponse
 	if code := h.postJSON(t, "/api/v1/wanted/search", body, &out); code != http.StatusAccepted {
 		t.Fatalf("POST wanted/search = %d, want 202", code)
 	}
-	if out.SeriesQueued != 1 || out.Automation != "on" || !out.RunTriggered {
+	if out.TitlesQueued != 1 || out.Automation != "on" || !out.RunTriggered {
 		t.Fatalf("response = %+v, want 1 series queued, automation on, run triggered", out)
 	}
 	if got := nextSearchAt(t, h.store, one); got != "" {
@@ -665,12 +665,12 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 		t.Fatalf("POST wanted/search with no series_ids = %d, want 422", code)
 	}
 	if code := h.postJSON(t, "/api/v1/wanted/search", struct {
-		SeriesIDs []int64 `json:"series_ids"`
-	}{SeriesIDs: []int64{}}, &out); code != http.StatusAccepted {
+		TitleIDs []int64 `json:"title_ids"`
+	}{TitleIDs: []int64{}}, &out); code != http.StatusAccepted {
 		t.Fatalf("POST wanted/search (all) = %d, want 202", code)
 	}
-	if out.SeriesQueued != -1 {
-		t.Errorf("series_queued = %d, want -1 for a library-wide reset", out.SeriesQueued)
+	if out.TitlesQueued != -1 {
+		t.Errorf("titles_queued = %d, want -1 for a library-wide reset", out.TitlesQueued)
 	}
 	if got := nextSearchAt(t, h.store, two); got != "" {
 		t.Errorf("series two next_search_at = %q, want cleared by the library-wide reset", got)
@@ -684,8 +684,8 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	searchedAt(t, h.store, one, store.FormatTimestamp(time.Now()), future)
 	var missing queueSearchResponse
 	if code := h.postJSON(t, "/api/v1/wanted/search", struct {
-		SeriesIDs []int64 `json:"series_ids"`
-	}{SeriesIDs: []int64{one, 9999}}, &missing); code != http.StatusNotFound {
+		TitleIDs []int64 `json:"title_ids"`
+	}{TitleIDs: []int64{one, 9999}}, &missing); code != http.StatusNotFound {
 		t.Errorf("POST wanted/search with an unknown series = %d, want 404", code)
 	}
 	if got := nextSearchAt(t, h.store, one); got == "" {
@@ -706,8 +706,8 @@ func TestQueueSearchReportsNotifyOnly(t *testing.T) {
 
 	var out queueSearchResponse
 	if code := h.postJSON(t, "/api/v1/wanted/search", struct {
-		SeriesIDs []int64 `json:"series_ids"`
-	}{SeriesIDs: []int64{}}, &out); code != http.StatusAccepted {
+		TitleIDs []int64 `json:"title_ids"`
+	}{TitleIDs: []int64{}}, &out); code != http.StatusAccepted {
 		t.Fatalf("POST wanted/search = %d, want 202", code)
 	}
 	if out.Automation != "notify_only" {

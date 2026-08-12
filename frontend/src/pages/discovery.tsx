@@ -345,7 +345,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
           className="flex-1"
           title="Already in your library"
         >
-          <Link to={`/series/${entry.series_id}`}>
+          <Link to={`/series/${entry.title_id}`}>
             <Check className="size-3.5" /> In library
           </Link>
         </Button>

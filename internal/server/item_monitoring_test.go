@@ -12,7 +12,7 @@ import (
 
 type setItemsMonitoredResponse struct {
 	Updated      int `json:"updated"`
-	SeriesQueued int `json:"series_queued"`
+	TitlesQueued int `json:"titles_queued"`
 }
 
 // setMonitoredParams seeds the flag directly, so a test can arrive at the state
@@ -71,8 +71,8 @@ func TestSetItemsMonitoredUnmonitorsWithoutTouchingTheSearchQueue(t *testing.T) 
 	if got := searchEpoch(t, h.store, seriesID); got != before {
 		t.Errorf("search_epoch = %d, want %d -- unmonitoring queues nothing", got, before)
 	}
-	if out.SeriesQueued != 0 {
-		t.Errorf("series_queued = %d, want 0", out.SeriesQueued)
+	if out.TitlesQueued != 0 {
+		t.Errorf("titles_queued = %d, want 0", out.TitlesQueued)
 	}
 }
 
@@ -99,7 +99,7 @@ func TestSetItemsMonitoredResetsEachSeriesOnce(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("PATCH items = %d, want 200", code)
 	}
-	if out.Updated != 3 || out.SeriesQueued != 2 {
+	if out.Updated != 3 || out.TitlesQueued != 2 {
 		t.Errorf("response = %+v, want 3 updated across 2 series", out)
 	}
 	if got := searchEpoch(t, h.store, first); got != firstBefore+1 {
@@ -125,8 +125,8 @@ func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
 	if got := searchEpoch(t, h.store, seriesID); got != before {
 		t.Errorf("search_epoch = %d, want %d -- nothing moved, so nothing is queued", got, before)
 	}
-	if out.SeriesQueued != 0 {
-		t.Errorf("series_queued = %d, want 0", out.SeriesQueued)
+	if out.TitlesQueued != 0 {
+		t.Errorf("titles_queued = %d, want 0", out.TitlesQueued)
 	}
 }
 
@@ -152,8 +152,8 @@ func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 	if got := searchEpoch(t, h.store, seriesID); got != before+1 {
 		t.Errorf("search_epoch = %d, want %d -- exactly one reset", got, before+1)
 	}
-	if out.SeriesQueued != 1 {
-		t.Errorf("series_queued = %d, want 1", out.SeriesQueued)
+	if out.TitlesQueued != 1 {
+		t.Errorf("titles_queued = %d, want 1", out.TitlesQueued)
 	}
 }
 

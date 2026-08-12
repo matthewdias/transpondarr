@@ -33,7 +33,7 @@ type qualityProfileDTO struct {
 	HardExcludes    []string          `json:"hard_excludes"`
 	MinScore        int64             `json:"min_score"`
 	Groups          []profileGroupDTO `json:"groups"`
-	SeriesCount     int64             `json:"series_count" doc:"How many series are assigned this profile"`
+	TitleCount      int64             `json:"title_count" doc:"How many titles are assigned this profile"`
 
 	UpgradesEnabled      bool  `json:"upgrades_enabled"`
 	CutoffScore          int64 `json:"cutoff_score"`
@@ -77,19 +77,19 @@ type profileOutput struct {
 
 type deleteProfileInput struct {
 	ID         int64 `path:"id" doc:"Profile id"`
-	ReassignTo int64 `query:"reassign_to" doc:"Profile to move this profile's series to; required when the profile is in use"`
+	ReassignTo int64 `query:"reassign_to" doc:"Profile to move this profile's titles to; required when the profile is in use"`
 }
 
-type assignSeriesProfileInput struct {
-	ID   int64 `path:"id" doc:"Series id"`
+type assignTitleProfileInput struct {
+	ID   int64 `path:"id" doc:"Title id"`
 	Body struct {
 		ProfileID int64 `json:"profile_id" required:"true"`
 	}
 }
 
-type assignSeriesProfileOutput struct {
+type assignTitleProfileOutput struct {
 	Body struct {
-		SeriesID  int64 `json:"series_id"`
+		TitleID   int64 `json:"title_id"`
 		ProfileID int64 `json:"profile_id"`
 	}
 }
@@ -133,17 +133,17 @@ func registerProfileRoutes(api huma.API, deps routeDeps) {
 		OperationID:   "delete-quality-profile",
 		Method:        http.MethodDelete,
 		Path:          "/api/v1/profiles/{id}",
-		Summary:       "Delete a quality profile, migrating its series to reassign_to first",
+		Summary:       "Delete a quality profile, migrating its titles to reassign_to first",
 		Tags:          []string{"profiles"},
 		DefaultStatus: http.StatusNoContent,
 	}, h.delete)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "assign-series-profile",
+		OperationID: "assign-title-profile",
 		Method:      http.MethodPut,
-		Path:        "/api/v1/series/{id}/profile",
-		Summary:     "Assign a quality profile to a series",
-		Tags:        []string{"series"},
+		Path:        "/api/v1/titles/{id}/profile",
+		Summary:     "Assign a quality profile to a title",
+		Tags:        []string{"titles"},
 	}, h.assignSeries)
 }
 
@@ -204,7 +204,7 @@ func profileDTO(p db.QualityProfile, groups []db.QualityProfileGroup, seriesCoun
 		CodecPref:       p.CodecPref,
 		MinScore:        p.MinScore,
 		Groups:          make([]profileGroupDTO, 0, len(groups)),
-		SeriesCount:     seriesCount,
+		TitleCount:      seriesCount,
 
 		UpgradesEnabled:      p.UpgradesEnabled == 1,
 		CutoffScore:          p.CutoffScore,
@@ -488,7 +488,7 @@ func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*
 	return nil, nil
 }
 
-func (h *profilesHandler) assignSeries(ctx context.Context, in *assignSeriesProfileInput) (*assignSeriesProfileOutput, error) {
+func (h *profilesHandler) assignSeries(ctx context.Context, in *assignTitleProfileInput) (*assignTitleProfileOutput, error) {
 	if _, err := h.store.Q.GetSeries(ctx, in.ID); errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("series not found")
 	} else if err != nil {
@@ -505,8 +505,8 @@ func (h *profilesHandler) assignSeries(ctx context.Context, in *assignSeriesProf
 	if rows == 0 {
 		return nil, huma.Error422UnprocessableEntity("profile does not exist")
 	}
-	out := &assignSeriesProfileOutput{}
-	out.Body.SeriesID = in.ID
+	out := &assignTitleProfileOutput{}
+	out.Body.TitleID = in.ID
 	out.Body.ProfileID = in.Body.ProfileID
 	return out, nil
 }

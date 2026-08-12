@@ -8,9 +8,9 @@ type QueueSearchResult = components["schemas"]["QueueSearchOutputBody"];
 // the wording is derived here and unit-tested rather than written at the call.
 export function searchQueuedToast(res: QueueSearchResult) {
   const what =
-    res.series_queued < 0
+    res.titles_queued < 0
       ? "every series"
-      : plural(res.series_queued, "series", "series");
+      : plural(res.titles_queued, "series", "series");
   const caveat =
     res.automation === "notify_only"
       ? " Automation is rehearsing, so nothing will be grabbed."

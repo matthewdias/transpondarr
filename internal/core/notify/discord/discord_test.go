@@ -55,29 +55,29 @@ func fieldValue(e wireEmbed, name string) (string, bool) {
 
 func TestSendRendersEachKind(t *testing.T) {
 	cases := []struct {
-		kind  notify.Kind
-		title string
-		color int
+		kind    notify.Kind
+		heading string
+		color   int
 	}{
 		{notify.KindGrabbed, "Release grabbed", 0x3498DB},
 		{notify.KindImported, "Import succeeded", 0x2ECC71},
 		{notify.KindImportStuck, "Import stuck", 0xE67E22},
 		{notify.KindGrabFailed, "Grab failed", 0xE74C3C},
-		{notify.KindSeriesAdded, "Series added", 0x3498DB},
+		{notify.KindTitleAdded, "Title added", 0x3498DB},
 		{notify.KindTest, "Test notification", 0x5865F2},
 	}
 	for _, tc := range cases {
 		t.Run(string(tc.kind), func(t *testing.T) {
 			ts, got := capture(t, http.StatusNoContent)
-			if err := New(ts.URL).Send(context.Background(), notify.Event{Kind: tc.kind, SeriesTitle: "Placeholder Saga"}); err != nil {
+			if err := New(ts.URL).Send(context.Background(), notify.Event{Kind: tc.kind, Title: "Placeholder Saga"}); err != nil {
 				t.Fatalf("send: %v", err)
 			}
 			if len(got.Embeds) != 1 {
 				t.Fatalf("embeds = %d, want 1", len(got.Embeds))
 			}
 			e := got.Embeds[0]
-			if e.Title != tc.title {
-				t.Errorf("title = %q, want %q", e.Title, tc.title)
+			if e.Title != tc.heading {
+				t.Errorf("heading = %q, want %q", e.Title, tc.heading)
 			}
 			if e.Color != tc.color {
 				t.Errorf("color = %#x, want %#x", e.Color, tc.color)
@@ -90,7 +90,7 @@ func TestSendIncludesOnlyApplicableFields(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
 	err := New(ts.URL).Send(context.Background(), notify.Event{
 		Kind:         notify.KindImportStuck,
-		SeriesTitle:  "Placeholder Saga",
+		Title:        "Placeholder Saga",
 		ItemNumber:   5,
 		ReleaseTitle: "[Group] Placeholder Saga - 05 (1080p)",
 		Error:        "source not accessible",
@@ -100,7 +100,7 @@ func TestSendIncludesOnlyApplicableFields(t *testing.T) {
 	}
 	e := got.Embeds[0]
 	for name, want := range map[string]string{
-		"Series":  "Placeholder Saga",
+		"Title":   "Placeholder Saga",
 		"Episode": "5",
 		"Release": "[Group] Placeholder Saga - 05 (1080p)",
 		"Error":   "source not accessible",
@@ -120,7 +120,7 @@ func TestSendLabelsARehearsalOutcomeNotAnError(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
 	err := New(ts.URL).Send(context.Background(), notify.Event{
 		Kind:         notify.KindRehearsal,
-		SeriesTitle:  "Placeholder Saga",
+		Title:        "Placeholder Saga",
 		ItemNumber:   5,
 		ReleaseTitle: "[Group] Placeholder Saga - 05 (1080p)",
 		Error:        "would have grabbed",
@@ -139,15 +139,15 @@ func TestSendLabelsARehearsalOutcomeNotAnError(t *testing.T) {
 
 func TestSendOmitsUnsetFields(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
-	if err := New(ts.URL).Send(context.Background(), notify.Event{Kind: notify.KindSeriesAdded, SeriesTitle: "Placeholder Saga"}); err != nil {
+	if err := New(ts.URL).Send(context.Background(), notify.Event{Kind: notify.KindTitleAdded, Title: "Placeholder Saga"}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	e := got.Embeds[0]
 	if len(e.Fields) != 1 {
-		t.Fatalf("fields = %+v, want only Series", e.Fields)
+		t.Fatalf("fields = %+v, want only Title", e.Fields)
 	}
-	if v, _ := fieldValue(e, "Series"); v != "Placeholder Saga" {
-		t.Errorf("Series = %q", v)
+	if v, _ := fieldValue(e, "Title"); v != "Placeholder Saga" {
+		t.Errorf("Title = %q", v)
 	}
 }
 
@@ -157,7 +157,7 @@ func TestSendCapsFieldValues(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
 	long := strings.Repeat("e", 3000)
 	err := New(ts.URL).Send(context.Background(), notify.Event{
-		Kind: notify.KindImportStuck, SeriesTitle: "Placeholder Saga", Error: long,
+		Kind: notify.KindImportStuck, Title: "Placeholder Saga", Error: long,
 	})
 	if err != nil {
 		t.Fatalf("send: %v", err)
@@ -194,7 +194,7 @@ func TestSendReportsNon2xx(t *testing.T) {
 func TestSendRendersMultipleEpisodesAsOneField(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
 	if err := New(ts.URL).Send(context.Background(), notify.Event{
-		Kind: notify.KindImported, SeriesTitle: "Placeholder Saga",
+		Kind: notify.KindImported, Title: "Placeholder Saga",
 		Items: []int{1, 2, 3, 5}, Path: "/library/Placeholder Saga/Season 01",
 	}); err != nil {
 		t.Fatalf("send: %v", err)

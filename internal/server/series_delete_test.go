@@ -50,6 +50,9 @@ func TestDeleteSeriesRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 	dl := &coretest.FakeDownload{}
 	h := newHarness(t, nil, dl)
 	id := seedSeries(t, h.store, "Placeholder Saga", 3)
+	// A second series the delete must leave alone, so the list assertion below
+	// has something to find rather than passing on an empty page.
+	survivor := seedSeries(t, h.store, "Second Saga", 2)
 	seedGrab(t, h.store, id, 1, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "grabbed")
 	if _, err := h.store.DB.ExecContext(context.Background(),
 		`INSERT INTO release_blocklist (series_id, info_hash, release_title, normalized_title, reason)
@@ -58,7 +61,7 @@ func TestDeleteSeriesRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 		t.Fatalf("seed blocklist entry: %v", err)
 	}
 
-	if code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/series/%d", id), nil, nil); code != http.StatusNoContent {
+	if code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/titles/%d", id), nil, nil); code != http.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204", code)
 	}
 
@@ -76,27 +79,32 @@ func TestDeleteSeriesRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 		t.Errorf("download Remove called %d times without the flag, want 0", len(dl.Removes))
 	}
 
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d", id), nil); code != http.StatusNotFound {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", id), nil); code != http.StatusNotFound {
 		t.Errorf("GET after delete = %d, want 404", code)
 	}
 	var listOut struct {
-		Series []struct {
+		Titles []struct {
 			ID int64 `json:"id"`
-		} `json:"series"`
+		} `json:"titles"`
 	}
-	if code := h.get(t, "/api/v1/series", &listOut); code != http.StatusOK {
+	if code := h.get(t, "/api/v1/titles", &listOut); code != http.StatusOK {
 		t.Fatalf("list status = %d, want 200", code)
 	}
-	for _, s := range listOut.Series {
-		if s.ID == id {
-			t.Errorf("deleted series %d still in the list", id)
-		}
+	listed := map[int64]bool{}
+	for _, s := range listOut.Titles {
+		listed[s.ID] = true
+	}
+	if listed[id] {
+		t.Errorf("deleted series %d still in the list", id)
+	}
+	if !listed[survivor] {
+		t.Errorf("series %d went missing from the list; the delete took more than it was asked for", survivor)
 	}
 }
 
 func TestDeleteSeriesUnknownIDIs404(t *testing.T) {
 	h := newHarness(t, nil, &coretest.FakeDownload{})
-	if code := do(t, h, http.MethodDelete, "/api/v1/series/404", nil, nil); code != http.StatusNotFound {
+	if code := do(t, h, http.MethodDelete, "/api/v1/titles/404", nil, nil); code != http.StatusNotFound {
 		t.Fatalf("delete status = %d, want 404", code)
 	}
 }
@@ -115,7 +123,7 @@ func TestDeleteSeriesRemoveDownloadsCollectsHashes(t *testing.T) {
 	// A batch: same hash as item 1, so it must be deduped, not sent twice.
 	seedGrab(t, h.store, id, 5, "AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111", "grabbed")
 
-	code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/series/%d?remove_downloads=true", id), nil, nil)
+	code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/titles/%d?remove_downloads=true", id), nil, nil)
 	if code != http.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204", code)
 	}
@@ -154,7 +162,7 @@ func TestDeleteSeriesRemoveDownloadsWithoutClient(t *testing.T) {
 		id := seedSeries(t, h.store, "Placeholder Saga", 1)
 		seedGrab(t, h.store, id, 1, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "grabbed")
 
-		code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/series/%d?remove_downloads=true", id), nil, nil)
+		code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/titles/%d?remove_downloads=true", id), nil, nil)
 		if code != http.StatusServiceUnavailable {
 			t.Fatalf("delete status = %d, want 503", code)
 		}
@@ -167,7 +175,7 @@ func TestDeleteSeriesRemoveDownloadsWithoutClient(t *testing.T) {
 		id := seedSeries(t, h.store, "Placeholder Saga", 1)
 		seedGrab(t, h.store, id, 1, "dddd4444dddd4444dddd4444dddd4444dddd4444", "failed")
 
-		code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/series/%d?remove_downloads=true", id), nil, nil)
+		code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/titles/%d?remove_downloads=true", id), nil, nil)
 		if code != http.StatusNoContent {
 			t.Fatalf("delete status = %d, want 204 — no hashes means no client needed", code)
 		}
@@ -182,7 +190,7 @@ func TestDeleteSeriesClientFailureLeavesTheSeriesIntact(t *testing.T) {
 	id := seedSeries(t, h.store, "Placeholder Saga", 1)
 	seedGrab(t, h.store, id, 1, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "grabbed")
 
-	code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/series/%d?remove_downloads=true", id), nil, nil)
+	code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/titles/%d?remove_downloads=true", id), nil, nil)
 	if code != http.StatusBadGateway {
 		t.Fatalf("delete status = %d, want 502", code)
 	}

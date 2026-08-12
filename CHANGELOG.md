@@ -8,6 +8,15 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- **The REST resource is now `titles`, not `series`.** Movies are the next
+  feature, and an endpoint called `series` that returns them would be a wart the
+  1.0 stability promise freezes in place. Every `/api/v1/series...` route is now
+  `/api/v1/titles...`, and the fields that name or reference one follow — in the
+  webhook payload as well as the REST API, so the two agree. Discord and ntfy
+  now announce **Title added** rather than "Series added". Nothing else
+  changes — same behaviour, same data, same database, and your notification
+  settings carry over untouched.
+  Closes [#207](https://github.com/matthewdias/transpondarr/issues/207).
 - **Adding a series now opens a form for that title, carrying both add-time
   decisions.** The monitor choice was a single control above the whole result
   list, and the quality profile was not asked for at all — an added series took
@@ -44,6 +53,44 @@ All notable changes to this project are documented here. The format is based on
   full scan of the series table. Groups and counts now come back in one query
   each, leaving the endpoint at three queries whatever the profile count.
   Closes [#91](https://github.com/matthewdias/transpondarr/issues/91).
+
+### Upgrade notes
+
+- **API clients using `X-Api-Key` need one search-and-replace; the web UI needs
+  nothing.** The UI ships inside the binary and is already updated, so only
+  machine clients notice. Every route under `/api/v1/series` moved to
+  `/api/v1/titles` — including `{id}`, `{id}/search`, `{id}/grab`,
+  `{id}/grabs`, `{id}/blocklist`, `{id}/blocklist/{entryId}`,
+  `{id}/pinned-group` and `{id}/profile` — and these JSON fields were renamed:
+
+  | Before | After | Where |
+  | --- | --- | --- |
+  | `series_id` | `title_id` | activity queue and history, calendar, wanted groups, discovery entries, pinned-group and profile-assign responses |
+  | `series_title` | `title` | activity queue and history, calendar, wanted groups |
+  | `series` (list) | `titles` | `GET /api/v1/titles` |
+  | `series` (name) | `title` | title search, grab history, title blocklist |
+  | `series` (count) | `titles` | `GET /api/v1/blocklist` |
+  | `series_ids` | `title_ids` | `POST /api/v1/wanted/search` |
+  | `series_queued` | `titles_queued` | `POST /api/v1/wanted/search`, `PATCH /api/v1/wanted/items` |
+  | `series_count` | `title_count` | `GET /api/v1/profiles` |
+  | `on_series_added` | `on_title_added` | notification settings |
+  | `series_title` | `title` | webhook payload |
+  | `event: "series_added"` | `event: "title_added"` | webhook payload |
+
+  Generated clients also see renamed operation ids (`list-series` →
+  `list-titles`, and so on) and schema names (`SeriesDTO` → `TitleDTO`,
+  `AddSeriesInputBody` → `AddTitleInputBody`, and so on); regenerate against the
+  new spec. The `series` database table is unchanged, so no migration runs, and
+  saved notification toggles are read under their existing keys — nothing needs
+  reconfiguring.
+
+  One rename fails quietly rather than loudly, so check it if you script your
+  settings: a `PUT /api/v1/settings/notifications` that still sends
+  `on_series_added` turns that notification **off**, because the toggles are
+  plain booleans with no unset encoding and a save replaces all of them. Every
+  other rename here reports itself — an old route 404s, and `series_ids` is a
+  required field, so `POST /api/v1/wanted/search` returns 422 rather than
+  resetting your whole library's search backoff.
 
 ## [0.7.0] — 2026-08-08
 

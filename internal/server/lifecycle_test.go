@@ -40,7 +40,7 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 		InfoHash string `json:"infohash"`
 		Items    []int  `json:"items"`
 	}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": matchURL}, &grabOut); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -84,8 +84,8 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	}
 }
 
-// seriesDetailDTO mirrors the fields of the series detail response asserted on here.
-type seriesDetailDTO struct {
+// titleDetailDTO mirrors the fields of the series detail response asserted on here.
+type titleDetailDTO struct {
 	Items []struct {
 		Number       int    `json:"number"`
 		Status       string `json:"status"`
@@ -106,7 +106,7 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 	h := newHarness(t, idx, dl)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
 
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -153,7 +153,7 @@ func TestAmbiguousPayloadShowsDeferred(t *testing.T) {
 	h := newHarness(t, idx, dl)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
 
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -196,7 +196,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
 
 	// First grab lands a payload nothing can disambiguate; the importer defers it.
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": batchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -220,7 +220,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 	// The deferred item still matches a search, and grabbing the alternative
 	// release replaces the deferred grab rather than stacking a second one.
 	dl.Result = download.AddResult{Hash: "hashB", Outcome: download.AddSuccess}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": singleURL}, nil); code != http.StatusCreated {
 		t.Fatalf("re-grab status = %d, want 201", code)
 	}
@@ -263,7 +263,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 	h := newHarness(t, idx, dl)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
 
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -275,8 +275,8 @@ func TestStuckImportShowsReason(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	var out seriesDetailDTO
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d", seriesID), &out); code != http.StatusOK {
+	var out titleDetailDTO
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("GET series detail = %d, want 200", code)
 	}
 	found := false
@@ -304,7 +304,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 			Detail string `json:"detail"`
 		} `json:"events"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/grabs", seriesID), &hist); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/grabs", seriesID), &hist); code != http.StatusOK {
 		t.Fatalf("GET grabs = %d, want 200", code)
 	}
 	if len(hist.Events) != 1 || hist.Events[0].Status != "grabbed" {
@@ -365,8 +365,8 @@ func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 		t.Fatalf("set in_library: %v", err)
 	}
 
-	var out seriesDetailDTO
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d", seriesID), &out); code != http.StatusOK {
+	var out titleDetailDTO
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("GET series detail = %d, want 200", code)
 	}
 	for _, it := range out.Items {
@@ -385,8 +385,8 @@ func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 // itemStatus reads one episode's derived status off the series detail endpoint.
 func itemStatus(t *testing.T, h *harness, seriesID int64, number int) string {
 	t.Helper()
-	var out seriesDetailDTO
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d", seriesID), &out); code != http.StatusOK {
+	var out titleDetailDTO
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("GET series detail = %d, want 200", code)
 	}
 	for _, it := range out.Items {

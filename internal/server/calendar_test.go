@@ -13,8 +13,8 @@ import (
 type calendarResponse struct {
 	Items []struct {
 		ID          int64  `json:"id"`
-		SeriesID    int64  `json:"series_id"`
-		SeriesTitle string `json:"series_title"`
+		TitleID     int64  `json:"title_id"`
+		Title       string `json:"title"`
 		Monitored   bool   `json:"monitored"`
 		Number      int    `json:"number"`
 		AirsAt      string `json:"airs_at"`
@@ -22,8 +22,8 @@ type calendarResponse struct {
 		ImportError string `json:"import_error"`
 	} `json:"items"`
 	Unscheduled []struct {
-		SeriesID int64  `json:"series_id"`
-		Title    string `json:"title"`
+		TitleID int64  `json:"title_id"`
+		Title   string `json:"title"`
 	} `json:"unscheduled"`
 }
 
@@ -74,7 +74,7 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 		t.Fatalf("items = %+v, want eps 4 and 2 (inclusive start, exclusive end)", out.Items)
 	}
 	got := out.Items[1]
-	if got.SeriesID != seriesID || got.SeriesTitle != "Airing Show" {
+	if got.TitleID != seriesID || got.Title != "Airing Show" {
 		t.Errorf("item = %+v, want Airing Show ep 2", got)
 	}
 	if got.AirsAt != "2026-07-07T15:00:00Z" {
@@ -92,7 +92,7 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 		t.Fatalf("items with unmonitored = %d, want 3: %+v", len(withUnmonitored.Items), withUnmonitored.Items)
 	}
 	for _, it := range withUnmonitored.Items {
-		if it.SeriesID == otherID && it.Monitored {
+		if it.TitleID == otherID && it.Monitored {
 			t.Errorf("unmonitored series item flagged monitored")
 		}
 	}
@@ -178,7 +178,7 @@ func TestCalendarSurfacesUnscheduledSeries(t *testing.T) {
 	if len(out.Unscheduled) != 1 {
 		t.Fatalf("unscheduled = %+v, want only the monitored incomplete series", out.Unscheduled)
 	}
-	if out.Unscheduled[0].SeriesID != noSchedule || out.Unscheduled[0].Title != "No Schedule Show" {
+	if out.Unscheduled[0].TitleID != noSchedule || out.Unscheduled[0].Title != "No Schedule Show" {
 		t.Errorf("unscheduled[0] = %+v, want No Schedule Show", out.Unscheduled[0])
 	}
 }

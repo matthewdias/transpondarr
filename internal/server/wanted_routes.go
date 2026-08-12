@@ -48,12 +48,12 @@ type missingItemDTO struct {
 // missingGroupDTO is one series' missing items. Grouping is the page's shape
 // because the bulk action is per series: a search queues a series, never a row.
 type missingGroupDTO struct {
-	SeriesID        int64            `json:"series_id"`
-	SeriesTitle     string           `json:"series_title"`
+	TitleID         int64            `json:"title_id"`
+	Title           string           `json:"title"`
 	Monitored       bool             `json:"monitored"`
-	Reason          string           `json:"reason" enum:"unmonitored,blocklisted,never_searched,search_backoff,search_due" doc:"The series' standing in the sweep queue, derived from stored state at request time"`
-	BlockedReleases int              `json:"blocked_releases,omitempty" doc:"Releases this series is currently refusing (reason blocklisted)"`
-	NextSearchAt    string           `json:"next_search_at,omitempty" doc:"When the sweep next reaches this series (reason search_backoff)"`
+	Reason          string           `json:"reason" enum:"unmonitored,blocklisted,never_searched,search_backoff,search_due" doc:"The title's standing in the sweep queue, derived from stored state at request time"`
+	BlockedReleases int              `json:"blocked_releases,omitempty" doc:"Releases this title is currently refusing (reason blocklisted)"`
+	NextSearchAt    string           `json:"next_search_at,omitempty" doc:"When the sweep next reaches this title (reason search_backoff)"`
 	Missing         int              `json:"missing" doc:"Missing items in the whole group; may exceed len(items), which is capped"`
 	Items           []missingItemDTO `json:"items"`
 }
@@ -78,19 +78,19 @@ type cutoffItemDTO struct {
 
 // cutoffGroupDTO is one series' sub-cutoff items, the listing's pagination unit.
 type cutoffGroupDTO struct {
-	SeriesID    int64           `json:"series_id"`
-	SeriesTitle string          `json:"series_title"`
+	TitleID     int64           `json:"title_id"`
+	Title       string          `json:"title"`
 	Monitored   bool            `json:"monitored"`
 	ProfileName string          `json:"profile_name"`
 	CutoffScore int             `json:"cutoff_score"`
-	Below       int             `json:"below" doc:"Items below the cutoff in the whole series; may exceed len(items), which is capped"`
+	Below       int             `json:"below" doc:"Items below the cutoff in the whole title; may exceed len(items), which is capped"`
 	Items       []cutoffItemDTO `json:"items"`
 }
 
 type wantedPageInput struct {
-	Limit       int    `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Series groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items"`
+	Limit       int    `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Title groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items"`
 	Cursor      string `query:"cursor" doc:"Opaque cursor from the previous page's next_cursor"`
-	Unmonitored bool   `query:"unmonitored" doc:"Include items from unmonitored series"`
+	Unmonitored bool   `query:"unmonitored" doc:"Include items from unmonitored titles"`
 	Unaired     bool   `query:"unaired" doc:"Include items whose broadcast is still ahead; the Calendar owns the forward-looking view"`
 }
 
@@ -111,13 +111,13 @@ type cutoffOutput struct {
 
 type queueSearchInput struct {
 	Body struct {
-		SeriesIDs []int64 `json:"series_ids" required:"true" maxItems:"500" doc:"Series to put back at the front of the sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident"`
+		TitleIDs []int64 `json:"title_ids" required:"true" maxItems:"500" doc:"Titles to put back at the front of the sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident"`
 	}
 }
 
 type queueSearchOutput struct {
 	Body struct {
-		SeriesQueued int    `json:"series_queued" doc:"Series whose search cadence was reset; -1 when the whole library was"`
+		TitlesQueued int    `json:"titles_queued" doc:"Titles whose search cadence was reset; -1 when the whole library was"`
 		Automation   string `json:"automation" enum:"off,notify_only,on" doc:"notify_only rehearses: the run happens, nothing reaches the download client"`
 		RunTriggered bool   `json:"run_triggered" doc:"False when no runner is attached; the reset stands and the next scheduled pass picks it up"`
 	}
@@ -135,7 +135,7 @@ type setItemsMonitoredInput struct {
 type setItemsMonitoredOutput struct {
 	Body struct {
 		Updated      int `json:"updated" doc:"Items actually changed; below len(item_ids) when some were deleted"`
-		SeriesQueued int `json:"series_queued" doc:"Distinct series put back at the front of the sweep queue; always 0 when unmonitoring"`
+		TitlesQueued int `json:"titles_queued" doc:"Distinct titles put back at the front of the sweep queue; always 0 when unmonitoring"`
 	}
 }
 
@@ -169,7 +169,7 @@ func registerWantedRoutes(api huma.API, deps routeDeps) {
 		OperationID:   "queue-wanted-search",
 		Method:        http.MethodPost,
 		Path:          "/api/v1/wanted/search",
-		Summary:       "Put series back at the front of the sweep queue and run the sweep now",
+		Summary:       "Put titles back at the front of the sweep queue and run the sweep now",
 		Description:   "Queues work rather than searching: the sweep's per-pass limit is the indexer budget the search design protects, so a library-wide reset drains over several passes.",
 		Tags:          []string{"wanted"},
 		DefaultStatus: http.StatusAccepted,
@@ -313,12 +313,12 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 			NextSearchAt:    storedTime(s.NextSearchAt),
 		}
 		group := missingGroupDTO{
-			SeriesID:    s.ID,
-			SeriesTitle: s.Title,
-			Monitored:   facts.Monitored,
-			Reason:      seriesReason(facts, now),
-			Missing:     int(s.Missing),
-			Items:       items,
+			TitleID:   s.ID,
+			Title:     s.Title,
+			Monitored: facts.Monitored,
+			Reason:    seriesReason(facts, now),
+			Missing:   int(s.Missing),
+			Items:     items,
 		}
 		switch group.Reason {
 		case reasonBlocklisted:
@@ -371,8 +371,8 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 	out.Body.Groups = make([]cutoffGroupDTO, 0, len(page.Groups))
 	for _, g := range page.Groups {
 		group := cutoffGroupDTO{
-			SeriesID:    g.SeriesID,
-			SeriesTitle: g.SeriesTitle,
+			TitleID:     g.SeriesID,
+			Title:       g.SeriesTitle,
 			Monitored:   g.Monitored,
 			ProfileName: g.ProfileName,
 			CutoffScore: g.CutoffScore,
@@ -408,15 +408,15 @@ func (h *wantedHandler) queueSearch(ctx context.Context, in *queueSearchInput) (
 	out := &queueSearchOutput{}
 	out.Body.Automation = string(h.deps.settings.Snapshot().Automation.Mode)
 
-	if len(in.Body.SeriesIDs) == 0 {
+	if len(in.Body.TitleIDs) == 0 {
 		if err := h.deps.store.Q.ResetAllSeriesSearchState(ctx); err != nil {
 			return nil, huma.Error500InternalServerError("failed to reset the search queue", err)
 		}
-		out.Body.SeriesQueued = -1
-	} else if err := h.resetSelected(ctx, in.Body.SeriesIDs); err != nil {
+		out.Body.TitlesQueued = -1
+	} else if err := h.resetSelected(ctx, in.Body.TitleIDs); err != nil {
 		return nil, err
 	} else {
-		out.Body.SeriesQueued = len(in.Body.SeriesIDs)
+		out.Body.TitlesQueued = len(in.Body.TitleIDs)
 	}
 
 	if h.deps.jobs != nil {
@@ -471,7 +471,7 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	}
 	// Both counts describe committed work, so neither is reported before it is.
 	out.Body.Updated = int(updated)
-	out.Body.SeriesQueued = len(seriesIDs)
+	out.Body.TitlesQueued = len(seriesIDs)
 	return out, nil
 }
 

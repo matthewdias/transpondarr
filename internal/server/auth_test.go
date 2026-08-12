@@ -67,7 +67,7 @@ func newAuthServer(t *testing.T, cfg *config.Config) (*httptest.Server, *auth.Se
 // (headers, Host), and returns the status code.
 func getWith(t *testing.T, ts *httptest.Server, client *http.Client, mutate func(*http.Request)) int {
 	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/series", nil)
+	req, err := http.NewRequest(http.MethodGet, ts.URL+"/api/v1/titles", nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}

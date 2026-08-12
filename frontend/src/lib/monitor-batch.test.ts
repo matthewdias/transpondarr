@@ -25,7 +25,7 @@ function capture(batches: Body[], failFrom?: number) {
       }
       return HttpResponse.json({
         updated: body.item_ids.length,
-        series_queued: 1,
+        titles_queued: 1,
       });
     }),
   );
