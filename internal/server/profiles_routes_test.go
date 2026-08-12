@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
 type profileGroupJSON struct {
@@ -171,6 +173,64 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 	}
 }
 
+// The two things a batched read can get wrong: groups leaking between profiles,
+// and a profile nothing uses counting something other than zero.
+func TestListProfilesGroupsAndCountsPerProfile(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	first := seedSeries(t, h.store, "Placeholder Saga", 3)
+	second := seedSeries(t, h.store, "Placeholder Chronicle", 2)
+	seedSeries(t, h.store, "Placeholder Legend", 1)
+
+	alpha := map[string]any{"name": "Alpha", "groups": []profileGroupJSON{
+		{Name: "AlphaFirst"}, {Name: "AlphaBlocked", Blocked: true}, {Name: "AlphaSecond"},
+	}}
+	beta := map[string]any{"name": "Beta", "groups": []profileGroupJSON{
+		{Name: "BetaBlocked", Blocked: true}, {Name: "BetaOnly"},
+	}}
+	var alphaOut, betaOut profileJSON
+	if code := do(t, h, "POST", "/api/v1/profiles", alpha, &alphaOut); code != http.StatusCreated {
+		t.Fatalf("create Alpha status = %d, want 201", code)
+	}
+	if code := do(t, h, "POST", "/api/v1/profiles", beta, &betaOut); code != http.StatusCreated {
+		t.Fatalf("create Beta status = %d, want 201", code)
+	}
+	for _, id := range []int64{first, second} {
+		if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/profile", id),
+			map[string]any{"profile_id": alphaOut.ID}, nil); code != http.StatusOK {
+			t.Fatalf("assign series %d status = %d, want 200", id, code)
+		}
+	}
+
+	var list struct {
+		Profiles []profileJSON `json:"profiles"`
+	}
+	if code := do(t, h, "GET", "/api/v1/profiles", nil, &list); code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200", code)
+	}
+	byName := map[string]profileJSON{}
+	for _, p := range list.Profiles {
+		byName[p.Name] = p
+	}
+	if len(byName) != 3 {
+		t.Fatalf("profiles = %+v, want Default, Alpha and Beta", list.Profiles)
+	}
+
+	wantGroups := map[string][]profileGroupJSON{
+		"Default": {},
+		"Alpha":   {{Name: "AlphaFirst"}, {Name: "AlphaSecond"}, {Name: "AlphaBlocked", Blocked: true}},
+		"Beta":    {{Name: "BetaOnly"}, {Name: "BetaBlocked", Blocked: true}},
+	}
+	wantCounts := map[string]int64{"Default": 1, "Alpha": 2, "Beta": 0}
+	for name, want := range wantGroups {
+		if got := byName[name].Groups; fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("%s groups = %+v, want %+v", name, got, want)
+		}
+		if got := byName[name].SeriesCount; got != wantCounts[name] {
+			t.Errorf("%s series_count = %d, want %d", name, got, wantCounts[name])
+		}
+	}
+}
+
 func TestDeleteDefaultProfileRefused(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	if code := do(t, h, "DELETE", "/api/v1/profiles/1", nil, nil); code != http.StatusUnprocessableEntity {
@@ -209,5 +269,157 @@ func TestCreateProfileValidation(t *testing.T) {
 	}
 	if c := do(t, h, "POST", "/api/v1/profiles", map[string]any{"name": "Dup"}, nil); c != http.StatusConflict {
 		t.Fatalf("duplicate create = %d, want 409", c)
+	}
+}
+
+func TestCreateProfileRejectsCaseVariantName(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	if c := do(t, h, "POST", "/api/v1/profiles", map[string]any{"name": "Dup"}, nil); c != http.StatusCreated {
+		t.Fatalf("first create = %d, want 201", c)
+	}
+	for _, name := range []string{"dup", "  DUP  ", "default"} {
+		if c := do(t, h, "POST", "/api/v1/profiles", map[string]any{"name": name}, nil); c != http.StatusConflict {
+			t.Errorf("create %q = %d, want 409", name, c)
+		}
+	}
+
+	var list struct {
+		Profiles []profileJSON `json:"profiles"`
+	}
+	if c := do(t, h, "GET", "/api/v1/profiles", nil, &list); c != http.StatusOK {
+		t.Fatalf("list = %d, want 200", c)
+	}
+	if len(list.Profiles) != 2 {
+		t.Fatalf("profiles = %d, want the seeded Default plus Dup", len(list.Profiles))
+	}
+}
+
+func TestUpdateProfileRejectsNameTakenByAnother(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	var alpha, beta profileJSON
+	if c := do(t, h, "POST", "/api/v1/profiles", map[string]any{"name": "Alpha"}, &alpha); c != http.StatusCreated {
+		t.Fatalf("create Alpha = %d, want 201", c)
+	}
+	if c := do(t, h, "POST", "/api/v1/profiles", map[string]any{"name": "Beta"}, &beta); c != http.StatusCreated {
+		t.Fatalf("create Beta = %d, want 201", c)
+	}
+
+	path := fmt.Sprintf("/api/v1/profiles/%d", beta.ID)
+	for _, name := range []string{"alpha", "Alpha"} {
+		if c := do(t, h, "PUT", path, map[string]any{"name": name}, nil); c != http.StatusConflict {
+			t.Errorf("rename Beta to %q = %d, want 409", name, c)
+		}
+	}
+
+	// A refused rename must have written nothing.
+	var list struct {
+		Profiles []profileJSON `json:"profiles"`
+	}
+	if c := do(t, h, "GET", "/api/v1/profiles", nil, &list); c != http.StatusOK {
+		t.Fatalf("list = %d, want 200", c)
+	}
+	stored := ""
+	for _, p := range list.Profiles {
+		if p.ID == beta.ID {
+			stored = p.Name
+		}
+	}
+	if stored != "Beta" {
+		t.Errorf("profile %d is stored as %q, want Beta", beta.ID, stored)
+	}
+}
+
+func TestUpdateProfileKeepsItsOwnName(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	var created, updated profileJSON
+	if c := do(t, h, "POST", "/api/v1/profiles", map[string]any{"name": "Alpha"}, &created); c != http.StatusCreated {
+		t.Fatalf("create = %d, want 201", c)
+	}
+	path := fmt.Sprintf("/api/v1/profiles/%d", created.ID)
+	c := do(t, h, "PUT", path, map[string]any{"name": "Alpha", "min_score": 50}, &updated)
+	if c != http.StatusOK {
+		t.Fatalf("update keeping its own name = %d, want 200", c)
+	}
+	if updated.MinScore != 50 {
+		t.Errorf("min_score = %d, want 50", updated.MinScore)
+	}
+}
+
+func TestUpdateProfileChangesOnlyItsOwnNameCase(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	var created, updated profileJSON
+	if c := do(t, h, "POST", "/api/v1/profiles", map[string]any{"name": "Alpha"}, &created); c != http.StatusCreated {
+		t.Fatalf("create = %d, want 201", c)
+	}
+	path := fmt.Sprintf("/api/v1/profiles/%d", created.ID)
+	if c := do(t, h, "PUT", path, map[string]any{"name": "ALPHA"}, &updated); c != http.StatusOK {
+		t.Fatalf("recasing its own name = %d, want 200", c)
+	}
+	if updated.Name != "ALPHA" {
+		t.Errorf("name = %q, want ALPHA", updated.Name)
+	}
+}
+
+// An unknown id outranks a name clash, and a bad body outranks both.
+func TestUpdateUnknownProfileIsNotFound(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	if c := do(t, h, "POST", "/api/v1/profiles", map[string]any{"name": "Alpha"}, nil); c != http.StatusCreated {
+		t.Fatalf("create = %d, want 201", c)
+	}
+	cases := []struct {
+		name string
+		body map[string]any
+		want int
+	}{
+		{"taken name", map[string]any{"name": "Alpha"}, http.StatusNotFound},
+		{"free name", map[string]any{"name": "Gamma"}, http.StatusNotFound},
+		{"bad axis", map[string]any{"name": "Alpha", "preferred_source": "vhs"}, http.StatusUnprocessableEntity},
+	}
+	for _, tc := range cases {
+		if c := do(t, h, "PUT", "/api/v1/profiles/9999", tc.body, nil); c != tc.want {
+			t.Errorf("update unknown id with %s = %d, want %d", tc.name, c, tc.want)
+		}
+	}
+}
+
+// A pre-#90 install can hold Anime and anime, which nothing dedupes; the newer
+// row must stay savable rather than answering 409 to its own name.
+func TestUpdateProfileWithPreExistingCaseVariantName(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	ctx := context.Background()
+
+	seed := func(name string) int64 {
+		t.Helper()
+		p, err := h.store.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
+			Name: name, ResolutionOrder: `[]`, HardExcludes: `[]`,
+		})
+		if err != nil {
+			t.Fatalf("seed %q: %v", name, err)
+		}
+		return p.ID
+	}
+	seed("Anime")
+	second := fmt.Sprintf("/api/v1/profiles/%d", seed("anime"))
+
+	var got profileJSON
+	if c := do(t, h, "PUT", second, map[string]any{"name": "anime", "min_score": 25}, &got); c != http.StatusOK {
+		t.Fatalf("saving the second row under its own name = %d, want 200", c)
+	}
+	if got.Name != "anime" || got.MinScore != 25 {
+		t.Errorf("profile = %q/%d, want anime/25", got.Name, got.MinScore)
+	}
+	if c := do(t, h, "PUT", second, map[string]any{"name": "ANIME"}, &got); c != http.StatusOK {
+		t.Errorf("recasing its own name = %d, want 200", c)
+	}
+
+	// Renaming it onto the other row's exact name is still refused, by the
+	// binary unique constraint rather than by the pre-check.
+	if c := do(t, h, "PUT", second, map[string]any{"name": "Anime"}, nil); c != http.StatusConflict {
+		t.Errorf("collapsing the pair = %d, want 409", c)
 	}
 }
