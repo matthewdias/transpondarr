@@ -255,12 +255,21 @@ func TestUpdateProfileRejectsNameTakenByAnother(t *testing.T) {
 		}
 	}
 
-	var got profileJSON
-	if c := do(t, h, "GET", "/api/v1/profiles", nil, nil); c != http.StatusOK {
+	// A refused rename must have written nothing.
+	var list struct {
+		Profiles []profileJSON `json:"profiles"`
+	}
+	if c := do(t, h, "GET", "/api/v1/profiles", nil, &list); c != http.StatusOK {
 		t.Fatalf("list = %d, want 200", c)
 	}
-	if c := do(t, h, "PUT", path, map[string]any{"name": "Beta"}, &got); c != http.StatusOK || got.Name != "Beta" {
-		t.Errorf("Beta = %q (status %d), want an untouched Beta", got.Name, c)
+	stored := ""
+	for _, p := range list.Profiles {
+		if p.ID == beta.ID {
+			stored = p.Name
+		}
+	}
+	if stored != "Beta" {
+		t.Errorf("profile %d is stored as %q, want Beta", beta.ID, stored)
 	}
 }
 
