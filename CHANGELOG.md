@@ -26,6 +26,11 @@ All notable changes to this project are documented here. The format is based on
   the error message**, so a driver that rewords its errors can no longer turn a
   conflict into a 500.
   Closes [#92](https://github.com/matthewdias/transpondarr/issues/92).
+- **The profiles list reads groups and usage counts in bulk.** `GET
+  /api/v1/profiles` fetched both one profile at a time, so every profile cost a
+  full scan of the series table. Groups and counts now come back in one query
+  each, leaving the endpoint at three queries whatever the profile count.
+  Closes [#91](https://github.com/matthewdias/transpondarr/issues/91).
 
 ## [0.7.0] — 2026-08-08
 

@@ -57,6 +57,13 @@ SELECT COUNT(*)
 FROM series
 WHERE quality_profile_id = ?;
 
+-- name: CountSeriesPerProfile :many
+-- Usage counts for every profile at once, for the unpaginated list endpoint. A
+-- profile no series uses has no row, so the caller's zero value is the answer.
+SELECT quality_profile_id, COUNT(*) AS series_count
+FROM series
+GROUP BY quality_profile_id;
+
 -- name: ListSeriesByProfile :many
 SELECT id, title
 FROM series
@@ -79,6 +86,13 @@ SELECT *
 FROM quality_profile_groups
 WHERE profile_id = ?
 ORDER BY blocked, rank, group_name;
+
+-- name: ListAllProfileGroups :many
+-- Every profile's groups in one read, ordered so that a scan in order rebuilds
+-- each profile's ranking exactly as ListProfileGroups returns it.
+SELECT *
+FROM quality_profile_groups
+ORDER BY profile_id, blocked, rank, group_name;
 
 -- name: AddProfileGroup :one
 INSERT INTO quality_profile_groups (profile_id, rank, group_name, blocked)
