@@ -37,7 +37,7 @@ func TestSearchRanksByAssignedProfile(t *testing.T) {
 	var out struct {
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(out.Results) != 2 {
@@ -72,7 +72,7 @@ func TestSearchDemotesBlockedGroup(t *testing.T) {
 	var out struct {
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(out.Results) != 2 {
@@ -103,7 +103,7 @@ func TestSearchRanksPinnedGroupFirst(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("add group: %v", err)
 	}
-	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/pinned-group", seriesID),
+	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/pinned-group", seriesID),
 		map[string]any{"group": "RandomRip"}, nil); code != http.StatusOK {
 		t.Fatalf("pin status = %d, want 200", code)
 	}
@@ -111,7 +111,7 @@ func TestSearchRanksPinnedGroupFirst(t *testing.T) {
 	var out struct {
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(out.Results) != 2 {
@@ -145,7 +145,7 @@ func TestSearchPinnedIneligibleStaysRankedBelow(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("add blocked group: %v", err)
 	}
-	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/pinned-group", seriesID),
+	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/pinned-group", seriesID),
 		map[string]any{"group": "BadRipCo"}, nil); code != http.StatusOK {
 		t.Fatalf("pin status = %d, want 200", code)
 	}
@@ -153,7 +153,7 @@ func TestSearchPinnedIneligibleStaysRankedBelow(t *testing.T) {
 	var out struct {
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if out.Results[0].Title != "[FineSubs] Placeholder Saga S1E03 [1080p]" {
@@ -190,7 +190,7 @@ func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 		InfoHash         string `json:"infohash"`
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": url}, &out)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — the profile informs, it does not gate", code)
@@ -220,7 +220,7 @@ func TestGrabEligibleReleaseUnchanged(t *testing.T) {
 		InfoHash         string `json:"infohash"`
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": url}, &out)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)

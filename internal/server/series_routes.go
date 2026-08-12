@@ -20,24 +20,24 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// seriesDTO carries two denominators deliberately: tracked is what the series is
+// titleDTO carries two denominators deliberately: tracked is what the series is
 // actually pursuing (monitored and broadcast), total is every item it has. total
 // keeps its old meaning because narrowing it in place would be a silent break
 // for API clients.
-type seriesDTO struct {
+type titleDTO struct {
 	ID             int64  `json:"id"`
 	Title          string `json:"title"`
 	Format         string `json:"format"`
 	Monitored      bool   `json:"monitored"`
 	Total          int    `json:"total"`
-	Tracked        int    `json:"tracked" doc:"Items this series is pursuing: monitored and already broadcast"`
+	Tracked        int    `json:"tracked" doc:"Items this title is pursuing: monitored and already broadcast"`
 	MonitoredItems int    `json:"monitored_items" doc:"Monitored items whether or not they have aired, so a zero tracked count can name its cause"`
 	InLibrary      int    `json:"in_library" doc:"Held items inside the tracked set, so progress can never exceed it"`
 }
 
-type listSeriesOutput struct {
+type listTitlesOutput struct {
 	Body struct {
-		Series []seriesDTO `json:"series"`
+		Titles []titleDTO `json:"titles"`
 	}
 }
 
@@ -48,7 +48,7 @@ type wantedItemDTO struct {
 	InLibrary bool   `json:"in_library"`
 }
 
-type seriesDetailDTO struct {
+type titleDetailDTO struct {
 	ID         int64           `json:"id"`
 	Provider   string          `json:"provider"`
 	ProviderID int64           `json:"provider_id"`
@@ -60,22 +60,22 @@ type seriesDetailDTO struct {
 
 // provider is required rather than defaulted: a default hides which id space the
 // caller meant, which is the bug class the pair exists to prevent.
-type addSeriesInput struct {
+type addTitleInput struct {
 	Body struct {
 		Provider   string `json:"provider" required:"true" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
 		ProviderID int64  `json:"provider_id" required:"true" minimum:"1" doc:"The provider's id for the title to add"`
 		Monitored  *bool  `json:"monitored,omitempty" doc:"Whether to monitor for downloads (default true)"`
 		// The default must stay "all": an omitted field has to keep meaning
 		// today's behaviour for a client that never learned about the choice.
-		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future" default:"all" doc:"Which items to monitor, now and as the series grows: all, or only from the next broadcast onwards"`
+		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future" default:"all" doc:"Which items to monitor, now and as the title grows: all, or only from the next broadcast onwards"`
 		// Carried in the add so it is one atomic write; omitted (0) takes the
 		// default profile, which stays right as that default changes.
 		QualityProfileID int64 `json:"quality_profile_id,omitempty" minimum:"1" doc:"Quality profile to assign; omitted takes the default profile"`
 	}
 }
 
-type addSeriesOutput struct {
-	Body seriesDetailDTO
+type addTitleOutput struct {
+	Body titleDetailDTO
 }
 
 // detailItemDTO is one wanted item with its derived acquisition state, so the UI
@@ -93,9 +93,9 @@ type detailItemDTO struct {
 	AirsAt       string `json:"airs_at,omitempty" format:"date-time" doc:"Broadcast time (RFC 3339, Japanese broadcast clock); absent when the provider publishes none"`
 }
 
-type seriesDetailReadDTO struct {
+type titleDetailReadDTO struct {
 	ID               int64           `json:"id"`
-	Provider         string          `json:"provider,omitempty" doc:"Metadata provider this series is keyed on; absent when untracked"`
+	Provider         string          `json:"provider,omitempty" doc:"Metadata provider this title is keyed on; absent when untracked"`
 	ProviderID       int64           `json:"provider_id,omitempty"`
 	Title            string          `json:"title"`
 	English          string          `json:"english,omitempty"`
@@ -106,22 +106,22 @@ type seriesDetailReadDTO struct {
 	Monitored        bool            `json:"monitored"`
 	QualityProfileID int64           `json:"quality_profile_id"`
 	PinnedGroup      string          `json:"pinned_group,omitempty" doc:"Release group pinned above profile scoring; absent when none"`
-	PinDelayHours    *int            `json:"pin_delay_hours,omitempty" doc:"Per-series override of how long the sweep waits for the pinned group; absent means the global default"`
+	PinDelayHours    *int            `json:"pin_delay_hours,omitempty" doc:"Per-title override of how long the sweep waits for the pinned group; absent means the global default"`
 	Items            []detailItemDTO `json:"items"`
 }
 
-type getSeriesInput struct {
-	ID int64 `path:"id" doc:"Series id"`
+type getTitleInput struct {
+	ID int64 `path:"id" doc:"Title id"`
 }
 
-type getSeriesOutput struct {
-	Body seriesDetailReadDTO
+type getTitleOutput struct {
+	Body titleDetailReadDTO
 }
 
 type setMonitoredInput struct {
-	ID   int64 `path:"id" doc:"Series id"`
+	ID   int64 `path:"id" doc:"Title id"`
 	Body struct {
-		Monitored bool `json:"monitored" doc:"Whether to monitor the series for downloads"`
+		Monitored bool `json:"monitored" doc:"Whether to monitor the title for downloads"`
 	}
 }
 
@@ -133,7 +133,7 @@ type setMonitoredOutput struct {
 }
 
 type setPinnedGroupInput struct {
-	ID   int64 `path:"id" doc:"Series id"`
+	ID   int64 `path:"id" doc:"Title id"`
 	Body struct {
 		Group string `json:"group" maxLength:"100" doc:"Release group to pin above profile scoring; empty clears the pin"`
 		// maximum mirrors acquire.MaxPinDelayHours, which a struct tag cannot
@@ -144,14 +144,14 @@ type setPinnedGroupInput struct {
 
 type setPinnedGroupOutput struct {
 	Body struct {
-		SeriesID    int64  `json:"series_id"`
+		TitleID     int64  `json:"title_id"`
 		PinnedGroup string `json:"pinned_group,omitempty"`
 	}
 }
 
-type deleteSeriesInput struct {
-	ID              int64 `path:"id" doc:"Series id"`
-	RemoveDownloads bool  `query:"remove_downloads" doc:"Also remove the series' torrents (and their data) from the download client; otherwise they are left seeding"`
+type deleteTitleInput struct {
+	ID              int64 `path:"id" doc:"Title id"`
+	RemoveDownloads bool  `query:"remove_downloads" doc:"Also remove the title's torrents (and their data) from the download client; otherwise they are left seeding"`
 }
 
 type grabEventDTO struct {
@@ -164,13 +164,13 @@ type grabEventDTO struct {
 	CreatedAt    string `json:"created_at"`
 }
 
-type seriesGrabsInput struct {
-	ID int64 `path:"id" doc:"Series id"`
+type titleGrabsInput struct {
+	ID int64 `path:"id" doc:"Title id"`
 }
 
-type seriesGrabsOutput struct {
+type titleGrabsOutput struct {
 	Body struct {
-		Series string         `json:"series"`
+		Title  string         `json:"title"`
 		Events []grabEventDTO `json:"events"`
 	}
 }
@@ -217,65 +217,65 @@ func registerSeriesRoutes(api huma.API, deps routeDeps) {
 	h := newSeriesHandler(deps)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-series",
+		OperationID: "list-titles",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/series",
-		Summary:     "List monitored series",
-		Tags:        []string{"series"},
+		Path:        "/api/v1/titles",
+		Summary:     "List monitored titles",
+		Tags:        []string{"titles"},
 	}, h.listSeries)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "add-series",
+		OperationID:   "add-title",
 		Method:        http.MethodPost,
-		Path:          "/api/v1/series",
-		Summary:       "Add a series by AniList id (expands its wanted items)",
-		Tags:          []string{"series"},
+		Path:          "/api/v1/titles",
+		Summary:       "Add a title by AniList id (expands its wanted items)",
+		Tags:          []string{"titles"},
 		DefaultStatus: http.StatusCreated,
 	}, h.addSeries)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "get-series",
+		OperationID: "get-title",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/series/{id}",
-		Summary:     "Get a series with its wanted items and their acquisition state",
-		Tags:        []string{"series"},
+		Path:        "/api/v1/titles/{id}",
+		Summary:     "Get a title with its wanted items and their acquisition state",
+		Tags:        []string{"titles"},
 	}, h.getSeries)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "delete-series",
+		OperationID:   "delete-title",
 		Method:        http.MethodDelete,
-		Path:          "/api/v1/series/{id}",
-		Summary:       "Delete a series and everything tracked for it; library files are never touched",
-		Tags:          []string{"series"},
+		Path:          "/api/v1/titles/{id}",
+		Summary:       "Delete a title and everything tracked for it; library files are never touched",
+		Tags:          []string{"titles"},
 		DefaultStatus: http.StatusNoContent,
 	}, h.deleteSeries)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "set-series-monitored",
+		OperationID: "set-title-monitored",
 		Method:      http.MethodPatch,
-		Path:        "/api/v1/series/{id}",
-		Summary:     "Update whether a series is monitored",
-		Tags:        []string{"series"},
+		Path:        "/api/v1/titles/{id}",
+		Summary:     "Update whether a title is monitored",
+		Tags:        []string{"titles"},
 	}, h.setMonitored)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "set-series-pinned-group",
+		OperationID: "set-title-pinned-group",
 		Method:      http.MethodPut,
-		Path:        "/api/v1/series/{id}/pinned-group",
-		Summary:     "Pin a release group for a series (an absolute tier above profile scoring)",
-		Tags:        []string{"series"},
+		Path:        "/api/v1/titles/{id}/pinned-group",
+		Summary:     "Pin a release group for a title (an absolute tier above profile scoring)",
+		Tags:        []string{"titles"},
 	}, h.setPinnedGroup)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-series-grabs",
+		OperationID: "list-title-grabs",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/series/{id}/grabs",
-		Summary:     "List grab/import history for a series",
-		Tags:        []string{"series"},
+		Path:        "/api/v1/titles/{id}/grabs",
+		Summary:     "List grab/import history for a title",
+		Tags:        []string{"titles"},
 	}, h.listGrabs)
 }
 
-func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listSeriesOutput, error) {
+func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listTitlesOutput, error) {
 	now := sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true}
 	rows, err := h.store.Q.ListSeriesWithProgress(ctx, db.ListSeriesWithProgressParams{
 		AirsAt: now, AirsAt_2: now,
@@ -283,10 +283,10 @@ func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listSerie
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list series", err)
 	}
-	out := &listSeriesOutput{}
-	out.Body.Series = make([]seriesDTO, 0, len(rows))
+	out := &listTitlesOutput{}
+	out.Body.Titles = make([]titleDTO, 0, len(rows))
 	for _, s := range rows {
-		out.Body.Series = append(out.Body.Series, seriesDTO{
+		out.Body.Titles = append(out.Body.Titles, titleDTO{
 			ID:             s.ID,
 			Title:          s.Title,
 			Format:         s.Format,
@@ -300,7 +300,7 @@ func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listSerie
 	return out, nil
 }
 
-func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*addSeriesOutput, error) {
+func (h *seriesHandler) addSeries(ctx context.Context, in *addTitleInput) (*addTitleOutput, error) {
 	monitored := true
 	if in.Body.Monitored != nil {
 		monitored = *in.Body.Monitored
@@ -332,8 +332,8 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 		d.Dispatch(ctx, notify.Event{Kind: notify.KindSeriesAdded, SeriesTitle: title.Name})
 	}
 
-	out := &addSeriesOutput{}
-	out.Body = seriesDetailDTO{
+	out := &addTitleOutput{}
+	out.Body = titleDetailDTO{
 		ID:         title.ID,
 		Provider:   title.Provider,
 		ProviderID: title.ProviderID,
@@ -353,7 +353,7 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 	return out, nil
 }
 
-func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*getSeriesOutput, error) {
+func (h *seriesHandler) getSeries(ctx context.Context, in *getTitleInput) (*getTitleOutput, error) {
 	series, err := h.requireSeries(ctx, in.ID)
 	if err != nil {
 		return nil, err
@@ -374,8 +374,8 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 		grabByItem[g.WantedItemID] = g
 	}
 
-	out := &getSeriesOutput{}
-	out.Body = seriesDetailReadDTO{
+	out := &getTitleOutput{}
+	out.Body = titleDetailReadDTO{
 		ID:               series.ID,
 		Title:            series.Title,
 		Format:           series.Format,
@@ -430,7 +430,7 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getSeriesInput) (*get
 // and blocklist memory. The client removal runs first so a refusal leaves the
 // series intact and the delete retryable; delete-first would orphan torrents
 // with no record and no retry path.
-func (h *seriesHandler) deleteSeries(ctx context.Context, in *deleteSeriesInput) (*struct{}, error) {
+func (h *seriesHandler) deleteSeries(ctx context.Context, in *deleteTitleInput) (*struct{}, error) {
 	if _, err := h.requireSeries(ctx, in.ID); err != nil {
 		return nil, err
 	}
@@ -520,12 +520,12 @@ func (h *seriesHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupIn
 		return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
 	}
 	out := &setPinnedGroupOutput{}
-	out.Body.SeriesID = in.ID
+	out.Body.TitleID = in.ID
 	out.Body.PinnedGroup = group
 	return out, nil
 }
 
-func (h *seriesHandler) listGrabs(ctx context.Context, in *seriesGrabsInput) (*seriesGrabsOutput, error) {
+func (h *seriesHandler) listGrabs(ctx context.Context, in *titleGrabsInput) (*titleGrabsOutput, error) {
 	series, err := h.requireSeries(ctx, in.ID)
 	if err != nil {
 		return nil, err
@@ -536,8 +536,8 @@ func (h *seriesHandler) listGrabs(ctx context.Context, in *seriesGrabsInput) (*s
 		return nil, huma.Error500InternalServerError("failed to load grab history", err)
 	}
 
-	out := &seriesGrabsOutput{}
-	out.Body.Series = series.Title
+	out := &titleGrabsOutput{}
+	out.Body.Title = series.Title
 	out.Body.Events = make([]grabEventDTO, 0, len(events))
 	for _, e := range events {
 		out.Body.Events = append(out.Body.Events, grabEventDTO{

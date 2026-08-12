@@ -210,11 +210,11 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 
 	// --- search: the matched release is surfaced against item 3 ---------------
 	var searchOut struct {
-		Series  string         `json:"series"`
+		Title   string         `json:"title"`
 		Term    string         `json:"term"`
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &searchOut); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &searchOut); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 
@@ -244,7 +244,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 		Release  string `json:"release"`
 		Items    []int  `json:"items"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": matchURL}, &grabOut)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
@@ -304,7 +304,7 @@ func TestGrabUnknownReleaseIsRejected(t *testing.T) {
 	h := newHarness(t, idx, dl)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
 
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": "magnet:?xt=urn:btih:doesnotexist"}, nil)
 	if code != http.StatusNotFound {
 		t.Fatalf("grab status = %d, want 404", code)

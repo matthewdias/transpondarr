@@ -44,9 +44,9 @@ describe("PinnedGroupChip", () => {
   it("saves a typed group through the pin endpoint", async () => {
     let sent: unknown;
     server.use(
-      http.put("/api/v1/series/7/pinned-group", async ({ request }) => {
+      http.put("/api/v1/titles/7/pinned-group", async ({ request }) => {
         sent = await request.json();
-        return HttpResponse.json({ series_id: 7, pinned_group: "ShinyRip" });
+        return HttpResponse.json({ title_id: 7, pinned_group: "ShinyRip" });
       }),
     );
     const user = userEvent.setup();
@@ -103,9 +103,9 @@ describe("PinnedGroupChip", () => {
   it("sends a per-series wait, and omits it when blank", async () => {
     const sent: unknown[] = [];
     server.use(
-      http.put("/api/v1/series/7/pinned-group", async ({ request }) => {
+      http.put("/api/v1/titles/7/pinned-group", async ({ request }) => {
         sent.push(await request.json());
-        return HttpResponse.json({ series_id: 7, pinned_group: "ShinyRip" });
+        return HttpResponse.json({ title_id: 7, pinned_group: "ShinyRip" });
       }),
     );
     const user = userEvent.setup();
@@ -185,9 +185,9 @@ describe("PinnedGroupChip", () => {
   it("omits the wait when the group is cleared", async () => {
     const sent: unknown[] = [];
     server.use(
-      http.put("/api/v1/series/7/pinned-group", async ({ request }) => {
+      http.put("/api/v1/titles/7/pinned-group", async ({ request }) => {
         sent.push(await request.json());
-        return HttpResponse.json({ series_id: 7, pinned_group: "" });
+        return HttpResponse.json({ title_id: 7, pinned_group: "" });
       }),
     );
     const user = userEvent.setup();
@@ -223,9 +223,9 @@ describe("PinnedGroupChip", () => {
   it("shows the current pin and clears it", async () => {
     let sent: unknown;
     server.use(
-      http.put("/api/v1/series/7/pinned-group", async ({ request }) => {
+      http.put("/api/v1/titles/7/pinned-group", async ({ request }) => {
         sent = await request.json();
-        return HttpResponse.json({ series_id: 7 });
+        return HttpResponse.json({ title_id: 7 });
       }),
     );
     const user = userEvent.setup();
@@ -323,9 +323,9 @@ describe("ProfilePicker", () => {
           ],
         }),
       ),
-      http.put("/api/v1/series/7/profile", async ({ request }) => {
+      http.put("/api/v1/titles/7/profile", async ({ request }) => {
         sent = await request.json();
-        return HttpResponse.json({ series_id: 7, profile_id: 2 });
+        return HttpResponse.json({ title_id: 7, profile_id: 2 });
       }),
     );
     const user = userEvent.setup();
@@ -357,7 +357,7 @@ describe("SeriesDetailPage episode search", () => {
 
   function renderPage(entry = "/series/7") {
     server.use(
-      http.get("/api/v1/series/7", () =>
+      http.get("/api/v1/titles/7", () =>
         HttpResponse.json(
           detail({
             items: [
@@ -379,7 +379,7 @@ describe("SeriesDetailPage episode search", () => {
           }),
         ),
       ),
-      http.get("/api/v1/series/9", () =>
+      http.get("/api/v1/titles/9", () =>
         HttpResponse.json(
           detail({
             id: 9,
@@ -400,7 +400,7 @@ describe("SeriesDetailPage episode search", () => {
         HttpResponse.json({ automation: { mode: "on" } }),
       ),
       http.get("/api/v1/profiles", () => HttpResponse.json({ profiles: [] })),
-      http.get("/api/v1/series/7/search", () =>
+      http.get("/api/v1/titles/7/search", () =>
         HttpResponse.json({
           series: "Placeholder Saga",
           results: [
@@ -417,7 +417,7 @@ describe("SeriesDetailPage episode search", () => {
           ],
         }),
       ),
-      http.get("/api/v1/series/9/search", () =>
+      http.get("/api/v1/titles/9/search", () =>
         HttpResponse.json({
           series: "Second Saga",
           results: [

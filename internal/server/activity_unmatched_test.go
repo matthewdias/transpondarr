@@ -92,7 +92,7 @@ func TestASupersededGrabsTorrentBecomesUnmatched(t *testing.T) {
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
 
 	for _, url := range []string{firstURL, secondURL} {
-		if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+		if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 			map[string]any{"download_url": url}, nil); code != http.StatusCreated {
 			t.Fatalf("grab %s = %d, want 201", url, code)
 		}

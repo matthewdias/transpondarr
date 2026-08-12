@@ -670,7 +670,7 @@ function DeleteProfileDialog({
   const [target, setTarget] = useState<number>(
     () => targets.find((p) => p.is_default)?.id ?? targets[0]?.id ?? 0,
   );
-  const inUse = profile.series_count > 0;
+  const inUse = profile.title_count > 0;
 
   const del = useMutation({
     mutationFn: () => api.deleteProfile(profile.id, inUse ? target : undefined),
@@ -694,7 +694,7 @@ function DeleteProfileDialog({
           <DialogTitle>Delete “{profile.name}”?</DialogTitle>
           <DialogDescription>
             {inUse
-              ? `${profile.series_count} series ${profile.series_count === 1 ? "uses" : "use"} this profile. Pick the profile they move to.`
+              ? `${profile.title_count} series ${profile.title_count === 1 ? "uses" : "use"} this profile. Pick the profile they move to.`
               : "No series use this profile."}
           </DialogDescription>
         </DialogHeader>
@@ -781,7 +781,7 @@ export function ProfilesSection() {
             <span className="mt-0.5 block text-xs text-muted-foreground">
               {p.groups.filter((g) => !g.blocked).length} ranked ·{" "}
               {p.groups.filter((g) => g.blocked).length} blocked ·{" "}
-              {p.series_count} series
+              {p.title_count} series
             </span>
           </span>
           <span className="text-xs text-faint">Edit</span>

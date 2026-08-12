@@ -21,8 +21,8 @@ afterAll(() => server.close());
 
 const queueItem = (over: Partial<QueueItem>): QueueItem => ({
   id: 1,
-  series_id: 7,
-  series_title: "Signal Anomaly",
+  title_id: 7,
+  title: "Signal Anomaly",
   item_number: 4,
   release_title: "[FakeGroup] Signal Anomaly - 04 (1080p) [ABCD1234].mkv",
   infohash: "aaaa",
@@ -33,8 +33,8 @@ const queueItem = (over: Partial<QueueItem>): QueueItem => ({
 
 const historyEvent = (over: Partial<ActivityEvent>): ActivityEvent => ({
   id: 1,
-  series_id: 7,
-  series_title: "Signal Anomaly",
+  title_id: 7,
+  title: "Signal Anomaly",
   item_number: 3,
   release_title: "[FakeGroup] Signal Anomaly - 03 (1080p) [ABCD1234].mkv",
   infohash: "bbbb",
@@ -92,8 +92,8 @@ describe("ActivityPage", () => {
           queueItem({
             id: 2,
             item_number: 5,
-            series_id: 9,
-            series_title: "Dusty Archive",
+            title_id: 9,
+            title: "Dusty Archive",
             status: "stuck",
             import_error: "import failed: disk full",
           }),

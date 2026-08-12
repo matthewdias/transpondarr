@@ -19,8 +19,8 @@ import (
 
 type queueItemJSON struct {
 	ID           int64    `json:"id"`
-	SeriesID     int64    `json:"series_id"`
-	SeriesTitle  string   `json:"series_title"`
+	TitleID      int64    `json:"title_id"`
+	Title        string   `json:"title"`
 	ItemNumber   int      `json:"item_number"`
 	ReleaseTitle string   `json:"release_title"`
 	InfoHash     string   `json:"infohash"`
@@ -109,7 +109,7 @@ func TestActivityQueueReportsOpenGrabsWithClientState(t *testing.T) {
 	if d.Progress == nil || *d.Progress != 0.42 {
 		t.Errorf("progress = %v, want 0.42", d.Progress)
 	}
-	if d.SeriesID != seriesID || d.SeriesTitle != "Placeholder Saga" || d.ItemNumber != 1 || d.CreatedAt == "" {
+	if d.TitleID != seriesID || d.Title != "Placeholder Saga" || d.ItemNumber != 1 || d.CreatedAt == "" {
 		t.Errorf("downloading row = %+v, want series fields and a created_at", d)
 	}
 	s := byID[stuck.ID]
@@ -126,8 +126,8 @@ func TestActivityQueueReportsOpenGrabsWithClientState(t *testing.T) {
 
 type activityEventJSON struct {
 	ID           int64  `json:"id"`
-	SeriesID     int64  `json:"series_id"`
-	SeriesTitle  string `json:"series_title"`
+	TitleID      int64  `json:"title_id"`
+	Title        string `json:"title"`
 	ItemNumber   int    `json:"item_number"`
 	ReleaseTitle string `json:"release_title"`
 	InfoHash     string `json:"infohash"`
@@ -172,7 +172,7 @@ func TestActivityHistoryPaginatesToExhaustion(t *testing.T) {
 	if len(page.Events) != 2 {
 		t.Fatalf("first page = %d events, want 2", len(page.Events))
 	}
-	if page.Events[0].Status != "imported" || page.Events[0].SeriesTitle != "Unrelated Show" {
+	if page.Events[0].Status != "imported" || page.Events[0].Title != "Unrelated Show" {
 		t.Errorf("newest event = %+v, want the imported Unrelated Show one", page.Events[0])
 	}
 	if page.NextCursor == "" {
@@ -218,7 +218,7 @@ func TestActivityHistoryCarriesDetailAndSeriesTitle(t *testing.T) {
 	if e.Status != "failed" || e.Detail != "the download client reported an error" {
 		t.Errorf("event = %+v, want the failed detail carried through", e)
 	}
-	if e.SeriesID != seriesID || e.SeriesTitle != "Placeholder Saga" || e.ItemNumber != 2 {
+	if e.TitleID != seriesID || e.Title != "Placeholder Saga" || e.ItemNumber != 2 {
 		t.Errorf("event = %+v, want the series fields", e)
 	}
 	if page.NextCursor != "" {
@@ -258,7 +258,7 @@ func TestSeriesHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 	h := newHarness(t, idx, dl)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
 
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": url}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -266,13 +266,13 @@ func TestSeriesHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": url}, nil); code != http.StatusCreated {
 		t.Fatalf("re-grab status = %d, want 201", code)
 	}
 
 	var hist struct {
-		Series string `json:"series"`
+		Title  string `json:"title"`
 		Events []struct {
 			ItemNumber int    `json:"item_number"`
 			Status     string `json:"status"`
@@ -280,7 +280,7 @@ func TestSeriesHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 			CreatedAt  string `json:"created_at"`
 		} `json:"events"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/grabs", seriesID), &hist); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/grabs", seriesID), &hist); code != http.StatusOK {
 		t.Fatalf("GET grabs = %d, want 200", code)
 	}
 	if len(hist.Events) != 3 {

@@ -33,7 +33,7 @@ const server = setupServer(
   ),
   // The add invalidates the series list, which this page never observes;
   // tolerate the request if something does.
-  http.get("/api/v1/series", () => HttpResponse.json({ series: [] })),
+  http.get("/api/v1/titles", () => HttpResponse.json({ series: [] })),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
@@ -44,7 +44,7 @@ afterAll(() => server.close());
 function captureAdd() {
   const bodies: Record<string, unknown>[] = [];
   server.use(
-    http.post("/api/v1/series", async ({ request }) => {
+    http.post("/api/v1/titles", async ({ request }) => {
       bodies.push((await request.json()) as Record<string, unknown>);
       return HttpResponse.json(
         { id: 9, title: "Placeholder Saga", monitored: true, items: [] },

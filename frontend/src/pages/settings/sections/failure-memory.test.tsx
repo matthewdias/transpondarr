@@ -9,7 +9,7 @@ import { FailureMemorySection } from "@/pages/settings/sections/failure-memory";
 
 const summary = (over: Partial<BlocklistSummary> = {}): BlocklistSummary => ({
   blocked: 4,
-  series: 2,
+  titles: 2,
   breaker: { open: false, items: 1, threshold: 5, window_minutes: 15 },
   ...over,
 });
@@ -40,7 +40,7 @@ describe("FailureMemorySection", () => {
   });
 
   it("does not pluralize a single release or a lone series", async () => {
-    renderSection(summary({ blocked: 1, series: 1 }));
+    renderSection(summary({ blocked: 1, titles: 1 }));
     expect(await screen.findByText(/1 release/)).toBeInTheDocument();
     expect(screen.getByText(/across 1 series\./i)).toBeInTheDocument();
   });
@@ -84,7 +84,7 @@ describe("FailureMemorySection", () => {
       }),
       http.get("/api/v1/blocklist", () =>
         HttpResponse.json(
-          cleared ? summary({ blocked: 0, series: 0 }) : summary(),
+          cleared ? summary({ blocked: 0, titles: 0 }) : summary(),
         ),
       ),
     );
@@ -99,7 +99,7 @@ describe("FailureMemorySection", () => {
   });
 
   it("offers nothing to clear when the library has no memory", async () => {
-    renderSection(summary({ blocked: 0, series: 0 }));
+    renderSection(summary({ blocked: 0, titles: 0 }));
     expect(await screen.findByText(/nothing is blocked/i)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /clear/i }),

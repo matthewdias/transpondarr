@@ -223,10 +223,10 @@ function MissingTab({
         <div className="space-y-3">
           {groups.map((group) => (
             <MissingGroupCard
-              key={group.series_id}
+              key={group.title_id}
               group={group}
-              selected={selected.has(group.series_id)}
-              onToggle={() => toggle(group.series_id)}
+              selected={selected.has(group.title_id)}
+              onToggle={() => toggle(group.title_id)}
             />
           ))}
         </div>
@@ -358,19 +358,19 @@ function MissingGroupCard({
     hidden === 0 ? group.items.filter((i) => !i.monitored).length : 0;
   return (
     <GroupSection
-      title={group.series_title}
+      title={group.title}
       header={
         <>
           <Checkbox
             checked={selected}
             onCheckedChange={onToggle}
-            aria-label={`Select ${group.series_title}`}
+            aria-label={`Select ${group.title}`}
           />
           <Link
-            to={`/series/${group.series_id}`}
+            to={`/series/${group.title_id}`}
             className="min-w-0 flex-1 truncate text-sm font-semibold hover:underline"
           >
-            {group.series_title}
+            {group.title}
           </Link>
           <span className="text-xs text-faint tabular-nums">
             {unmonitored > 0
@@ -382,11 +382,11 @@ function MissingGroupCard({
       }
     >
       {group.items.map((item) => (
-        <MissingRow key={item.id} seriesId={group.series_id} item={item} />
+        <MissingRow key={item.id} seriesId={group.title_id} item={item} />
       ))}
       {hidden > 0 && (
         <OverflowRow
-          seriesId={group.series_id}
+          seriesId={group.title_id}
           label={`${plural(hidden, "more episode")} not shown`}
         />
       )}
@@ -533,7 +533,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
       ) : (
         <div className="space-y-3">
           {groups.map((group) => (
-            <CutoffGroupCard key={group.series_id} group={group} />
+            <CutoffGroupCard key={group.title_id} group={group} />
           ))}
         </div>
       )}
@@ -553,14 +553,14 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
   const hidden = group.below - group.items.length;
   return (
     <GroupSection
-      title={group.series_title}
+      title={group.title}
       header={
         <>
           <Link
-            to={`/series/${group.series_id}`}
+            to={`/series/${group.title_id}`}
             className="min-w-0 flex-1 truncate text-sm font-semibold hover:underline"
           >
-            {group.series_title}
+            {group.title}
           </Link>
           <span className="text-xs text-faint tabular-nums">
             {plural(group.below, "episode")} below cutoff
@@ -584,7 +584,7 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
       {group.items.map((item) => (
         <CutoffRow
           key={item.id}
-          seriesId={group.series_id}
+          seriesId={group.title_id}
           cutoff={group.cutoff_score}
           item={item}
           shared={shared}
@@ -592,7 +592,7 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
       ))}
       {hidden > 0 && (
         <OverflowRow
-          seriesId={group.series_id}
+          seriesId={group.title_id}
           label={`${plural(hidden, "more episode")} not shown`}
         />
       )}

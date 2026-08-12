@@ -30,7 +30,7 @@ type seasonEntryDTO struct {
 	NextEpisode  int        `json:"next_episode,omitempty"`
 	NextAirsAt   *time.Time `json:"next_airs_at,omitempty"`
 	Tracked      bool       `json:"tracked"`
-	SeriesID     int64      `json:"series_id,omitempty" doc:"Local series id when tracked"`
+	TitleID      int64      `json:"title_id,omitempty" doc:"Local title id when tracked"`
 }
 
 type browseSeasonInput struct {
@@ -94,7 +94,7 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 				Studio:       e.Studio,
 				CoverURL:     e.CoverURL,
 				Tracked:      e.Tracked,
-				SeriesID:     e.SeriesID,
+				TitleID:      e.SeriesID,
 			}
 			if e.NextAiring != nil {
 				dto.NextEpisode = e.NextAiring.Number

@@ -48,7 +48,7 @@ func TestSearchExposesScoreBreakdown(t *testing.T) {
 			} `json:"score_parts"`
 		} `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(out.Results) != 2 {

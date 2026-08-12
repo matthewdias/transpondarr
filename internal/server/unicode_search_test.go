@@ -32,7 +32,7 @@ func TestSearchSanitizesTitleTypography(t *testing.T) {
 		Term    string         `json:"term"`
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(idx.Queries) != 1 || idx.Queries[0].Term != sanitized {
@@ -65,7 +65,7 @@ func TestSearchFallsBackToVariantOnZeroResults(t *testing.T) {
 		Term    string         `json:"term"`
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(idx.Queries) != 2 ||
@@ -96,7 +96,7 @@ func TestSearchIndexerErrorMidFallback502(t *testing.T) {
 	seriesID := seedAnilistSeries(t, h, "Sora・no・Fixture Gaiden", 42, 12)
 
 	var out struct{}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &out); code != http.StatusBadGateway {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusBadGateway {
 		t.Fatalf("search status = %d, want 502", code)
 	}
 	if len(idx.Queries) != 2 || idx.Queries[1].Term != english {

@@ -29,7 +29,7 @@ function profile(overrides: Partial<QualityProfile>): QualityProfile {
       { name: "SecondChoice" },
       { name: "BadRipCo", blocked: true },
     ],
-    series_count: 0,
+    title_count: 0,
     upgrades_enabled: false,
     cutoff_score: 0,
     upgrade_v2_above_cutoff: true,

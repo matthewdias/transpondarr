@@ -80,7 +80,7 @@ describe("DiscoveryPage", () => {
           format: "TV",
           status: "RELEASING",
           tracked: true,
-          series_id: 7,
+          title_id: 7,
           next_episode: 9,
           next_airs_at: threeHoursAgo,
         }),
@@ -149,12 +149,12 @@ describe("DiscoveryPage", () => {
               provider_id: 101,
               romaji: "Alpha Adventure",
               tracked: added,
-              series_id: added ? 9 : undefined,
+              title_id: added ? 9 : undefined,
             }),
           ],
         }),
       ),
-      http.post("/api/v1/series", async () => {
+      http.post("/api/v1/titles", async () => {
         added = true;
         return HttpResponse.json(
           { id: 9, title: "Alpha Adventure", monitored: true, items: [] },
@@ -163,7 +163,7 @@ describe("DiscoveryPage", () => {
       }),
       // The add flow invalidates the series list, which the sidebar-less test
       // page never queries; tolerate it if something does.
-      http.get("/api/v1/series", () => HttpResponse.json({ series: [] })),
+      http.get("/api/v1/titles", () => HttpResponse.json({ series: [] })),
       profilesHandler,
     );
 

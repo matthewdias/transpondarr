@@ -235,7 +235,7 @@ function renderReleases(focusItem: number | null, gated = false) {
     land = resolve;
   });
   server.use(
-    http.get("/api/v1/series/7/search", async () => {
+    http.get("/api/v1/titles/7/search", async () => {
       if (gated) await inFlight;
       return HttpResponse.json({
         series: "Example Show",

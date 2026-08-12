@@ -12,27 +12,27 @@ import (
 )
 
 type notifyAdapterJSON struct {
-	Configured    bool   `json:"configured"`
-	URL           string `json:"url"`
-	OnGrabbed     bool   `json:"on_grabbed"`
-	OnImported    bool   `json:"on_imported"`
-	OnStuck       bool   `json:"on_stuck"`
-	OnGrabFailed  bool   `json:"on_grab_failed"`
-	OnSeriesAdded bool   `json:"on_series_added"`
-	OnRehearsal   bool   `json:"on_rehearsal"`
+	Configured   bool   `json:"configured"`
+	URL          string `json:"url"`
+	OnGrabbed    bool   `json:"on_grabbed"`
+	OnImported   bool   `json:"on_imported"`
+	OnStuck      bool   `json:"on_stuck"`
+	OnGrabFailed bool   `json:"on_grab_failed"`
+	OnTitleAdded bool   `json:"on_title_added"`
+	OnRehearsal  bool   `json:"on_rehearsal"`
 }
 
 type ntfyJSON struct {
-	Configured    bool   `json:"configured"`
-	Server        string `json:"server"`
-	Topic         string `json:"topic"`
-	TokenSet      bool   `json:"token_set"`
-	OnGrabbed     bool   `json:"on_grabbed"`
-	OnImported    bool   `json:"on_imported"`
-	OnStuck       bool   `json:"on_stuck"`
-	OnGrabFailed  bool   `json:"on_grab_failed"`
-	OnSeriesAdded bool   `json:"on_series_added"`
-	OnRehearsal   bool   `json:"on_rehearsal"`
+	Configured   bool   `json:"configured"`
+	Server       string `json:"server"`
+	Topic        string `json:"topic"`
+	TokenSet     bool   `json:"token_set"`
+	OnGrabbed    bool   `json:"on_grabbed"`
+	OnImported   bool   `json:"on_imported"`
+	OnStuck      bool   `json:"on_stuck"`
+	OnGrabFailed bool   `json:"on_grab_failed"`
+	OnTitleAdded bool   `json:"on_title_added"`
+	OnRehearsal  bool   `json:"on_rehearsal"`
 }
 
 type notificationsJSON struct {
@@ -48,7 +48,7 @@ type notifySettingsJSON struct {
 func adapterBody(url string) map[string]any {
 	return map[string]any{
 		"url": url, "on_grabbed": true, "on_imported": true,
-		"on_stuck": true, "on_grab_failed": true, "on_series_added": true,
+		"on_stuck": true, "on_grab_failed": true, "on_title_added": true,
 		"on_rehearsal": true,
 	}
 }
@@ -60,7 +60,7 @@ func notificationsBody(discordURL, webhookURL, ntfyServer, ntfyTopic, ntfyToken 
 		"ntfy": map[string]any{
 			"server": ntfyServer, "topic": ntfyTopic, "token": ntfyToken,
 			"on_grabbed": true, "on_imported": false, "on_stuck": true,
-			"on_grab_failed": true, "on_series_added": true, "on_rehearsal": true,
+			"on_grab_failed": true, "on_title_added": true, "on_rehearsal": true,
 		},
 	}
 }
@@ -165,7 +165,7 @@ func TestAddSeriesDispatchesSeriesAdded(t *testing.T) {
 		notify.Route{Notifier: fn, Kinds: map[notify.Kind]bool{notify.KindSeriesAdded: true}}))
 
 	var out struct{}
-	if code := do(t, h, http.MethodPost, "/api/v1/series",
+	if code := do(t, h, http.MethodPost, "/api/v1/titles",
 		map[string]any{"provider": "anilist", "provider_id": 42}, &out); code != http.StatusCreated {
 		t.Fatalf("POST /series = %d, want 201", code)
 	}

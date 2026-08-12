@@ -27,24 +27,24 @@ type blocklistEntryDTO struct {
 	CreatedAt    string `json:"created_at"`
 }
 
-type seriesBlocklistInput struct {
-	ID int64 `path:"id" doc:"Series id"`
+type titleBlocklistInput struct {
+	ID int64 `path:"id" doc:"Title id"`
 }
 
-type seriesBlocklistOutput struct {
+type titleBlocklistOutput struct {
 	Body struct {
-		Series  string              `json:"series"`
+		Title   string              `json:"title"`
 		Entries []blocklistEntryDTO `json:"entries"`
 	}
 }
 
 type clearBlocklistEntryInput struct {
-	ID      int64 `path:"id" doc:"Series id"`
+	ID      int64 `path:"id" doc:"Title id"`
 	EntryID int64 `path:"entryId" doc:"Blocklist entry id"`
 }
 
-type clearSeriesBlocklistInput struct {
-	ID      int64 `path:"id" doc:"Series id"`
+type clearTitleBlocklistInput struct {
+	ID      int64 `path:"id" doc:"Title id"`
 	Expired bool  `query:"expired" doc:"Clear only the entries whose block has lapsed, keeping what still blocks"`
 }
 
@@ -67,7 +67,7 @@ type breakerDTO struct {
 type blocklistSummaryOutput struct {
 	Body struct {
 		Blocked int        `json:"blocked" doc:"Releases being skipped right now"`
-		Series  int        `json:"series" doc:"How many series they span"`
+		Titles  int        `json:"titles" doc:"How many titles they span"`
 		Breaker breakerDTO `json:"breaker"`
 	}
 }
@@ -99,32 +99,32 @@ func registerBlocklistRoutes(api huma.API, deps routeDeps) {
 	}, h.clearAll)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "list-series-blocklist",
+		OperationID: "list-title-blocklist",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/series/{id}/blocklist",
-		Summary:     "List releases remembered as failed for a series",
-		Tags:        []string{"series"},
+		Path:        "/api/v1/titles/{id}/blocklist",
+		Summary:     "List releases remembered as failed for a title",
+		Tags:        []string{"titles"},
 	}, h.list)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "clear-series-blocklist",
+		OperationID: "clear-title-blocklist",
 		Method:      http.MethodDelete,
-		Path:        "/api/v1/series/{id}/blocklist",
-		Summary:     "Unblock every remembered release for a series",
-		Tags:        []string{"series"},
+		Path:        "/api/v1/titles/{id}/blocklist",
+		Summary:     "Unblock every remembered release for a title",
+		Tags:        []string{"titles"},
 	}, h.clearSeries)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "clear-series-blocklist-entry",
+		OperationID:   "clear-title-blocklist-entry",
 		Method:        http.MethodDelete,
-		Path:          "/api/v1/series/{id}/blocklist/{entryId}",
+		Path:          "/api/v1/titles/{id}/blocklist/{entryId}",
 		Summary:       "Unblock a release, making it eligible again",
-		Tags:          []string{"series"},
+		Tags:          []string{"titles"},
 		DefaultStatus: http.StatusNoContent,
 	}, h.clear)
 }
 
-func (h *blocklistHandler) list(ctx context.Context, in *seriesBlocklistInput) (*seriesBlocklistOutput, error) {
+func (h *blocklistHandler) list(ctx context.Context, in *titleBlocklistInput) (*titleBlocklistOutput, error) {
 	series, err := h.store.Q.GetSeries(ctx, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("series not found")
@@ -138,8 +138,8 @@ func (h *blocklistHandler) list(ctx context.Context, in *seriesBlocklistInput) (
 	}
 
 	now := time.Now().UTC()
-	out := &seriesBlocklistOutput{}
-	out.Body.Series = series.Title
+	out := &titleBlocklistOutput{}
+	out.Body.Title = series.Title
 	out.Body.Entries = make([]blocklistEntryDTO, 0, len(rows))
 	for _, e := range rows {
 		out.Body.Entries = append(out.Body.Entries, blocklistEntryDTO{
@@ -165,7 +165,7 @@ func (h *blocklistHandler) summary(ctx context.Context, _ *struct{}) (*blocklist
 
 	out := &blocklistSummaryOutput{}
 	out.Body.Blocked = int(counts.Entries)
-	out.Body.Series = int(counts.Series)
+	out.Body.Titles = int(counts.Series)
 	out.Body.Breaker = breakerDTO{
 		Open:      b.Open,
 		Items:     b.Items,
@@ -192,7 +192,7 @@ func (h *blocklistHandler) clearAll(ctx context.Context, _ *struct{}) (*clearedO
 
 // clearSeries is the bulk unblock. It 404s on an unknown series rather than
 // reporting zero cleared, so a stale series id is not read as "nothing to do".
-func (h *blocklistHandler) clearSeries(ctx context.Context, in *clearSeriesBlocklistInput) (*clearedOutput, error) {
+func (h *blocklistHandler) clearSeries(ctx context.Context, in *clearTitleBlocklistInput) (*clearedOutput, error) {
 	series, err := h.store.Q.GetSeries(ctx, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("series not found")

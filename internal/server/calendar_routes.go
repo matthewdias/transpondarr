@@ -14,8 +14,8 @@ import (
 
 type calendarItemDTO struct {
 	ID          int64  `json:"id"`
-	SeriesID    int64  `json:"series_id"`
-	SeriesTitle string `json:"series_title"`
+	TitleID     int64  `json:"title_id"`
+	Title       string `json:"title"`
 	Monitored   bool   `json:"monitored"`
 	Number      int    `json:"number"`
 	Name        string `json:"name,omitempty"`
@@ -24,21 +24,21 @@ type calendarItemDTO struct {
 	ImportError string `json:"import_error,omitempty" doc:"Why the last import attempt failed (status stuck)"`
 }
 
-type unscheduledSeriesDTO struct {
-	SeriesID int64  `json:"series_id"`
-	Title    string `json:"title"`
+type unscheduledTitleDTO struct {
+	TitleID int64  `json:"title_id"`
+	Title   string `json:"title"`
 }
 
 type calendarInput struct {
 	Start       time.Time `query:"start" required:"true" doc:"Range start, inclusive (RFC 3339)"`
 	End         time.Time `query:"end" required:"true" doc:"Range end, exclusive (RFC 3339)"`
-	Unmonitored bool      `query:"unmonitored" doc:"Include unmonitored series"`
+	Unmonitored bool      `query:"unmonitored" doc:"Include unmonitored titles"`
 }
 
 type calendarOutput struct {
 	Body struct {
-		Items       []calendarItemDTO      `json:"items"`
-		Unscheduled []unscheduledSeriesDTO `json:"unscheduled" doc:"Monitored series missing episodes with no schedule data"`
+		Items       []calendarItemDTO     `json:"items"`
+		Unscheduled []unscheduledTitleDTO `json:"unscheduled" doc:"Monitored titles missing episodes with no schedule data"`
 	}
 }
 
@@ -76,8 +76,8 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 			}, r.GrabStatus.Valid)
 			out.Body.Items = append(out.Body.Items, calendarItemDTO{
 				ID:          r.ID,
-				SeriesID:    r.SeriesID,
-				SeriesTitle: r.SeriesTitle,
+				TitleID:     r.SeriesID,
+				Title:       r.SeriesTitle,
 				Monitored:   monitored,
 				Number:      int(r.Number.Int64),
 				Name:        r.Title.String,
@@ -91,11 +91,11 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to load unscheduled series", err)
 		}
-		out.Body.Unscheduled = make([]unscheduledSeriesDTO, 0, len(unscheduled))
+		out.Body.Unscheduled = make([]unscheduledTitleDTO, 0, len(unscheduled))
 		for _, s := range unscheduled {
-			out.Body.Unscheduled = append(out.Body.Unscheduled, unscheduledSeriesDTO{
-				SeriesID: s.ID,
-				Title:    s.Title,
+			out.Body.Unscheduled = append(out.Body.Unscheduled, unscheduledTitleDTO{
+				TitleID: s.ID,
+				Title:   s.Title,
 			})
 		}
 		return out, nil

@@ -8,6 +8,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- **The REST resource is now `titles`, not `series`.** Movies are the next
+  feature, and an endpoint called `series` that returns them would be a wart the
+  1.0 stability promise freezes in place. Every `/api/v1/series...` route is now
+  `/api/v1/titles...`, and the fields that name or reference one follow. Nothing
+  else changes — same behaviour, same data, same database.
+  Closes [#207](https://github.com/matthewdias/transpondarr/issues/207).
 - **Adding a series now opens a form for that title, carrying both add-time
   decisions.** The monitor choice was a single control above the whole result
   list, and the quality profile was not asked for at all — an added series took
@@ -44,6 +50,32 @@ All notable changes to this project are documented here. The format is based on
   full scan of the series table. Groups and counts now come back in one query
   each, leaving the endpoint at three queries whatever the profile count.
   Closes [#91](https://github.com/matthewdias/transpondarr/issues/91).
+
+### Upgrade notes
+
+- **API clients using `X-Api-Key` need one search-and-replace; the web UI needs
+  nothing.** The UI ships inside the binary and is already updated, so only
+  machine clients notice. Every route under `/api/v1/series` moved to
+  `/api/v1/titles` — including `{id}`, `{id}/search`, `{id}/grab`,
+  `{id}/grabs`, `{id}/blocklist`, `{id}/pinned-group` and `{id}/profile` — and
+  these JSON fields were renamed:
+
+  | Before | After | Where |
+  | --- | --- | --- |
+  | `series_id` | `title_id` | activity queue and history, calendar, wanted groups, discovery entries, pinned-group and profile-assign responses |
+  | `series_title` | `title` | activity queue and history, calendar, wanted groups |
+  | `series` (list) | `titles` | `GET /api/v1/titles` |
+  | `series` (name) | `title` | title search, grab history, title blocklist |
+  | `series` (count) | `titles` | `GET /api/v1/blocklist` |
+  | `series_ids` | `title_ids` | `POST /api/v1/wanted/search` |
+  | `series_queued` | `titles_queued` | `POST /api/v1/wanted/search`, `PATCH /api/v1/wanted/items` |
+  | `series_count` | `title_count` | `GET /api/v1/profiles` |
+  | `on_series_added` | `on_title_added` | notification settings |
+
+  Generated clients also see renamed operation ids (`list-series` →
+  `list-titles`, and so on) and schema names (`SeriesDTO` → `TitleDTO`,
+  `AddSeriesInputBody` → `AddTitleInputBody`, and so on); regenerate against the
+  new spec. The `series` database table is unchanged, so no migration runs.
 
 ## [0.7.0] — 2026-08-08
 

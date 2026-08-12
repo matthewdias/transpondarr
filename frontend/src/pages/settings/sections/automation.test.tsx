@@ -17,7 +17,7 @@ const notifyEvents = {
   on_imported: true,
   on_stuck: true,
   on_grab_failed: true,
-  on_series_added: true,
+  on_title_added: true,
   on_rehearsal: true,
 };
 

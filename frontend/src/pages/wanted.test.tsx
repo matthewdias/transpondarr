@@ -31,8 +31,8 @@ const group = (
   over: Partial<MissingGroup>,
   items: MissingItem[],
 ): MissingGroup => ({
-  series_id: 7,
-  series_title: "Signal Anomaly",
+  title_id: 7,
+  title: "Signal Anomaly",
   monitored: true,
   reason: "search_due",
   missing: items.length,
@@ -54,8 +54,8 @@ const cutoffGroup = (
   over: Partial<CutoffGroup>,
   items: CutoffItem[],
 ): CutoffGroup => ({
-  series_id: 7,
-  series_title: "Signal Anomaly",
+  title_id: 7,
+  title: "Signal Anomaly",
   monitored: true,
   profile_name: "Anime HD",
   cutoff_score: 2300,
@@ -74,7 +74,7 @@ function useHandlers(opts: {
   pages?: Record<string, MissingPage>;
   cutoffGroups?: CutoffGroup[];
   cutoffPages?: Record<string, { groups: CutoffGroup[]; next_cursor?: string }>;
-  onSearch?: (body: { series_ids?: number[] }) => void;
+  onSearch?: (body: { title_ids?: number[] }) => void;
   onMissing?: (query: URLSearchParams) => void;
   onSetMonitored?: (body: { item_ids: number[]; monitored: boolean }) => void;
 }) {
@@ -100,15 +100,15 @@ function useHandlers(opts: {
       opts.onSetMonitored?.(body);
       return HttpResponse.json({
         updated: body.item_ids.length,
-        series_queued: body.monitored ? 1 : 0,
+        titles_queued: body.monitored ? 1 : 0,
       });
     }),
     http.post("/api/v1/wanted/search", async ({ request }) => {
-      const body = (await request.json()) as { series_ids?: number[] };
+      const body = (await request.json()) as { title_ids?: number[] };
       opts.onSearch?.(body);
       return HttpResponse.json(
         {
-          series_queued: body.series_ids?.length ? body.series_ids.length : -1,
+          titles_queued: body.title_ids?.length ? body.title_ids.length : -1,
           automation: "on",
           run_triggered: true,
         },
@@ -373,7 +373,7 @@ it("pages whole groups with the cursor the previous page returned", async () => 
       },
       abc: {
         groups: [
-          group({ series_id: 9, series_title: "Other Show" }, [
+          group({ title_id: 9, title: "Other Show" }, [
             missing({ id: 2, number: 2 }),
           ]),
         ],
@@ -390,7 +390,7 @@ it("pages whole groups with the cursor the previous page returned", async () => 
 
 // Selection is per group because a search is per series: the sweep's unit.
 it("queues a search for the selected groups' series", async () => {
-  const bodies: { series_ids?: number[] }[] = [];
+  const bodies: { title_ids?: number[] }[] = [];
   useHandlers({
     pages: {
       "": {
@@ -399,7 +399,7 @@ it("queues a search for the selected groups' series", async () => {
             missing({ id: 1, number: 4 }),
             missing({ id: 2, number: 5 }),
           ]),
-          group({ series_id: 9, series_title: "Other Show" }, [
+          group({ title_id: 9, title: "Other Show" }, [
             missing({ id: 3, number: 1 }),
           ]),
         ],
@@ -415,11 +415,11 @@ it("queues a search for the selected groups' series", async () => {
   );
 
   await waitFor(() => expect(bodies).toHaveLength(1));
-  expect(bodies[0].series_ids).toEqual([7]);
+  expect(bodies[0].title_ids).toEqual([7]);
 
   await userEvent.click(screen.getByRole("button", { name: /search all/i }));
   await waitFor(() => expect(bodies).toHaveLength(2));
-  expect(bodies[1].series_ids).toEqual([]);
+  expect(bodies[1].title_ids).toEqual([]);
 });
 
 // Goals shared by every item hoist to the group header; a row keeps only what
@@ -556,7 +556,7 @@ it("collapses a group to its header", async () => {
 // A selection the user can no longer see must not still be queued: changing
 // scope reloads the list, so it drops the selection with it.
 it("clears the selection when the scope filters change", async () => {
-  const bodies: { series_ids?: number[] }[] = [];
+  const bodies: { title_ids?: number[] }[] = [];
   useHandlers({
     pages: {
       "": { groups: [group({}, [missing({ id: 1, number: 4 })])] },
@@ -582,21 +582,21 @@ it("clears the selection when the scope filters change", async () => {
 it("words the queued-search toast for what actually happened", () => {
   expect(
     searchQueuedToast({
-      series_queued: -1,
+      titles_queued: -1,
       automation: "on",
       run_triggered: true,
     }).title,
   ).toBe("Search queued for every series.");
   expect(
     searchQueuedToast({
-      series_queued: 3,
+      titles_queued: 3,
       automation: "notify_only",
       run_triggered: true,
     }).title,
   ).toContain("nothing will be grabbed");
   expect(
     searchQueuedToast({
-      series_queued: 1,
+      titles_queued: 1,
       automation: "on",
       run_triggered: false,
     }),

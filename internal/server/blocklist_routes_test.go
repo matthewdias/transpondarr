@@ -29,7 +29,7 @@ type blocklistEntryJSON struct {
 }
 
 type blocklistJSON struct {
-	Series  string               `json:"series"`
+	Title   string               `json:"title"`
 	Entries []blocklistEntryJSON `json:"entries"`
 }
 
@@ -62,11 +62,11 @@ func TestListAndClearSeriesBlocklist(t *testing.T) {
 	elsewhere := seedBlocklistEntry(t, h.store, other, "[TopSubs] Unrelated Show - 01 [1080p]", sql.NullString{})
 
 	var got blocklistJSON
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), &got); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), &got); code != http.StatusOK {
 		t.Fatalf("list blocklist status = %d, want 200", code)
 	}
-	if got.Series != "Placeholder Saga" {
-		t.Errorf("series = %q", got.Series)
+	if got.Title != "Placeholder Saga" {
+		t.Errorf("series = %q", got.Title)
 	}
 	if len(got.Entries) != 3 {
 		t.Fatalf("entries = %d, want 3 (expired ones are history, not deleted)", len(got.Entries))
@@ -90,22 +90,22 @@ func TestListAndClearSeriesBlocklist(t *testing.T) {
 
 	// Unblocking is scoped to the series.
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/series/%d/blocklist/%d", seriesID, elsewhere.ID), nil, nil); code != http.StatusNotFound {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", seriesID, elsewhere.ID), nil, nil); code != http.StatusNotFound {
 		t.Errorf("delete of another series' entry = %d, want 404", code)
 	}
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/series/%d/blocklist/%d", seriesID, live.ID), nil, nil); code != http.StatusNoContent {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", seriesID, live.ID), nil, nil); code != http.StatusNoContent {
 		t.Errorf("delete status = %d, want 204", code)
 	}
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/series/%d/blocklist/%d", seriesID, live.ID), nil, nil); code != http.StatusNotFound {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", seriesID, live.ID), nil, nil); code != http.StatusNotFound {
 		t.Errorf("second delete = %d, want 404", code)
 	}
 
 	// Assert the status: an error body decodes into blocklistJSON as zero entries,
 	// which would misreport a broken endpoint as an over-eager delete.
 	var after blocklistJSON
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), &after); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), &after); code != http.StatusOK {
 		t.Fatalf("re-list status = %d, want 200", code)
 	}
 	if len(after.Entries) != 2 {
@@ -135,7 +135,7 @@ func TestBlocklistedReleaseSurfacesAsIneligibleButStillGrabs(t *testing.T) {
 			IneligibleReason string `json:"ineligible_reason"`
 		} `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/search", seriesID), &searchOut); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &searchOut); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(searchOut.Results) != 1 {
@@ -156,7 +156,7 @@ func TestBlocklistedReleaseSurfacesAsIneligibleButStillGrabs(t *testing.T) {
 	var grabOut struct {
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/series/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
 		map[string]any{"download_url": url}, &grabOut)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)
@@ -187,14 +187,14 @@ func TestClearSeriesBlocklistInBulk(t *testing.T) {
 		Cleared int `json:"cleared"`
 	}
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/series/%d/blocklist?expired=true", seriesID), nil, &cleared); code != http.StatusOK {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist?expired=true", seriesID), nil, &cleared); code != http.StatusOK {
 		t.Fatalf("clear expired status = %d, want 200", code)
 	}
 	if cleared.Cleared != 1 {
 		t.Errorf("cleared = %d, want only the 1 lapsed entry", cleared.Cleared)
 	}
 	var after blocklistJSON
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), &after); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), &after); code != http.StatusOK {
 		t.Fatalf("re-list status = %d, want 200", code)
 	}
 	if len(after.Entries) != 2 {
@@ -202,13 +202,13 @@ func TestClearSeriesBlocklistInBulk(t *testing.T) {
 	}
 
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), nil, &cleared); code != http.StatusOK {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), nil, &cleared); code != http.StatusOK {
 		t.Fatalf("clear all status = %d, want 200", code)
 	}
 	if cleared.Cleared != 2 {
 		t.Errorf("cleared = %d, want the 2 that were left", cleared.Cleared)
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", seriesID), &after); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), &after); code != http.StatusOK {
 		t.Fatalf("re-list status = %d, want 200", code)
 	}
 	if len(after.Entries) != 0 {
@@ -217,7 +217,7 @@ func TestClearSeriesBlocklistInBulk(t *testing.T) {
 
 	// A bulk clear stops at its series, like the single-entry one.
 	var elsewhere blocklistJSON
-	if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", other), &elsewhere); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", other), &elsewhere); code != http.StatusOK {
 		t.Fatalf("list other series status = %d, want 200", code)
 	}
 	if len(elsewhere.Entries) != 1 {
@@ -241,7 +241,7 @@ func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {
 
 	var summary struct {
 		Blocked int `json:"blocked"`
-		Series  int `json:"series"`
+		Titles  int `json:"titles"`
 		Breaker struct {
 			Open      bool `json:"open"`
 			Items     int  `json:"items"`
@@ -251,7 +251,7 @@ func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {
 	if code := h.get(t, "/api/v1/blocklist", &summary); code != http.StatusOK {
 		t.Fatalf("summary status = %d, want 200", code)
 	}
-	if summary.Blocked != 2 || summary.Series != 2 {
+	if summary.Blocked != 2 || summary.Titles != 2 {
 		t.Errorf("summary = %+v, want the 2 still-blocking entries across 2 series", summary)
 	}
 	if summary.Breaker.Open || summary.Breaker.Threshold == 0 {
@@ -269,7 +269,7 @@ func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {
 	}
 	for _, id := range []int64{first, second} {
 		var after blocklistJSON
-		if code := h.get(t, fmt.Sprintf("/api/v1/series/%d/blocklist", id), &after); code != http.StatusOK {
+		if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", id), &after); code != http.StatusOK {
 			t.Fatalf("re-list status = %d, want 200", code)
 		}
 		if len(after.Entries) != 0 {
@@ -280,14 +280,14 @@ func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {
 
 func TestBulkClearOfUnknownSeriesIs404(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	if code := do(t, h, http.MethodDelete, "/api/v1/series/9999/blocklist", nil, nil); code != http.StatusNotFound {
+	if code := do(t, h, http.MethodDelete, "/api/v1/titles/9999/blocklist", nil, nil); code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", code)
 	}
 }
 
 func TestBlocklistOfUnknownSeriesIs404(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	if code := h.get(t, "/api/v1/series/9999/blocklist", nil); code != http.StatusNotFound {
+	if code := h.get(t, "/api/v1/titles/9999/blocklist", nil); code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", code)
 	}
 }

@@ -30,7 +30,7 @@ type browseSeasonResponse struct {
 		NextEpisode  int      `json:"next_episode"`
 		NextAirsAt   string   `json:"next_airs_at"`
 		Tracked      bool     `json:"tracked"`
-		SeriesID     int64    `json:"series_id"`
+		TitleID      int64    `json:"title_id"`
 	} `json:"entries"`
 }
 
@@ -170,15 +170,15 @@ func TestBrowseSeasonMarksTrackedAndOverlaysAiring(t *testing.T) {
 	}
 
 	tracked := out.Entries[0]
-	if !tracked.Tracked || tracked.SeriesID != seriesID {
-		t.Errorf("entry 101 tracked=%t series_id=%d, want tracked with series %d", tracked.Tracked, tracked.SeriesID, seriesID)
+	if !tracked.Tracked || tracked.TitleID != seriesID {
+		t.Errorf("entry 101 tracked=%t series_id=%d, want tracked with series %d", tracked.Tracked, tracked.TitleID, seriesID)
 	}
 	if tracked.NextEpisode != 6 || tracked.NextAirsAt != localNext.Format(time.RFC3339) {
 		t.Errorf("entry 101 next airing = ep %d at %q, want the local ep 6 at %s", tracked.NextEpisode, tracked.NextAirsAt, localNext.Format(time.RFC3339))
 	}
 
 	untracked := out.Entries[1]
-	if untracked.Tracked || untracked.SeriesID != 0 {
+	if untracked.Tracked || untracked.TitleID != 0 {
 		t.Errorf("entry 102 = %+v, want untracked", untracked)
 	}
 	if untracked.NextEpisode != 2 || untracked.NextAirsAt != "2026-07-29T15:30:00Z" {

@@ -42,13 +42,15 @@ describe("typed client (openapi-fetch)", () => {
       { id: 1, title: "Example Show", monitored: true },
       { id: 2, title: "Another Example", monitored: false },
     ];
-    server.use(http.get("/api/v1/series", () => HttpResponse.json({ series })));
+    server.use(
+      http.get("/api/v1/titles", () => HttpResponse.json({ titles: series })),
+    );
     await expect(api.listSeries()).resolves.toEqual(series);
   });
 
   it("maps problem+json failures to a thrown ApiError carrying the detail", async () => {
     server.use(
-      http.get("/api/v1/series", () =>
+      http.get("/api/v1/titles", () =>
         HttpResponse.json(
           { title: "Internal Server Error", detail: "indexer unreachable" },
           { status: 500 },
@@ -63,13 +65,13 @@ describe("typed client (openapi-fetch)", () => {
   it("sends the pinned group and unwraps the echo", async () => {
     let sent: unknown;
     server.use(
-      http.put("/api/v1/series/7/pinned-group", async ({ request }) => {
+      http.put("/api/v1/titles/7/pinned-group", async ({ request }) => {
         sent = await request.json();
-        return HttpResponse.json({ series_id: 7, pinned_group: "ShinyRip" });
+        return HttpResponse.json({ title_id: 7, pinned_group: "ShinyRip" });
       }),
     );
     await expect(api.setSeriesPinnedGroup(7, "ShinyRip")).resolves.toEqual({
-      series_id: 7,
+      title_id: 7,
       pinned_group: "ShinyRip",
     });
     expect(sent).toEqual({ group: "ShinyRip" });
@@ -78,7 +80,7 @@ describe("typed client (openapi-fetch)", () => {
   it("dispatches the auth-expired event on a stale-session 401", async () => {
     const listener = watchAuthExpired();
     server.use(
-      http.get("/api/v1/series", () => new HttpResponse(null, { status: 401 })),
+      http.get("/api/v1/titles", () => new HttpResponse(null, { status: 401 })),
     );
     await expect(api.listSeries()).rejects.toBeInstanceOf(UnauthorizedError);
     expect(listener).toHaveBeenCalledTimes(1);

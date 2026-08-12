@@ -19,7 +19,7 @@ type EventToggles = {
   on_imported: boolean;
   on_stuck: boolean;
   on_grab_failed: boolean;
-  on_series_added: boolean;
+  on_title_added: boolean;
   on_rehearsal: boolean;
 };
 
@@ -36,7 +36,7 @@ const EVENT_ROWS: { key: keyof EventToggles; label: string; hint: string }[] = [
     label: "Grab failed",
     hint: "A download errored or vanished",
   },
-  { key: "on_series_added", label: "Series added", hint: "A series was added" },
+  { key: "on_title_added", label: "Series added", hint: "A series was added" },
   {
     key: "on_rehearsal",
     label: "Rehearsal",
@@ -50,7 +50,7 @@ function toggles(t: EventToggles): EventToggles {
     on_imported: t.on_imported,
     on_stuck: t.on_stuck,
     on_grab_failed: t.on_grab_failed,
-    on_series_added: t.on_series_added,
+    on_title_added: t.on_title_added,
     on_rehearsal: t.on_rehearsal,
   };
 }

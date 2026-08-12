@@ -28,7 +28,7 @@ type profileJSON struct {
 	HardExcludes    []string           `json:"hard_excludes"`
 	MinScore        int                `json:"min_score"`
 	Groups          []profileGroupJSON `json:"groups"`
-	SeriesCount     int64              `json:"series_count"`
+	TitleCount      int64              `json:"title_count"`
 }
 
 // do issues a request with an arbitrary method, mirroring harness.postJSON.
@@ -128,10 +128,10 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 
 	// --- assign to a series ---------------------------------------------------
 	var assigned struct {
-		SeriesID  int64 `json:"series_id"`
+		TitleID   int64 `json:"title_id"`
 		ProfileID int64 `json:"profile_id"`
 	}
-	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/profile", seriesID),
+	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/profile", seriesID),
 		map[string]any{"profile_id": created.ID}, &assigned)
 	if code != http.StatusOK {
 		t.Fatalf("assign status = %d, want 200", code)
@@ -139,7 +139,7 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 	var detail struct {
 		QualityProfileID int64 `json:"quality_profile_id"`
 	}
-	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/series/%d", seriesID), nil, &detail); code != http.StatusOK {
+	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/titles/%d", seriesID), nil, &detail); code != http.StatusOK {
 		t.Fatalf("detail status = %d, want 200", code)
 	}
 	if detail.QualityProfileID != created.ID {
@@ -195,7 +195,7 @@ func TestListProfilesGroupsAndCountsPerProfile(t *testing.T) {
 		t.Fatalf("create Beta status = %d, want 201", code)
 	}
 	for _, id := range []int64{first, second} {
-		if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/profile", id),
+		if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/profile", id),
 			map[string]any{"profile_id": alphaOut.ID}, nil); code != http.StatusOK {
 			t.Fatalf("assign series %d status = %d, want 200", id, code)
 		}
@@ -225,7 +225,7 @@ func TestListProfilesGroupsAndCountsPerProfile(t *testing.T) {
 		if got := byName[name].Groups; fmt.Sprint(got) != fmt.Sprint(want) {
 			t.Errorf("%s groups = %+v, want %+v", name, got, want)
 		}
-		if got := byName[name].SeriesCount; got != wantCounts[name] {
+		if got := byName[name].TitleCount; got != wantCounts[name] {
 			t.Errorf("%s series_count = %d, want %d", name, got, wantCounts[name])
 		}
 	}
@@ -241,7 +241,7 @@ func TestDeleteDefaultProfileRefused(t *testing.T) {
 func TestAssignUnknownProfileRejected(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/profile", seriesID),
+	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/profile", seriesID),
 		map[string]any{"profile_id": 999}, nil)
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("assign unknown profile status = %d, want 422", code)

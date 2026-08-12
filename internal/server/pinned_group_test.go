@@ -13,22 +13,22 @@ func TestPinnedGroupAssignmentRoundTrip(t *testing.T) {
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
 
 	var set struct {
-		SeriesID    int64  `json:"series_id"`
+		TitleID     int64  `json:"title_id"`
 		PinnedGroup string `json:"pinned_group"`
 	}
-	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/pinned-group", seriesID),
+	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/pinned-group", seriesID),
 		map[string]any{"group": "ShinyRip"}, &set)
 	if code != http.StatusOK {
 		t.Fatalf("pin status = %d, want 200", code)
 	}
-	if set.SeriesID != seriesID || set.PinnedGroup != "ShinyRip" {
+	if set.TitleID != seriesID || set.PinnedGroup != "ShinyRip" {
 		t.Errorf("echo = %+v, want the series id and pinned group back", set)
 	}
 
 	var detail struct {
 		PinnedGroup string `json:"pinned_group"`
 	}
-	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/series/%d", seriesID), nil, &detail); code != http.StatusOK {
+	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/titles/%d", seriesID), nil, &detail); code != http.StatusOK {
 		t.Fatalf("detail status = %d, want 200", code)
 	}
 	if detail.PinnedGroup != "ShinyRip" {
@@ -36,12 +36,12 @@ func TestPinnedGroupAssignmentRoundTrip(t *testing.T) {
 	}
 
 	// A whitespace-only group clears the pin.
-	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/pinned-group", seriesID),
+	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/pinned-group", seriesID),
 		map[string]any{"group": "  "}, nil); code != http.StatusOK {
 		t.Fatalf("clear status = %d, want 200", code)
 	}
 	detail.PinnedGroup = "sentinel"
-	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/series/%d", seriesID), nil, &detail); code != http.StatusOK {
+	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/titles/%d", seriesID), nil, &detail); code != http.StatusOK {
 		t.Fatalf("detail status = %d, want 200", code)
 	}
 	if detail.PinnedGroup != "sentinel" {
@@ -54,7 +54,7 @@ func TestPinnedGroupAssignmentRoundTrip(t *testing.T) {
 func TestSetPinnedGroupStoresDelayAndPutReplaces(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	path := fmt.Sprintf("/api/v1/series/%d/pinned-group", seriesID)
+	path := fmt.Sprintf("/api/v1/titles/%d/pinned-group", seriesID)
 
 	if code := do(t, h, "PUT", path, map[string]any{"group": "ShinyRip", "delay_hours": 6}, nil); code != http.StatusOK {
 		t.Fatalf("pin status = %d, want 200", code)
@@ -63,7 +63,7 @@ func TestSetPinnedGroupStoresDelayAndPutReplaces(t *testing.T) {
 		PinnedGroup   string `json:"pinned_group"`
 		PinDelayHours *int   `json:"pin_delay_hours"`
 	}
-	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/series/%d", seriesID), nil, &detail); code != http.StatusOK {
+	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/titles/%d", seriesID), nil, &detail); code != http.StatusOK {
 		t.Fatalf("detail status = %d, want 200", code)
 	}
 	if detail.PinDelayHours == nil || *detail.PinDelayHours != 6 {
@@ -75,7 +75,7 @@ func TestSetPinnedGroupStoresDelayAndPutReplaces(t *testing.T) {
 		t.Fatalf("re-pin status = %d, want 200", code)
 	}
 	detail.PinDelayHours = nil
-	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/series/%d", seriesID), nil, &detail); code != http.StatusOK {
+	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/titles/%d", seriesID), nil, &detail); code != http.StatusOK {
 		t.Fatalf("detail status = %d, want 200", code)
 	}
 	if detail.PinDelayHours != nil {
@@ -86,7 +86,7 @@ func TestSetPinnedGroupStoresDelayAndPutReplaces(t *testing.T) {
 	if code := do(t, h, "PUT", path, map[string]any{"group": "ShinyRip", "delay_hours": 0}, nil); code != http.StatusOK {
 		t.Fatalf("zero-delay status = %d, want 200", code)
 	}
-	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/series/%d", seriesID), nil, &detail); code != http.StatusOK {
+	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/titles/%d", seriesID), nil, &detail); code != http.StatusOK {
 		t.Fatalf("detail status = %d, want 200", code)
 	}
 	if detail.PinDelayHours == nil || *detail.PinDelayHours != 0 {
@@ -100,7 +100,7 @@ func TestSetPinnedGroupStoresDelayAndPutReplaces(t *testing.T) {
 	}
 	// Both fields are omitempty, so reset them: a stale value would read as absent.
 	detail.PinnedGroup, detail.PinDelayHours = "", nil
-	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/series/%d", seriesID), nil, &detail); code != http.StatusOK {
+	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/titles/%d", seriesID), nil, &detail); code != http.StatusOK {
 		t.Fatalf("detail status = %d, want 200", code)
 	}
 	if detail.PinnedGroup != "" || detail.PinDelayHours != nil {
@@ -113,7 +113,7 @@ func TestSetPinnedGroupStoresDelayAndPutReplaces(t *testing.T) {
 func TestSetPinnedGroupRejectsAnOutOfRangeDelay(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	path := fmt.Sprintf("/api/v1/series/%d/pinned-group", seriesID)
+	path := fmt.Sprintf("/api/v1/titles/%d/pinned-group", seriesID)
 
 	for _, hours := range []int{-1, domain.MaxPinDelayHours + 1, 3000000} {
 		body := map[string]any{"group": "ShinyRip", "delay_hours": hours}
@@ -130,7 +130,7 @@ func TestSetPinnedGroupRejectsAnOutOfRangeDelay(t *testing.T) {
 
 func TestPinUnknownSeriesRejected(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	code := do(t, h, "PUT", "/api/v1/series/999/pinned-group",
+	code := do(t, h, "PUT", "/api/v1/titles/999/pinned-group",
 		map[string]any{"group": "ShinyRip"}, nil)
 	if code != http.StatusNotFound {
 		t.Fatalf("pin unknown series status = %d, want 404", code)

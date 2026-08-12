@@ -28,7 +28,7 @@ type candidateReleaseDTO struct {
 	ScoreParts       []scorePartDTO `json:"score_parts,omitempty" doc:"Per-axis contributions summing to score"`
 	Eligible         bool           `json:"eligible"`
 	IneligibleReason string         `json:"ineligible_reason,omitempty" doc:"Why the profile refuses this release; empty when eligible"`
-	Pinned           bool           `json:"pinned" doc:"Release group is the series' pinned group; ranks above profile score when eligible"`
+	Pinned           bool           `json:"pinned" doc:"Release group is the title's pinned group; ranks above profile score when eligible"`
 
 	UpgradeItems   []int               `json:"upgrade_items,omitempty" doc:"Covered items already in the library that this release may replace"`
 	UpgradeBlocked []upgradeBlockedDTO `json:"upgrade_blocked,omitempty" doc:"Covered items automation would not replace, and why; a manual grab is not gated by it"`
@@ -45,33 +45,33 @@ type scorePartDTO struct {
 	Points int    `json:"points"`
 }
 
-type searchSeriesInput struct {
-	ID int64 `path:"id" doc:"Series id to find releases for"`
+type searchTitleInput struct {
+	ID int64 `path:"id" doc:"Title id to find releases for"`
 }
 
-type searchSeriesOutput struct {
+type searchTitleOutput struct {
 	Body struct {
-		Series  string                `json:"series"`
+		Title   string                `json:"title"`
 		Term    string                `json:"term"`
 		Results []candidateReleaseDTO `json:"results"`
 	}
 }
 
-type grabSeriesInput struct {
-	ID   int64 `path:"id" doc:"Series id"`
+type grabTitleInput struct {
+	ID   int64 `path:"id" doc:"Title id"`
 	Body struct {
-		DownloadURL string `json:"download_url" required:"true" doc:"download_url of a matched release from the series search"`
+		DownloadURL string `json:"download_url" required:"true" doc:"download_url of a matched release from the title search"`
 		Paused      bool   `json:"paused,omitempty" doc:"Add the torrent stopped (no data transfer) — useful for testing the grab flow"`
 	}
 }
 
-type grabSeriesOutput struct {
+type grabTitleOutput struct {
 	Body struct {
 		InfoHash         string `json:"infohash"`
 		Outcome          string `json:"outcome" example:"success"`
 		Release          string `json:"release"`
 		Items            []int  `json:"items"`
-		IneligibleReason string `json:"ineligible_reason,omitempty" doc:"Set when the grabbed release falls outside the series' quality profile — informational, the grab still succeeds"`
+		IneligibleReason string `json:"ineligible_reason,omitempty" doc:"Set when the grabbed release falls outside the title's quality profile — informational, the grab still succeeds"`
 	}
 }
 
@@ -84,30 +84,30 @@ func registerSeriesAcquisitionRoutes(api huma.API, deps routeDeps) {
 	h := newSeriesHandler(deps)
 
 	huma.Register(api, huma.Operation{
-		OperationID: "search-series-releases",
+		OperationID: "search-title-releases",
 		Method:      http.MethodGet,
-		Path:        "/api/v1/series/{id}/search",
-		Summary:     "Find and match indexer releases against a series' wanted items (read-only; does not grab)",
-		Tags:        []string{"series"},
+		Path:        "/api/v1/titles/{id}/search",
+		Summary:     "Find and match indexer releases against a title's wanted items (read-only; does not grab)",
+		Tags:        []string{"titles"},
 	}, h.searchReleases)
 
 	huma.Register(api, huma.Operation{
-		OperationID:   "grab-series-release",
+		OperationID:   "grab-title-release",
 		Method:        http.MethodPost,
-		Path:          "/api/v1/series/{id}/grab",
+		Path:          "/api/v1/titles/{id}/grab",
 		Summary:       "Grab a chosen release: add it to the download client and record it against the wanted items it covers",
-		Tags:          []string{"series"},
+		Tags:          []string{"titles"},
 		DefaultStatus: http.StatusCreated,
 	}, h.grabRelease)
 }
 
-func (h *seriesHandler) searchReleases(ctx context.Context, in *searchSeriesInput) (*searchSeriesOutput, error) {
+func (h *seriesHandler) searchReleases(ctx context.Context, in *searchTitleInput) (*searchTitleOutput, error) {
 	m, err := h.acquire.MatchSeries(ctx, in.ID)
 	if err != nil {
 		return nil, acquireHTTPError(err)
 	}
-	out := &searchSeriesOutput{}
-	out.Body.Series = m.Series.Title
+	out := &searchTitleOutput{}
+	out.Body.Title = m.Series.Title
 	out.Body.Term = m.Term
 	out.Body.Results = make([]candidateReleaseDTO, 0, len(m.Candidates))
 	for _, c := range m.Candidates {
@@ -152,7 +152,7 @@ func upgradeBlockedDTOs(blocked map[int]string) []upgradeBlockedDTO {
 	return out
 }
 
-func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*grabSeriesOutput, error) {
+func (h *seriesHandler) grabRelease(ctx context.Context, in *grabTitleInput) (*grabTitleOutput, error) {
 	if h.clients.Download() == nil {
 		return nil, acquireHTTPError(acquire.ErrNoDownloadClient)
 	}
@@ -185,7 +185,7 @@ func (h *seriesHandler) grabRelease(ctx context.Context, in *grabSeriesInput) (*
 		return nil, acquireHTTPError(err)
 	}
 
-	out := &grabSeriesOutput{}
+	out := &grabTitleOutput{}
 	out.Body.InfoHash = res.InfoHash
 	out.Body.Outcome = string(res.Outcome)
 	out.Body.Release = chosen.Release.Title

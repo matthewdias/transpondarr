@@ -19,8 +19,8 @@ import (
 // alongside the derived status the rest of the UI speaks.
 type queueItemDTO struct {
 	ID           int64    `json:"id"`
-	SeriesID     int64    `json:"series_id"`
-	SeriesTitle  string   `json:"series_title"`
+	TitleID      int64    `json:"title_id"`
+	Title        string   `json:"title"`
 	ItemNumber   int      `json:"item_number"`
 	ReleaseTitle string   `json:"release_title"`
 	InfoHash     string   `json:"infohash"`
@@ -41,8 +41,8 @@ type activityQueueOutput struct {
 // activityEventDTO is one settled or initiating moment in a grab's lifecycle.
 type activityEventDTO struct {
 	ID           int64  `json:"id"`
-	SeriesID     int64  `json:"series_id"`
-	SeriesTitle  string `json:"series_title"`
+	TitleID      int64  `json:"title_id"`
+	Title        string `json:"title"`
 	ItemNumber   int    `json:"item_number"`
 	ReleaseTitle string `json:"release_title"`
 	InfoHash     string `json:"infohash"`
@@ -250,8 +250,8 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 			}, true)
 			item := queueItemDTO{
 				ID:           g.ID,
-				SeriesID:     g.SeriesID,
-				SeriesTitle:  g.SeriesTitle,
+				TitleID:      g.SeriesID,
+				Title:        g.SeriesTitle,
 				ItemNumber:   int(g.ItemNumber.Int64),
 				ReleaseTitle: g.ReleaseTitle,
 				InfoHash:     g.InfoHash,
@@ -313,8 +313,8 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 			}
 			out.Body.Events = append(out.Body.Events, activityEventDTO{
 				ID:           r.ID,
-				SeriesID:     r.SeriesID,
-				SeriesTitle:  r.SeriesTitle,
+				TitleID:      r.SeriesID,
+				Title:        r.SeriesTitle,
 				ItemNumber:   int(r.ItemNumber),
 				ReleaseTitle: r.ReleaseTitle,
 				InfoHash:     r.InfoHash,
