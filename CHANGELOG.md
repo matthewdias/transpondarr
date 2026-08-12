@@ -8,6 +8,13 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **The quality-profile chip on a series page no longer vanishes while it loads
+  or when it fails.** The picker rendered nothing until the profile list
+  arrived, so the chips row shifted on every visit, and a failed fetch left no
+  trace at all — just a missing control. It now holds its place while loading,
+  shows a **Profile unavailable** chip you can click to try again, and links to
+  Settings when there are no profiles to pick.
+  Closes [#93](https://github.com/matthewdias/transpondarr/issues/93).
 - **Profile names no longer collide only by case.** Saving a profile named
   `Anime` while `anime` exists is refused with the same conflict a duplicate name
   has always given, matching how group names within a profile are compared.

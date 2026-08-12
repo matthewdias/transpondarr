@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { HttpResponse, delay, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { SeriesDetail } from "@/lib/api";
@@ -10,6 +10,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import {
   MonitoringToggle,
   PinnedGroupChip,
+  ProfilePicker,
   SeriesDetailPage,
 } from "@/pages/series-detail";
 
@@ -236,6 +237,106 @@ describe("PinnedGroupChip", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
+  });
+});
+
+describe("ProfilePicker", () => {
+  function renderPicker(d: SeriesDetail) {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ProfilePicker detail={d} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  const picker = () =>
+    screen.findByRole("combobox", { name: /quality profile/i });
+
+  // The picker's query starts only once the header is painted, so rendering
+  // nothing while it loads shifted the chips row on every visit.
+  it("holds the chip's place while the profiles load", async () => {
+    server.use(
+      http.get("/api/v1/profiles", async () => {
+        await delay(20);
+        return HttpResponse.json({ profiles: [{ id: 1, name: "Default" }] });
+      }),
+    );
+    const { container } = renderPicker(detail({}));
+
+    expect(
+      container.querySelector('[data-slot="skeleton"]'),
+    ).toBeInTheDocument();
+    expect(await picker()).toBeInTheDocument();
+    expect(
+      container.querySelector('[data-slot="skeleton"]'),
+    ).not.toBeInTheDocument();
+  });
+
+  // A failed fetch used to be indistinguishable from a series with no profile
+  // control at all, and nothing let you ask again.
+  it("says so and retries when the profiles cannot be read", async () => {
+    server.use(
+      http.get(
+        "/api/v1/profiles",
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    );
+    const user = userEvent.setup();
+    renderPicker(detail({}));
+
+    const retry = await screen.findByRole("button", {
+      name: /profile unavailable/i,
+    });
+    server.use(
+      http.get("/api/v1/profiles", () =>
+        HttpResponse.json({ profiles: [{ id: 1, name: "Default" }] }),
+      ),
+    );
+    await user.click(retry);
+    expect(await picker()).toBeInTheDocument();
+  });
+
+  it("points at Settings when there are no profiles to pick", async () => {
+    server.use(
+      http.get("/api/v1/profiles", () => HttpResponse.json({ profiles: [] })),
+    );
+    renderPicker(detail({}));
+
+    expect(
+      await screen.findByRole("link", { name: /no profiles/i }),
+    ).toHaveAttribute("href", "/settings");
+  });
+
+  it("shows the assigned profile and assigns the one picked", async () => {
+    let sent: unknown;
+    server.use(
+      http.get("/api/v1/profiles", () =>
+        HttpResponse.json({
+          profiles: [
+            { id: 1, name: "Default" },
+            { id: 2, name: "Archival" },
+          ],
+        }),
+      ),
+      http.put("/api/v1/series/7/profile", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ series_id: 7, profile_id: 2 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPicker(detail({ quality_profile_id: 1 }));
+
+    const trigger = await picker();
+    expect(trigger).toHaveTextContent("Default");
+    await user.click(trigger);
+    await user.click(await screen.findByRole("option", { name: "Archival" }));
+
+    await waitFor(() => expect(sent).toEqual({ profile_id: 2 }));
   });
 });
 
