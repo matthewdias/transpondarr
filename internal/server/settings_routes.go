@@ -134,7 +134,7 @@ func notifyAdapterDTOFrom(url string, ev settings.NotifyEvents) notifyAdapterDTO
 		OnImported:   ev.Imported,
 		OnStuck:      ev.Stuck,
 		OnGrabFailed: ev.GrabFailed,
-		OnTitleAdded: ev.SeriesAdded,
+		OnTitleAdded: ev.TitleAdded,
 		OnRehearsal:  ev.Rehearsal,
 	}
 }
@@ -152,7 +152,7 @@ func notificationsDTO(c settings.NotifyConfig) notificationsSettingsDTO {
 			OnImported:   c.NtfyEvents.Imported,
 			OnStuck:      c.NtfyEvents.Stuck,
 			OnGrabFailed: c.NtfyEvents.GrabFailed,
-			OnTitleAdded: c.NtfyEvents.SeriesAdded,
+			OnTitleAdded: c.NtfyEvents.TitleAdded,
 			OnRehearsal:  c.NtfyEvents.Rehearsal,
 		},
 	}
@@ -496,12 +496,12 @@ func (h *settingsHandler) updateAutomation(ctx context.Context, in *automationIn
 func notifyConfigFrom(in *notificationsInput) settings.NotifyConfig {
 	events := func(a notifyAdapterInput) settings.NotifyEvents {
 		return settings.NotifyEvents{
-			Grabbed:     a.OnGrabbed,
-			Imported:    a.OnImported,
-			Stuck:       a.OnStuck,
-			GrabFailed:  a.OnGrabFailed,
-			SeriesAdded: a.OnTitleAdded,
-			Rehearsal:   a.OnRehearsal,
+			Grabbed:    a.OnGrabbed,
+			Imported:   a.OnImported,
+			Stuck:      a.OnStuck,
+			GrabFailed: a.OnGrabFailed,
+			TitleAdded: a.OnTitleAdded,
+			Rehearsal:  a.OnRehearsal,
 		}
 	}
 	return settings.NotifyConfig{
@@ -513,12 +513,12 @@ func notifyConfigFrom(in *notificationsInput) settings.NotifyConfig {
 		NtfyTopic:     in.Body.Ntfy.Topic,
 		NtfyToken:     in.Body.Ntfy.Token,
 		NtfyEvents: settings.NotifyEvents{
-			Grabbed:     in.Body.Ntfy.OnGrabbed,
-			Imported:    in.Body.Ntfy.OnImported,
-			Stuck:       in.Body.Ntfy.OnStuck,
-			GrabFailed:  in.Body.Ntfy.OnGrabFailed,
-			SeriesAdded: in.Body.Ntfy.OnTitleAdded,
-			Rehearsal:   in.Body.Ntfy.OnRehearsal,
+			Grabbed:    in.Body.Ntfy.OnGrabbed,
+			Imported:   in.Body.Ntfy.OnImported,
+			Stuck:      in.Body.Ntfy.OnStuck,
+			GrabFailed: in.Body.Ntfy.OnGrabFailed,
+			TitleAdded: in.Body.Ntfy.OnTitleAdded,
+			Rehearsal:  in.Body.Ntfy.OnRehearsal,
 		},
 	}
 }

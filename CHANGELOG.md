@@ -11,8 +11,11 @@ All notable changes to this project are documented here. The format is based on
 - **The REST resource is now `titles`, not `series`.** Movies are the next
   feature, and an endpoint called `series` that returns them would be a wart the
   1.0 stability promise freezes in place. Every `/api/v1/series...` route is now
-  `/api/v1/titles...`, and the fields that name or reference one follow. Nothing
-  else changes — same behaviour, same data, same database.
+  `/api/v1/titles...`, and the fields that name or reference one follow — in the
+  webhook payload as well as the REST API, so the two agree. Discord and ntfy
+  now announce **Title added** rather than "Series added". Nothing else
+  changes — same behaviour, same data, same database, and your notification
+  settings carry over untouched.
   Closes [#207](https://github.com/matthewdias/transpondarr/issues/207).
 - **Adding a series now opens a form for that title, carrying both add-time
   decisions.** The monitor choice was a single control above the whole result
@@ -71,11 +74,15 @@ All notable changes to this project are documented here. The format is based on
   | `series_queued` | `titles_queued` | `POST /api/v1/wanted/search`, `PATCH /api/v1/wanted/items` |
   | `series_count` | `title_count` | `GET /api/v1/profiles` |
   | `on_series_added` | `on_title_added` | notification settings |
+  | `series_title` | `title` | webhook payload |
+  | `event: "series_added"` | `event: "title_added"` | webhook payload |
 
   Generated clients also see renamed operation ids (`list-series` →
   `list-titles`, and so on) and schema names (`SeriesDTO` → `TitleDTO`,
   `AddSeriesInputBody` → `AddTitleInputBody`, and so on); regenerate against the
-  new spec. The `series` database table is unchanged, so no migration runs.
+  new spec. The `series` database table is unchanged, so no migration runs, and
+  saved notification toggles are read under their existing keys — nothing needs
+  reconfiguring.
 
 ## [0.7.0] — 2026-08-08
 

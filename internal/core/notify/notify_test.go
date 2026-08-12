@@ -55,7 +55,7 @@ func (r *recorder) received(t *testing.T) Event {
 func allKinds() map[Kind]bool {
 	return map[Kind]bool{
 		KindGrabbed: true, KindImported: true, KindImportStuck: true,
-		KindGrabFailed: true, KindSeriesAdded: true,
+		KindGrabFailed: true, KindTitleAdded: true,
 	}
 }
 
@@ -67,9 +67,9 @@ func TestDispatchFansOutOnlyToKindEnabledRoutes(t *testing.T) {
 		Route{Notifier: off, Kinds: map[Kind]bool{KindGrabbed: true}},
 	)
 
-	d.Dispatch(context.Background(), Event{Kind: KindImported, SeriesTitle: "Placeholder Saga"})
+	d.Dispatch(context.Background(), Event{Kind: KindImported, Title: "Placeholder Saga"})
 
-	if ev := on.received(t); ev.Kind != KindImported || ev.SeriesTitle != "Placeholder Saga" {
+	if ev := on.received(t); ev.Kind != KindImported || ev.Title != "Placeholder Saga" {
 		t.Fatalf("enabled route got %+v, want the imported event", ev)
 	}
 	// The disabled route must stay silent; the enabled one already ran, so a
@@ -167,7 +167,7 @@ func TestCallerCancellationDoesNotCancelASend(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // a request-scoped ctx already gone by dispatch time
-	d.Dispatch(ctx, Event{Kind: KindSeriesAdded})
+	d.Dispatch(ctx, Event{Kind: KindTitleAdded})
 
 	r.received(t)
 	r.mu.Lock()

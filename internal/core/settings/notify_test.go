@@ -11,6 +11,7 @@ import (
 
 	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/notify"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -59,7 +60,7 @@ func TestUpdateNotifyPersistsAndSwapsDispatcher(t *testing.T) {
 
 	in := NotifyConfig{
 		DiscordURL:    "https://discord.example/api/webhooks/1/abc",
-		DiscordEvents: NotifyEvents{Grabbed: true, Imported: true, Stuck: true, GrabFailed: true, SeriesAdded: true},
+		DiscordEvents: NotifyEvents{Grabbed: true, Imported: true, Stuck: true, GrabFailed: true, TitleAdded: true},
 		NtfyTopic:     "transpondarr",
 		NtfyToken:     "tk_secret",
 		NtfyEvents:    NotifyEvents{Imported: true, Stuck: true},
@@ -155,11 +156,31 @@ func TestNotifyUnsetTogglesParseEnabled(t *testing.T) {
 		t.Fatal("dispatcher should be built from persisted settings")
 	}
 	ev := svc.Snapshot().Notify.DiscordEvents
-	if !ev.Grabbed || !ev.Stuck || !ev.GrabFailed || !ev.SeriesAdded {
+	if !ev.Grabbed || !ev.Stuck || !ev.GrabFailed || !ev.TitleAdded {
 		t.Errorf("unset toggles should parse enabled, got %+v", ev)
 	}
 	if ev.Imported {
 		t.Error("an explicit false toggle should parse disabled")
+	}
+}
+
+// The stored toggle key is a literal, so #207's rename of the event kind must
+// not disturb settings saved before it. Seeded under the old key, read out
+// against the new kind.
+func TestNotifyStoredSeriesAddedKeySurvivesTheTitleRename(t *testing.T) {
+	for _, tc := range []struct {
+		stored string
+		want   bool
+	}{{"true", true}, {"false", false}} {
+		st := newTestStore(t)
+		seedSetting(t, st, "notify.discord.url", "https://discord.example/api/webhooks/1/abc")
+		seedSetting(t, st, "notify.discord.on_series_added", tc.stored)
+
+		svc, _ := newServiceOver(t, st)
+		ev := svc.Snapshot().Notify.DiscordEvents
+		if got := notifyKinds(ev)[notify.Kind("title_added")]; got != tc.want {
+			t.Errorf("stored on_series_added=%s routed title_added=%t, want %t", tc.stored, got, tc.want)
+		}
 	}
 }
 

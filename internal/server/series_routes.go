@@ -329,7 +329,7 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addTitleInput) (*addT
 	}
 	// Dispatch is async, so this adds no request latency.
 	if d := h.clients.Notify(); d != nil {
-		d.Dispatch(ctx, notify.Event{Kind: notify.KindSeriesAdded, SeriesTitle: title.Name})
+		d.Dispatch(ctx, notify.Event{Kind: notify.KindTitleAdded, Title: title.Name})
 	}
 
 	out := &addTitleOutput{}

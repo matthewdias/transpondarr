@@ -19,7 +19,7 @@ import (
 func notifyingSource(dl download.Client, lib *coretest.FakeLibrary, fn *coretest.FakeNotifier) fakeSource {
 	kinds := map[notify.Kind]bool{
 		notify.KindGrabbed: true, notify.KindImported: true, notify.KindImportStuck: true,
-		notify.KindGrabFailed: true, notify.KindSeriesAdded: true,
+		notify.KindGrabFailed: true, notify.KindTitleAdded: true,
 	}
 	d := notify.NewDispatcher(discardLogger(), notify.Route{Notifier: fn, Kinds: kinds})
 	return fakeSource{dl: dl, lib: lib, ntf: d}
@@ -66,7 +66,7 @@ func TestImportDispatchesImportedEvent(t *testing.T) {
 	if ev.Kind != notify.KindImported {
 		t.Fatalf("kind = %s, want imported", ev.Kind)
 	}
-	if ev.SeriesTitle != "Placeholder Saga" || ev.ItemNumber != 5 || ev.ReleaseTitle != "rel" {
+	if ev.Title != "Placeholder Saga" || ev.ItemNumber != 5 || ev.ReleaseTitle != "rel" {
 		t.Errorf("event = %+v, want series/item/release from the grab", ev)
 	}
 	if ev.Path != "/library/placed.mkv" {
@@ -153,7 +153,7 @@ func TestStuckImportNotifiesOncePerIncident(t *testing.T) {
 	if ev.Kind != notify.KindImportStuck {
 		t.Fatalf("kind = %s, want import_stuck", ev.Kind)
 	}
-	if ev.SeriesTitle != "Placeholder Saga" || ev.Error == "" {
+	if ev.Title != "Placeholder Saga" || ev.Error == "" {
 		t.Errorf("event = %+v, want the series and a reason", ev)
 	}
 
@@ -196,7 +196,7 @@ func TestFailedDownloadNotifiesOncePerRelease(t *testing.T) {
 	if ev.Kind != notify.KindGrabFailed {
 		t.Fatalf("kind = %s, want grab_failed", ev.Kind)
 	}
-	if ev.SeriesTitle != "Placeholder Saga" || ev.ReleaseTitle != "[SynthSubs] Placeholder Saga - 01-03 [Batch]" || ev.Error == "" {
+	if ev.Title != "Placeholder Saga" || ev.ReleaseTitle != "[SynthSubs] Placeholder Saga - 01-03 [Batch]" || ev.Error == "" {
 		t.Errorf("event = %+v, want series, release, and a reason", ev)
 	}
 	if ev.ItemNumber != 0 {

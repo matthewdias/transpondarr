@@ -18,7 +18,7 @@ func withNotifier(reg *clients.Registry) *coretest.FakeNotifier {
 	fn := coretest.NewFakeNotifier()
 	kinds := map[notify.Kind]bool{
 		notify.KindGrabbed: true, notify.KindImported: true, notify.KindImportStuck: true,
-		notify.KindGrabFailed: true, notify.KindSeriesAdded: true, notify.KindRehearsal: true,
+		notify.KindGrabFailed: true, notify.KindTitleAdded: true, notify.KindRehearsal: true,
 	}
 	reg.SetNotify(notify.NewDispatcher(discardLogger(), notify.Route{Notifier: fn, Kinds: kinds}))
 	return fn
@@ -44,8 +44,8 @@ func TestSweepGrabDispatchesGrabbedEvent(t *testing.T) {
 		if ev.Kind != notify.KindGrabbed {
 			t.Fatalf("kind = %s, want grabbed", ev.Kind)
 		}
-		if ev.SeriesTitle != "Placeholder Saga" {
-			t.Errorf("series = %q", ev.SeriesTitle)
+		if ev.Title != "Placeholder Saga" {
+			t.Errorf("title = %q", ev.Title)
 		}
 		if ev.ReleaseTitle != "[ExampleSubs] Placeholder Saga - 05 [1080p]" {
 			t.Errorf("release = %q", ev.ReleaseTitle)

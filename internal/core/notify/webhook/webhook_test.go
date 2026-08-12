@@ -30,7 +30,7 @@ func TestSendPostsTheDocumentedContract(t *testing.T) {
 
 	err := New(ts.URL).Send(context.Background(), notify.Event{
 		Kind:         notify.KindImported,
-		SeriesTitle:  "Placeholder Saga",
+		Title:        "Placeholder Saga",
 		ItemNumber:   5,
 		ReleaseTitle: "[Group] Placeholder Saga - 05 (1080p)",
 		Path:         "/library/Placeholder Saga/Season 01/Placeholder Saga - S01E05.mkv",
@@ -46,7 +46,7 @@ func TestSendPostsTheDocumentedContract(t *testing.T) {
 	}
 
 	// The shape is a contract users script against: all keys always present.
-	for _, key := range []string{"application", "event", "series_title", "item_number", "release_title", "error", "path", "timestamp"} {
+	for _, key := range []string{"application", "event", "title", "item_number", "release_title", "error", "path", "timestamp"} {
 		if _, ok := raw[key]; !ok {
 			t.Errorf("key %q missing from payload %v", key, raw)
 		}
@@ -55,7 +55,7 @@ func TestSendPostsTheDocumentedContract(t *testing.T) {
 	var got struct {
 		Application  string `json:"application"`
 		Event        string `json:"event"`
-		SeriesTitle  string `json:"series_title"`
+		Title        string `json:"title"`
 		ItemNumber   int    `json:"item_number"`
 		ReleaseTitle string `json:"release_title"`
 		Error        string `json:"error"`
@@ -69,8 +69,8 @@ func TestSendPostsTheDocumentedContract(t *testing.T) {
 	if got.Application != "transpondarr" || got.Event != "imported" {
 		t.Errorf("application/event = %q/%q", got.Application, got.Event)
 	}
-	if got.SeriesTitle != "Placeholder Saga" || got.ItemNumber != 5 {
-		t.Errorf("series/item = %q/%d", got.SeriesTitle, got.ItemNumber)
+	if got.Title != "Placeholder Saga" || got.ItemNumber != 5 {
+		t.Errorf("series/item = %q/%d", got.Title, got.ItemNumber)
 	}
 	if got.Error != "" {
 		t.Errorf("error = %q, want empty-but-present", got.Error)
@@ -107,7 +107,7 @@ func TestSendSerializesItemsAsAnArray(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	if err := New(ts.URL).Send(context.Background(), notify.Event{
-		Kind: notify.KindImported, SeriesTitle: "Placeholder Saga", Items: []int{1, 2, 3},
+		Kind: notify.KindImported, Title: "Placeholder Saga", Items: []int{1, 2, 3},
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestSendSerializesItemsAsAnArray(t *testing.T) {
 
 	// A single-item event still carries the key, as an empty array not null.
 	if err := New(ts.URL).Send(context.Background(), notify.Event{
-		Kind: notify.KindImported, SeriesTitle: "Placeholder Saga", ItemNumber: 5,
+		Kind: notify.KindImported, Title: "Placeholder Saga", ItemNumber: 5,
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}

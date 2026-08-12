@@ -800,7 +800,7 @@ func TestKeepsTwoSeriesSharingAnInfoHashApart(t *testing.T) {
 	got := map[string]int{}
 	for range 2 {
 		ev := waitEvent(t, fn)
-		got[ev.SeriesTitle] = ev.ItemNumber
+		got[ev.Title] = ev.ItemNumber
 	}
 	if got["Placeholder Saga"] != 1 || got["Second Saga"] != 2 {
 		t.Errorf("imports reported as %v, want each series its own episode", got)

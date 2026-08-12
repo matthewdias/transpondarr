@@ -63,8 +63,8 @@ func look(k notify.Kind) (string, int) {
 		return "Import stuck", 0xE67E22
 	case notify.KindGrabFailed:
 		return "Grab failed", 0xE74C3C
-	case notify.KindSeriesAdded:
-		return "Series added", 0x3498DB
+	case notify.KindTitleAdded:
+		return "Title added", 0x3498DB
 	case notify.KindRehearsal:
 		return "Rehearsal", 0x95A5A6
 	default:
@@ -76,8 +76,8 @@ func look(k notify.Kind) (string, int) {
 func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
 	title, color := look(ev.Kind)
 	e := embed{Title: title, Color: color}
-	if ev.SeriesTitle != "" {
-		e.Fields = append(e.Fields, field{Name: "Series", Value: capValue(ev.SeriesTitle)})
+	if ev.Title != "" {
+		e.Fields = append(e.Fields, field{Name: "Title", Value: capValue(ev.Title)})
 	}
 	if ev.ItemNumber > 0 {
 		e.Fields = append(e.Fields, field{Name: "Episode", Value: strconv.Itoa(ev.ItemNumber)})

@@ -155,14 +155,14 @@ func TestNotificationTestEndpoints(t *testing.T) {
 	}
 }
 
-func TestAddSeriesDispatchesSeriesAdded(t *testing.T) {
+func TestAddTitleDispatchesTitleAdded(t *testing.T) {
 	provider := variantProvider{meta: metadata.TitleMeta{
 		Titles: metadata.Titles{Romaji: "Placeholder Saga"}, Format: "TV",
 	}}
 	h := newHarnessWithProvider(t, nil, nil, provider)
 	fn := coretest.NewFakeNotifier()
 	h.reg.SetNotify(notify.NewDispatcher(discardLogger(),
-		notify.Route{Notifier: fn, Kinds: map[notify.Kind]bool{notify.KindSeriesAdded: true}}))
+		notify.Route{Notifier: fn, Kinds: map[notify.Kind]bool{notify.KindTitleAdded: true}}))
 
 	var out struct{}
 	if code := do(t, h, http.MethodPost, "/api/v1/titles",
@@ -172,10 +172,10 @@ func TestAddSeriesDispatchesSeriesAdded(t *testing.T) {
 
 	select {
 	case ev := <-fn.Events:
-		if ev.Kind != notify.KindSeriesAdded || ev.SeriesTitle != "Placeholder Saga" {
-			t.Errorf("event = %+v, want series_added for Placeholder Saga", ev)
+		if ev.Kind != notify.KindTitleAdded || ev.Title != "Placeholder Saga" {
+			t.Errorf("event = %+v, want title_added for Placeholder Saga", ev)
 		}
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for the series_added event")
+		t.Fatal("timed out waiting for the title_added event")
 	}
 }
