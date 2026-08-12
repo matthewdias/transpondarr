@@ -222,7 +222,8 @@ func profileDTO(p db.QualityProfile, groups []db.QualityProfileGroup, seriesCoun
 	return out, nil
 }
 
-// loadDTO assembles the full DTO for one profile row.
+// loadDTO assembles the full DTO for one profile row; the list endpoint reads in
+// bulk instead, so this stays for create and update's post-commit re-read.
 func (h *profilesHandler) loadDTO(ctx context.Context, p db.QualityProfile) (qualityProfileDTO, error) {
 	groups, err := h.store.Q.ListProfileGroups(ctx, p.ID)
 	if err != nil {
@@ -262,15 +263,38 @@ func isUniqueNameErr(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: quality_profiles.name")
 }
 
+// list reads groups and usage counts for every profile in one query each rather
+// than per row (#91), which the unpaginated listing makes exact: no id set to
+// scope by, and three queries whatever the profile count.
 func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesOutput, error) {
 	rows, err := h.store.Q.ListQualityProfiles(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list profiles", err)
 	}
+	groupRows, err := h.store.Q.ListAllProfileGroups(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to list profile groups", err)
+	}
+	countRows, err := h.store.Q.CountSeriesPerProfile(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to count series", err)
+	}
+
+	// The query orders by profile before rank, so appending in scan order leaves
+	// each profile's groups ranked exactly as ListProfileGroups returns them.
+	groups := map[int64][]db.QualityProfileGroup{}
+	for _, g := range groupRows {
+		groups[g.ProfileID] = append(groups[g.ProfileID], g)
+	}
+	counts := make(map[int64]int64, len(countRows))
+	for _, c := range countRows {
+		counts[c.QualityProfileID] = c.SeriesCount
+	}
+
 	out := &listProfilesOutput{}
 	out.Body.Profiles = make([]qualityProfileDTO, 0, len(rows))
 	for _, p := range rows {
-		dto, derr := h.loadDTO(ctx, p)
+		dto, derr := profileDTO(p, groups[p.ID], counts[p.ID])
 		if derr != nil {
 			return nil, huma.Error500InternalServerError("failed to load profile", derr)
 		}

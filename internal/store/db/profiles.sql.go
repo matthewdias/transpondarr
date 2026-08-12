@@ -53,6 +53,42 @@ func (q *Queries) CountSeriesByProfile(ctx context.Context, qualityProfileID int
 	return count, err
 }
 
+const countSeriesPerProfile = `-- name: CountSeriesPerProfile :many
+SELECT quality_profile_id, COUNT(*) AS series_count
+FROM series
+GROUP BY quality_profile_id
+`
+
+type CountSeriesPerProfileRow struct {
+	QualityProfileID int64 `json:"quality_profile_id"`
+	SeriesCount      int64 `json:"series_count"`
+}
+
+// Usage counts for every profile at once, for the unpaginated list endpoint. A
+// profile no series uses has no row, so the caller's zero value is the answer.
+func (q *Queries) CountSeriesPerProfile(ctx context.Context) ([]CountSeriesPerProfileRow, error) {
+	rows, err := q.db.QueryContext(ctx, countSeriesPerProfile)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountSeriesPerProfileRow{}
+	for rows.Next() {
+		var i CountSeriesPerProfileRow
+		if err := rows.Scan(&i.QualityProfileID, &i.SeriesCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const createQualityProfile = `-- name: CreateQualityProfile :one
 INSERT INTO quality_profiles (name, resolution_order, preferred_source, sub_pref, prefer_dual_audio, codec_pref, hard_excludes, min_score, upgrades_enabled, cutoff_score, upgrade_v2_above_cutoff)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -187,6 +223,43 @@ func (q *Queries) GetQualityProfile(ctx context.Context, id int64) (QualityProfi
 		&i.UpgradeV2AboveCutoff,
 	)
 	return i, err
+}
+
+const listAllProfileGroups = `-- name: ListAllProfileGroups :many
+SELECT id, profile_id, rank, group_name, blocked
+FROM quality_profile_groups
+ORDER BY profile_id, blocked, rank, group_name
+`
+
+// Every profile's groups in one read, ordered so that a scan in order rebuilds
+// each profile's ranking exactly as ListProfileGroups returns it.
+func (q *Queries) ListAllProfileGroups(ctx context.Context) ([]QualityProfileGroup, error) {
+	rows, err := q.db.QueryContext(ctx, listAllProfileGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []QualityProfileGroup{}
+	for rows.Next() {
+		var i QualityProfileGroup
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.Rank,
+			&i.GroupName,
+			&i.Blocked,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listProfileGroups = `-- name: ListProfileGroups :many

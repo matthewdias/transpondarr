@@ -171,6 +171,65 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 	}
 }
 
+// The list endpoint reads groups and usage counts for every profile at once, so
+// the two things a batched read can get wrong are pinned here: a profile's groups
+// staying its own and in rank order, and a profile nothing uses counting zero.
+func TestListProfilesGroupsAndCountsPerProfile(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	first := seedSeries(t, h.store, "Placeholder Saga", 3)
+	second := seedSeries(t, h.store, "Placeholder Chronicle", 2)
+	seedSeries(t, h.store, "Placeholder Legend", 1)
+
+	alpha := map[string]any{"name": "Alpha", "groups": []profileGroupJSON{
+		{Name: "AlphaFirst"}, {Name: "AlphaBlocked", Blocked: true}, {Name: "AlphaSecond"},
+	}}
+	beta := map[string]any{"name": "Beta", "groups": []profileGroupJSON{
+		{Name: "BetaBlocked", Blocked: true}, {Name: "BetaOnly"},
+	}}
+	var alphaOut, betaOut profileJSON
+	if code := do(t, h, "POST", "/api/v1/profiles", alpha, &alphaOut); code != http.StatusCreated {
+		t.Fatalf("create Alpha status = %d, want 201", code)
+	}
+	if code := do(t, h, "POST", "/api/v1/profiles", beta, &betaOut); code != http.StatusCreated {
+		t.Fatalf("create Beta status = %d, want 201", code)
+	}
+	for _, id := range []int64{first, second} {
+		if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/series/%d/profile", id),
+			map[string]any{"profile_id": alphaOut.ID}, nil); code != http.StatusOK {
+			t.Fatalf("assign series %d status = %d, want 200", id, code)
+		}
+	}
+
+	var list struct {
+		Profiles []profileJSON `json:"profiles"`
+	}
+	if code := do(t, h, "GET", "/api/v1/profiles", nil, &list); code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200", code)
+	}
+	byName := map[string]profileJSON{}
+	for _, p := range list.Profiles {
+		byName[p.Name] = p
+	}
+	if len(byName) != 3 {
+		t.Fatalf("profiles = %+v, want Default, Alpha and Beta", list.Profiles)
+	}
+
+	wantGroups := map[string][]profileGroupJSON{
+		"Default": {},
+		"Alpha":   {{Name: "AlphaFirst"}, {Name: "AlphaSecond"}, {Name: "AlphaBlocked", Blocked: true}},
+		"Beta":    {{Name: "BetaOnly"}, {Name: "BetaBlocked", Blocked: true}},
+	}
+	wantCounts := map[string]int64{"Default": 1, "Alpha": 2, "Beta": 0}
+	for name, want := range wantGroups {
+		if got := byName[name].Groups; fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("%s groups = %+v, want %+v", name, got, want)
+		}
+		if got := byName[name].SeriesCount; got != wantCounts[name] {
+			t.Errorf("%s series_count = %d, want %d", name, got, wantCounts[name])
+		}
+	}
+}
+
 func TestDeleteDefaultProfileRefused(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	if code := do(t, h, "DELETE", "/api/v1/profiles/1", nil, nil); code != http.StatusUnprocessableEntity {
