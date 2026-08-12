@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
 type profileGroupJSON struct {
@@ -315,5 +317,42 @@ func TestUpdateUnknownProfileIsNotFound(t *testing.T) {
 		if c := do(t, h, "PUT", "/api/v1/profiles/9999", tc.body, nil); c != tc.want {
 			t.Errorf("update unknown id with %s = %d, want %d", tc.name, c, tc.want)
 		}
+	}
+}
+
+// A pre-#90 install can hold Anime and anime, which nothing dedupes; the newer
+// row must stay savable rather than answering 409 to its own name.
+func TestUpdateProfileWithPreExistingCaseVariantName(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	ctx := context.Background()
+
+	seed := func(name string) int64 {
+		t.Helper()
+		p, err := h.store.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
+			Name: name, ResolutionOrder: `[]`, HardExcludes: `[]`,
+		})
+		if err != nil {
+			t.Fatalf("seed %q: %v", name, err)
+		}
+		return p.ID
+	}
+	seed("Anime")
+	second := fmt.Sprintf("/api/v1/profiles/%d", seed("anime"))
+
+	var got profileJSON
+	if c := do(t, h, "PUT", second, map[string]any{"name": "anime", "min_score": 25}, &got); c != http.StatusOK {
+		t.Fatalf("saving the second row under its own name = %d, want 200", c)
+	}
+	if got.Name != "anime" || got.MinScore != 25 {
+		t.Errorf("profile = %q/%d, want anime/25", got.Name, got.MinScore)
+	}
+	if c := do(t, h, "PUT", second, map[string]any{"name": "ANIME"}, &got); c != http.StatusOK {
+		t.Errorf("recasing its own name = %d, want 200", c)
+	}
+
+	// Renaming it onto the other row's exact name is still refused, by the
+	// binary unique constraint rather than by the pre-check.
+	if c := do(t, h, "PUT", second, map[string]any{"name": "Anime"}, nil); c != http.StatusConflict {
+		t.Errorf("collapsing the pair = %d, want 409", c)
 	}
 }

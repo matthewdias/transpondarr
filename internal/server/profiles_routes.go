@@ -259,17 +259,15 @@ func writeGroups(ctx context.Context, q *db.Queries, profileID int64, groups []p
 }
 
 // requireNameFree applies to profile names the case-insensitive rule validate
-// already applies to group names; exceptID is the profile being updated.
-func requireNameFree(ctx context.Context, q *db.Queries, name string, exceptID int64) error {
-	existing, err := q.GetQualityProfileByName(ctx, name)
+// already applies to group names. Callers must skip it when the name is not
+// changing, since a row can hold a name this refuses (see update).
+func requireNameFree(ctx context.Context, q *db.Queries, name string) error {
+	_, err := q.GetQualityProfileByName(ctx, name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
 		return huma.Error500InternalServerError("failed to check profile name", err)
-	}
-	if existing.ID == exceptID {
-		return nil
 	}
 	return huma.Error409Conflict("a profile with that name already exists")
 }
@@ -307,7 +305,7 @@ func (h *profilesHandler) create(ctx context.Context, in *createProfileInput) (*
 	qtx := h.store.Q.WithTx(tx)
 
 	name := strings.TrimSpace(in.Body.Name)
-	if nerr := requireNameFree(ctx, qtx, name, 0); nerr != nil {
+	if nerr := requireNameFree(ctx, qtx, name); nerr != nil {
 		return nil, nerr
 	}
 
@@ -357,14 +355,19 @@ func (h *profilesHandler) update(ctx context.Context, in *updateProfileInput) (*
 	qtx := h.store.Q.WithTx(tx)
 
 	// An unknown id is a 404, not a name clash, so existence is checked first.
-	if _, gerr := qtx.GetQualityProfile(ctx, in.ID); errors.Is(gerr, sql.ErrNoRows) {
+	current, gerr := qtx.GetQualityProfile(ctx, in.ID)
+	if errors.Is(gerr, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("profile not found")
 	} else if gerr != nil {
 		return nil, huma.Error500InternalServerError("failed to load profile", gerr)
 	}
+	// Only an actual rename is checked: an install predating this rule can hold
+	// Anime and anime, and the second row's own lookup returns the first.
 	name := strings.TrimSpace(in.Body.Name)
-	if nerr := requireNameFree(ctx, qtx, name, in.ID); nerr != nil {
-		return nil, nerr
+	if !strings.EqualFold(name, current.Name) {
+		if nerr := requireNameFree(ctx, qtx, name); nerr != nil {
+			return nil, nerr
+		}
 	}
 
 	row, err := qtx.UpdateQualityProfile(ctx, db.UpdateQualityProfileParams{
