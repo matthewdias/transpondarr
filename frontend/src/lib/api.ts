@@ -104,7 +104,7 @@ export type Candidate = Schemas["CandidateDTO"];
 // widens this type rather than passing an arbitrary string.
 export type Provider = Schemas["AddSeriesInputBody"]["provider"];
 // The add-time item-monitoring choice; "all" is the server default, which is
-// what an add call that offers no choice (Discovery) must keep meaning.
+// what an add call that omits the field must keep meaning.
 export type MonitorItems = NonNullable<
   Schemas["AddSeriesInputBody"]["monitor_items"]
 >;

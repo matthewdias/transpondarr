@@ -56,7 +56,7 @@ func TestAddSeriesAppliesTheChosenProfile(t *testing.T) {
 }
 
 // An omitted profile is not a choice: the column default (the seeded is-default
-// profile) has to survive, or every Discovery add would need one.
+// profile) has to survive, or every caller would have to name one.
 func TestAddSeriesWithoutAProfileKeepsTheDefault(t *testing.T) {
 	st, svc := profileService(t)
 
