@@ -70,7 +70,7 @@ func TestSendPostsTheDocumentedContract(t *testing.T) {
 		t.Errorf("application/event = %q/%q", got.Application, got.Event)
 	}
 	if got.Title != "Placeholder Saga" || got.ItemNumber != 5 {
-		t.Errorf("series/item = %q/%d", got.Title, got.ItemNumber)
+		t.Errorf("title/item = %q/%d", got.Title, got.ItemNumber)
 	}
 	if got.Error != "" {
 		t.Errorf("error = %q, want empty-but-present", got.Error)

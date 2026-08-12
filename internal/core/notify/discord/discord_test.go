@@ -55,9 +55,9 @@ func fieldValue(e wireEmbed, name string) (string, bool) {
 
 func TestSendRendersEachKind(t *testing.T) {
 	cases := []struct {
-		kind  notify.Kind
-		title string
-		color int
+		kind    notify.Kind
+		heading string
+		color   int
 	}{
 		{notify.KindGrabbed, "Release grabbed", 0x3498DB},
 		{notify.KindImported, "Import succeeded", 0x2ECC71},
@@ -76,8 +76,8 @@ func TestSendRendersEachKind(t *testing.T) {
 				t.Fatalf("embeds = %d, want 1", len(got.Embeds))
 			}
 			e := got.Embeds[0]
-			if e.Title != tc.title {
-				t.Errorf("title = %q, want %q", e.Title, tc.title)
+			if e.Title != tc.heading {
+				t.Errorf("heading = %q, want %q", e.Title, tc.heading)
 			}
 			if e.Color != tc.color {
 				t.Errorf("color = %#x, want %#x", e.Color, tc.color)
@@ -144,7 +144,7 @@ func TestSendOmitsUnsetFields(t *testing.T) {
 	}
 	e := got.Embeds[0]
 	if len(e.Fields) != 1 {
-		t.Fatalf("fields = %+v, want only Series", e.Fields)
+		t.Fatalf("fields = %+v, want only Title", e.Fields)
 	}
 	if v, _ := fieldValue(e, "Title"); v != "Placeholder Saga" {
 		t.Errorf("Title = %q", v)

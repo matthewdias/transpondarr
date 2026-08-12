@@ -402,7 +402,7 @@ describe("SeriesDetailPage episode search", () => {
       http.get("/api/v1/profiles", () => HttpResponse.json({ profiles: [] })),
       http.get("/api/v1/titles/7/search", () =>
         HttpResponse.json({
-          series: "Placeholder Saga",
+          title: "Placeholder Saga",
           results: [
             candidate(
               "[GroupA] Placeholder Saga - 02 (1080p)",
@@ -419,7 +419,7 @@ describe("SeriesDetailPage episode search", () => {
       ),
       http.get("/api/v1/titles/9/search", () =>
         HttpResponse.json({
-          series: "Second Saga",
+          title: "Second Saga",
           results: [
             candidate(
               "[GroupA] Second Saga - 04 (1080p)",

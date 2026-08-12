@@ -60,8 +60,8 @@ All notable changes to this project are documented here. The format is based on
   nothing.** The UI ships inside the binary and is already updated, so only
   machine clients notice. Every route under `/api/v1/series` moved to
   `/api/v1/titles` — including `{id}`, `{id}/search`, `{id}/grab`,
-  `{id}/grabs`, `{id}/blocklist`, `{id}/pinned-group` and `{id}/profile` — and
-  these JSON fields were renamed:
+  `{id}/grabs`, `{id}/blocklist`, `{id}/blocklist/{entryId}`,
+  `{id}/pinned-group` and `{id}/profile` — and these JSON fields were renamed:
 
   | Before | After | Where |
   | --- | --- | --- |
@@ -83,6 +83,14 @@ All notable changes to this project are documented here. The format is based on
   new spec. The `series` database table is unchanged, so no migration runs, and
   saved notification toggles are read under their existing keys — nothing needs
   reconfiguring.
+
+  One rename fails quietly rather than loudly, so check it if you script your
+  settings: a `PUT /api/v1/settings/notifications` that still sends
+  `on_series_added` turns that notification **off**, because the toggles are
+  plain booleans with no unset encoding and a save replaces all of them. Every
+  other rename here reports itself — an old route 404s, and `series_ids` is a
+  required field, so `POST /api/v1/wanted/search` returns 422 rather than
+  resetting your whole library's search backoff.
 
 ## [0.7.0] — 2026-08-08
 

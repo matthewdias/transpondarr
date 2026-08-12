@@ -33,7 +33,7 @@ const server = setupServer(
   ),
   // The add invalidates the series list, which this page never observes;
   // tolerate the request if something does.
-  http.get("/api/v1/titles", () => HttpResponse.json({ series: [] })),
+  http.get("/api/v1/titles", () => HttpResponse.json({ titles: [] })),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());

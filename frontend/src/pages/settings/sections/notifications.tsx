@@ -36,7 +36,7 @@ const EVENT_ROWS: { key: keyof EventToggles; label: string; hint: string }[] = [
     label: "Grab failed",
     hint: "A download errored or vanished",
   },
-  { key: "on_title_added", label: "Series added", hint: "A series was added" },
+  { key: "on_title_added", label: "Title added", hint: "A title was added" },
   {
     key: "on_rehearsal",
     label: "Rehearsal",

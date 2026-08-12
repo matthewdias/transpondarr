@@ -226,7 +226,7 @@ func TestListProfilesGroupsAndCountsPerProfile(t *testing.T) {
 			t.Errorf("%s groups = %+v, want %+v", name, got, want)
 		}
 		if got := byName[name].TitleCount; got != wantCounts[name] {
-			t.Errorf("%s series_count = %d, want %d", name, got, wantCounts[name])
+			t.Errorf("%s title_count = %d, want %d", name, got, wantCounts[name])
 		}
 	}
 }

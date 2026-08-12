@@ -52,7 +52,7 @@ type embed struct {
 	Fields []field `json:"fields,omitempty"`
 }
 
-// look maps each kind to its embed title and color.
+// look maps each kind to its embed heading and color.
 func look(k notify.Kind) (string, int) {
 	switch k {
 	case notify.KindGrabbed:
@@ -74,8 +74,8 @@ func look(k notify.Kind) (string, int) {
 
 // Send posts ev as an embed; any 2xx (Discord returns 204) is success.
 func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
-	title, color := look(ev.Kind)
-	e := embed{Title: title, Color: color}
+	heading, color := look(ev.Kind)
+	e := embed{Title: heading, Color: color}
 	if ev.Title != "" {
 		e.Fields = append(e.Fields, field{Name: "Title", Value: capValue(ev.Title)})
 	}

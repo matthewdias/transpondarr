@@ -50,6 +50,9 @@ func TestDeleteSeriesRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 	dl := &coretest.FakeDownload{}
 	h := newHarness(t, nil, dl)
 	id := seedSeries(t, h.store, "Placeholder Saga", 3)
+	// A second series the delete must leave alone, so the list assertion below
+	// has something to find rather than passing on an empty page.
+	survivor := seedSeries(t, h.store, "Second Saga", 2)
 	seedGrab(t, h.store, id, 1, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "grabbed")
 	if _, err := h.store.DB.ExecContext(context.Background(),
 		`INSERT INTO release_blocklist (series_id, info_hash, release_title, normalized_title, reason)
@@ -80,17 +83,22 @@ func TestDeleteSeriesRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 		t.Errorf("GET after delete = %d, want 404", code)
 	}
 	var listOut struct {
-		Series []struct {
+		Titles []struct {
 			ID int64 `json:"id"`
-		} `json:"series"`
+		} `json:"titles"`
 	}
 	if code := h.get(t, "/api/v1/titles", &listOut); code != http.StatusOK {
 		t.Fatalf("list status = %d, want 200", code)
 	}
-	for _, s := range listOut.Series {
-		if s.ID == id {
-			t.Errorf("deleted series %d still in the list", id)
-		}
+	listed := map[int64]bool{}
+	for _, s := range listOut.Titles {
+		listed[s.ID] = true
+	}
+	if listed[id] {
+		t.Errorf("deleted series %d still in the list", id)
+	}
+	if !listed[survivor] {
+		t.Errorf("series %d went missing from the list; the delete took more than it was asked for", survivor)
 	}
 }
 

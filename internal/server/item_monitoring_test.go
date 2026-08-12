@@ -72,7 +72,7 @@ func TestSetItemsMonitoredUnmonitorsWithoutTouchingTheSearchQueue(t *testing.T) 
 		t.Errorf("search_epoch = %d, want %d -- unmonitoring queues nothing", got, before)
 	}
 	if out.TitlesQueued != 0 {
-		t.Errorf("series_queued = %d, want 0", out.TitlesQueued)
+		t.Errorf("titles_queued = %d, want 0", out.TitlesQueued)
 	}
 }
 
@@ -126,7 +126,7 @@ func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
 		t.Errorf("search_epoch = %d, want %d -- nothing moved, so nothing is queued", got, before)
 	}
 	if out.TitlesQueued != 0 {
-		t.Errorf("series_queued = %d, want 0", out.TitlesQueued)
+		t.Errorf("titles_queued = %d, want 0", out.TitlesQueued)
 	}
 }
 
@@ -153,7 +153,7 @@ func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 		t.Errorf("search_epoch = %d, want %d -- exactly one reset", got, before+1)
 	}
 	if out.TitlesQueued != 1 {
-		t.Errorf("series_queued = %d, want 1", out.TitlesQueued)
+		t.Errorf("titles_queued = %d, want 1", out.TitlesQueued)
 	}
 }
 

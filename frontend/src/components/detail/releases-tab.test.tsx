@@ -238,7 +238,7 @@ function renderReleases(focusItem: number | null, gated = false) {
     http.get("/api/v1/titles/7/search", async () => {
       if (gated) await inFlight;
       return HttpResponse.json({
-        series: "Example Show",
+        title: "Example Show",
         results: focusResults,
       });
     }),

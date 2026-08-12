@@ -670,7 +670,7 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 		t.Fatalf("POST wanted/search (all) = %d, want 202", code)
 	}
 	if out.TitlesQueued != -1 {
-		t.Errorf("series_queued = %d, want -1 for a library-wide reset", out.TitlesQueued)
+		t.Errorf("titles_queued = %d, want -1 for a library-wide reset", out.TitlesQueued)
 	}
 	if got := nextSearchAt(t, h.store, two); got != "" {
 		t.Errorf("series two next_search_at = %q, want cleared by the library-wide reset", got)

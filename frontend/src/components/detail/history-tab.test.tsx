@@ -79,12 +79,12 @@ function renderTab(
 ) {
   server.use(
     http.get("/api/v1/titles/7/grabs", () =>
-      HttpResponse.json({ series: "Example Show", events }),
+      HttpResponse.json({ title: "Example Show", events }),
     ),
     http.get("/api/v1/titles/7/blocklist", () =>
       blocklistFails
         ? new HttpResponse(null, { status: 500 })
-        : HttpResponse.json({ series: "Example Show", entries }),
+        : HttpResponse.json({ title: "Example Show", entries }),
     ),
   );
   const client = new QueryClient({
@@ -201,7 +201,7 @@ describe("HistoryTab blocked releases", () => {
       }),
       http.get("/api/v1/titles/7/blocklist", () =>
         HttpResponse.json({
-          series: "Example Show",
+          title: "Example Show",
           entries: deleted ? [] : [blocklistEntry()],
         }),
       ),
@@ -227,7 +227,7 @@ describe("HistoryTab blocked releases", () => {
       }),
       http.get("/api/v1/titles/7/blocklist", () =>
         HttpResponse.json({
-          series: "Example Show",
+          title: "Example Show",
           entries: cleared
             ? []
             : [blocklistEntry(), blocklistEntry({ id: 12 })],
@@ -261,7 +261,7 @@ describe("HistoryTab blocked releases", () => {
       }),
       http.get("/api/v1/titles/7/blocklist", () =>
         HttpResponse.json({
-          series: "Example Show",
+          title: "Example Show",
           entries: expiredOnly ? [live] : [live, lapsed],
         }),
       ),

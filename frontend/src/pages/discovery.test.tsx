@@ -163,7 +163,7 @@ describe("DiscoveryPage", () => {
       }),
       // The add flow invalidates the series list, which the sidebar-less test
       // page never queries; tolerate it if something does.
-      http.get("/api/v1/titles", () => HttpResponse.json({ series: [] })),
+      http.get("/api/v1/titles", () => HttpResponse.json({ titles: [] })),
       profilesHandler,
     );
 
