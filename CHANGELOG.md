@@ -15,6 +15,17 @@ All notable changes to this project are documented here. The format is based on
   shows a **Profile unavailable** chip you can click to try again, and links to
   Settings when there are no profiles to pick.
   Closes [#93](https://github.com/matthewdias/transpondarr/issues/93).
+- **Profile names no longer collide only by case.** Saving a profile named
+  `Anime` while `anime` exists is refused with the same conflict a duplicate name
+  has always given, matching how group names within a profile are compared.
+  Closes [#90](https://github.com/matthewdias/transpondarr/issues/90).
+
+### Internal
+
+- **Duplicate-name detection reads SQLite's result code instead of matching on
+  the error message**, so a driver that rewords its errors can no longer turn a
+  conflict into a 500.
+  Closes [#92](https://github.com/matthewdias/transpondarr/issues/92).
 
 ## [0.7.0] — 2026-08-08
 
