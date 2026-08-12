@@ -36,9 +36,18 @@ function candidateTitle(c: Candidate) {
   return c.romaji || c.english || c.native || `${c.provider} ${c.provider_id}`;
 }
 
-function AddSeriesBody({ onDone }: { onDone: () => void }) {
+// selected is the container's, not this body's: Escape is dispatched on the
+// dialog, so only the container can turn it into a step back.
+function AddSeriesBody({
+  onDone,
+  selected,
+  onSelect,
+}: {
+  onDone: () => void;
+  selected: Candidate | null;
+  onSelect: (candidate: Candidate | null) => void;
+}) {
   const [term, setTerm] = useState("");
-  const [selected, setSelected] = useState<Candidate | null>(null);
   const debounced = useDebounce(term, 350);
   const navigate = useNavigate();
 
@@ -76,7 +85,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
           key={`${selected.provider}:${selected.provider_id}`}
           title={candidateTitle(selected)}
           target={selected}
-          onBack={() => setSelected(null)}
+          onBack={() => onSelect(null)}
           onAdded={(series) => {
             onDone();
             navigate(`/series/${series.id}`);
@@ -173,7 +182,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
                   // Every row's visible label is identical, so the accessible
                   // name carries the title.
                   aria-label={`Add ${candidateTitle(c)}`}
-                  onClick={() => setSelected(c)}
+                  onClick={() => onSelect(c)}
                 >
                   Add
                 </Button>
@@ -188,8 +197,28 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
 
 export function AddSeriesButton() {
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Candidate | null>(null);
   const isMobile = useIsMobile();
-  const close = () => setOpen(false);
+  // The next open starts at the search; the closed dialog keeps no step.
+  const setDialogOpen = (next: boolean) => {
+    setOpen(next);
+    if (!next) setSelected(null);
+  };
+  const close = () => setDialogOpen(false);
+
+  // Escape leaves the step, not the whole dialog: the form is a layer over the
+  // results, and the stacked dialog it replaced would have peeled off one at a
+  // time. Radix dispatches this from a capture-phase document listener, so
+  // preventing it here is the only way to intercept it.
+  const stepBackOnEscape = (event: KeyboardEvent) => {
+    if (!selected) return;
+    event.preventDefault();
+    setSelected(null);
+  };
+
+  const body = (
+    <AddSeriesBody onDone={close} selected={selected} onSelect={setSelected} />
+  );
 
   const trigger = (
     <Button onClick={() => setOpen(true)}>
@@ -201,15 +230,18 @@ export function AddSeriesButton() {
     return (
       <>
         {trigger}
-        <Drawer open={open} onOpenChange={setOpen}>
-          <DrawerContent className="px-4 pb-6">
+        <Drawer open={open} onOpenChange={setDialogOpen}>
+          <DrawerContent
+            className="px-4 pb-6"
+            onEscapeKeyDown={stepBackOnEscape}
+          >
             <DrawerHeader className="px-0">
               <DrawerTitle>Add series</DrawerTitle>
               <DrawerDescription>
                 Search AniList and pick a title to track.
               </DrawerDescription>
             </DrawerHeader>
-            <AddSeriesBody onDone={close} />
+            {body}
           </DrawerContent>
         </Drawer>
       </>
@@ -219,15 +251,15 @@ export function AddSeriesButton() {
   return (
     <>
       {trigger}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl">
+      <Dialog open={open} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-xl" onEscapeKeyDown={stepBackOnEscape}>
           <DialogHeader>
             <DialogTitle>Add series</DialogTitle>
             <DialogDescription>
               Search AniList and pick a title to track.
             </DialogDescription>
           </DialogHeader>
-          <AddSeriesBody onDone={close} />
+          {body}
         </DialogContent>
       </Dialog>
     </>

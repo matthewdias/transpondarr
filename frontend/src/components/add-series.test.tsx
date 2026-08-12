@@ -113,6 +113,32 @@ it("opens a per-title form and keeps the search behind it", async () => {
   ).toBeInTheDocument();
 });
 
+// A stacked dialog would have dismissed one layer at a time; the step it was
+// replaced with owes the same, or Escape silently costs the typed search that
+// Back preserves.
+it("steps back from the form on Escape, and closes on the next one", async () => {
+  const user = await openWithResults();
+
+  await user.click(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  );
+  await screen.findByRole("combobox", { name: "Monitor" });
+
+  await user.keyboard("{Escape}");
+
+  expect(screen.getByPlaceholderText(/search anilist/i)).toHaveValue(
+    "placeholder",
+  );
+  expect(
+    screen.queryByRole("combobox", { name: "Monitor" }),
+  ).not.toBeInTheDocument();
+
+  await user.keyboard("{Escape}");
+  await waitFor(() =>
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+  );
+});
+
 // Untouched is not a choice: an omitted profile has to leave the server's
 // default alone, or every add would have to name one.
 it("confirms with the defaults in one click and sends no profile", async () => {
