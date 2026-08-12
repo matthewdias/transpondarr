@@ -263,9 +263,8 @@ func isUniqueNameErr(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: quality_profiles.name")
 }
 
-// list reads groups and usage counts for every profile in one query each rather
-// than per row (#91), which the unpaginated listing makes exact: no id set to
-// scope by, and three queries whatever the profile count.
+// The listing is unpaginated, so there is no id set to scope by (#91): one query
+// for groups, one for counts, three whatever the profile count.
 func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesOutput, error) {
 	rows, err := h.store.Q.ListQualityProfiles(ctx)
 	if err != nil {

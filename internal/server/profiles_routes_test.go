@@ -171,9 +171,8 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 	}
 }
 
-// The list endpoint reads groups and usage counts for every profile at once, so
-// the two things a batched read can get wrong are pinned here: a profile's groups
-// staying its own and in rank order, and a profile nothing uses counting zero.
+// The two things a batched read can get wrong: groups leaking between profiles,
+// and a profile nothing uses counting something other than zero.
 func TestListProfilesGroupsAndCountsPerProfile(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	first := seedSeries(t, h.store, "Placeholder Saga", 3)

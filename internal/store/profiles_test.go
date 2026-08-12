@@ -234,9 +234,8 @@ func TestProfileGroupsOrderedUnblockedFirstThenByRank(t *testing.T) {
 	}
 }
 
-// The two batch reads behind the list endpoint: groups must stay partitioned by
-// profile with each partition ranked as ListProfileGroups returns it, and a
-// profile no series uses must be absent rather than zero.
+// Each partition must be ranked as ListProfileGroups returns it, and a profile
+// no series uses must be absent from the counts rather than reported as zero.
 func TestBatchProfileReadsPartitionByProfile(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
