@@ -7,6 +7,7 @@ import { formatLabel, statusLabel } from "@/lib/chart";
 import { profilesQuery, seriesQuery } from "@/lib/queries";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -18,6 +19,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -137,8 +139,18 @@ export function AddTitleForm({
           </Select>
         </div>
 
-        {/* Hidden rather than disabled while the profiles load: the add never
-            waits on them, since omitting one takes the server's default. */}
+        {/* The row is held but never blocking: the add omits the profile until
+            one is picked, so a slow or failed fetch just takes the server's
+            default rather than standing between the user and the button. */}
+        {(profiles.isPending || profiles.isPaused) && (
+          <div className="space-y-1">
+            <span className="block text-xs font-medium text-muted-foreground">
+              Quality profile
+            </span>
+            <Skeleton className="h-9 w-full rounded-md" />
+          </div>
+        )}
+
         {!!profiles.data?.length && shown !== undefined && (
           <div className="space-y-1">
             <span className="block text-xs font-medium text-muted-foreground">
@@ -163,13 +175,15 @@ export function AddTitleForm({
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-end gap-2">
+      {/* DialogFooter in a drawer too: below sm it stacks the primary action on
+          top, which is exactly the mobile container's shape. */}
+      <DialogFooter className="mt-4">
         {onBack && (
           <Button
             type="button"
             variant="ghost"
             onClick={onBack}
-            className="mr-auto"
+            className="sm:mr-auto"
           >
             <ChevronLeft className="size-4" /> Back
           </Button>
@@ -184,7 +198,7 @@ export function AddTitleForm({
           {add.isPending && <Loader2 className="size-3.5 animate-spin" />}
           Add
         </Button>
-      </div>
+      </DialogFooter>
     </form>
   );
 }

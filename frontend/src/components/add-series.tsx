@@ -29,6 +29,7 @@ import {
   ItemContent,
   ItemMedia,
   ItemActions,
+  ItemTitle,
 } from "@/components/ui/item";
 
 function candidateTitle(c: Candidate) {
@@ -55,16 +56,22 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
   if (selected) {
     return (
       <div>
-        {/* The dialog header names the flow, so the step names the title. */}
-        <div className="mb-3 flex items-center gap-3">
-          <Poster
-            title={candidateTitle(selected)}
-            coverUrl={selected.cover_url}
-          />
-          <div className="truncate text-sm font-medium">
-            {candidateTitle(selected)}
-          </div>
-        </div>
+        {/* The dialog header names the flow, so the step names the title -- as
+            the same row it was picked from, which is the continuity a step
+            owes the list behind it. */}
+        <Item variant="muted" size="sm" className="mb-3 gap-3">
+          <ItemMedia>
+            <Poster
+              title={candidateTitle(selected)}
+              coverUrl={selected.cover_url}
+            />
+          </ItemMedia>
+          <ItemContent className="min-w-0">
+            <ItemTitle className="max-w-full truncate">
+              {candidateTitle(selected)}
+            </ItemTitle>
+          </ItemContent>
+        </Item>
         <AddTitleForm
           key={`${selected.provider}:${selected.provider_id}`}
           title={candidateTitle(selected)}

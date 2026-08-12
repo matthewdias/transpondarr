@@ -135,6 +135,31 @@ it("confirms with the defaults in one click and sends no profile", async () => {
   );
 });
 
+// The profile fetch must never stand between the user and the button: a failed
+// one (or a slow one) degrades to the server's default, which is the same
+// answer an untouched picker gives.
+it("adds when the profiles cannot be fetched", async () => {
+  const bodies = captureAdd();
+  server.use(http.get("/api/v1/profiles", () => HttpResponse.error()));
+  const user = await openWithResults();
+
+  await user.click(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  );
+  const submit = await screen.findByRole("button", {
+    name: "Add Placeholder Saga",
+  });
+  expect(
+    screen.queryByRole("combobox", { name: /quality profile/i }),
+  ).not.toBeInTheDocument();
+  expect(submit).toBeEnabled();
+
+  await user.click(submit);
+
+  await waitFor(() => expect(bodies).toHaveLength(1));
+  expect(bodies[0]).not.toHaveProperty("quality_profile_id");
+});
+
 it("sends both choices when they are made", async () => {
   const bodies = captureAdd();
   const user = await openWithResults();
