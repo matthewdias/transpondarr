@@ -235,7 +235,7 @@ func serveOnce(t *testing.T, body string, query *string) string {
 // startDate.year is primary: AniList assigns a season later than a year becomes
 // known, and its WINTER bucket spans December, so seasonYear can name the year
 // after the premiere release names carry.
-func TestGetTitleMapsSeasonYear(t *testing.T) {
+func TestGetTitlePrefersStartDateOverSeasonYear(t *testing.T) {
 	var query string
 	url := serveOnce(t, mediaResponse("MOVIE", "1", "2021", "2020"), &query)
 
@@ -251,7 +251,9 @@ func TestGetTitleMapsSeasonYear(t *testing.T) {
 	}
 }
 
-func TestGetTitleFallsBackToStartDateYear(t *testing.T) {
+// An announced film carries a year before it is assigned a season, which is the
+// coverage startDate.year buys over seasonYear.
+func TestGetTitleYearSurvivesANullSeasonYear(t *testing.T) {
 	url := serveOnce(t, mediaResponse("MOVIE", "1", "null", "2027"), nil)
 
 	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
@@ -260,6 +262,18 @@ func TestGetTitleFallsBackToStartDateYear(t *testing.T) {
 	}
 	if meta.Year != 2027 {
 		t.Errorf("Year = %d, want 2027", meta.Year)
+	}
+}
+
+func TestGetTitleFallsBackToSeasonYear(t *testing.T) {
+	url := serveOnce(t, mediaResponse("MOVIE", "1", "2021", "null"), nil)
+
+	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if meta.Year != 2021 {
+		t.Errorf("Year = %d, want 2021 (seasonYear, startDate.year being null)", meta.Year)
 	}
 }
 
@@ -319,7 +333,7 @@ func TestGetTitleOVAWithOneEpisodeUnchanged(t *testing.T) {
 }
 
 // The search row and the stored title must not disagree about a movie's year.
-func TestSearchFallsBackToStartDateYear(t *testing.T) {
+func TestSearchYearSurvivesANullSeasonYear(t *testing.T) {
 	var query string
 	url := serveOnce(t, `{"data":{"Page":{"media":[{
 		"id": 4321,
