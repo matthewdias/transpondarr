@@ -138,6 +138,7 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 		Title:      name,
 		Format:     string(format),
 		Monitored:  boolToInt(monitored),
+		Year:       int64(meta.Year),
 	})
 	if err != nil {
 		return domain.Title{}, fmt.Errorf("create series: %w", err)
@@ -169,13 +170,15 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 		ProviderID: providerID,
 		Name:       name,
 		Format:     format,
+		Year:       meta.Year,
 		Monitored:  monitored,
 	}
+	kind := domain.KindFor(format)
 	for _, it := range items {
 		number := sql.NullInt64{Int64: int64(it.Number), Valid: true}
 		wrow, err := q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 			SeriesID:  srow.ID,
-			Kind:      string(domain.KindEpisode),
+			Kind:      string(kind),
 			Number:    number,
 			Title:     nullString(it.Name),
 			InLibrary: 0,
@@ -186,7 +189,7 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 		}
 		title.Items = append(title.Items, domain.WantedItem{
 			ID:     wrow.ID,
-			Kind:   domain.KindEpisode,
+			Kind:   kind,
 			Number: it.Number,
 			Name:   it.Name,
 		})

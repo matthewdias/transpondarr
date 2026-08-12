@@ -240,16 +240,25 @@ describe("DiscoveryPage", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps a movie visible but not addable", async () => {
+  it("opens the add form for a movie", async () => {
     server.use(
       chartHandler([
         entry({ provider_id: 103, romaji: "Gamma the Movie", format: "MOVIE" }),
       ]),
+      profilesHandler,
     );
 
+    const user = userEvent.setup();
     renderPage();
 
     expect(await screen.findByText("Gamma the Movie")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add/i })).toBeDisabled();
+    const add = screen.getByRole("button", { name: /add/i });
+    expect(add).toBeEnabled();
+
+    await user.click(add);
+
+    expect(
+      await screen.findByRole("button", { name: "Add Gamma the Movie" }),
+    ).toBeInTheDocument();
   });
 });

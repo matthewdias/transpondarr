@@ -501,6 +501,30 @@ Behaviour changes are test-driven. Work red → green → refactor:
   unmonitored fill must not put a narrowed long-runner back at the front of the
   search queue on every sync — while refresh still clears the airing stamp on
   *any* insert, since the air-date sync ignores monitoring.
+- **Format is the discriminator everywhere; item count never is (#208).** Movie
+  treatment — title+year matching (#209), movie naming (#198), no episodes table
+  (#212) — keys on `domain.FormatMovie` alone, never on `len(items) == 1`. A
+  single-episode OVA/ONA/special stays series-shaped, which is also what Plex and
+  Jellyfin expect (OVAs file under Shows). The rule is enforced at the top of the
+  funnel: `highestItem` returns `1` for a movie *before* reading `episodes`, so
+  add and refresh agree by construction and a film whose three shorts ship as one
+  entry cannot create three items. Downstream, `domain.KindFor(Format)` is the one
+  helper every create site writes `kind` through (catalog, refresh, airing) — and
+  since it derives from the format frozen at add time, **any future
+  `SetSeriesFormat` must re-key the existing items**, exactly as `00022`'s
+  backfill does: `idx_wanted_items_identity` is `(series_id, kind, number)`, so a
+  stale `('episode', 1)` does not collide with `('movie', 1)` and the next refresh
+  silently doubles the title instead of failing.
+- **The null-year rule is one rule split by actor, not two (#208).** `series.year`
+  is `0`, never NULL, for "no year on record", and the split is: **naming** drops
+  the ` (Year)` suffix (#198), while **matching** stays free for manual search and
+  grab — the #57 doctrine — but carries an ineligible reason so automation never
+  grabs a null-year movie (#209). The precision risk sits on the supervised path,
+  the availability cost on the unsupervised one, because a null year correlates
+  with an unreleased title, which is exactly when every candidate a search returns
+  is wrong. The stored year is refresh-maintained rather than an add-time
+  snapshot, and `SetSeriesYear` guards `? > 0` **in SQL** so no caller can let a
+  transient upstream null erase one.
 - **The library flag and the derived item status share one name, deliberately
   (#84): `in_library`.** `wanted_items.in_library` sources the status
   `deriveItemState` returns, so renaming either alone would hide the derivation.

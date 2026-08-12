@@ -68,6 +68,9 @@ export function AddTitleForm({
   onBack?: () => void;
 }) {
   const [monitorItems, setMonitorItems] = useState<MonitorItems>("all");
+  // A movie is one item, so all vs. future says nothing the series-level
+  // Monitored switch does not already say.
+  const isMovie = target.format === "MOVIE";
   const [profileId, setProfileId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const profiles = useQuery(profilesQuery());
@@ -90,7 +93,9 @@ export function AddTitleForm({
     onSuccess: (series) => {
       queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
       toast.success("Series added", {
-        description: `${series.title} — ${series.items.length} wanted items expanded`,
+        description: `${series.title} — ${series.items.length} wanted ${
+          series.items.length === 1 ? "item" : "items"
+        } expanded`,
       });
       onAdded(series);
     },
@@ -118,26 +123,32 @@ export function AddTitleForm({
           <p className="text-[12.5px] text-faint">{meta.join(" · ")}</p>
         )}
 
-        <div className="space-y-1">
-          <span className="block text-xs font-medium text-muted-foreground">
-            Monitor
-          </span>
-          <Select
-            value={monitorItems}
-            onValueChange={(v) => setMonitorItems(v as MonitorItems)}
-          >
-            <SelectTrigger aria-label="Monitor" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {monitorChoices.map((c) => (
-                <SelectItem key={c.value} value={c.value} description={c.hint}>
-                  {c.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {!isMovie && (
+          <div className="space-y-1">
+            <span className="block text-xs font-medium text-muted-foreground">
+              Monitor
+            </span>
+            <Select
+              value={monitorItems}
+              onValueChange={(v) => setMonitorItems(v as MonitorItems)}
+            >
+              <SelectTrigger aria-label="Monitor" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {monitorChoices.map((c) => (
+                  <SelectItem
+                    key={c.value}
+                    value={c.value}
+                    description={c.hint}
+                  >
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* The row is held but never blocking: the add omits the profile until
             one is picked, so a slow or failed fetch just takes the server's

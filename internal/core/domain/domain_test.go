@@ -29,3 +29,23 @@ func TestPinDelayClampsBothEnds(t *testing.T) {
 		}
 	}
 }
+
+// Format is the discriminator: a single-episode OVA stays series-shaped, so
+// nothing may derive the kind from an item count.
+func TestKindFor(t *testing.T) {
+	for _, tc := range []struct {
+		format domain.Format
+		want   domain.WantedKind
+	}{
+		{domain.FormatTV, domain.KindEpisode},
+		{domain.FormatOVA, domain.KindEpisode},
+		{domain.FormatONA, domain.KindEpisode},
+		{domain.FormatSpecial, domain.KindEpisode},
+		{domain.FormatMovie, domain.KindMovie},
+		{domain.Format(""), domain.KindEpisode},
+	} {
+		if got := domain.KindFor(tc.format); got != tc.want {
+			t.Errorf("KindFor(%q) = %q, want %q", tc.format, got, tc.want)
+		}
+	}
+}

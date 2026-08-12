@@ -225,3 +225,52 @@ it("offers no way to add a series that monitors nothing", async () => {
     screen.queryByRole("option", { name: /^none/i }),
   ).not.toBeInTheDocument();
 });
+
+// The movie Format is tracked now (#208): the row adds like any other, and the
+// "reserved" note that stood in for the refusal is gone.
+it("adds a movie result like any other title", async () => {
+  server.use(
+    http.get("/api/v1/metadata/search", () =>
+      HttpResponse.json({
+        results: [
+          {
+            provider: "anilist",
+            provider_id: 4321,
+            romaji: "Sample Film",
+            format: "MOVIE",
+            status: "FINISHED",
+            year: 2020,
+          },
+        ],
+      }),
+    ),
+  );
+  const bodies = captureAdd();
+
+  const user = userEvent.setup();
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <AddSeriesButton />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await user.click(screen.getByRole("button", { name: /add series/i }));
+  await user.type(screen.getByPlaceholderText(/search anilist/i), "sample");
+  await screen.findByText("Sample Film", undefined, { timeout: 3000 });
+
+  expect(screen.queryByText(/reserved/i)).not.toBeInTheDocument();
+  const row = screen.getByRole("button", { name: "Add Sample Film" });
+  expect(row).toBeEnabled();
+
+  await user.click(row);
+  await user.click(
+    await screen.findByRole("button", { name: "Add Sample Film" }),
+  );
+
+  await waitFor(() => expect(bodies).toHaveLength(1));
+  expect(bodies[0]).toMatchObject({ provider_id: 4321 });
+});

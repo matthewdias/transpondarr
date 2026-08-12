@@ -318,7 +318,6 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
   // state lives here and is mounted once.
   const [formOpen, setFormOpen] = useState(false);
   const title = entryTitle(entry);
-  const isMovie = entry.format === "MOVIE";
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
@@ -353,8 +352,6 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
         <Button
           size="sm"
           className="flex-1"
-          disabled={isMovie}
-          title={isMovie ? "Reserved — v1 tracks series" : undefined}
           // Sequential, never stacked: the detail hands over to the form.
           onClick={() => {
             setDetailOpen(false);

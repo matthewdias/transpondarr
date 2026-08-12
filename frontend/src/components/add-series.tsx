@@ -150,7 +150,6 @@ function AddSeriesBody({
         )}
 
         {results.map((c) => {
-          const isMovie = c.format === "MOVIE";
           const meta = [
             c.format && `${c.format}${c.episodes ? ` · ${c.episodes} ep` : ""}`,
             [c.year, c.status].filter(Boolean).join(" · ") || null,
@@ -168,17 +167,14 @@ function AddSeriesBody({
                 </div>
                 <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[12.5px] text-faint">
                   {english && <span className="truncate">{english}</span>}
-                  {isMovie ? (
-                    <span>MOVIE · reserved — v1 tracks series</span>
-                  ) : (
-                    meta.map((m) => <span key={m}>{m}</span>)
-                  )}
+                  {meta.map((m) => (
+                    <span key={m}>{m}</span>
+                  ))}
                 </div>
               </ItemContent>
               <ItemActions>
                 <Button
                   size="sm"
-                  disabled={isMovie}
                   // Every row's visible label is identical, so the accessible
                   // name carries the title.
                   aria-label={`Add ${candidateTitle(c)}`}

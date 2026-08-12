@@ -45,6 +45,9 @@ type TitleMeta struct {
 	Episodes   int           // 0 when the count is not yet known (e.g. still releasing)
 	Status     string
 	CoverURL   string
+	// Year is the release year, 0 when the provider publishes none. Both movie
+	// matching (#209) and movie naming (#198) read it.
+	Year int
 	// NextItem is the number of the next scheduled broadcast, 0 when nothing is
 	// scheduled. It lives here rather than on ItemMeta because it describes the
 	// title's position in its own run, and it keeps ItemMeta air-date-free.

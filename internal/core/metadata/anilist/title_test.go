@@ -199,3 +199,161 @@ func TestGetTitleWithNothingToGoOnReturnsNoItems(t *testing.T) {
 		t.Errorf("items = %v, want none", itemNumbers(items))
 	}
 }
+
+// mediaResponse renders one Media as AniList would, with the year fields and
+// episode count spelled by the caller (each a raw JSON literal, so "null" is
+// expressible).
+func mediaResponse(format, episodes, seasonYear, startYear string) string {
+	return fmt.Sprintf(`{"data":{"Media":{
+		"id": 4321,
+		"title": {"romaji": "Sample Film"},
+		"format": %q,
+		"episodes": %s,
+		"status": "FINISHED",
+		"seasonYear": %s,
+		"startDate": {"year": %s},
+		"coverImage": {"large": ""},
+		"nextAiringEpisode": null,
+		"airingSchedule": {"nodes": []}
+	}}}`, format, episodes, seasonYear, startYear)
+}
+
+func serveOnce(t *testing.T, body string, query *string) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		if query != nil {
+			*query = string(b)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, body)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+// startDate.year is primary: AniList assigns a season later than a year becomes
+// known, and its WINTER bucket spans December, so seasonYear can name the year
+// after the premiere release names carry.
+func TestGetTitlePrefersStartDateOverSeasonYear(t *testing.T) {
+	var query string
+	url := serveOnce(t, mediaResponse("MOVIE", "1", "2021", "2020"), &query)
+
+	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if meta.Year != 2020 {
+		t.Errorf("Year = %d, want 2020 (startDate.year wins)", meta.Year)
+	}
+	if !strings.Contains(query, "seasonYear") || !strings.Contains(query, "startDate") {
+		t.Errorf("title query does not request both year fields: %s", query)
+	}
+}
+
+// An announced film carries a year before it is assigned a season, which is the
+// coverage startDate.year buys over seasonYear.
+func TestGetTitleYearSurvivesANullSeasonYear(t *testing.T) {
+	url := serveOnce(t, mediaResponse("MOVIE", "1", "null", "2027"), nil)
+
+	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if meta.Year != 2027 {
+		t.Errorf("Year = %d, want 2027", meta.Year)
+	}
+}
+
+func TestGetTitleFallsBackToSeasonYear(t *testing.T) {
+	url := serveOnce(t, mediaResponse("MOVIE", "1", "2021", "null"), nil)
+
+	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if meta.Year != 2021 {
+		t.Errorf("Year = %d, want 2021 (seasonYear, startDate.year being null)", meta.Year)
+	}
+}
+
+func TestGetTitleYearUnknownWhenNeitherPublished(t *testing.T) {
+	url := serveOnce(t, mediaResponse("MOVIE", "null", "null", "null"), nil)
+
+	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if meta.Year != 0 {
+		t.Errorf("Year = %d, want 0 (no year on record)", meta.Year)
+	}
+}
+
+// An unreleased film has no count and no schedule, which today yields zero items.
+func TestGetTitleExpandsMovieToOneItem(t *testing.T) {
+	url := serveOnce(t, mediaResponse("MOVIE", "null", "null", "2027"), nil)
+
+	_, items, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if got := itemNumbers(items); len(got) != 1 || got[0] != 1 {
+		t.Errorf("items = %v, want [1]", got)
+	}
+}
+
+// Format is the discriminator; the count is never consulted. Three shorts
+// released as one film carry episodes: 3 and are still one acquirable item.
+func TestGetTitleMovieIgnoresEpisodeCount(t *testing.T) {
+	url := serveOnce(t, mediaResponse("MOVIE", "3", "2007", "2007"), nil)
+
+	_, items, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if got := itemNumbers(items); len(got) != 1 || got[0] != 1 {
+		t.Errorf("items = %v, want [1]", got)
+	}
+}
+
+// The clamp keys on format, so a one-episode OVA stays series-shaped.
+func TestGetTitleOVAWithOneEpisodeUnchanged(t *testing.T) {
+	url := serveOnce(t, mediaResponse("OVA", "1", "2014", "2014"), nil)
+
+	meta, items, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if got := itemNumbers(items); len(got) != 1 || got[0] != 1 {
+		t.Errorf("items = %v, want [1]", got)
+	}
+	if meta.Format != "OVA" {
+		t.Errorf("Format = %q, want OVA", meta.Format)
+	}
+}
+
+// The search row and the stored title must not disagree about a movie's year.
+func TestSearchYearSurvivesANullSeasonYear(t *testing.T) {
+	var query string
+	url := serveOnce(t, `{"data":{"Page":{"media":[{
+		"id": 4321,
+		"title": {"romaji": "Sample Film"},
+		"format": "MOVIE",
+		"episodes": null,
+		"status": "NOT_YET_RELEASED",
+		"seasonYear": null,
+		"startDate": {"year": 2027},
+		"coverImage": {"large": ""}
+	}]}}}`, &query)
+
+	got, err := stubClient(url).Search(context.Background(), "sample film")
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(got) != 1 || got[0].Year != 2027 {
+		t.Fatalf("candidates = %+v, want one with Year 2027", got)
+	}
+	if !strings.Contains(query, "startDate") {
+		t.Errorf("search query does not request startDate: %s", query)
+	}
+}

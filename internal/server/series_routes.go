@@ -28,6 +28,7 @@ type titleDTO struct {
 	ID             int64  `json:"id"`
 	Title          string `json:"title"`
 	Format         string `json:"format"`
+	Year           int    `json:"year,omitempty" doc:"Release year; absent when the provider publishes none"`
 	Monitored      bool   `json:"monitored"`
 	Total          int    `json:"total"`
 	Tracked        int    `json:"tracked" doc:"Items this title is pursuing: monitored and already broadcast"`
@@ -54,6 +55,7 @@ type titleDetailDTO struct {
 	ProviderID int64           `json:"provider_id"`
 	Title      string          `json:"title"`
 	Format     string          `json:"format"`
+	Year       int             `json:"year,omitempty" doc:"Release year; absent when the provider publishes none"`
 	Monitored  bool            `json:"monitored"`
 	Items      []wantedItemDTO `json:"items"`
 }
@@ -101,6 +103,7 @@ type titleDetailReadDTO struct {
 	English          string          `json:"english,omitempty"`
 	Native           string          `json:"native,omitempty"`
 	Format           string          `json:"format"`
+	Year             int             `json:"year,omitempty" doc:"Release year; absent when the provider publishes none"`
 	Status           string          `json:"status,omitempty" doc:"Provider status (e.g. RELEASING, FINISHED)"`
 	CoverURL         string          `json:"cover_url,omitempty"`
 	Monitored        bool            `json:"monitored"`
@@ -290,6 +293,7 @@ func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listTitle
 			ID:             s.ID,
 			Title:          s.Title,
 			Format:         s.Format,
+			Year:           int(s.Year),
 			Monitored:      s.Monitored == 1,
 			Total:          int(s.TotalItems),
 			Tracked:        int(s.TrackedItems),
@@ -339,6 +343,7 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addTitleInput) (*addT
 		ProviderID: title.ProviderID,
 		Title:      title.Name,
 		Format:     string(title.Format),
+		Year:       title.Year,
 		Monitored:  title.Monitored,
 		Items:      make([]wantedItemDTO, 0, len(title.Items)),
 	}
@@ -379,6 +384,7 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getTitleInput) (*getT
 		ID:               series.ID,
 		Title:            series.Title,
 		Format:           series.Format,
+		Year:             int(series.Year),
 		Monitored:        series.Monitored == 1,
 		QualityProfileID: series.QualityProfileID,
 		PinnedGroup:      series.PinnedGroup.String,

@@ -1,15 +1,15 @@
 // Package domain holds Transpondarr's content-type-agnostic core model.
 //
 // The pipeline (search -> decide -> grab -> import) is keyed on WantedItem, never
-// on a hardcoded "episode". An episode is one WantedItem; a movie (a later
-// format) is a Title with a single WantedItem — so adding movies is a new
-// Format plus a naming template, not a re-architecture.
+// on a hardcoded "episode". An episode is one WantedItem; a movie is a Title with
+// a single WantedItem — so adding movies was a new Format plus a naming template,
+// not a re-architecture.
 package domain
 
 import "time"
 
-// Format is the shape of a title. MOVIE is reserved for a later phase; the model
-// already accommodates it.
+// Format is the shape of a title, and the sole discriminator between movie and
+// series treatment.
 type Format string
 
 const (
@@ -17,7 +17,7 @@ const (
 	FormatOVA     Format = "OVA"
 	FormatONA     Format = "ONA"
 	FormatSpecial Format = "SPECIAL"
-	FormatMovie   Format = "MOVIE" // reserved: not handled in v1
+	FormatMovie   Format = "MOVIE"
 )
 
 // WantedKind distinguishes the kind of acquirable item.
@@ -28,6 +28,15 @@ const (
 	KindMovie   WantedKind = "movie"
 )
 
+// KindFor derives an item's kind from its title's Format, which is the only
+// discriminator: a single-episode OVA stays series-shaped.
+func KindFor(f Format) WantedKind {
+	if f == FormatMovie {
+		return KindMovie
+	}
+	return KindEpisode
+}
+
 // Title is a tracked work. Its identity is the (Provider, ProviderID) pair, so
 // the primary key does not name a single upstream.
 type Title struct {
@@ -36,6 +45,7 @@ type Title struct {
 	ProviderID int64
 	Name       string
 	Format     Format
+	Year       int // release year; 0 when the provider publishes none
 	Monitored  bool
 	Items      []WantedItem
 }
