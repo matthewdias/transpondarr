@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   ChevronLeft,
@@ -9,12 +8,11 @@ import {
   Clock,
   Compass,
   ExternalLink,
-  Loader2,
   Plus,
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
-import { api, ApiError, type SeasonEntry } from "@/lib/api";
+import { ApiError, type SeasonEntry } from "@/lib/api";
 import {
   type ChartFilters,
   filterEntries,
@@ -36,6 +34,7 @@ import {
   YEAR_FLOOR,
 } from "@/lib/season";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AddTitleDialog } from "@/components/add-title-form";
 import { AniListLink } from "@/components/anilist-link";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
@@ -315,26 +314,11 @@ function FilterSelect({
 function SeasonCard({ entry }: { entry: SeasonEntry }) {
   const queryClient = useQueryClient();
   const [detailOpen, setDetailOpen] = useState(false);
+  // The actions render on both the card and the detail, so the form's open
+  // state lives here and is mounted once.
+  const [formOpen, setFormOpen] = useState(false);
   const title = entryTitle(entry);
   const isMovie = entry.format === "MOVIE";
-
-  const add = useMutation({
-    mutationFn: () => api.addSeries(entry.provider, entry.provider_id),
-    onSuccess: (series) => {
-      toast.success("Series added", { description: series.title });
-      invalidate();
-    },
-    onError: (err) => {
-      if (err instanceof ApiError && err.status === 409) {
-        toast.info("Already tracking", { description: title });
-        invalidate();
-        return;
-      }
-      toast.error("Could not add series", {
-        description: err instanceof Error ? err.message : String(err),
-      });
-    },
-  });
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
@@ -369,15 +353,15 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
         <Button
           size="sm"
           className="flex-1"
-          disabled={isMovie || add.isPending}
+          disabled={isMovie}
           title={isMovie ? "Reserved — v1 tracks series" : undefined}
-          onClick={() => add.mutate()}
+          // Sequential, never stacked: the detail hands over to the form.
+          onClick={() => {
+            setDetailOpen(false);
+            setFormOpen(true);
+          }}
         >
-          {add.isPending ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Plus className="size-3.5" />
-          )}
+          <Plus className="size-3.5" />
           Add
         </Button>
       )}
@@ -451,6 +435,21 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
         actions={actions}
         open={detailOpen}
         onOpenChange={setDetailOpen}
+      />
+
+      <AddTitleDialog
+        title={title}
+        target={entry}
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        onAdded={() => {
+          setFormOpen(false);
+          invalidate();
+        }}
+        onExists={() => {
+          setFormOpen(false);
+          invalidate();
+        }}
       />
     </div>
   );

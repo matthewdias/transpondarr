@@ -68,6 +68,9 @@ type addSeriesInput struct {
 		// The default must stay "all": Discovery adds a title without offering the
 		// choice, and today's behaviour is what an omitted field has to mean.
 		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future" default:"all" doc:"Which items to monitor, now and as the series grows: all, or only from the next broadcast onwards"`
+		// Carried in the add so it is one atomic write; omitted (0) takes the
+		// default profile, which is what Discovery's one-click add relies on.
+		QualityProfileID int64 `json:"quality_profile_id,omitempty" minimum:"1" doc:"Quality profile to assign; omitted takes the default profile"`
 	}
 }
 
@@ -308,9 +311,12 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addSeriesInput) (*add
 		mode = catalog.MonitorMode(in.Body.MonitorItems)
 	}
 
-	title, err := h.catalog.AddSeries(ctx, in.Body.Provider, in.Body.ProviderID, monitored, mode)
+	title, err := h.catalog.AddSeries(ctx, in.Body.Provider, in.Body.ProviderID, monitored, mode, in.Body.QualityProfileID)
 	if errors.Is(err, catalog.ErrAlreadyExists) {
 		return nil, huma.Error409Conflict("series already exists")
+	}
+	if errors.Is(err, catalog.ErrUnknownProfile) {
+		return nil, huma.Error422UnprocessableEntity("profile does not exist")
 	}
 	// Unreachable while the request enum lists exactly the configured provider --
 	// huma rejects anything else at validation with a 422. It fires once the enum

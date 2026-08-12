@@ -1,19 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from "lucide-react";
-import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
-import { metadataSearchQuery, seriesQuery } from "@/lib/queries";
+import { ApiError, type Candidate } from "@/lib/api";
+import { metadataSearchQuery } from "@/lib/queries";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { AddTitleForm } from "@/components/add-title-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Poster } from "@/components/poster";
@@ -42,30 +35,11 @@ function candidateTitle(c: Candidate) {
   return c.romaji || c.english || c.native || `${c.provider} ${c.provider_id}`;
 }
 
-// Before the add, not after: a new series sorts to the front of the sweep queue
-// and one pass grabs everything eligible.
-const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
-  { value: "all", label: "All episodes", hint: "Including the back catalogue" },
-  {
-    value: "future",
-    label: "Future only",
-    hint: "From the next broadcast onwards",
-  },
-];
-
-// The mode control is far from the button, so the button carries the
-// consequence. Only a departure from the default is worth saying.
-const monitorAnnotation: Record<MonitorItems, string> = {
-  all: "",
-  future: "future only",
-};
-
 function AddSeriesBody({ onDone }: { onDone: () => void }) {
   const [term, setTerm] = useState("");
-  const [monitorItems, setMonitorItems] = useState<MonitorItems>("all");
+  const [selected, setSelected] = useState<Candidate | null>(null);
   const debounced = useDebounce(term, 350);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
   const query = debounced.trim();
 
@@ -74,32 +48,37 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
     enabled: query.length > 0,
   });
 
-  const add = useMutation({
-    mutationFn: (c: Candidate) =>
-      api.addSeries(c.provider, c.provider_id, monitorItems),
-    onSuccess: (series) => {
-      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
-      toast.success("Series added", {
-        description: `${series.title} — ${series.items.length} wanted items expanded`,
-      });
-      onDone();
-      navigate(`/series/${series.id}`);
-    },
-    onError: (err, c) => {
-      if (err instanceof ApiError && err.status === 409) {
-        toast.info("Already tracking", { description: candidateTitle(c) });
-        onDone();
-        return;
-      }
-      toast.error("Could not add series", {
-        description: err instanceof Error ? err.message : String(err),
-      });
-    },
-  });
-
   const results = search.data ?? [];
-  const annotation = monitorAnnotation[monitorItems];
-  const addLabel = annotation ? `Add · ${annotation}` : "Add";
+
+  // A step rather than a stacked dialog: this body stays mounted, so Back
+  // returns to the search term and results that led here.
+  if (selected) {
+    return (
+      <div>
+        {/* The dialog header names the flow, so the step names the title. */}
+        <div className="mb-3 flex items-center gap-3">
+          <Poster
+            title={candidateTitle(selected)}
+            coverUrl={selected.cover_url}
+          />
+          <div className="truncate text-sm font-medium">
+            {candidateTitle(selected)}
+          </div>
+        </div>
+        <AddTitleForm
+          key={`${selected.provider}:${selected.provider_id}`}
+          title={candidateTitle(selected)}
+          target={selected}
+          onBack={() => setSelected(null)}
+          onAdded={(series) => {
+            onDone();
+            navigate(`/series/${series.id}`);
+          }}
+          onExists={onDone}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -114,28 +93,7 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
         />
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <span className="text-[13px] text-muted-foreground">
-          Monitor on add
-        </span>
-        <Select
-          value={monitorItems}
-          onValueChange={(v) => setMonitorItems(v as MonitorItems)}
-        >
-          <SelectTrigger size="sm" aria-label="Monitor on add">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {monitorChoices.map((c) => (
-              <SelectItem key={c.value} value={c.value} description={c.hint}>
-                {c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="mt-2 max-h-[56vh] min-h-[8rem] overflow-y-auto">
+      <div className="mt-3 max-h-[56vh] min-h-[8rem] overflow-y-auto">
         {/* A paused retry (browser offline) reports neither fetching nor error. */}
         {(search.isFetching || search.isPaused) && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
@@ -204,22 +162,13 @@ function AddSeriesBody({ onDone }: { onDone: () => void }) {
               <ItemActions>
                 <Button
                   size="sm"
-                  disabled={isMovie || add.isPending}
+                  disabled={isMovie}
                   // Every row's visible label is identical, so the accessible
                   // name carries the title.
-                  aria-label={
-                    annotation
-                      ? `Add ${candidateTitle(c)} · ${annotation}`
-                      : `Add ${candidateTitle(c)}`
-                  }
-                  onClick={() => add.mutate(c)}
+                  aria-label={`Add ${candidateTitle(c)}`}
+                  onClick={() => setSelected(c)}
                 >
-                  {add.isPending &&
-                    add.variables?.provider === c.provider &&
-                    add.variables?.provider_id === c.provider_id && (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    )}
-                  <span className="whitespace-nowrap">{addLabel}</span>
+                  Add
                 </Button>
               </ItemActions>
             </Item>

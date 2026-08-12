@@ -100,7 +100,7 @@ func TestAddSeriesAppliesTheMonitorMode(t *testing.T) {
 			prov := longRunner(tc.next)
 			svc := NewService(st, prov)
 
-			title, err := svc.AddSeries(context.Background(), prov.Name(), 42, true, tc.mode)
+			title, err := svc.AddSeries(context.Background(), prov.Name(), 42, true, tc.mode, 0)
 			if err != nil {
 				t.Fatalf("AddSeries: %v", err)
 			}
@@ -128,7 +128,7 @@ func TestAddSeriesRejectsAModeItDoesNotKnow(t *testing.T) {
 		prov := longRunner(7)
 		svc := NewService(st, prov)
 
-		_, err := svc.AddSeries(context.Background(), prov.Name(), 42, true, mode)
+		_, err := svc.AddSeries(context.Background(), prov.Name(), 42, true, mode, 0)
 		if !errors.Is(err, ErrUnknownMonitorMode) {
 			t.Errorf("AddSeries(%q) = %v, want ErrUnknownMonitorMode", mode, err)
 		}

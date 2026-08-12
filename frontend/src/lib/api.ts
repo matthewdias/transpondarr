@@ -368,11 +368,20 @@ export const api = {
       .then(unwrap)
       .then((r) => r.results),
 
+  // qualityProfileId is omitted rather than defaulted client-side: the server's
+  // default profile is the one answer that stays right as it changes.
   addSeries: (
     provider: Provider,
     providerId: number,
-    monitorItems: MonitorItems = "all",
-    monitored = true,
+    {
+      monitorItems = "all",
+      monitored = true,
+      qualityProfileId,
+    }: {
+      monitorItems?: MonitorItems;
+      monitored?: boolean;
+      qualityProfileId?: number;
+    } = {},
   ) =>
     client
       .POST("/api/v1/series", {
@@ -381,6 +390,7 @@ export const api = {
           provider_id: providerId,
           monitored,
           monitor_items: monitorItems,
+          ...(qualityProfileId ? { quality_profile_id: qualityProfileId } : {}),
         },
       })
       .then(unwrap),
