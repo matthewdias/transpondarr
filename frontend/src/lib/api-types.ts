@@ -1338,6 +1338,11 @@ export interface components {
             mode?: "auto" | "hardlink" | "copy";
             /** @description Root movies are placed into; empty = movies do not import */
             movies_dir?: string;
+            /**
+             * @description Path shape inside the series root; movies are unaffected
+             * @enum {string}
+             */
+            series_layout?: "season_folders" | "flat";
         };
         LibrarySettingsDTO: {
             configured: boolean;
@@ -1345,6 +1350,8 @@ export interface components {
             mode: string;
             /** @description Root movies are placed into; empty = movies do not import */
             movies_dir: string;
+            /** @description Path shape inside the series root; movies are unaffected */
+            series_layout: string;
         };
         ListJobsOutputBody: {
             /**

@@ -2,12 +2,16 @@
 // into a Jellyfin/Plex-friendly layout, one root per format:
 //
 //	<series root>/<Series Name>/Season 01/<Series Name> - S01EMM<ext>
+//	<series root>/<Series Name>/<Series Name> - S01EMM<ext>          (Layout flat)
 //	<movies root>/<Movie Name> (<Year>)/<Movie Name> (<Year>)<ext>
 //
 // The format is the discriminator and the item count never is, so a
 // single-episode OVA takes the series layout; both media servers expect one
 // under Shows. A movie with no year on record drops the suffix from both
 // components rather than filing under a year the provider has not published.
+// Layout (#129) shapes the series path within its root and is a different axis
+// from the root itself: only the series branch reads it, and the movie shape is
+// the same under either.
 //
 // Anime providers model each season as a SEPARATE entry with its own title (e.g. "...
 // 2nd Season") and its own 1..N numbering, so each entry maps to its own
@@ -48,6 +52,25 @@ var (
 	ErrNoSeriesRoot = errors.New("no series library directory is configured; set one under Settings > Library")
 )
 
+// Layout selects the path shape a series takes within its root (#129). It is a
+// different axis from the root: the format still picks the root and the branch,
+// and only the series branch reads this.
+type Layout string
+
+const (
+	LayoutSeasonFolders Layout = "season_folders" // <Name>/Season 01/<Name> - S01EMM<ext>
+	LayoutFlat          Layout = "flat"           // <Name>/<Name> - S01EMM<ext>
+)
+
+// ParseLayout maps a config string to a Layout, defaulting to season folders so
+// an install that has never set one keeps the layout it already has on disk.
+func ParseLayout(s string) Layout {
+	if Layout(strings.ToLower(strings.TrimSpace(s))) == LayoutFlat {
+		return LayoutFlat
+	}
+	return LayoutSeasonFolders
+}
+
 // Mode selects how a file is transferred into the library.
 type Mode string
 
@@ -79,22 +102,24 @@ type Roots struct {
 
 // Target places imported files into a media-server library layout.
 type Target struct {
-	roots Roots
-	mode  Mode
-	log   *slog.Logger
+	roots  Roots
+	layout Layout
+	mode   Mode
+	log    *slog.Logger
 }
 
-// New constructs a media-server layout target over roots. mode is
-// auto|hardlink|copy (see ParseMode). A nil log discards. Roots are trimmed
-// here so the path joined is the path configured: a pasted " /media/films" is
-// otherwise a directory named " " away, or relative to the process cwd.
-func New(roots Roots, mode string, log *slog.Logger) *Target {
+// New constructs a media-server layout target over roots. layout shapes the
+// series path (see ParseLayout); mode is auto|hardlink|copy (see ParseMode). A
+// nil log discards. Roots are trimmed here so the path joined is the path
+// configured: a pasted " /media/films" is otherwise a directory named " " away,
+// or relative to the process cwd.
+func New(roots Roots, layout Layout, mode string, log *slog.Logger) *Target {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
 	roots.Series = strings.TrimSpace(roots.Series)
 	roots.Movies = strings.TrimSpace(roots.Movies)
-	return &Target{roots: roots, mode: ParseMode(mode), log: log}
+	return &Target{roots: roots, layout: ParseLayout(string(layout)), mode: ParseMode(mode), log: log}
 }
 
 func (t *Target) Name() string { return "mediaserver" }
@@ -130,8 +155,12 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 	// Replacing into a directory that does not exist means our own naming inputs
 	// moved under us — a refreshed year or title — so the held file is somewhere
 	// only #213's placed-path memory can find. Also fires on a hand-deleted folder.
+	// The layout switch is diagnosed first because it names the actual file.
 	if req.Replace {
-		if _, err := os.Stat(destDir); errors.Is(err, os.ErrNotExist) {
+		if held, ok := t.heldElsewhere(req, name); ok {
+			t.log.Warn("mediaserver: another layout holds this item; the superseded file is left where it is",
+				"title", req.Title.Name, "item", req.Item.Number, "held", held, "dest", dest)
+		} else if _, err := os.Stat(destDir); errors.Is(err, os.ErrNotExist) {
 			t.log.Warn("mediaserver: upgrading into a directory that does not exist; the library may hold this item under an older name",
 				"title", req.Title.Name, "item", req.Item.Number, "dest", dest, "source", req.SourcePath)
 		}
@@ -184,8 +213,43 @@ func (t *Target) destination(req library.ImportRequest, name string) (dir, stem 
 	if t.roots.Series == "" {
 		return "", "", fmt.Errorf("mediaserver: %w", ErrNoSeriesRoot)
 	}
-	return filepath.Join(t.roots.Series, name, fmt.Sprintf("Season %02d", seasonNumber)),
-		fmt.Sprintf("%s - S%02dE%02d", name, seasonNumber, req.Item.Number), nil
+	dir, stem = seriesShape(t.layout, t.roots.Series, name, req.Item.Number)
+	return dir, stem, nil
+}
+
+// seriesShape is the series path under layout. Flat drops the season folder and
+// nothing else: the SxxExx in the name is what a scanner reads the episode from.
+func seriesShape(layout Layout, root, name string, number int) (dir, stem string) {
+	dir = filepath.Join(root, name)
+	if layout != LayoutFlat {
+		dir = filepath.Join(dir, fmt.Sprintf("Season %02d", seasonNumber))
+	}
+	return dir, fmt.Sprintf("%s - S%02dE%02d", name, seasonNumber, number)
+}
+
+// heldElsewhere finds this item under the series layout that is not configured.
+// Switching layouts moves nothing already placed, so an upgrade writes the new
+// shape beside the old file rather than over it — and the series folder still
+// exists, so the missing-directory warning below cannot catch it.
+func (t *Target) heldElsewhere(req library.ImportRequest, name string) (string, bool) {
+	if req.Title.Format == domain.FormatMovie || t.roots.Series == "" {
+		return "", false
+	}
+	other := LayoutSeasonFolders
+	if t.layout == LayoutSeasonFolders {
+		other = LayoutFlat
+	}
+	dir, stem := seriesShape(other, t.roots.Series, name, req.Item.Number)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasPrefix(e.Name(), stem+".") {
+			return filepath.Join(dir, e.Name()), true
+		}
+	}
+	return "", false
 }
 
 // movieName is the folder and file stem a movie is filed under. A year of 0

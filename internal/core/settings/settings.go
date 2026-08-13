@@ -56,6 +56,7 @@ const (
 	keyTorznabCategories = "torznab.categories"
 	keyLibraryDir        = "library.dir"
 	keyLibraryMoviesDir  = "library.movies_dir"
+	keyLibraryLayout     = "library.series_layout"
 	keyLibraryMode       = "library.import_mode"
 
 	keyAutomationEnabled  = "automation.enabled"
@@ -106,11 +107,13 @@ type IndexerConfig struct {
 
 // LibraryConfig is the library import target configuration. MoviesDir is the
 // per-format root movies place into (#198); empty is not a fallback into Dir,
-// so a movie import fails until one is set.
+// so a movie import fails until one is set. SeriesLayout shapes the path within
+// the series root (#129) and says nothing about movies.
 type LibraryConfig struct {
-	Dir       string
-	MoviesDir string
-	Mode      string // auto | hardlink | copy
+	Dir          string
+	MoviesDir    string
+	SeriesLayout string // season_folders | flat
+	Mode         string // auto | hardlink | copy
 }
 
 // AutomationMode is the global toggle's three states (#102, widened by #116).
@@ -174,6 +177,8 @@ func (c *LibraryConfig) applyDefaults() {
 	// stored, displayed, tested and joined into a path are the same string.
 	c.Dir = strings.TrimSpace(c.Dir)
 	c.MoviesDir = strings.TrimSpace(c.MoviesDir)
+	// An install that has never set one keeps the layout its files are already in.
+	c.SeriesLayout = string(mediaserver.ParseLayout(c.SeriesLayout))
 	if strings.TrimSpace(c.Mode) == "" {
 		c.Mode = defaultImportMode
 	}
@@ -244,7 +249,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 		addr:    base.Addr,
 		dl:      DownloadConfig{URL: base.QbitURL, User: base.QbitUser, Password: base.QbitPassword, Category: base.QbitCategory},
 		idx:     IndexerConfig{Name: base.TorznabName, URL: base.TorznabURL, APIKey: base.TorznabAPIKey, Categories: base.TorznabCategories},
-		lib:     LibraryConfig{Dir: base.LibraryDir, MoviesDir: base.LibraryMoviesDir, Mode: base.ImportMode},
+		lib:     LibraryConfig{Dir: base.LibraryDir, MoviesDir: base.LibraryMoviesDir, SeriesLayout: base.LibrarySeriesLayout, Mode: base.ImportMode},
 	}
 
 	rows, err := st.Q.ListSettings(ctx)
@@ -265,6 +270,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	overlay(m, keyTorznabCategories, &cfg.idx.Categories)
 	overlay(m, keyLibraryDir, &cfg.lib.Dir)
 	overlay(m, keyLibraryMoviesDir, &cfg.lib.MoviesDir)
+	overlay(m, keyLibraryLayout, &cfg.lib.SeriesLayout)
 	overlay(m, keyLibraryMode, &cfg.lib.Mode)
 	overlay(m, keyNotifyDiscordURL, &cfg.ntf.DiscordURL)
 	overlay(m, keyNotifyWebhookURL, &cfg.ntf.WebhookURL)
@@ -489,6 +495,9 @@ func (s *Service) UpdateIndexer(ctx context.Context, in IndexerConfig) error {
 // An empty Dir disables import. Persisting before the swap leaves live state
 // untouched if the save fails.
 func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
+	if !ValidSeriesLayout(in.SeriesLayout) {
+		return fmt.Errorf("invalid series layout %q (want season_folders or flat)", in.SeriesLayout)
+	}
 	in.applyDefaults()
 	if !ValidImportMode(in.Mode) {
 		return fmt.Errorf("invalid import mode %q (want auto, hardlink or copy)", in.Mode)
@@ -500,6 +509,7 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 	if err := s.persist(ctx, map[string]string{
 		keyLibraryDir:       in.Dir,
 		keyLibraryMoviesDir: in.MoviesDir,
+		keyLibraryLayout:    in.SeriesLayout,
 		keyLibraryMode:      in.Mode,
 	}); err != nil {
 		return err
@@ -785,6 +795,17 @@ func NormalizeCategories(s string) (string, error) {
 	return strings.Join(ids, ","), nil
 }
 
+// ValidSeriesLayout reports whether l is a recognised series layout. Empty is
+// valid and means the default, matching how an omitted import mode is handled.
+func ValidSeriesLayout(l string) bool {
+	switch l {
+	case "", string(mediaserver.LayoutSeasonFolders), string(mediaserver.LayoutFlat):
+		return true
+	default:
+		return false
+	}
+}
+
 // ValidImportMode reports whether m is a recognised import mode.
 func ValidImportMode(m string) bool {
 	switch m {
@@ -823,5 +844,5 @@ func buildLibrary(c LibraryConfig, log *slog.Logger) library.Target {
 	if c.Dir == "" && c.MoviesDir == "" {
 		return nil
 	}
-	return mediaserver.New(mediaserver.Roots{Series: c.Dir, Movies: c.MoviesDir}, c.Mode, log)
+	return mediaserver.New(mediaserver.Roots{Series: c.Dir, Movies: c.MoviesDir}, mediaserver.ParseLayout(c.SeriesLayout), c.Mode, log)
 }

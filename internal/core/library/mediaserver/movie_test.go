@@ -26,7 +26,7 @@ func TestPlaceMovieUsesTheMoviesRoot(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	series, movies := t.TempDir(), t.TempDir()
 
-	dest, err := New(Roots{Series: series, Movies: movies}, "copy", nil).
+	dest, err := New(Roots{Series: series, Movies: movies}, LayoutSeasonFolders, "copy", nil).
 		Place(context.Background(), movieReq(src, "Placeholder Film", 2019))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
@@ -47,7 +47,7 @@ func TestPlaceMovieWithoutAYearDropsTheSuffix(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	movies := t.TempDir()
 
-	dest, err := New(Roots{Series: t.TempDir(), Movies: movies}, "copy", nil).
+	dest, err := New(Roots{Series: t.TempDir(), Movies: movies}, LayoutSeasonFolders, "copy", nil).
 		Place(context.Background(), movieReq(src, "Placeholder Film", 0))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
@@ -66,7 +66,7 @@ func TestPlaceMovieWithoutAMoviesRootIsAnError(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	series := t.TempDir()
 
-	_, err := New(Roots{Series: series}, "copy", nil).
+	_, err := New(Roots{Series: series}, LayoutSeasonFolders, "copy", nil).
 		Place(context.Background(), movieReq(src, "Placeholder Film", 2019))
 	if !errors.Is(err, ErrNoMoviesRoot) {
 		t.Fatalf("Place error = %v, want ErrNoMoviesRoot", err)
@@ -84,7 +84,7 @@ func TestPlaceEpisodeWithoutASeriesRootIsAnError(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	movies := t.TempDir()
 
-	_, err := New(Roots{Movies: movies}, "copy", nil).
+	_, err := New(Roots{Movies: movies}, LayoutSeasonFolders, "copy", nil).
 		Place(context.Background(), req(src, "Placeholder Saga", 5))
 	if !errors.Is(err, ErrNoSeriesRoot) {
 		t.Fatalf("Place error = %v, want ErrNoSeriesRoot", err)
@@ -103,7 +103,7 @@ func TestRootsAreTrimmed(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	movies := t.TempDir()
 
-	dest, err := New(Roots{Movies: " " + movies + " "}, "copy", nil).
+	dest, err := New(Roots{Movies: " " + movies + " "}, LayoutSeasonFolders, "copy", nil).
 		Place(context.Background(), movieReq(src, "Placeholder Film", 2019))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
@@ -125,7 +125,7 @@ func TestPlaceSingleItemOVAStaysInTheSeriesRoot(t *testing.T) {
 		Title:      domain.Title{Name: "Placeholder OVA", Format: domain.FormatOVA, Year: 2019},
 		Item:       domain.WantedItem{Number: 1, Kind: domain.KindEpisode},
 	}
-	dest, err := New(Roots{Series: series, Movies: movies}, "copy", nil).Place(context.Background(), r)
+	dest, err := New(Roots{Series: series, Movies: movies}, LayoutSeasonFolders, "copy", nil).Place(context.Background(), r)
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestPlaceSingleItemOVAStaysInTheSeriesRoot(t *testing.T) {
 // what the superseded release left beside it.
 func TestPlaceMovieUpgradeReplacesAndClearsStemMates(t *testing.T) {
 	movies := t.TempDir()
-	target := New(Roots{Series: t.TempDir(), Movies: movies}, "copy", nil)
+	target := New(Roots{Series: t.TempDir(), Movies: movies}, LayoutSeasonFolders, "copy", nil)
 
 	old := writeSource(t, "old.mkv")
 	if _, err := target.Place(context.Background(), movieReq(old, "Placeholder Film", 2019)); err != nil {
@@ -175,7 +175,7 @@ func TestReplaceIntoAMissingDirectoryWarns(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	movies := t.TempDir()
-	target := New(Roots{Movies: movies}, "copy", log)
+	target := New(Roots{Movies: movies}, LayoutSeasonFolders, "copy", log)
 
 	// Imported before the year arrived, so the upgrade computes a folder the
 	// year-less original does not live in.

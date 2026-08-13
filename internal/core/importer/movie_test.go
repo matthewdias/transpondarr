@@ -59,7 +59,7 @@ func seedOneItemGrab(t *testing.T, st *store.Store, title, hash string, format d
 func movieLibrary(t *testing.T) (target *mediaserver.Target, series, movies string) {
 	t.Helper()
 	series, movies = t.TempDir(), t.TempDir()
-	return mediaserver.New(mediaserver.Roots{Series: series, Movies: movies}, "copy", nil), series, movies
+	return mediaserver.New(mediaserver.Roots{Series: series, Movies: movies}, mediaserver.LayoutSeasonFolders, "copy", nil), series, movies
 }
 
 // completedPayload is a finished download whose content is the given path — a
@@ -201,7 +201,7 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 
 	series, movies := t.TempDir(), t.TempDir()
 	dl := completedSource(t, "abc")
-	unconfigured := fakeSource{dl: dl, lib: mediaserver.New(mediaserver.Roots{Series: series}, "copy", nil)}
+	unconfigured := fakeSource{dl: dl, lib: mediaserver.New(mediaserver.Roots{Series: series}, mediaserver.LayoutSeasonFolders, "copy", nil)}
 
 	if err := New(st, unconfigured, discardLogger(), noRecorder{}, nil).ScanOnce(ctx); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -242,7 +242,7 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 		t.Errorf("second pass blocklisted %d release(s)", len(blocked))
 	}
 
-	configured := fakeSource{dl: dl, lib: mediaserver.New(mediaserver.Roots{Series: series, Movies: movies}, "copy", nil)}
+	configured := fakeSource{dl: dl, lib: mediaserver.New(mediaserver.Roots{Series: series, Movies: movies}, mediaserver.LayoutSeasonFolders, "copy", nil)}
 	if err := New(st, configured, discardLogger(), noRecorder{}, nil).ScanOnce(ctx); err != nil {
 		t.Fatalf("rescan: %v", err)
 	}

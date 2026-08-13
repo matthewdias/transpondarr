@@ -16,9 +16,10 @@ type indexerJSON struct {
 }
 
 type libraryJSON struct {
-	Dir       string `json:"dir"`
-	MoviesDir string `json:"movies_dir"`
-	Mode      string `json:"mode"`
+	Dir          string `json:"dir"`
+	MoviesDir    string `json:"movies_dir"`
+	SeriesLayout string `json:"series_layout"`
+	Mode         string `json:"mode"`
 }
 
 type settingsJSON struct {
@@ -134,7 +135,8 @@ func TestLibraryMoviesRootRoundTrip(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("PUT /settings/library = %d, want 200", code)
 	}
-	want := libraryJSON{Dir: "/media/Anime", MoviesDir: "/media/Anime Films", Mode: "copy"}
+	// A save that names no layout reports the default rather than an empty one.
+	want := libraryJSON{Dir: "/media/Anime", MoviesDir: "/media/Anime Films", SeriesLayout: "season_folders", Mode: "copy"}
 	if saved.Library != want {
 		t.Errorf("save returned %+v, want %+v", saved.Library, want)
 	}
@@ -145,5 +147,35 @@ func TestLibraryMoviesRootRoundTrip(t *testing.T) {
 	}
 	if got.Library != want {
 		t.Errorf("library after save = %+v, want %+v", got.Library, want)
+	}
+}
+
+// The layout is edited through the same section as the roots (#129), and an
+// unrecognised one is refused rather than stored for the next start to read.
+func TestLibrarySeriesLayoutRoundTrip(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	var saved settingsJSON
+	code := do(t, h, http.MethodPut, "/api/v1/settings/library",
+		map[string]any{"dir": "/media/Anime", "series_layout": "flat", "mode": "copy"}, &saved)
+	if code != http.StatusOK {
+		t.Fatalf("PUT /settings/library = %d, want 200", code)
+	}
+	if saved.Library.SeriesLayout != "flat" {
+		t.Errorf("save returned layout %q, want flat", saved.Library.SeriesLayout)
+	}
+
+	var got settingsJSON
+	if code := do(t, h, http.MethodGet, "/api/v1/settings", nil, &got); code != http.StatusOK {
+		t.Fatalf("GET /settings = %d, want 200", code)
+	}
+	if got.Library.SeriesLayout != "flat" {
+		t.Errorf("layout after save = %q, want flat", got.Library.SeriesLayout)
+	}
+
+	code = do(t, h, http.MethodPut, "/api/v1/settings/library",
+		map[string]any{"dir": "/media/Anime", "series_layout": "seasons"}, nil)
+	if code != http.StatusUnprocessableEntity {
+		t.Fatalf("PUT /settings/library with an unknown layout = %d, want 422", code)
 	}
 }
