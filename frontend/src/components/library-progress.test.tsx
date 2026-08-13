@@ -84,23 +84,9 @@ it("keeps the ratio for a series with no items at all", () => {
   expect(screen.queryByText(/^Nothing/)).not.toBeInTheDocument();
 });
 
-// Format is the discriminator (#208): a film is had or not, and "0 / 1" counts
-// a denominator it does not have. A one-episode OVA still counts.
-it("words a film's state rather than counting to one", () => {
-  render(
-    <LibraryProgress
-      format="MOVIE"
-      inLibrary={0}
-      tracked={1}
-      monitored={1}
-      total={1}
-    />,
-  );
-
-  expect(screen.getByText("Wanted")).toBeInTheDocument();
-  expect(screen.queryByText("0 / 1")).not.toBeInTheDocument();
-});
-
+// Format is the discriminator (#208), but the list DTO carries counts and not
+// item status, so only "held" is knowable here: downloading, deferred and
+// import-blocked all look like inLibrary 0. #215 brings the real state.
 it("says a held film is in the library", () => {
   render(
     <LibraryProgress
@@ -113,6 +99,23 @@ it("says a held film is in the library", () => {
   );
 
   expect(screen.getByText("In library")).toBeInTheDocument();
+});
+
+// "Wanted" would be a claim about a film that may be downloading right now; the
+// count makes no claim at all, which is the honest fallback until #215.
+it("falls back to the count rather than guessing why a film is not held", () => {
+  render(
+    <LibraryProgress
+      format="MOVIE"
+      inLibrary={0}
+      tracked={1}
+      monitored={1}
+      total={1}
+    />,
+  );
+
+  expect(screen.getByText("0 / 1")).toBeInTheDocument();
+  expect(screen.queryByText("Wanted")).not.toBeInTheDocument();
 });
 
 it("keeps the count for a single-episode OVA", () => {

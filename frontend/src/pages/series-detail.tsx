@@ -10,7 +10,7 @@ import {
   type AutomationMode,
   type SeriesDetail,
 } from "@/lib/api";
-import { statusLabel } from "@/lib/chart";
+import { formatLabel, statusLabel } from "@/lib/chart";
 import { plural } from "@/lib/format";
 import {
   profilesQuery,
@@ -527,8 +527,8 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
                 placeholder="Global default"
               />
               <p id={delayHintId} className="text-xs text-muted-foreground">
-                How many hours automatic searches wait for this group after a
-                release is due. Blank uses the global default; 0 never waits.
+                How many hours automatic searches wait for this group after an
+                episode airs. Blank uses the global default; 0 never waits.
               </p>
             </div>
           </div>
@@ -636,7 +636,7 @@ function DetailHeader({
   // English only, matching the discovery detail view.
   const subtitle = detail.english !== detail.title ? detail.english : null;
   const chips = [
-    detail.format,
+    detail.format && formatLabel(detail.format),
     // A film is identified by its year (#208/#209); an episode count of 1 is
     // not a fact about it.
     isMovieFormat(detail.format)

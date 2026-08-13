@@ -16,16 +16,15 @@ export function LibraryProgress({
   monitored: number;
   total: number;
 }) {
-  // A film is had or not; a bar and a denominator of 1 measure nothing. Keyed on
-  // format alone (#208), so a one-episode OVA still counts like the series it is.
-  if (format === "MOVIE") {
+  // A held film is had, which the count states as "1 / 1"; anything else is a
+  // state this DTO cannot see (downloading, deferred, import-blocked), so the
+  // count stands rather than guessing "Wanted" at it. Interim: #215 carries item
+  // status onto the list and replaces this with the real state. Keyed on format
+  // alone (#208), so a one-episode OVA counts like the series it is.
+  if (format === "MOVIE" && inLibrary > 0) {
     return (
       <span className="whitespace-nowrap text-xs text-muted-foreground">
-        {inLibrary > 0
-          ? "In library"
-          : monitored > 0
-            ? "Wanted"
-            : "Not monitored"}
+        In library
       </span>
     );
   }

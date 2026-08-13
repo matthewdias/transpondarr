@@ -44,11 +44,33 @@ function captureAdd() {
   return bodies;
 }
 
-function renderForm(target: AddTitle, title: string) {
+function settingsBody(dir: string, moviesDir: string) {
+  return {
+    automation: { mode: "on" },
+    library: {
+      dir,
+      movies_dir: moviesDir,
+      mode: "hardlink",
+      configured: true,
+    },
+  };
+}
+
+// seedMoviesDir warms the ["settings"] cache the way any detail-page visit does
+// (series-detail fetches it unconditionally). That is what makes the isMovie
+// guard observable: enabled:false suppresses the fetch, never the cache read, so
+// without the guard a series form would render the notice on its first tick.
+function renderForm(target: AddTitle, title: string, seedMoviesDir?: string) {
   const user = userEvent.setup();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  if (seedMoviesDir !== undefined) {
+    client.setQueryData(
+      ["settings"],
+      settingsBody("/media/shows", seedMoviesDir),
+    );
+  }
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -112,15 +134,7 @@ it("keeps the monitor mode for a series", async () => {
 function libraryRoots(dir: string, moviesDir: string) {
   server.use(
     http.get("/api/v1/settings", () =>
-      HttpResponse.json({
-        automation: { mode: "on" },
-        library: {
-          dir,
-          movies_dir: moviesDir,
-          mode: "hardlink",
-          configured: true,
-        },
-      }),
+      HttpResponse.json(settingsBody(dir, moviesDir)),
     ),
   );
 }
@@ -151,11 +165,25 @@ it("stays quiet on a movies-only library", async () => {
   expect(screen.queryByRole("link", { name: noMoviesRoot })).toBeNull();
 });
 
-// The root a series places into is not this film-only concern.
-it("stays quiet for a series with no movies root", async () => {
+// The root a series places into is not this film-only concern. Seeded rather
+// than fetched so the answer is present on the first render: with the settings
+// only ever arriving async, this assertion would run before they landed and pass
+// however the component behaved.
+it("stays quiet for a series even with the empty root already cached", async () => {
   libraryRoots("/media/shows", "");
-  renderForm(series, "Placeholder Saga");
+  renderForm(series, "Placeholder Saga", "");
 
   await screen.findByRole("combobox", { name: "Monitor" });
   expect(screen.queryByRole("link", { name: noMoviesRoot })).toBeNull();
+});
+
+// The same seeded cache on a film does show it, which is what proves the test
+// above is testing the guard rather than the timing.
+it("shows the notice from that same cached root when the title is a film", async () => {
+  libraryRoots("/media/shows", "");
+  renderForm(movie, "Sample Film", "");
+
+  expect(
+    await screen.findByRole("link", { name: noMoviesRoot }),
+  ).toBeInTheDocument();
 });
