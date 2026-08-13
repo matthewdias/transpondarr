@@ -14,10 +14,18 @@ All notable changes to this project are documented here. The format is based on
   metadata refresh fills in later for a film announced before its date was
   published. Because the movie is one item, the add form asks only whether to
   monitor it rather than for a range of episodes. **A film is tracked, not yet
-  downloaded** — nothing matches, grabs or imports a movie release yet, by
-  search, by automation or by hand, so an added film sits at 0 of 1 until
-  matching and naming land.
+  filed** — nothing imports a movie release yet, so an added film sits at 0 of 1
+  until naming lands.
   Closes [#208](https://github.com/matthewdias/transpondarr/issues/208).
+- **Anime films can be searched for and grabbed.** A film's releases are now
+  matched on title and release year, so searching one lists what is available
+  and grabbing it works exactly as it does for an episode — by hand from the
+  Releases tab, or automatically once the film is monitored. A release naming a
+  different year is listed with that mismatch as its reason instead of matching.
+  A film whose year is not yet on record still matches and is still grabbable by
+  hand, but is marked ineligible so automation leaves it alone until a metadata
+  refresh fills the year in.
+  Closes [#209](https://github.com/matthewdias/transpondarr/issues/209).
 
 ### Changed
 

@@ -525,6 +525,26 @@ Behaviour changes are test-driven. Work red → green → refactor:
   is wrong. The stored year is refresh-maintained rather than an add-time
   snapshot, and `SetSeriesYear` guards `? > 0` **in SQL** so no caller can let a
   transient upstream null erase one.
+- **A release names a year only when it isolates one; the tail token is decided
+  against the variants (#209).** anitogo fills `AnimeYear` only from a
+  *bracket-isolated* token, so `[Grp] Film (2019)` yields a year while the scene
+  form `Film.2019.1080p.x264-GRP` glues it into the anime title and reports
+  none — which would have left the year gate inert on the naming form films
+  most often ship in. `parser.Parsed.Year` keeps that dumb reading, since the
+  parser is deliberately dumb about identity, and `decide.releaseYear` resolves
+  what only the variants can: a four-digit tail token in 1900-2050 is the release
+  year **unless an accepted variant carries it**, in which case it is the film's
+  own number (`Placeholder Legend 1979`). The collision case reports *no* year,
+  so the gate passes rather than refuses — deliberate, because a wrong year is a
+  **matching** refusal, and an unmatched release is the 422 in
+  `grabRelease`: over-reading a year would block the manual grab PR #57
+  protects. The null-year *title* is the other half and is never a refusal — it
+  rides `ineligibleReason`, **last** in that chain, because it is a title-level
+  fact identical on every row while every rule above it discriminates between
+  them. Movie mode also reads no episode number, season marker or batch token:
+  all three appear on movie names (`Sample Film 2 (2021)` parses as episode 2)
+  and none mean anything there, so `movieCandidate` returns before the
+  episode-mapping apparatus rather than special-casing around it.
 - **The library flag and the derived item status share one name, deliberately
   (#84): `in_library`.** `wanted_items.in_library` sources the status
   `deriveItemState` returns, so renaming either alone would hide the derivation.

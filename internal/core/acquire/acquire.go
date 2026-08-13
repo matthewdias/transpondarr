@@ -309,6 +309,7 @@ func (s *Service) evaluate(ctx context.Context, series db.Series, items []passIt
 				PinnedGroup: series.PinnedGroup.String,
 				Blocked:     blocked,
 				Format:      domain.Format(series.Format),
+				Year:        int(series.Year),
 			}),
 	}, nil
 }

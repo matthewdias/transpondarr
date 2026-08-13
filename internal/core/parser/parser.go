@@ -32,6 +32,10 @@ type Parsed struct {
 	EpisodeStart int // first episode number; 0 when none
 	EpisodeEnd   int // last episode number; == EpisodeStart for a single episode
 
+	// Year is the release year only when the name isolates one in brackets
+	// ("(2019)"); a scene-form year glues into Title, which decide resolves.
+	Year int
+
 	// AbsoluteEpisode is anitogo's alternate number — the absolute count when the
 	// title gives a season-relative number plus an absolute one (e.g. "S3 - 01 (51)").
 	// 0 when absent.
@@ -73,6 +77,7 @@ func Parse(title string) Parsed {
 		EpisodeStart:    start,
 		EpisodeEnd:      end,
 		AbsoluteEpisode: firstInt(e.EpisodeNumberAlt),
+		Year:            atoi(e.AnimeYear),
 		DualAudio:       hasDualAudio(e, title),
 		Version:         firstInt(e.ReleaseVersion),
 	}

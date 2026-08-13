@@ -72,13 +72,16 @@ func (c Candidate) takeCount() int {
 	return n
 }
 
-// MatchOpts carries per-series knobs that are neither profile nor title data.
+// MatchOpts carries the per-title inputs that are neither profile nor item data.
 type MatchOpts struct {
 	PinnedGroup string
 	Blocked     BlockedSet
-	// Format gates movie matching (#208). The zero value reads as non-movie, so
+	// Format selects movie matching (#208). The zero value reads as non-movie, so
 	// a caller that passes no opts is unaffected.
 	Format domain.Format
+	// Year is the title's release year; 0 is "no year on record", which movie
+	// matching reports as an ineligible reason rather than a refusal (#209).
+	Year int
 }
 
 // BlockedSet is the series' active release blocklist as plain data, so decide
@@ -163,13 +166,9 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 		score, _ := Score(p, indexer.Release{}, profile)
 		held[it.Number] = heldRelease{parsed: p, score: score}
 	}
-	pin := ""
-	var blocked BlockedSet
-	var format domain.Format
+	var o MatchOpts
 	if len(opts) > 0 {
-		pin = opts[0].PinnedGroup
-		blocked = opts[0].Blocked
-		format = opts[0].Format
+		o = opts[0]
 	}
 	variants := normalizeVariants(titleVariants)
 	// Which season this entry represents, derived from its own title (AniList
@@ -180,11 +179,11 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 
 	out := make([]Candidate, 0, len(releases))
 	for _, rel := range releases {
-		c := evaluate(rel, variants, expectedSeason, itemSet, maxItem, held, format)
+		c := evaluate(rel, variants, expectedSeason, itemSet, maxItem, held, o)
 		c.Score, c.ScoreParts = Score(c.Parsed, c.Release, profile)
-		c.IneligibleReason = ineligibleReason(c.Release, c.Parsed, profile, blocked, c.Score)
+		c.IneligibleReason = ineligibleReason(c.Release, c.Parsed, profile, o, c.Score)
 		c.Eligible = c.IneligibleReason == ""
-		c.Pinned = pin != "" && strings.EqualFold(c.Parsed.Group, pin)
+		c.Pinned = o.PinnedGroup != "" && strings.EqualFold(c.Parsed.Group, o.PinnedGroup)
 		applyUpgradePolicy(&c, held, profile)
 		out = append(out, c)
 	}
@@ -321,10 +320,10 @@ func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) 
 // ineligibleReason is the floor from #16: the way the answer can be "nothing
 // yet" instead of the least-bad release available. "" means eligible. Scores
 // are never negative, so the zero-value MinScore expresses no floor.
-func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.QualityProfile, blocked BlockedSet, score int) string {
+func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.QualityProfile, o MatchOpts, score int) string {
 	// The blocklist first: when a release trips both, "this one already failed"
 	// is the more actionable answer than a profile rule.
-	if r := blocked.reason(rel); r != "" {
+	if r := o.Blocked.reason(rel); r != "" {
 		return r
 	}
 	if indexFold(profile.BlockedGroups, p.Group) >= 0 {
@@ -344,6 +343,11 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 	}
 	if score < profile.MinScore {
 		return fmt.Sprintf("score %d is below the profile minimum %d", score, profile.MinScore)
+	}
+	// Last, because it is a title-level fact identical on every row: when a
+	// release also refuses itself, that reason is the more actionable one.
+	if o.Format == domain.FormatMovie && o.Year == 0 {
+		return "the movie has no year on record"
 	}
 	return ""
 }
@@ -424,7 +428,7 @@ func indexFold(list []string, v string) int {
 	return -1
 }
 
-func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSet map[int]bool, maxItem int, held map[int]heldRelease, format domain.Format) Candidate {
+func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSet map[int]bool, maxItem int, held map[int]heldRelease, o MatchOpts) Candidate {
 	p := parser.Parse(rel.Title)
 	// Enrich the release with parsed attributes (the fields the indexer left blank).
 	rel.ReleaseGroup = p.Group
@@ -438,12 +442,8 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 		return c
 	}
 
-	// A matching statement, not an eligibility one: a movie release carries no
-	// episode number, so a numberless pack would otherwise fill its single item.
-	// Revert with #209, which teaches decide title + year.
-	if format == domain.FormatMovie {
-		c.Reason = "movie releases are not matched yet"
-		return c
+	if o.Format == domain.FormatMovie {
+		return movieCandidate(c, variants, itemSet, held, o.Year)
 	}
 
 	// Season gate: a release that explicitly names a different season is not this
