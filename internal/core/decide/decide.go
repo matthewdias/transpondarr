@@ -530,7 +530,12 @@ func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {
 // accepted names, comparing on a punctuation- and space-stripped form so
 // "Frieren: Beyond Journey's End" and "Frieren Beyond Journeys End" compare equal.
 func titleBelongs(parsedTitle string, variants []string) bool {
-	got := normalize(parsedTitle)
+	return matchesVariant(normalize(parsedTitle), variants)
+}
+
+// matchesVariant is titleBelongs over an already-normalized name, so the movie
+// path can ask about a name it rebuilt rather than one it parsed.
+func matchesVariant(got string, variants []string) bool {
 	if got == "" {
 		return false
 	}

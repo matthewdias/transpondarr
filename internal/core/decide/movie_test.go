@@ -102,6 +102,127 @@ func TestMovieRecoversASceneFormYear(t *testing.T) {
 	}
 }
 
+// The title gate is fuzzy containment, so a long-runner sharing a name prefix
+// with a film reaches the movie path. A film has no episode 250, and skipping
+// the episode-mapping apparatus must not mean skipping that: unrefused, this is
+// a release the feed poll grabs into the film's single item.
+func TestMovieRefusesAnEpisodeItCannotHave(t *testing.T) {
+	releases := []indexer.Release{
+		{Title: "[ExampleSubs] Placeholder Saga - 250 [1080p]", Seeders: 900},
+	}
+	got := Match(movieItem(), []string{"Placeholder Saga: The Final"}, releases,
+		domain.QualityProfile{}, movieOpts(2019))
+
+	if len(got) != 1 {
+		t.Fatalf("candidates = %d, want 1", len(got))
+	}
+	if got[0].Matched {
+		t.Errorf("candidate matched over %v, want a long-runner's episode refused", got[0].Items)
+	}
+	if got[0].Reason != "release names episode 250, which this film does not have" {
+		t.Errorf("reason = %q, want the episode refusal", got[0].Reason)
+	}
+}
+
+// A film cannot span episodes, so a pack naming a range is refused whatever the
+// range is.
+func TestMovieRefusesAnEpisodeRange(t *testing.T) {
+	releases := []indexer.Release{
+		{Title: "[Batchers] Placeholder Saga (01-24) [1080p][Batch]", Seeders: 900},
+	}
+	got := Match(movieItem(), []string{"Placeholder Saga: The Final"}, releases,
+		domain.QualityProfile{}, movieOpts(2019))
+
+	if len(got) != 1 || got[0].Matched {
+		t.Fatalf("candidate = matched %v over %v, want the range refused", got[0].Matched, got[0].Items)
+	}
+	if got[0].Reason != "release spans episodes 1-24, which this film does not have" {
+		t.Errorf("reason = %q, want the range refusal", got[0].Reason)
+	}
+}
+
+// A numbered sequel film reads as an episode, so the refusal above must not eat
+// it: the number is the film's own name, which the variants are what can say.
+func TestMovieKeepsASequelNumberInItsName(t *testing.T) {
+	releases := []indexer.Release{
+		{Title: "[ExampleSubs] Sample Film 2 (2021) [1080p]", Seeders: 900},
+	}
+	got := Match(movieItem(), []string{"Sample Film 2"}, releases,
+		domain.QualityProfile{}, movieOpts(2021))
+
+	if len(got) != 1 || !got[0].Matched {
+		t.Fatalf("candidate = matched %v reason %q, want the sequel matched",
+			got[0].Matched, got[0].Reason)
+	}
+}
+
+// The same, zero-padded: a film named with a padded number must not be refused
+// over a formatting difference in the number anitogo handed back.
+func TestMovieKeepsAZeroPaddedNumberInItsName(t *testing.T) {
+	releases := []indexer.Release{
+		{Title: "[ExampleSubs] Placeholder Legend 0080 [BD 1080p]", Seeders: 900},
+	}
+	got := Match(movieItem(), []string{"Placeholder Legend 0080"}, releases,
+		domain.QualityProfile{}, movieOpts(1989))
+
+	if len(got) != 1 || !got[0].Matched {
+		t.Fatalf("candidate = matched %v reason %q, want the padded name matched",
+			got[0].Matched, got[0].Reason)
+	}
+}
+
+// anitogo leaves unrecognized scene tags on the title, so the year is not always
+// the last token. Reading only the tail let a wrong year through on exactly the
+// form the recovery exists for.
+func TestMovieReadsAYearBehindSceneTags(t *testing.T) {
+	for _, tag := range []string{"REPACK", "LIMITED", "JAPANESE"} {
+		t.Run(tag, func(t *testing.T) {
+			releases := []indexer.Release{
+				{Title: "Sample.Film.2021." + tag + ".1080p.BluRay.x264-GRP", Seeders: 900},
+			}
+			got := Match(movieItem(), []string{"Sample Film"}, releases,
+				domain.QualityProfile{}, movieOpts(2019))
+
+			if len(got) != 1 {
+				t.Fatalf("candidates = %d, want 1", len(got))
+			}
+			if got[0].Matched {
+				t.Errorf("candidate matched, want the wrong year refused behind %s", tag)
+			}
+			if got[0].Reason != "year 2021 does not match this entry (year 2019)" {
+				t.Errorf("reason = %q, want the year mismatch", got[0].Reason)
+			}
+		})
+	}
+}
+
+// Bracket style is a naming convention, not a fact about the film, so the two
+// forms of one release must reach the same verdict. They disagree the moment the
+// variant check is applied to only one of the two sources a year can come from —
+// and the bracketed form is the one that then refuses, blocking a manual grab.
+func TestMovieYearReadingAgreesAcrossReleaseForms(t *testing.T) {
+	variants := []string{"Placeholder Legend 1979"}
+	forms := map[string]string{
+		"scene":     "Placeholder.Legend.1979.1080p.WEB-DL-EXGRP",
+		"bracketed": "[ExampleSubs] Placeholder Legend (1979) [1080p]",
+	}
+	for name, title := range forms {
+		t.Run(name, func(t *testing.T) {
+			got := Match(movieItem(), variants, []indexer.Release{{Title: title, Seeders: 900}},
+				domain.QualityProfile{}, movieOpts(2024))
+
+			if len(got) != 1 {
+				t.Fatalf("candidates = %d, want 1", len(got))
+			}
+			// 1979 is the film's own name, not a release year, in both forms.
+			if !got[0].Matched {
+				t.Errorf("candidate refused (%q), want matched — the title's own number is not a release year",
+					got[0].Reason)
+			}
+		})
+	}
+}
+
 // A title that carries its own trailing year keeps it: the number is in an
 // accepted variant, so it names the film rather than the release. Reading it as
 // a release year would refuse every release the film has.
