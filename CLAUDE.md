@@ -524,7 +524,12 @@ Behaviour changes are test-driven. Work red → green → refactor:
   with an unreleased title, which is exactly when every candidate a search returns
   is wrong. The stored year is refresh-maintained rather than an add-time
   snapshot, and `SetSeriesYear` guards `? > 0` **in SQL** so no caller can let a
-  transient upstream null erase one.
+  transient upstream null erase one. **A movie's path is keyed on that
+  refresh-maintained year**, so a 0 -> N fill after an import orphans the
+  year-less folder the next upgrade replaces into — the same class as an AniList
+  title edit orphaning `<root>/<Old Name>/`, which the series branch has always
+  had. Repaired by #213's placed-path memory, never by enumerating the library:
+  `Place` only warns that its naming inputs moved.
 - **The library has a root per format, and a missing one is an error, never a
   fallback (#198).** `mediaserver.Roots` splits Series from Movies because Plex
   and Jellyfin want a Movies library separate from Shows, and `Place` picks

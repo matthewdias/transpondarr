@@ -127,6 +127,16 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 	}
 	dest := filepath.Join(destDir, stem+ext)
 
+	// Replacing into a directory that does not exist means our own naming inputs
+	// moved under us — a refreshed year or title — so the held file is somewhere
+	// only #213's placed-path memory can find. Also fires on a hand-deleted folder.
+	if req.Replace {
+		if _, err := os.Stat(destDir); errors.Is(err, os.ErrNotExist) {
+			t.log.Warn("mediaserver: upgrading into a directory that does not exist; the library may hold this item under an older name",
+				"title", req.Title.Name, "item", req.Item.Number, "dest", dest, "source", req.SourcePath)
+		}
+	}
+
 	occupied := false
 	if destInfo, err := os.Stat(dest); err == nil {
 		switch {

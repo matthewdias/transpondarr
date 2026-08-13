@@ -1,10 +1,13 @@
 package mediaserver
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/core/domain"
@@ -163,5 +166,35 @@ func TestPlaceMovieUpgradeReplacesAndClearsStemMates(t *testing.T) {
 	}
 	if _, err := os.Stat(mate); !os.IsNotExist(err) {
 		t.Error("the superseded release's stem-mate should have been cleared")
+	}
+}
+
+// The orphan case (#213) is not repaired here, so the log is the only evidence
+// a user or a bug report has that the library holds this item elsewhere.
+func TestReplaceIntoAMissingDirectoryWarns(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	movies := t.TempDir()
+	target := New(Roots{Movies: movies}, "copy", log)
+
+	// Imported before the year arrived, so the upgrade computes a folder the
+	// year-less original does not live in.
+	r := movieReq(writeSource(t, "raw.mkv"), "Placeholder Film", 2019)
+	r.Replace = true
+	if _, err := target.Place(context.Background(), r); err != nil {
+		t.Fatalf("Place: %v", err)
+	}
+	if !strings.Contains(buf.String(), "older name") {
+		t.Errorf("no warning logged for an upgrade into a missing directory; got %q", buf.String())
+	}
+
+	buf.Reset()
+	again := movieReq(writeSource(t, "raw.mkv"), "Placeholder Film", 2019)
+	again.Replace = true
+	if _, err := target.Place(context.Background(), again); err != nil {
+		t.Fatalf("second Place: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("an upgrade into the directory we just created must not warn; got %q", buf.String())
 	}
 }
