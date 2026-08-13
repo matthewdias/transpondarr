@@ -92,6 +92,27 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 		t.Errorf("the series root holds %d entries; a movie must never fall back into it", len(entries))
 	}
 
+	// The cause is a path-mapping gap, not a bad release: nothing may be
+	// remembered against the release or spent from the failure ladder.
+	if blocked, _ := st.Q.ListBlocklistBySeries(ctx, seriesID); len(blocked) != 0 {
+		t.Errorf("blocklisted %d release(s); an unconfigured root says nothing about the release", len(blocked))
+	}
+	if events, _ := st.Q.ListSeriesGrabEvents(ctx, seriesID); len(events) != 0 {
+		t.Errorf("wrote %d history event(s); the grab has not settled, so it has no step to record", len(events))
+	}
+
+	// A second pass with the root still missing must cost nothing: no state
+	// churn, and no second stuck notification for one incident.
+	if err := New(st, unconfigured, discardLogger(), noRecorder{}, nil).ScanOnce(ctx); err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+	if again := grabByHash(t, st, "abc"); again.Status != statusGrabbed || again.LastError != g.LastError {
+		t.Errorf("second pass changed the grab (%q/%q); a held movie must not churn", again.Status, again.LastError.String)
+	}
+	if blocked, _ := st.Q.ListBlocklistBySeries(ctx, seriesID); len(blocked) != 0 {
+		t.Errorf("second pass blocklisted %d release(s)", len(blocked))
+	}
+
 	configured := fakeSource{dl: dl, lib: mediaserver.New(mediaserver.Roots{Series: series, Movies: movies}, "copy", nil)}
 	if err := New(st, configured, discardLogger(), noRecorder{}, nil).ScanOnce(ctx); err != nil {
 		t.Fatalf("rescan: %v", err)
