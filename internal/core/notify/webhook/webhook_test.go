@@ -3,12 +3,15 @@ package webhook
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/notify"
 )
 
@@ -125,3 +128,47 @@ func TestSendSerializesItemsAsAnArray(t *testing.T) {
 		t.Errorf("items = %s, want an empty array", got)
 	}
 }
+
+// The payload is machine-facing and item_number: 1 is correct for a movie — it
+// is item-scoped, with one item numbered 1. The rendering decision that hides
+// the number from humans must not reach the wire, so a movie's body is
+// byte-identical to the same event carrying no item kind at all.
+func TestMovieEventLeavesTheWireContractUntouched(t *testing.T) {
+	var bodies []string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(body))
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(ts.Close)
+
+	ev := notify.Event{
+		Kind:         notify.KindImported,
+		Title:        "Placeholder Film",
+		ItemNumber:   1,
+		ReleaseTitle: "Placeholder.Film.2019.1080p-SynthGroup",
+		Path:         "/library/Placeholder Film (2019)/Placeholder Film (2019).mkv",
+	}
+	n := New(ts.URL)
+	if err := n.Send(context.Background(), ev); err != nil {
+		t.Fatalf("send without a kind: %v", err)
+	}
+	ev.ItemKind = domain.KindMovie
+	if err := n.Send(context.Background(), ev); err != nil {
+		t.Fatalf("send as a movie: %v", err)
+	}
+
+	if len(bodies) != 2 {
+		t.Fatalf("captured %d bodies, want 2", len(bodies))
+	}
+	// The timestamp is send time, so compare everything else.
+	strip := func(s string) string { return timestampValue.ReplaceAllString(s, `"timestamp":""`) }
+	if strip(bodies[0]) != strip(bodies[1]) {
+		t.Errorf("a movie's payload changed:\n before %s\n  after %s", bodies[0], bodies[1])
+	}
+	if !strings.Contains(bodies[1], `"item_number":1`) {
+		t.Errorf("payload = %s, want item_number 1 kept on the wire", bodies[1])
+	}
+}
+
+var timestampValue = regexp.MustCompile(`"timestamp":"[^"]*"`)

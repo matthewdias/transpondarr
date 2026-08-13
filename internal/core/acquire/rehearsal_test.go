@@ -9,6 +9,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
@@ -41,10 +42,20 @@ func newRehearsal(t *testing.T, releases []indexer.Release, cfg fakeConfig) *reh
 
 func wantRehearsalEvent(t *testing.T, fn *coretest.FakeNotifier) notify.Event {
 	t.Helper()
+	return wantRehearsalEventOfKind(t, fn, domain.KindEpisode)
+}
+
+// wantRehearsalEventOfKind is wantRehearsalEvent over a chosen item kind, so a
+// film's rehearsal can assert it is not announced as an episode (#221).
+func wantRehearsalEventOfKind(t *testing.T, fn *coretest.FakeNotifier, kind domain.WantedKind) notify.Event {
+	t.Helper()
 	select {
 	case ev := <-fn.Events:
 		if ev.Kind != notify.KindRehearsal {
 			t.Fatalf("kind = %s, want rehearsal", ev.Kind)
+		}
+		if ev.ItemKind != kind {
+			t.Errorf("item kind = %q, want %q", ev.ItemKind, kind)
 		}
 		return ev
 	case <-time.After(2 * time.Second):

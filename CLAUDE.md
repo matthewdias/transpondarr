@@ -515,6 +515,54 @@ Behaviour changes are test-driven. Work red → green → refactor:
   backfill does: `idx_wanted_items_identity` is `(series_id, kind, number)`, so a
   stale `('episode', 1)` does not collide with `('movie', 1)` and the next refresh
   silently doubles the title instead of failing.
+- **A movie's file is identified by size; numbering never gets a say (#210).**
+  `mapMovie` takes the payload's largest surviving video, because a film is the
+  biggest thing shipped with it — a property of the payload rather than of how a
+  releaser named it, which is the same reason `decide` stopped trusting numbers
+  on the movie path (#218). The number-driven mapping was actively unsafe here:
+  a movie's `covers` is always `{1}`, so a numbered extra (`Deleted Scene 1`)
+  claimed the film's only item, hardlinked a clip as the movie and dropped the
+  feature as a leftover — settled, held, and self-healing never. Note the
+  asymmetry it had: *two* claimants deferred safely as a conflict while *one*
+  imported. Keyed on `domain.FormatMovie` and never on a one-item group, since a
+  series' single grabbed episode is one too and its number is genuine identity
+  there. The filter still runs first (a sample is never the feature, and is
+  often the small file anyway, so size must not re-admit it), an exact size tie
+  is a conflict rather than a coin flip, and a retry override still overrules
+  everything. One consequence worth knowing: with size always deciding, the
+  `unmatched file(s)` deferral is unreachable for a movie — a tie and an
+  unextracted archive are the only deferrals it has.
+- **User-facing copy follows the same rule, and only where a movie reaches it
+  (#210).** The importer's settled reasons and the notification adapters word
+  themselves off the item's kind (`itemLabel`, and the adapters' second condition
+  on `Event.ItemKind`), so a film is never "episode 1"; every string an episode
+  alone can reach keeps its wording byte-identical, which is what the series
+  assertions in `events_test.go` and `retry_test.go` pin. `Event.ItemKind` is
+  display-only — `webhook.go` must never map it, because `item_number: 1` is
+  *correct* for a movie and the payload is a contract (#207 broke it once,
+  deliberately and with an upgrade note).
+- **A batch token on a movie release is an eligibility rule, not a matching one
+  (#211).** Movie mode's two numeric gates both read what a release *names*, and
+  a numberless pack names neither an episode nor a year — so `[Grp] Placeholder
+  Saga (Complete Series)` matched the film `Placeholder Saga: The Final`
+  eligibly, the sweep grabbed it, and the importer placed one of the *series'*
+  episodes into the Movies root under the film's name. This is movie-specific: on the
+  series path a numberless pack filling the entry is what a season pack *is*.
+  The refusal sits in `ineligibleReason` rather than `movieCandidate` because a
+  genuine multi-part film release is indistinguishable from a parent series'
+  pack — unmatched would 422 the manual grab and make it ungrabbable without
+  renaming, so the precision risk goes on the supervised path alone, exactly as
+  the null-year rule splits it. It ranks **above** the null-year reason (per
+  release, so it discriminates between rows) and **below** the profile rules
+  (which the user set deliberately). An explicit range stays a *matching*
+  refusal, unchanged: a film cannot span episodes however it is packaged.
+- **Neither automation entry point filters on format (#211).** The sweep's due
+  query briefly did — #208 parked movies there because decide could not match one,
+  so `next_search_at` would never advance and the film would hold a slot at the
+  head of a LIMIT-ordered queue forever. #209 removed the reason and #211 the
+  clause, so a wanted movie is now due, searched and grabbed like any other
+  title, and format belongs in `decide` alone. The feed's due query never carried
+  the stop, which is why the feed acquired films before the sweep could.
 - **The null-year rule is one rule split by actor, not two (#208).** `series.year`
   is `0`, never NULL, for "no year on record", and the split is: **naming** drops
   the ` (Year)` suffix (#198), while **matching** stays free for manual search and
@@ -575,6 +623,17 @@ Behaviour changes are test-driven. Work red → green → refactor:
   included, since a release writes `0080` where anitogo hands back 80; an
   explicit range never qualifies. So `movieCandidate` never reaches the
   episode-mapping apparatus, which is not the same as never reading the number.
+  **That variant match is exact, and the asymmetry with `titleBelongs` is the
+  point (#211).** Containment proves nothing about a name we assembled: any
+  variant prefixing the parsed title is contained by construction, so the fuzzy
+  branch only ever answers yes. It shipped fuzzy and the guard was inert
+  whenever the film's title was *not* longer than the release's — `Sample Film`
+  took `Sample Film Chronicles - 250` unattended. `titleBelongs` compares a name
+  the releaser wrote and stays fuzzy; this compares one we built. The cost is
+  accepted knowingly: a film whose variant renders its number differently
+  (`Sample Film 2` against `Sample Film 2nd Movie`) goes unmatched, and being a
+  *matching* refusal that 422s the manual grab too — pinned by a named test so
+  the strictness is not read as an oversight and loosened back.
 - **The library flag and the derived item status share one name, deliberately
   (#84): `in_library`.** `wanted_items.in_library` sources the status
   `deriveItemState` returns, so renaming either alone would hide the derivation.

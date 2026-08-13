@@ -36,13 +36,13 @@ describe("FailureMemorySection", () => {
     renderSection(summary());
     expect(await screen.findByText(/4 releases/i)).toBeInTheDocument();
     // "series" is its own plural; the count line read "2 seriess" until it was.
-    expect(screen.getByText(/skipped across 2 series\./i)).toBeInTheDocument();
+    expect(screen.getByText(/skipped across 2 titles\./i)).toBeInTheDocument();
   });
 
   it("does not pluralize a single release or a lone series", async () => {
     renderSection(summary({ blocked: 1, titles: 1 }));
     expect(await screen.findByText(/1 release/)).toBeInTheDocument();
-    expect(screen.getByText(/across 1 series\./i)).toBeInTheDocument();
+    expect(screen.getByText(/across 1 title\./i)).toBeInTheDocument();
   });
 
   // The diagnosis is the breaker's most valuable output: an operator who wakes

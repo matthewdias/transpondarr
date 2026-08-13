@@ -587,3 +587,74 @@ describe("MonitoringToggle", () => {
     expect(screen.queryByText(/automation is off/i)).not.toBeInTheDocument();
   });
 });
+
+// Format is the discriminator, never item count (#208), so these two mounts are
+// the whole rule: a one-item film loses the episodes table, a one-episode OVA
+// keeps it.
+describe("SeriesDetailPage movie surface", () => {
+  const oneItem = [
+    {
+      id: 1,
+      number: 1,
+      in_library: false,
+      monitored: true,
+      status: "wanted" as const,
+    },
+  ];
+
+  function renderPage(over: Partial<SeriesDetail>) {
+    server.use(
+      http.get("/api/v1/titles/7", () =>
+        HttpResponse.json(detail({ items: oneItem, ...over })),
+      ),
+      http.get("/api/v1/settings", () =>
+        HttpResponse.json({ automation: { mode: "on" } }),
+      ),
+      http.get("/api/v1/profiles", () => HttpResponse.json({ profiles: [] })),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/series/7"]}>
+          <SidebarProvider>
+            <Routes>
+              <Route path="/series/:id" element={<SeriesDetailPage />} />
+            </Routes>
+          </SidebarProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it("gives a film a status card and its year, never an episodes table", async () => {
+    renderPage({ format: "MOVIE", title: "Placeholder Film", year: 2019 });
+
+    // The card is the landing tab, so the state reads without a click.
+    expect(await screen.findByRole("tab", { name: /status/i })).toBeVisible();
+    expect(screen.getByText("Wanted")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: /episodes/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Ep" })).toBeNull();
+    // The chip reads the year a film is identified by, not "1 episodes".
+    expect(screen.getByText("2019")).toBeInTheDocument();
+    expect(screen.queryByText(/1 episodes?$/)).not.toBeInTheDocument();
+    // Releases and History are untouched.
+    expect(screen.getByRole("tab", { name: /releases/i })).toBeVisible();
+    expect(screen.getByRole("tab", { name: /history/i })).toBeVisible();
+  });
+
+  it("leaves a single-episode OVA its episodes table", async () => {
+    renderPage({ format: "OVA", title: "Placeholder OVA" });
+
+    expect(await screen.findByRole("tab", { name: /episodes/i })).toBeVisible();
+    expect(
+      screen.queryByRole("tab", { name: /^status/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Ep" })).toBeVisible();
+    // One item, so the count reads as one -- "1 episodes" was the old bug.
+    expect(screen.getByText("1 episode")).toBeInTheDocument();
+  });
+});

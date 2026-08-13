@@ -4,16 +4,30 @@ import { cn } from "@/lib/utils";
 // so a currently-airing show reads 3 / 3 rather than 3 / 12. The raw total rides
 // along in a parenthetical, and is suppressed when the two agree.
 export function LibraryProgress({
+  format,
   inLibrary,
   tracked,
   monitored,
   total,
 }: {
+  format: string;
   inLibrary: number;
   tracked: number;
   monitored: number;
   total: number;
 }) {
+  // A held film is had, which the count states as "1 / 1"; anything else is a
+  // state this DTO cannot see (downloading, deferred, import-blocked), so the
+  // count stands rather than guessing "Wanted" at it. Interim: #215 carries item
+  // status onto the list and replaces this with the real state. Keyed on format
+  // alone (#208), so a one-episode OVA counts like the series it is.
+  if (format === "MOVIE" && inLibrary > 0) {
+    return (
+      <span className="whitespace-nowrap text-xs text-muted-foreground">
+        In library
+      </span>
+    );
+  }
   const pct = tracked > 0 ? (inLibrary / tracked) * 100 : 0;
   const complete = tracked > 0 && inLibrary >= tracked;
   // "0 / 0" would read as "this series has no episodes", which is exactly wrong

@@ -324,9 +324,10 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
     queryClient.invalidateQueries({ queryKey: ["browse-season"] });
   };
 
+  // AniList reports a film as one episode, which is not a fact about it.
   const meta = [
     entry.format && formatLabel(entry.format),
-    entry.episodes ? `${entry.episodes} ep` : null,
+    entry.format !== "MOVIE" && entry.episodes ? `${entry.episodes} ep` : null,
     entry.average_score ? `${entry.average_score}%` : null,
     entry.studio,
   ].filter(Boolean) as string[];

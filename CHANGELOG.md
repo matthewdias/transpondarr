@@ -26,14 +26,30 @@ All notable changes to this project are documented here. The format is based on
 - **Anime films can be searched for and grabbed.** A film's releases are now
   matched on title and release year, so searching one lists what is available
   and grabbing it works exactly as it does for an episode — by hand from the
-  Releases tab, or automatically once the film is monitored. A release naming a
-  different year is listed with that mismatch as its reason instead of matching.
+  Releases tab, or unattended: a monitored film joins the scheduled search queue
+  and the recent-feed poll alongside your series, and backs off the same way
+  when nothing turns up. A release naming a different year is listed with that
+  mismatch as its reason instead of matching.
   A film whose year is not yet on record still matches and is still grabbable by
   hand, but is marked ineligible so automation leaves it alone until a metadata
-  refresh fills the year in.
+  refresh fills the year in. A batch or season pack is held back the same way and
+  for the same reason: it is as likely to be the film's parent series as a
+  multi-part release of the film, so it is listed with that caution and left to
+  you to judge.
 
 ### Changed
 
+- **Films no longer read as one-episode series across the web UI.** A film's
+  detail page drops the episodes table for a status card saying whether it is
+  wanted, downloading or in the library, and its header reads the release year
+  rather than an episode count; the library list says **In library** or
+  **Wanted** instead of counting to one; and search and Discovery stop
+  reporting a film as one episode. Adding a film with no movies directory
+  configured now says so on the add form, so it is clear before the download
+  finishes rather than after. Series screens are untouched, single-episode OVAs
+  and specials included. Wording that called a title a series has followed
+  suit — the sidebar and page title now read **Titles** — while genuinely
+  episodic screens keep their wording.
 - **The REST resource is now `titles`, not `series`.** Movies are the next
   feature, and an endpoint called `series` that returns them would be a wart the
   1.0 stability promise freezes in place. Every `/api/v1/series...` route is now
@@ -54,6 +70,18 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **A film that ships with extras now imports the film.** A movie download
+  holding the feature alongside deleted scenes, an interview or a making-of
+  imports the feature — the largest video in the payload — where before a clip
+  with a number in its name could be filed as the movie instead. When two videos
+  are the same size, nothing is guessed: the import waits in the Activity queue
+  for you to say which is the film. Episodes are matched by number exactly as
+  before.
+- **A film is no longer called an episode.** Notifications for a movie dropped
+  the "Episode 1" line, and the Activity queue's import messages now name the
+  film rather than an episode number it does not have. Episode wording is
+  untouched everywhere an episode is what arrived, single-episode OVAs and
+  specials included, and the webhook payload is unchanged for every event.
 - **The quality-profile chip on a series page no longer vanishes while it loads
   or when it fails.** The picker rendered nothing until the profile list
   arrived, so the chips row shifted on every visit, and a failed fetch left no

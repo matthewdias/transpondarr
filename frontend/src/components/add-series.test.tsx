@@ -34,6 +34,18 @@ const server = setupServer(
   // The add invalidates the series list, which this page never observes;
   // tolerate the request if something does.
   http.get("/api/v1/titles", () => HttpResponse.json({ titles: [] })),
+  // The form reads the movies root for a film, so a movie row fetches this.
+  http.get("/api/v1/settings", () =>
+    HttpResponse.json({
+      automation: { mode: "on" },
+      library: {
+        dir: "/media/shows",
+        movies_dir: "/media/films",
+        mode: "hardlink",
+        configured: true,
+      },
+    }),
+  ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
@@ -67,7 +79,7 @@ async function openWithResults() {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await user.click(screen.getByRole("button", { name: /add series/i }));
+  await user.click(screen.getByRole("button", { name: /add title/i }));
   await user.type(
     screen.getByPlaceholderText(/search anilist/i),
     "placeholder",
@@ -258,7 +270,7 @@ it("adds a movie result like any other title", async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await user.click(screen.getByRole("button", { name: /add series/i }));
+  await user.click(screen.getByRole("button", { name: /add title/i }));
   await user.type(screen.getByPlaceholderText(/search anilist/i), "sample");
   await screen.findByText("Sample Film", undefined, { timeout: 3000 });
 

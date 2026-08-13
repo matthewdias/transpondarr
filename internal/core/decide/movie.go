@@ -63,6 +63,10 @@ func movieCandidate(c Candidate, variants []string, itemSet map[int]bool, held m
 // reattaching it to the parsed title and asking the variants, the only thing
 // that can tell the two apart. Padded widths are tried because a release writes
 // "0080" where anitogo hands back 80.
+//
+// Compared exactly, not by titleBelongs' containment: on a name we assembled
+// ourselves, any variant prefixing the parsed title is contained by
+// construction, so a fuzzy answer here can only ever be a false positive.
 func numberNamesTheFilm(p parser.Parsed, variants []string) bool {
 	if p.EpisodeEnd > p.EpisodeStart {
 		return false // a range spans episodes; a film is one thing
@@ -72,7 +76,7 @@ func numberNamesTheFilm(p parser.Parsed, variants []string) bool {
 		return false
 	}
 	for width := 1; width <= 4; width++ {
-		if matchesVariant(fmt.Sprintf("%s%0*d", base, width, p.EpisodeStart), variants) {
+		if slices.Contains(variants, fmt.Sprintf("%s%0*d", base, width, p.EpisodeStart)) {
 			return true
 		}
 	}

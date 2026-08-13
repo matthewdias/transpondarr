@@ -230,6 +230,7 @@ type failedGrab struct {
 	seriesTitle  string
 	itemID       int64
 	itemNumber   int
+	itemKind     string
 	infoHash     string
 	releaseTitle string
 	reason       string
@@ -273,6 +274,7 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 			Kind:         notify.KindGrabFailed,
 			Title:        rows[0].seriesTitle,
 			ItemNumber:   item,
+			ItemKind:     domain.WantedKind(rows[0].itemKind),
 			ReleaseTitle: rows[0].releaseTitle,
 			Error:        rows[0].reason,
 		})
@@ -357,6 +359,7 @@ func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, rea
 		seriesTitle:  g.SeriesTitle,
 		itemID:       g.WantedItemID,
 		itemNumber:   int(g.ItemNumber.Int64),
+		itemKind:     g.ItemKind,
 		infoHash:     g.InfoHash,
 		releaseTitle: g.ReleaseTitle,
 		reason:       reason,
@@ -404,7 +407,7 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 	for _, g := range active {
 		covers[int(g.ItemNumber.Int64)] = true
 	}
-	res := mapFiles(p.files, covers, overrides)
+	res := mapFiles(p.files, covers, overrides, domain.Format(active[0].SeriesFormat))
 
 	imported := make(map[int]string, len(active))
 	touched := make(map[int64]bool, len(active))
@@ -446,8 +449,9 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 			continue
 		}
 		n := int(g.ItemNumber.Int64)
-		if detail, ok := res.conflicts[n]; ok {
-			settle(g, detail)
+		item := itemLabel(g.ItemKind, n)
+		if claimants, ok := res.conflicts[n]; ok {
+			settle(g, fmt.Sprintf("%d files claim %s and nothing tells them apart", claimants, item))
 			continue
 		}
 		// A file nothing could map is fixable by hand; a payload with nothing left
@@ -455,17 +459,38 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 		// self-heals with a single. An unextracted archive still holds the episode,
 		// so it counts as something left rather than as an empty payload.
 		if len(leftovers) > 0 {
-			settle(g, fmt.Sprintf("no file matched episode %d; %d unmatched file(s) in the payload", n, len(leftovers)))
+			settle(g, fmt.Sprintf("no file matched %s; %d unmatched file(s) in the payload", item, len(leftovers)))
 			continue
 		}
 		if len(p.archives) > 0 {
-			settle(g, fmt.Sprintf("no file matched episode %d; %s is still packed, so %s",
-				n, archiveSummary(p.archives), extractAdvice(p.archives)))
+			settle(g, fmt.Sprintf("no file matched %s; %s is still packed, so %s",
+				item, archiveSummary(p.archives), extractAdvice(p.archives)))
 			continue
 		}
+		// A movie never reaches this: its one item is always covered, so a covered
+		// item with nothing left over needs a sibling row this shape cannot have.
 		failed = append(failed, im.failGrab(ctx, g, "the payload held no file for this episode"))
 	}
 	return failed, details
+}
+
+// itemLabel names what a settled reason is about. A movie has exactly one item,
+// so its number would say nothing the title has not already said.
+func itemLabel(kind string, number int) string {
+	if domain.WantedKind(kind) == domain.KindMovie {
+		return "this movie"
+	}
+	return fmt.Sprintf("episode %d", number)
+}
+
+// numberLabel names an arbitrary number an API caller supplied, which itemLabel
+// cannot: the number may be one the title does not have, so it has to survive
+// being printed rather than standing in for the item.
+func numberLabel(kind string, number int) string {
+	if domain.WantedKind(kind) == domain.KindMovie {
+		return fmt.Sprintf("item %d", number)
+	}
+	return fmt.Sprintf("episode %d", number)
 }
 
 // place puts one payload file in the library and settles its grab as imported.
@@ -621,6 +646,7 @@ func (im *Importer) notifyImported(ctx context.Context, g db.ListGrabsByStatusRo
 	ev := notify.Event{
 		Kind:         notify.KindImported,
 		Title:        g.SeriesTitle,
+		ItemKind:     domain.WantedKind(g.ItemKind),
 		ReleaseTitle: g.ReleaseTitle,
 	}
 	if len(nums) == 1 {
@@ -670,6 +696,7 @@ func (im *Importer) setLastError(ctx context.Context, g db.ListGrabsByStatusRow,
 		Kind:         notify.KindImportStuck,
 		Title:        g.SeriesTitle,
 		ItemNumber:   int(g.ItemNumber.Int64),
+		ItemKind:     domain.WantedKind(g.ItemKind),
 		ReleaseTitle: g.ReleaseTitle,
 		Error:        msg,
 	})

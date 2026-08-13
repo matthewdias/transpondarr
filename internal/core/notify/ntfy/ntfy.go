@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/notify"
 )
 
@@ -60,7 +61,8 @@ func body(ev notify.Event) string {
 	if ev.Title != "" {
 		lines = append(lines, ev.Title)
 	}
-	if ev.ItemNumber > 0 {
+	// A movie has exactly one item, so its number says nothing the title does not.
+	if ev.ItemNumber > 0 && ev.ItemKind != domain.KindMovie {
 		lines = append(lines, "Episode "+strconv.Itoa(ev.ItemNumber))
 	}
 	if label := ev.ItemsLabel(); label != "" {

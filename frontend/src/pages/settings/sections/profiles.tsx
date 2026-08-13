@@ -33,6 +33,7 @@ import {
   type EditorState,
 } from "./profile-editor-state";
 import { DEFAULT_CUTOFF, SCORE_LANDMARKS } from "@/lib/score-landmarks";
+import { plural } from "@/lib/format";
 import { profilesQuery } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -694,8 +695,8 @@ function DeleteProfileDialog({
           <DialogTitle>Delete “{profile.name}”?</DialogTitle>
           <DialogDescription>
             {inUse
-              ? `${profile.title_count} series ${profile.title_count === 1 ? "uses" : "use"} this profile. Pick the profile they move to.`
-              : "No series use this profile."}
+              ? `${plural(profile.title_count, "title")} ${profile.title_count === 1 ? "uses" : "use"} this profile. Pick the profile they move to.`
+              : "No titles use this profile."}
           </DialogDescription>
         </DialogHeader>
         {inUse && (
@@ -725,7 +726,7 @@ function DeleteProfileDialog({
             disabled={del.isPending || (inUse && !target)}
           >
             {del.isPending && <Loader2 className="size-4 animate-spin" />}
-            {inUse ? "Move series and delete" : "Delete"}
+            {inUse ? "Move titles and delete" : "Delete"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -781,7 +782,7 @@ export function ProfilesSection() {
             <span className="mt-0.5 block text-xs text-muted-foreground">
               {p.groups.filter((g) => !g.blocked).length} ranked ·{" "}
               {p.groups.filter((g) => g.blocked).length} blocked ·{" "}
-              {p.title_count} series
+              {plural(p.title_count, "title")}
             </span>
           </span>
           <span className="text-xs text-faint">Edit</span>

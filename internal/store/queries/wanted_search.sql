@@ -7,14 +7,9 @@
 -- budget one pass can burn.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
--- Movies are excluded here rather than in Go (#208): decide cannot match one
--- yet, so next_search_at would never advance and the movie would permanently
--- hold a slot at the head of this LIMIT-ordered queue, burning one indexer
--- search per pass. Revert with #209.
 SELECT s.*
 FROM series s
 WHERE s.monitored = 1
-  AND s.format <> 'MOVIE'
   AND (s.next_search_at IS NULL OR s.next_search_at <= ?)
   AND EXISTS (
       SELECT 1
