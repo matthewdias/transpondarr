@@ -22,7 +22,8 @@ ORDER BY g.created_at DESC;
 -- name: ListGrabsByInfoHash :many
 -- One release's rows, in episode order: the group the importer settles together.
 -- item_in_library rides along because it is what makes an import a replacement (#97);
--- the three grab row shapes stay parallel.
+-- format and year ride along because the library target routes and names on them (#198).
+-- The three grab row shapes stay parallel: a retry converts between two of them.
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
     g.missing_since, g.last_error,
@@ -31,7 +32,8 @@ SELECT
     w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
-    s.format AS series_format
+    s.format AS series_format,
+    s.year   AS series_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -47,7 +49,8 @@ SELECT
     w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
-    s.format AS series_format
+    s.format AS series_format,
+    s.year   AS series_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -62,7 +65,8 @@ SELECT
     w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
-    s.format AS series_format
+    s.format AS series_format,
+    s.year   AS series_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id

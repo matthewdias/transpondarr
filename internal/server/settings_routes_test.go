@@ -15,9 +15,16 @@ type indexerJSON struct {
 	Categories string `json:"categories"`
 }
 
+type libraryJSON struct {
+	Dir       string `json:"dir"`
+	MoviesDir string `json:"movies_dir"`
+	Mode      string `json:"mode"`
+}
+
 type settingsJSON struct {
 	Automation automationJSON `json:"automation"`
 	Indexer    indexerJSON    `json:"indexer"`
+	Library    libraryJSON    `json:"library"`
 }
 
 func getAutomation(t *testing.T, h *harness) automationJSON {
@@ -113,5 +120,30 @@ func TestIndexerCategoriesRoundTrip(t *testing.T) {
 		map[string]any{"url": "http://prowlarr:9696/1/api", "categories": "anime"}, nil)
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("PUT /settings/indexer with a non-numeric category = %d, want 422", code)
+	}
+}
+
+// The Settings UI edits both roots through one section, so the movies root
+// round-trips with the rest of it (#198).
+func TestLibraryMoviesRootRoundTrip(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	var saved settingsJSON
+	code := do(t, h, http.MethodPut, "/api/v1/settings/library",
+		map[string]any{"dir": "/media/Anime", "movies_dir": "/media/Anime Films", "mode": "copy"}, &saved)
+	if code != http.StatusOK {
+		t.Fatalf("PUT /settings/library = %d, want 200", code)
+	}
+	want := libraryJSON{Dir: "/media/Anime", MoviesDir: "/media/Anime Films", Mode: "copy"}
+	if saved.Library != want {
+		t.Errorf("save returned %+v, want %+v", saved.Library, want)
+	}
+
+	var got settingsJSON
+	if code := do(t, h, http.MethodGet, "/api/v1/settings", nil, &got); code != http.StatusOK {
+		t.Fatalf("GET /settings = %d, want 200", code)
+	}
+	if got.Library != want {
+		t.Errorf("library after save = %+v, want %+v", got.Library, want)
 	}
 }

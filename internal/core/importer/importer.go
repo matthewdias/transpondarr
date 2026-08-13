@@ -472,7 +472,7 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 func (im *Importer) place(ctx context.Context, target library.Target, source string, g db.ListGrabsByStatusRow) (string, error) {
 	final, err := target.Place(ctx, library.ImportRequest{
 		SourcePath: source,
-		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat)},
+		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat), Year: int(g.SeriesYear)},
 		Item: domain.WantedItem{
 			ID:     g.WantedItemID,
 			Kind:   domain.WantedKind(g.ItemKind),
@@ -575,7 +575,7 @@ func (im *Importer) unclaimedItem(ctx context.Context, g db.ListGrabsByStatusRow
 func (im *Importer) placeUnclaimedFile(ctx context.Context, target library.Target, g db.ListGrabsByStatusRow, item db.GetWantedItemByNumberRow, lo fileClaim) (string, error) {
 	final, err := target.Place(ctx, library.ImportRequest{
 		SourcePath: lo.file.path,
-		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat)},
+		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat), Year: int(g.SeriesYear)},
 		Item:       domain.WantedItem{ID: item.ID, Kind: domain.WantedKind(item.Kind), Number: lo.number},
 		Replace:    item.InLibrary == 1,
 	})

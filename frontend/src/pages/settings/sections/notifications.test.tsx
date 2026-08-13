@@ -63,7 +63,7 @@ function settings(n: Settings["notifications"]): Settings {
       apikey_set: false,
       categories: "",
     },
-    library: { configured: false, dir: "", mode: "" },
+    library: { configured: false, dir: "", movies_dir: "", mode: "" },
     automation: { mode: "off", pin_delay_hours: 0 },
     notifications: n,
     auth: { configured: false, username: "", required: "enabled" },

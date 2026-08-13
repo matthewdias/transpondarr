@@ -49,7 +49,11 @@ type Config struct {
 	// not imported (the pipeline still grabs). ImportMode is auto|hardlink|copy;
 	// auto hardlinks and falls back to a copy across filesystems.
 	LibraryDir string
-	ImportMode string
+	// LibraryMoviesDir is the root movies are placed into, Plex and Jellyfin both
+	// wanting a Movies library separate from Shows. Empty is not a fallback into
+	// LibraryDir: a movie import fails until one is set.
+	LibraryMoviesDir string
+	ImportMode       string
 
 	// Automation (the scheduled search sweep). Strings, like every other value
 	// here, because the settings layer overlays persisted overrides on top and
@@ -93,6 +97,7 @@ func Load() (*Config, error) {
 	c.TorznabCategories = os.Getenv("TRANSPONDARR_TORZNAB_CATEGORIES")
 
 	c.LibraryDir = os.Getenv("TRANSPONDARR_LIBRARY_DIR")
+	c.LibraryMoviesDir = os.Getenv("TRANSPONDARR_LIBRARY_MOVIES_DIR")
 	c.ImportMode = getenv("TRANSPONDARR_IMPORT_MODE", "auto")
 
 	c.AutomationEnabled = getenv("TRANSPONDARR_AUTOMATION_ENABLED", "false")

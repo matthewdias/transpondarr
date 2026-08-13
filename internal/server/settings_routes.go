@@ -36,6 +36,7 @@ type indexerSettingsDTO struct {
 type librarySettingsDTO struct {
 	Configured bool   `json:"configured"`
 	Dir        string `json:"dir"`
+	MoviesDir  string `json:"movies_dir" doc:"Root movies are placed into; empty = movies do not import"`
 	Mode       string `json:"mode"`
 }
 
@@ -118,8 +119,14 @@ func indexerDTO(c settings.IndexerConfig) indexerSettingsDTO {
 	}
 }
 
+// Either root counts as configured: a films-only library imports films.
 func libraryDTO(c settings.LibraryConfig) librarySettingsDTO {
-	return librarySettingsDTO{Configured: c.Dir != "", Dir: c.Dir, Mode: c.Mode}
+	return librarySettingsDTO{
+		Configured: c.Dir != "" || c.MoviesDir != "",
+		Dir:        c.Dir,
+		MoviesDir:  c.MoviesDir,
+		Mode:       c.Mode,
+	}
 }
 
 func automationDTO(c settings.AutomationConfig) automationSettingsDTO {
@@ -201,8 +208,9 @@ type indexerInput struct {
 
 type libraryInput struct {
 	Body struct {
-		Dir  string `json:"dir,omitempty"`
-		Mode string `json:"mode,omitempty" enum:"auto,hardlink,copy"`
+		Dir       string `json:"dir,omitempty"`
+		MoviesDir string `json:"movies_dir,omitempty" doc:"Root movies are placed into; empty = movies do not import"`
+		Mode      string `json:"mode,omitempty" enum:"auto,hardlink,copy"`
 	}
 }
 
@@ -475,8 +483,9 @@ func (h *settingsHandler) updateLibrary(ctx context.Context, in *libraryInput) (
 		return nil, huma.Error422UnprocessableEntity("invalid import mode (want auto, hardlink or copy)")
 	}
 	if err := h.settings.UpdateLibrary(ctx, settings.LibraryConfig{
-		Dir:  in.Body.Dir,
-		Mode: in.Body.Mode,
+		Dir:       in.Body.Dir,
+		MoviesDir: in.Body.MoviesDir,
+		Mode:      in.Body.Mode,
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to save library settings", err)
 	}
@@ -572,8 +581,9 @@ func (h *settingsHandler) regenerateAPIKey(ctx context.Context, _ *struct{}) (*a
 
 func (h *settingsHandler) testLibrary(ctx context.Context, in *libraryInput) (*testOutput, error) {
 	if err := h.settings.TestLibrary(ctx, settings.LibraryConfig{
-		Dir:  in.Body.Dir,
-		Mode: in.Body.Mode,
+		Dir:       in.Body.Dir,
+		MoviesDir: in.Body.MoviesDir,
+		Mode:      in.Body.Mode,
 	}); err != nil {
 		return nil, huma.Error422UnprocessableEntity("library check failed: " + err.Error())
 	}
