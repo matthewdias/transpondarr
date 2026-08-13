@@ -541,6 +541,13 @@ Behaviour changes are test-driven. Work red → green → refactor:
   display-only — `webhook.go` must never map it, because `item_number: 1` is
   *correct* for a movie and the payload is a contract (#207 broke it once,
   deliberately and with an upgrade note).
+- **Neither automation entry point filters on format (#211).** The sweep's due
+  query briefly did — #208 parked movies there because decide could not match one,
+  so `next_search_at` would never advance and the film would hold a slot at the
+  head of a LIMIT-ordered queue forever. #209 removed the reason and #211 the
+  clause, so a wanted movie is now due, searched and grabbed like any other
+  title, and format belongs in `decide` alone. The feed's due query never carried
+  the stop, which is why the feed acquired films before the sweep could.
 - **The null-year rule is one rule split by actor, not two (#208).** `series.year`
   is `0`, never NULL, for "no year on record", and the split is: **naming** drops
   the ` (Year)` suffix (#198), while **matching** stays free for manual search and
