@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -94,7 +95,7 @@ func (im *Importer) ListPayload(ctx context.Context, grabID int64) (PayloadInfo,
 	}
 	// Suggestions come from the same mapper the retry will run, so the dialog
 	// preselects what an automatic re-map would do rather than a second opinion.
-	res := mapFiles(p.files, covers, nil)
+	res := mapFiles(p.files, covers, nil, domain.Format(group[0].SeriesFormat))
 	suggested := make(map[string]int, len(res.assigned))
 	for n, c := range res.assigned {
 		suggested[c.rel] = n
@@ -247,16 +248,17 @@ func (im *Importer) validateAssignments(ctx context.Context, deferred []db.ListG
 	for _, g := range deferred {
 		covers[int(g.ItemNumber.Int64)] = true
 	}
+	kind := deferred[0].ItemKind
 	taken := make(map[int]string, len(assignments))
 	for path, n := range assignments {
 		if !known[path] {
 			return fmt.Errorf("%w: %q is not in this payload", ErrBadAssignment, path)
 		}
 		if n <= 0 {
-			return fmt.Errorf("%w: %q was assigned episode %d", ErrBadAssignment, path, n)
+			return fmt.Errorf("%w: %q was assigned %s", ErrBadAssignment, path, numberLabel(kind, n))
 		}
 		if other, dup := taken[n]; dup {
-			return fmt.Errorf("%w: %q and %q were both assigned episode %d", ErrBadAssignment, other, path, n)
+			return fmt.Errorf("%w: %q and %q were both assigned %s", ErrBadAssignment, other, path, numberLabel(kind, n))
 		}
 		taken[n] = path
 		if covers[n] {
@@ -279,16 +281,21 @@ func (im *Importer) assignableOutsideRelease(ctx context.Context, g db.ListGrabs
 		Number:   sql.NullInt64{Int64: int64(number), Valid: true},
 	})
 	if errors.Is(err, sql.ErrNoRows) {
+		// A movie has one item and its release always covers it, so any number
+		// reaching here names nothing rather than naming a missing episode.
+		if domain.WantedKind(g.ItemKind) == domain.KindMovie {
+			return fmt.Errorf("%w: a movie has no %s", ErrBadAssignment, numberLabel(g.ItemKind, number))
+		}
 		return fmt.Errorf("%w: this series has no episode %d", ErrBadAssignment, number)
 	}
 	if err != nil {
 		return fmt.Errorf("look up item %d: %w", number, err)
 	}
 	if item.InLibrary == 1 {
-		return fmt.Errorf("%w: episode %d is already in the library", ErrBadAssignment, number)
+		return fmt.Errorf("%w: %s is already in the library", ErrBadAssignment, numberLabel(g.ItemKind, number))
 	}
 	if item.GrabStatus.Valid && item.GrabStatus.String != statusFailed {
-		return fmt.Errorf("%w: episode %d has a grab of its own", ErrBadAssignment, number)
+		return fmt.Errorf("%w: %s has a grab of its own", ErrBadAssignment, numberLabel(g.ItemKind, number))
 	}
 	return nil
 }

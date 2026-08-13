@@ -515,6 +515,23 @@ Behaviour changes are test-driven. Work red → green → refactor:
   backfill does: `idx_wanted_items_identity` is `(series_id, kind, number)`, so a
   stale `('episode', 1)` does not collide with `('movie', 1)` and the next refresh
   silently doubles the title instead of failing.
+- **A movie's file is identified by size; numbering never gets a say (#210).**
+  `mapMovie` takes the payload's largest surviving video, because a film is the
+  biggest thing shipped with it — a property of the payload rather than of how a
+  releaser named it, which is the same reason `decide` stopped trusting numbers
+  on the movie path (#218). The number-driven mapping was actively unsafe here:
+  a movie's `covers` is always `{1}`, so a numbered extra (`Deleted Scene 1`)
+  claimed the film's only item, hardlinked a clip as the movie and dropped the
+  feature as a leftover — settled, held, and self-healing never. Note the
+  asymmetry it had: *two* claimants deferred safely as a conflict while *one*
+  imported. Keyed on `domain.FormatMovie` and never on a one-item group, since a
+  series' single grabbed episode is one too and its number is genuine identity
+  there. The filter still runs first (a sample is never the feature, and is
+  often the small file anyway, so size must not re-admit it), an exact size tie
+  is a conflict rather than a coin flip, and a retry override still overrules
+  everything. One consequence worth knowing: with size always deciding, the
+  `unmatched file(s)` deferral is unreachable for a movie — a tie and an
+  unextracted archive are the only deferrals it has.
 - **User-facing copy follows the same rule, and only where a movie reaches it
   (#210).** The importer's settled reasons and the notification adapters word
   themselves off the item's kind (`itemLabel`, and the adapters' second condition

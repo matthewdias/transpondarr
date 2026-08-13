@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/matthewdias/transpondarr/internal/core/domain"
+
 	"github.com/matthewdias/transpondarr/internal/core/parser"
 )
 
@@ -44,7 +46,7 @@ func leftoverNames(res mapResult) []string {
 // The folder-wrapped single: one file, one item, and no readable number. We
 // chose this release, so the sole video is the episode however it is named.
 func TestMapsLoneFileToLoneItem(t *testing.T) {
-	res := mapFiles(files("b1946ac92492d2347c6235b4d2611184.mkv"), coverage(5), nil)
+	res := mapFiles(files("b1946ac92492d2347c6235b4d2611184.mkv"), coverage(5), nil, domain.FormatTV)
 
 	if got := assignedNames(res); len(got) != 1 || got[5] != "b1946ac92492d2347c6235b4d2611184.mkv" {
 		t.Errorf("assigned = %v, want the sole file taken as item 5", got)
@@ -58,7 +60,7 @@ func TestMapsLoneFileToLoneItem(t *testing.T) {
 // the sole one still has to reach the library, not sit as a leftover.
 func TestMapsSoleVideoCarryingAnExtrasToken(t *testing.T) {
 	name := "[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv"
-	res := mapFiles(files(name), coverage(5), nil)
+	res := mapFiles(files(name), coverage(5), nil, domain.FormatTV)
 
 	if got := assignedNames(res); len(got) != 1 || got[5] != name {
 		t.Errorf("assigned = %v, want the sole video placed as item 5", got)
@@ -67,7 +69,7 @@ func TestMapsSoleVideoCarryingAnExtrasToken(t *testing.T) {
 
 // Solo identity is exactly that: two covered items means the name has to answer.
 func TestDoesNotGuessALoneFileAcrossTwoItems(t *testing.T) {
-	res := mapFiles(files("b1946ac92492d2347c6235b4d2611184.mkv"), coverage(4, 5), nil)
+	res := mapFiles(files("b1946ac92492d2347c6235b4d2611184.mkv"), coverage(4, 5), nil, domain.FormatTV)
 
 	if len(res.assigned) != 0 {
 		t.Errorf("assigned = %v, want nothing guessed", assignedNames(res))
@@ -83,7 +85,7 @@ func TestMapsEachFileOfAPackToItsItem(t *testing.T) {
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"[SynthSubs] Placeholder Saga - 02 [1080p].mkv",
 		"[SynthSubs] Placeholder Saga - 03 [1080p].mkv",
-	), coverage(1, 2, 3), nil)
+	), coverage(1, 2, 3), nil, domain.FormatTV)
 
 	got := assignedNames(res)
 	if len(got) != 3 || got[1] == "" || got[2] == "" || got[3] == "" {
@@ -100,7 +102,7 @@ func TestMapsEachFileOfAPackToItsItem(t *testing.T) {
 // An absolute-numbered file still lands when the entry's own numbering does not
 // reach it -- the degrade-to-absolute rule the parser exists for.
 func TestMapsByAbsoluteNumberWhenSeasonRelativeMisses(t *testing.T) {
-	res := mapFiles(files("[SynthSubs] Placeholder Saga S3 - 01 (51) [1080p].mkv"), coverage(50, 51), nil)
+	res := mapFiles(files("[SynthSubs] Placeholder Saga S3 - 01 (51) [1080p].mkv"), coverage(50, 51), nil, domain.FormatTV)
 
 	if got := assignedNames(res); got[51] == "" {
 		t.Errorf("assigned = %v, want the absolute number to place it at 51", got)
@@ -109,7 +111,7 @@ func TestMapsByAbsoluteNumberWhenSeasonRelativeMisses(t *testing.T) {
 
 // Season-relative wins when both numbers hit a covered item, matching decide.
 func TestPrefersSeasonRelativeOverAbsolute(t *testing.T) {
-	res := mapFiles(files("[SynthSubs] Placeholder Saga S3 - 01 (51) [1080p].mkv"), coverage(1, 51), nil)
+	res := mapFiles(files("[SynthSubs] Placeholder Saga S3 - 01 (51) [1080p].mkv"), coverage(1, 51), nil, domain.FormatTV)
 
 	if got := assignedNames(res); got[1] == "" || got[51] != "" {
 		t.Errorf("assigned = %v, want item 1 (season-relative), not 51", got)
@@ -122,7 +124,7 @@ func TestVersionTwoBeatsVersionOne(t *testing.T) {
 	res := mapFiles(files(
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"[SynthSubs] Placeholder Saga - 01v2 [1080p].mkv",
-	), coverage(1), nil)
+	), coverage(1), nil, domain.FormatTV)
 
 	if got := assignedNames(res); got[1] != "[SynthSubs] Placeholder Saga - 01v2 [1080p].mkv" {
 		t.Errorf("assigned = %v, want the v2", got)
@@ -137,7 +139,7 @@ func TestRepackBreaksAVersionTie(t *testing.T) {
 	res := mapFiles(files(
 		"Placeholder.Saga.S01E01.1080p.WEB.H264-SYNTH.mkv",
 		"Placeholder.Saga.S01E01.REPACK.1080p.WEB.H264-SYNTH.mkv",
-	), coverage(1), nil)
+	), coverage(1), nil, domain.FormatTV)
 
 	if got := assignedNames(res); got[1] != "Placeholder.Saga.S01E01.REPACK.1080p.WEB.H264-SYNTH.mkv" {
 		t.Errorf("assigned = %v, want the repack", got)
@@ -150,7 +152,7 @@ func TestIndistinguishableClaimsConflict(t *testing.T) {
 	res := mapFiles(files(
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"[OtherGroup] Placeholder Saga - 01 [720p].mkv",
-	), coverage(1), nil)
+	), coverage(1), nil, domain.FormatTV)
 
 	if len(res.assigned) != 0 {
 		t.Errorf("assigned = %v, want nothing guessed between two equal claims", assignedNames(res))
@@ -166,7 +168,7 @@ func TestUncoveredFileIsALeftoverKeepingItsNumber(t *testing.T) {
 	res := mapFiles(files(
 		"[SynthSubs] Placeholder Saga - 03 [1080p].mkv",
 		"[SynthSubs] Placeholder Saga - 04 [1080p].mkv",
-	), coverage(3), nil)
+	), coverage(3), nil, domain.FormatTV)
 
 	if got := assignedNames(res); len(got) != 1 || got[3] == "" {
 		t.Fatalf("assigned = %v, want only the covered episode", got)
@@ -179,7 +181,7 @@ func TestUncoveredFileIsALeftoverKeepingItsNumber(t *testing.T) {
 // A range inside a payload names no single episode, so it claims nothing rather
 // than claiming its first.
 func TestRangeFileClaimsNothing(t *testing.T) {
-	res := mapFiles(files("[SynthSubs] Placeholder Saga - 01-03 [1080p].mkv"), coverage(1, 2, 3), nil)
+	res := mapFiles(files("[SynthSubs] Placeholder Saga - 01-03 [1080p].mkv"), coverage(1, 2, 3), nil, domain.FormatTV)
 
 	if len(res.assigned) != 0 {
 		t.Errorf("assigned = %v, want a range to claim nothing", assignedNames(res))
@@ -195,7 +197,7 @@ func TestOverrideAssignsUnconditionally(t *testing.T) {
 	res := mapFiles(files(
 		"b1946ac92492d2347c6235b4d2611184.mkv",
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
-	), coverage(1, 5), map[string]int{"b1946ac92492d2347c6235b4d2611184.mkv": 5})
+	), coverage(1, 5), map[string]int{"b1946ac92492d2347c6235b4d2611184.mkv": 5}, domain.FormatTV)
 
 	got := assignedNames(res)
 	if got[5] != "b1946ac92492d2347c6235b4d2611184.mkv" {
@@ -210,7 +212,7 @@ func TestOverrideAssignsUnconditionally(t *testing.T) {
 // hatch is that the name is wrong.
 func TestOverrideBeatsTheFilename(t *testing.T) {
 	name := "[SynthSubs] Placeholder Saga - 01 [1080p].mkv"
-	res := mapFiles(files(name), coverage(1, 7), map[string]int{name: 7})
+	res := mapFiles(files(name), coverage(1, 7), map[string]int{name: 7}, domain.FormatTV)
 
 	got := assignedNames(res)
 	if got[7] != name || got[1] != "" {

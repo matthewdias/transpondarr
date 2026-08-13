@@ -1,8 +1,10 @@
 package importer
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -79,6 +81,39 @@ func heldByTitle(t *testing.T, st *store.Store, seriesID int64) bool {
 		t.Fatalf("title holds %d items, want the single one a movie has", len(items))
 	}
 	return items[0].InLibrary == 1
+}
+
+// grow pads a payload file, so a test states which video is the feature rather
+// than leaving every candidate the same size and the choice to a tie. The
+// content is stamped with the file's own name, so two equally sized videos are
+// still tellable apart once one of them is in the library.
+func grow(t *testing.T, dir, rel string, size int) {
+	t.Helper()
+	body := make([]byte, size)
+	copy(body, rel)
+	if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(rel)), body, 0o644); err != nil {
+		t.Fatalf("grow %q: %v", rel, err)
+	}
+}
+
+// wantPlacedFrom asserts which payload file the library ended up holding.
+func wantPlacedFrom(t *testing.T, dest, rel string) {
+	t.Helper()
+	body, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatalf("read placed file: %v", err)
+	}
+	if !bytes.HasPrefix(body, []byte(rel)) {
+		t.Errorf("the library holds %q, want the bytes of %q", firstLine(body), rel)
+	}
+}
+
+// firstLine is the name grow stamped, for a legible failure message.
+func firstLine(body []byte) string {
+	if i := bytes.IndexByte(body, 0); i >= 0 {
+		return string(body[:i])
+	}
+	return string(body)
 }
 
 // deferralDetail is the reason the latest deferral settled by. A settled row's
@@ -266,6 +301,7 @@ func TestMoviePayloadPicksTheFeatureOverSamplesAndExtras(t *testing.T) {
 		"Extras/Placeholder.Film.2019.Bonus.Interview.mkv",
 		"Placeholder.Film.2019.Trailer.mkv",
 	)
+	grow(t, dir, feature, 4096)
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -425,16 +461,58 @@ func TestMovieArchiveRetryStaysDeferredUntilItIsExtracted(t *testing.T) {
 	}
 }
 
-// Two videos and no numbering leave the mapping nothing to go on, which is a
-// deferral a human fixes from Activity by naming the feature. The retry override
-// is keyed on the payload-relative path and overrules every rule above it.
-func TestMovieDeferralIsFixableByNamingTheFile(t *testing.T) {
+// The bug this rule exists to stop: a numbered non-feature ("Deleted Scene 1")
+// claimed the film's only item, hardlinked a clip as the movie and dropped the
+// feature as a leftover — silently, with the grab settled and the item held. A
+// film is the biggest thing in its payload, so size decides and numbering does
+// not get a say.
+func TestMovieTakesTheLargestVideoAsTheFeature(t *testing.T) {
 	st := coretest.NewStore(t)
 	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	target, _, movies := movieLibrary(t)
 
 	const feature = "Placeholder.Film.2019.1080p.BluRay.x264-SynthGroup.mkv"
-	dir := writeTree(t, feature, "Placeholder.Film.2019.Making.Of.mkv")
+	dir := writeTree(t, feature, "Placeholder Film - Deleted Scene 1.mkv", "Placeholder Film - Interview 2.mkv")
+	grow(t, dir, feature, 4096)
+
+	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	wantFiles(t, movies, "Placeholder Film (2019)/Placeholder Film (2019).mkv")
+	placed := filepath.Join(movies, "Placeholder Film (2019)", "Placeholder Film (2019).mkv")
+	info, err := os.Stat(placed)
+	if err != nil {
+		t.Fatalf("stat placed film: %v", err)
+	}
+	if info.Size() != 4096 {
+		t.Errorf("placed a %d-byte file as the film; the feature is the 4096-byte one", info.Size())
+	}
+	wantPlacedFrom(t, placed, feature)
+	if g := grabByHash(t, st, "abc"); g.Status != statusImported {
+		t.Errorf("status = %q, want imported", g.Status)
+	}
+	if !heldByTitle(t, st, seriesID) {
+		t.Error("the item must read as held once the feature is in the library")
+	}
+}
+
+// An exact size tie is a conflict rather than a coin flip, exactly as for
+// same-number claimants: taking either would silently drop the other. It is the
+// one deferral a movie payload holding videos can reach, and a human resolves it
+// from Activity by naming the file — an override still overrules every rule.
+func TestMovieSizeTieDefersAndIsFixableByNamingTheFile(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	target, _, movies := movieLibrary(t)
+
+	const feature = "Placeholder.Film.2019.1080p.BluRay.x264-SynthGroup.mkv"
+	const other = "Placeholder Film - Deleted Scene 1.mkv"
+	dir := writeTree(t, feature, other)
+	grow(t, dir, feature, 2048)
+	grow(t, dir, other, 2048)
+
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
 	ctx := context.Background()
 	if err := im.ScanOnce(ctx); err != nil {
@@ -445,8 +523,9 @@ func TestMovieDeferralIsFixableByNamingTheFile(t *testing.T) {
 	if g.Status != statusDeferred {
 		t.Fatalf("status = %q, want it deferred rather than guessed at", g.Status)
 	}
-	if detail := deferralDetail(t, st, seriesID); !strings.Contains(detail, "unmatched file") {
-		t.Errorf("deferral detail = %q, want it to name the files left over", detail)
+	wantFiles(t, movies)
+	if heldByTitle(t, st, seriesID) {
+		t.Error("nothing was placed, so the item must not read as held")
 	}
 
 	info, err := im.ListPayload(ctx, g.ID)
@@ -465,6 +544,7 @@ func TestMovieDeferralIsFixableByNamingTheFile(t *testing.T) {
 		t.Fatalf("retry results = %+v, want the named file imported", results)
 	}
 	wantFiles(t, movies, "Placeholder Film (2019)/Placeholder Film (2019).mkv")
+	wantPlacedFrom(t, filepath.Join(movies, "Placeholder Film (2019)", "Placeholder Film (2019).mkv"), feature)
 	if !heldByTitle(t, st, seriesID) {
 		t.Error("the item must read as held after a successful fix")
 	}
@@ -521,40 +601,24 @@ func TestSingleItemOVAKeepsTheEpisodicImportPath(t *testing.T) {
 
 // These reasons are read in the Activity queue by someone deciding what to do
 // next, and a movie reaches them: calling its one item "episode 1" names
-// something the user never asked for.
-func TestMovieDeferralReasonsNameTheMovieRatherThanAnEpisode(t *testing.T) {
-	cases := []struct {
-		name    string
-		payload []string
-		want    string
-	}{
-		{
-			name:    "files nothing could tell apart from the film",
-			payload: []string{"Placeholder.Film.2019.1080p.mkv", "Placeholder.Film.2019.Making.Of.mkv"},
-			want:    "no file matched this movie; 2 unmatched file(s) in the payload",
-		},
-		{
-			// Reachable for a movie precisely because its one item is always covered:
-			// two files parsing to the same number both claim it, and taking either
-			// silently drops the other.
-			name:    "two files claiming the one item",
-			payload: []string{"[SynthSubs] Placeholder Film - 01 [1080p].mkv", "[OtherGroup] Placeholder Film - 01 [720p].mkv"},
-			want:    "2 files claim this movie and nothing tells them apart",
-		},
+// something the user never asked for. A movie holding videos can only ever
+// defer on a size tie — the largest-video rule answers every other shape — so
+// that and the archive advice below are the two reasons to get right.
+func TestMovieConflictReasonNamesTheMovieRatherThanAnEpisode(t *testing.T) {
+	st := coretest.NewStore(t)
+	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	dir := writeTree(t,
+		"[SynthSubs] Placeholder Film [1080p].mkv",
+		"[OtherGroup] Placeholder Film [720p].mkv",
+	)
+	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			st := coretest.NewStore(t)
-			seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
-			dir := writeTree(t, tc.payload...)
-			im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
-			if err := im.ScanOnce(context.Background()); err != nil {
-				t.Fatalf("scan: %v", err)
-			}
-			if got := deferralDetail(t, st, seriesID); got != tc.want {
-				t.Errorf("deferral detail = %q, want %q", got, tc.want)
-			}
-		})
+
+	const want = "2 files claim this movie and nothing tells them apart"
+	if got := deferralDetail(t, st, seriesID); got != want {
+		t.Errorf("deferral detail = %q, want %q", got, want)
 	}
 }
 
@@ -598,5 +662,46 @@ func TestMovieImportDispatchesTheMovieItemKind(t *testing.T) {
 	}
 	if ev.ItemNumber != 1 {
 		t.Errorf("item number = %d, want 1 kept for machine consumers", ev.ItemNumber)
+	}
+}
+
+// The retry endpoint's refusals are reachable by a direct API call rather than
+// from the Fix import dialog, and they name a number the caller chose — which a
+// movie's one item makes nonsense of if it is called an episode.
+func TestMovieRetryRefusalsNameItemsRatherThanEpisodes(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+
+	const feature = "Placeholder.Film.2019.1080p.mkv"
+	const other = "Placeholder Film - Deleted Scene 1.mkv"
+	dir := writeTree(t, feature, other)
+	grow(t, dir, feature, 2048)
+	grow(t, dir, other, 2048)
+
+	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
+	ctx := context.Background()
+	if err := im.ScanOnce(ctx); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	grabID := grabByHash(t, st, "abc").ID
+
+	cases := []struct {
+		name       string
+		assignment map[string]int
+		want       string
+	}{
+		{"a number the movie does not have", map[string]int{feature: 2}, "a movie has no item 2"},
+		{"not an item number at all", map[string]int{feature: 0}, `"` + feature + `" was assigned item 0`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := im.RetryImport(ctx, grabID, tc.assignment)
+			if err == nil {
+				t.Fatal("the retry was accepted; want it refused")
+			}
+			if !errors.Is(err, ErrBadAssignment) || !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error = %q, want it to contain %q", err, tc.want)
+			}
+		})
 	}
 }

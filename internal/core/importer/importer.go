@@ -407,7 +407,7 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 	for _, g := range active {
 		covers[int(g.ItemNumber.Int64)] = true
 	}
-	res := mapFiles(p.files, covers, overrides)
+	res := mapFiles(p.files, covers, overrides, domain.Format(active[0].SeriesFormat))
 
 	imported := make(map[int]string, len(active))
 	touched := make(map[int64]bool, len(active))
@@ -479,6 +479,16 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 func itemLabel(kind string, number int) string {
 	if domain.WantedKind(kind) == domain.KindMovie {
 		return "this movie"
+	}
+	return fmt.Sprintf("episode %d", number)
+}
+
+// numberLabel names an arbitrary number an API caller supplied, which itemLabel
+// cannot: the number may be one the title does not have, so it has to survive
+// being printed rather than standing in for the item.
+func numberLabel(kind string, number int) string {
+	if domain.WantedKind(kind) == domain.KindMovie {
+		return fmt.Sprintf("item %d", number)
 	}
 	return fmt.Sprintf("episode %d", number)
 }
