@@ -170,6 +170,10 @@ func (c *IndexerConfig) applyDefaults() {
 }
 
 func (c *LibraryConfig) applyDefaults() {
+	// Trimmed here, the one point every read and write passes through, so what is
+	// stored, displayed, tested and joined into a path are the same string.
+	c.Dir = strings.TrimSpace(c.Dir)
+	c.MoviesDir = strings.TrimSpace(c.MoviesDir)
 	if strings.TrimSpace(c.Mode) == "" {
 		c.Mode = defaultImportMode
 	}
@@ -690,17 +694,20 @@ func (s *Service) TestIndexer(ctx context.Context, in IndexerConfig) error {
 }
 
 // TestLibrary verifies each configured library root exists and is writable. An
-// unset movies root passes: it is a valid state, in which movies do not import.
+// unset root passes when the other is set: either alone is a valid library, in
+// which the missing one's format does not import.
 func (s *Service) TestLibrary(_ context.Context, in LibraryConfig) error {
-	dir := strings.TrimSpace(in.Dir)
-	if dir == "" {
+	in.applyDefaults()
+	if in.Dir == "" && in.MoviesDir == "" {
 		return errors.New("a library directory is required")
 	}
-	if err := checkWritableDir(dir, "library"); err != nil {
-		return err
+	if in.Dir != "" {
+		if err := checkWritableDir(in.Dir, "library"); err != nil {
+			return err
+		}
 	}
-	if movies := strings.TrimSpace(in.MoviesDir); movies != "" {
-		return checkWritableDir(movies, "movies library")
+	if in.MoviesDir != "" {
+		return checkWritableDir(in.MoviesDir, "movies library")
 	}
 	return nil
 }
@@ -806,10 +813,15 @@ func buildIndexer(c IndexerConfig) indexer.Indexer {
 // buildLibrary returns a library.Target (interface) so an unconfigured library
 // is a true nil interface — returning a typed nil *mediaserver.Target would read
 // as non-nil through the interface and defeat the importer's nil check.
+//
+// Either root alone builds one: a films-only library is a supported install, and
+// only "no root at all" still means import is off. Requiring the series root
+// would leave a movies-only install with no target, and the importer skips a nil
+// target silently — the stuck-queue failure a missing root must never become.
 func buildLibrary(c LibraryConfig, log *slog.Logger) library.Target {
-	if strings.TrimSpace(c.Dir) == "" {
+	c.applyDefaults()
+	if c.Dir == "" && c.MoviesDir == "" {
 		return nil
 	}
-	c.applyDefaults()
 	return mediaserver.New(mediaserver.Roots{Series: c.Dir, Movies: c.MoviesDir}, c.Mode, log)
 }

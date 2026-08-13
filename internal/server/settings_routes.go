@@ -119,8 +119,14 @@ func indexerDTO(c settings.IndexerConfig) indexerSettingsDTO {
 	}
 }
 
+// Either root counts as configured: a films-only library imports films.
 func libraryDTO(c settings.LibraryConfig) librarySettingsDTO {
-	return librarySettingsDTO{Configured: c.Dir != "", Dir: c.Dir, MoviesDir: c.MoviesDir, Mode: c.Mode}
+	return librarySettingsDTO{
+		Configured: c.Dir != "" || c.MoviesDir != "",
+		Dir:        c.Dir,
+		MoviesDir:  c.MoviesDir,
+		Mode:       c.Mode,
+	}
 }
 
 func automationDTO(c settings.AutomationConfig) automationSettingsDTO {

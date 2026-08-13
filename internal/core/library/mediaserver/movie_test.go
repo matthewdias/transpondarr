@@ -73,6 +73,44 @@ func TestPlaceMovieWithoutAMoviesRootIsAnError(t *testing.T) {
 	}
 }
 
+// The roots are symmetric: a films-only library is a supported configuration,
+// so an episode arriving into one errors the same way a movie does with no
+// movies root, rather than joining a relative path under the process cwd.
+func TestPlaceEpisodeWithoutASeriesRootIsAnError(t *testing.T) {
+	t.Chdir(t.TempDir())
+	src := writeSource(t, "raw.mkv")
+	movies := t.TempDir()
+
+	_, err := New(Roots{Movies: movies}, "copy", nil).
+		Place(context.Background(), req(src, "Placeholder Saga", 5))
+	if !errors.Is(err, ErrNoSeriesRoot) {
+		t.Fatalf("Place error = %v, want ErrNoSeriesRoot", err)
+	}
+	if entries, _ := os.ReadDir(movies); len(entries) != 0 {
+		t.Errorf("nothing may land in the movies root, holds %d entries", len(entries))
+	}
+	if entries, _ := os.ReadDir("."); len(entries) != 0 {
+		t.Errorf("an unset root must not resolve relative to the cwd, wrote %d entries", len(entries))
+	}
+}
+
+// A root is trimmed by the target itself, so the path it joins is the path a
+// settings Test validated: " /media/films" must not become a cwd-relative dir.
+func TestRootsAreTrimmed(t *testing.T) {
+	src := writeSource(t, "raw.mkv")
+	movies := t.TempDir()
+
+	dest, err := New(Roots{Movies: " " + movies + " "}, "copy", nil).
+		Place(context.Background(), movieReq(src, "Placeholder Film", 2019))
+	if err != nil {
+		t.Fatalf("Place: %v", err)
+	}
+	want := filepath.Join(movies, "Placeholder Film (2019)", "Placeholder Film (2019).mkv")
+	if dest != want {
+		t.Errorf("dest = %q, want %q", dest, want)
+	}
+}
+
 // Format is the discriminator, item count never is: a one-item OVA is still
 // series-shaped, which is also where Plex and Jellyfin expect to find it.
 func TestPlaceSingleItemOVAStaysInTheSeriesRoot(t *testing.T) {

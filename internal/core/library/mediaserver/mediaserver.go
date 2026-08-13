@@ -37,11 +37,16 @@ import (
 // Season 02 inside the first entry's folder.
 const seasonNumber = 1
 
-// ErrNoMoviesRoot is why a movie cannot be placed with no movies root
-// configured. Deliberately an error rather than a fallback into the series
-// root: the grab stays open and the next scan imports it once the root is set,
-// where a file already hardlinked into the wrong library would not.
-var ErrNoMoviesRoot = errors.New("no movies library directory is configured; set one under Settings > Library")
+// ErrNoMoviesRoot and ErrNoSeriesRoot are why a file cannot be placed when the
+// root its format calls for is unset. Deliberately an error rather than a
+// fallback into the other root: the grab stays open and the next scan imports
+// it once the root is set, where a file already hardlinked into the wrong
+// library would not. Either root alone is a supported library, so each format
+// answers for its own.
+var (
+	ErrNoMoviesRoot = errors.New("no movies library directory is configured; set one under Settings > Library")
+	ErrNoSeriesRoot = errors.New("no series library directory is configured; set one under Settings > Library")
+)
 
 // Mode selects how a file is transferred into the library.
 type Mode string
@@ -80,11 +85,15 @@ type Target struct {
 }
 
 // New constructs a media-server layout target over roots. mode is
-// auto|hardlink|copy (see ParseMode). A nil log discards.
+// auto|hardlink|copy (see ParseMode). A nil log discards. Roots are trimmed
+// here so the path joined is the path configured: a pasted " /media/films" is
+// otherwise a directory named " " away, or relative to the process cwd.
 func New(roots Roots, mode string, log *slog.Logger) *Target {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
+	roots.Series = strings.TrimSpace(roots.Series)
+	roots.Movies = strings.TrimSpace(roots.Movies)
 	return &Target{roots: roots, mode: ParseMode(mode), log: log}
 }
 
@@ -156,11 +165,14 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 // #129 will parameterize the shape within each branch, not the branch itself.
 func (t *Target) destination(req library.ImportRequest, name string) (dir, stem string, err error) {
 	if req.Title.Format == domain.FormatMovie {
-		if strings.TrimSpace(t.roots.Movies) == "" {
+		if t.roots.Movies == "" {
 			return "", "", fmt.Errorf("mediaserver: %w", ErrNoMoviesRoot)
 		}
 		folder := movieName(name, req.Title.Year)
 		return filepath.Join(t.roots.Movies, folder), folder, nil
+	}
+	if t.roots.Series == "" {
+		return "", "", fmt.Errorf("mediaserver: %w", ErrNoSeriesRoot)
 	}
 	return filepath.Join(t.roots.Series, name, fmt.Sprintf("Season %02d", seasonNumber)),
 		fmt.Sprintf("%s - S%02dE%02d", name, seasonNumber, req.Item.Number), nil

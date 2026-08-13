@@ -86,3 +86,95 @@ func TestTestLibraryChecksTheMoviesRoot(t *testing.T) {
 		t.Errorf("error %q should name the movies directory as the failing one", err)
 	}
 }
+
+// A films-only library is a supported configuration. Before #198 an empty Dir
+// meant "no import at all", which would have left a movies-only install with no
+// target and its films sitting in the queue with nothing said about them.
+func TestMoviesOnlyLibraryStillBuildsATarget(t *testing.T) {
+	svc, reg, _ := newTestService(t)
+	ctx := context.Background()
+	movies := t.TempDir()
+
+	if err := svc.UpdateLibrary(ctx, LibraryConfig{MoviesDir: movies, Mode: "copy"}); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	target := reg.Library()
+	if target == nil {
+		t.Fatal("no library target built; a movies-only install must still import films")
+	}
+
+	src := filepath.Join(t.TempDir(), "raw.mkv")
+	if err := os.WriteFile(src, []byte("video-bytes"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	dest, err := target.Place(ctx, library.ImportRequest{
+		SourcePath: src,
+		Title:      domain.Title{Name: "Placeholder Film", Format: domain.FormatMovie, Year: 2019},
+		Item:       domain.WantedItem{Number: 1, Kind: domain.KindMovie},
+	})
+	if err != nil {
+		t.Fatalf("place a movie into a movies-only library: %v", err)
+	}
+	if !strings.HasPrefix(dest, movies+string(os.PathSeparator)) {
+		t.Errorf("movie placed at %q, want it under %q", dest, movies)
+	}
+}
+
+// Neither root set is still "import disabled" — the pre-#198 meaning of an
+// empty library directory, and the only configuration that may build no target.
+func TestNoRootsBuildsNoTarget(t *testing.T) {
+	_, reg, _ := newTestService(t)
+	if target := reg.Library(); target != nil {
+		t.Fatalf("a fresh install has no library target, got %v", target)
+	}
+}
+
+// What is stored, shown and joined into a path must be one string: a pasted
+// " /media/films" otherwise passes Test and then files somewhere else.
+func TestUpdateLibraryTrimsBothRoots(t *testing.T) {
+	svc, reg, st := newTestService(t)
+	ctx := context.Background()
+	series, movies := t.TempDir(), t.TempDir()
+
+	if err := svc.UpdateLibrary(ctx, LibraryConfig{
+		Dir: "  " + series + " ", MoviesDir: " " + movies + "  ", Mode: "copy",
+	}); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if got, _ := st.Q.GetSetting(ctx, keyLibraryMoviesDir); got != movies {
+		t.Errorf("persisted movies dir = %q, want the trimmed %q", got, movies)
+	}
+	if got := svc.Snapshot().Library; got.Dir != series || got.MoviesDir != movies {
+		t.Errorf("snapshot = %+v, want both roots trimmed", got)
+	}
+
+	src := filepath.Join(t.TempDir(), "raw.mkv")
+	if err := os.WriteFile(src, []byte("video-bytes"), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	dest, err := reg.Library().Place(ctx, library.ImportRequest{
+		SourcePath: src,
+		Title:      domain.Title{Name: "Placeholder Film", Format: domain.FormatMovie, Year: 2019},
+		Item:       domain.WantedItem{Number: 1, Kind: domain.KindMovie},
+	})
+	if err != nil {
+		t.Fatalf("place: %v", err)
+	}
+	if !strings.HasPrefix(dest, movies+string(os.PathSeparator)) {
+		t.Errorf("placed at %q, want it under the trimmed root %q", dest, movies)
+	}
+}
+
+// Test covers whichever roots are set; a movies-only library is valid, and
+// neither root set is the one case with nothing to check.
+func TestTestLibraryAcceptsAMoviesOnlyLibrary(t *testing.T) {
+	svc, _, _ := newTestService(t)
+	ctx := context.Background()
+
+	if err := svc.TestLibrary(ctx, LibraryConfig{MoviesDir: t.TempDir()}); err != nil {
+		t.Errorf("a movies-only library is valid: %v", err)
+	}
+	if err := svc.TestLibrary(ctx, LibraryConfig{}); err == nil {
+		t.Error("expected an error when neither root is set")
+	}
+}

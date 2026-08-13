@@ -47,7 +47,7 @@ export function LibrarySection({ settings }: { settings: Settings }) {
     <SectionShell
       icon={FolderTree}
       title="Library"
-      description="Where completed downloads are imported. Empty disables import."
+      description="Where completed downloads are imported. Either root alone works; both empty disables import."
       configured={l.configured}
       footer={
         <SectionFooter
@@ -64,7 +64,7 @@ export function LibrarySection({ settings }: { settings: Settings }) {
         placeholder="/media/Anime"
         value={dir}
         onChange={(e) => setDir(e.target.value)}
-        hint="Must be reachable from the Transpondarr host; share a mount with the download client for hardlinks."
+        hint="Where episodes go. Must be reachable from the Transpondarr host; share a mount with the download client for hardlinks."
       />
       <Field
         label="Movies directory"
