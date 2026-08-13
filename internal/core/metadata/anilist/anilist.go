@@ -78,7 +78,9 @@ type media struct {
 	Status      string     `json:"status"`
 	SeasonYear  *int       `json:"seasonYear"`
 	StartDate   struct {
-		Year *int `json:"year"`
+		Year  *int `json:"year"`
+		Month *int `json:"month"`
+		Day   *int `json:"day"`
 	} `json:"startDate"`
 	CoverImage struct {
 		Large string `json:"large"`
@@ -123,6 +125,17 @@ func (m media) year() int {
 		return *m.SeasonYear
 	}
 	return 0
+}
+
+// premiere fixes the instant that reads as startDate's calendar day. Noon UTC
+// rather than JST midnight: startDate carries no clock to preserve, and a day
+// named at midnight anywhere lands a cell early for half the world. It is off by
+// a day east of UTC+11, which needs the viewer's zone the server does not have.
+func (m media) premiere() time.Time {
+	if m.StartDate.Year == nil || m.StartDate.Month == nil || m.StartDate.Day == nil {
+		return time.Time{}
+	}
+	return time.Date(*m.StartDate.Year, time.Month(*m.StartDate.Month), *m.StartDate.Day, 12, 0, 0, 0, time.UTC)
 }
 
 // highestItem is the last episode number the title is known to reach. A published
@@ -211,7 +224,7 @@ query ($id: Int!, $perPage: Int!) {
     episodes
     status
     seasonYear
-    startDate { year }
+    startDate { year month day }
     coverImage { large }
     nextAiringEpisode { episode }
     airingSchedule(page: 1, perPage: $perPage) {
@@ -242,6 +255,7 @@ func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []
 		Status:     m.Status,
 		CoverURL:   m.CoverImage.Large,
 		Year:       m.year(),
+		Premiere:   m.premiere(),
 		NextItem:   nextItem(m),
 	}
 

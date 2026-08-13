@@ -70,6 +70,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **A film on the calendar reads as a premiere, not as episode 1.** A film with
+  a television premiere already appeared on the calendar, labelled `Ep 01` as
+  though it were the first episode of a series; it now shows as a premiere
+  linking to the title. Films are also placed far more often: the release date
+  AniList publishes now fills in where a broadcast schedule never existed, so a
+  dated film leaves the **No schedule data** footer and lands on its day. A film
+  announced with only a year stays in that footer rather than being placed on a
+  date nobody published. Single-episode OVAs and specials keep their episode
+  line, and the empty week no longer says it found no episodes.
+
 - **A film that ships with extras now imports the film.** A movie download
   holding the feature alongside deleted scenes, an interview or a making-of
   imports the feature — the largest video in the payload — where before a clip

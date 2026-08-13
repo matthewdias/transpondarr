@@ -17,6 +17,7 @@ type calendarResponse struct {
 		Title       string `json:"title"`
 		Monitored   bool   `json:"monitored"`
 		Number      int    `json:"number"`
+		Format      string `json:"format"`
 		AirsAt      string `json:"airs_at"`
 		Status      string `json:"status"`
 		ImportError string `json:"import_error"`
@@ -180,6 +181,55 @@ func TestCalendarSurfacesUnscheduledSeries(t *testing.T) {
 	}
 	if out.Unscheduled[0].TitleID != noSchedule || out.Unscheduled[0].Title != "No Schedule Show" {
 		t.Errorf("unscheduled[0] = %+v, want No Schedule Show", out.Unscheduled[0])
+	}
+}
+
+// Format is what tells a film's premiere from an episode, and a film with a TV
+// premiere reaches the calendar today: without it the entry renders as "Ep 01".
+func TestCalendarCarriesFormat(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	seriesID := seedSeries(t, h.store, "Airing Show", 1)
+	setAirsAt(t, h.store, seriesID, 1, "2026-07-07 15:00:00")
+	movieID := seedMovie(t, h.store, "Sample Film", 2026)
+	setAirsAt(t, h.store, movieID, 1, "2026-07-08 15:00:00")
+
+	var out calendarResponse
+	if code := h.get(t, "/api/v1/calendar?start=2026-07-01T00:00:00Z&end=2026-08-01T00:00:00Z", &out); code != http.StatusOK {
+		t.Fatalf("GET calendar = %d, want 200", code)
+	}
+	if len(out.Items) != 2 {
+		t.Fatalf("items = %+v, want the series episode and the film", out.Items)
+	}
+	got := map[int64]string{}
+	for _, it := range out.Items {
+		got[it.TitleID] = it.Format
+	}
+	if got[seriesID] != "TV" {
+		t.Errorf("series format = %q, want TV", got[seriesID])
+	}
+	if got[movieID] != "MOVIE" {
+		t.Errorf("film format = %q, want MOVIE", got[movieID])
+	}
+}
+
+// The two halves of the null-date rule: a film AniList dates is placed, and one
+// it gives only a year for stays in the footer rather than being invented onto
+// January 1st.
+func TestCalendarPlacesADatedFilmAndFootnotesAYearOnlyOne(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	dated := seedMovie(t, h.store, "Dated Film", 2026)
+	setAirsAt(t, h.store, dated, 1, "2026-07-09 12:00:00")
+	yearOnly := seedMovie(t, h.store, "Announced Film", 2027)
+
+	var out calendarResponse
+	if code := h.get(t, "/api/v1/calendar?start=2026-07-01T00:00:00Z&end=2026-08-01T00:00:00Z", &out); code != http.StatusOK {
+		t.Fatalf("GET calendar = %d, want 200", code)
+	}
+	if len(out.Items) != 1 || out.Items[0].TitleID != dated {
+		t.Fatalf("items = %+v, want only the dated film", out.Items)
+	}
+	if len(out.Unscheduled) != 1 || out.Unscheduled[0].TitleID != yearOnly {
+		t.Fatalf("unscheduled = %+v, want only the year-only film", out.Unscheduled)
 	}
 }
 

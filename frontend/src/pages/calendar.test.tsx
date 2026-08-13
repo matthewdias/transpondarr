@@ -28,10 +28,27 @@ const item = (over: Partial<CalendarItem>): CalendarItem => ({
   title: "Signal Anomaly",
   monitored: true,
   number: 4,
+  format: "TV",
   airs_at: todayNoon(),
   status: "wanted",
   ...over,
 });
+
+const film = (over: Partial<CalendarItem> = {}): CalendarItem =>
+  item({
+    id: 9,
+    title_id: 12,
+    title: "Placeholder Legend",
+    number: 1,
+    format: "MOVIE",
+    ...over,
+  });
+
+// A time anywhere on a film's entry would state precision we may have invented:
+// a date-only premiere is stored at noon UTC to name a day, not a moment. A
+// countdown counts as one, which is why this is wider than a clock pattern.
+const statesATime = (el: HTMLElement) =>
+  /\d{1,2}:\d{2}|\bin \d+[mhd]\b|any moment/.test(el.textContent ?? "");
 
 const calendarHandler = (
   items: CalendarItem[],
@@ -108,6 +125,68 @@ describe("CalendarPage", () => {
     // The stuck badge carries the import error as its tooltip.
     expect(screen.getByText("Import blocked")).toHaveAccessibleDescription();
     expect(screen.getByTitle("library offline")).toBeInTheDocument();
+  });
+
+  it("renders a film as a premiere, not as episode 1, in every view", async () => {
+    server.use(calendarHandler([film()]));
+
+    renderPage();
+
+    const entry = await screen.findByRole("link", {
+      name: /placeholder legend/i,
+    });
+    expect(entry).toHaveAttribute("href", "/series/12");
+    expect(entry).toHaveAttribute(
+      "title",
+      "Placeholder Legend — premiere (wanted)",
+    );
+    expect(entry).toHaveTextContent(/^Placeholder Legend$/);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Week" }));
+    const week = await screen.findByRole("link", {
+      name: /placeholder legend/i,
+    });
+    expect(week).toHaveTextContent(/Premiere/);
+    expect(week).not.toHaveTextContent(/Ep\s/);
+    expect(statesATime(week)).toBe(false);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Agenda" }));
+    const agenda = await screen.findByRole("link", {
+      name: /placeholder legend/i,
+    });
+    expect(agenda).toHaveTextContent(/Premiere/);
+    expect(agenda).not.toHaveTextContent(/Ep\s/);
+    expect(statesATime(agenda)).toBe(false);
+  });
+
+  // Format is the sole discriminator (#208): a one-item OVA is series-shaped.
+  it("keeps the episode line for a single-item OVA", async () => {
+    server.use(
+      calendarHandler([
+        film({ id: 3, title_id: 21, title: "Quiet Interlude", format: "OVA" }),
+      ]),
+    );
+
+    renderPage();
+
+    const entry = await screen.findByRole("link", {
+      name: /01 quiet interlude/i,
+    });
+    expect(entry).toHaveAttribute(
+      "title",
+      "Quiet Interlude — episode 1 (wanted)",
+    );
+  });
+
+  it("names the empty week without assuming episodes", async () => {
+    server.use(calendarHandler([]));
+
+    renderPage();
+    await userEvent.click(await screen.findByRole("tab", { name: "Agenda" }));
+
+    expect(
+      await screen.findByText("Nothing monitored is scheduled this week."),
+    ).toBeInTheDocument();
   });
 
   it("defaults to the agenda view on a narrow screen with a single fetch", async () => {

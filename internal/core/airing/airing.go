@@ -95,8 +95,18 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	}
 
 	kind := domain.KindFor(domain.Format(series.Format))
+	var premiere time.Time
 	if kind == domain.KindMovie {
 		schedule = premiereOnly(schedule)
+		if len(schedule) == 0 {
+			// Fetched here, before the transaction, for the same reason the schedule
+			// is: no write lock may be held across the network.
+			meta, _, err := s.provider.GetTitle(ctx, series.ProviderID.Int64)
+			if err != nil {
+				return fmt.Errorf("fetch title for a release date: %w", err)
+			}
+			premiere = meta.Premiere
+		}
 	}
 
 	// One transaction, opened after the fetch so no write lock is held across the
@@ -120,6 +130,19 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 			Monitored: store.MonitorNew(series.MonitorNewFrom, number),
 		}); err != nil {
 			return fmt.Errorf("upsert airing for item %d: %w", a.Number, err)
+		}
+	}
+
+	// A film that never broadcasts has only its release date, which names a day
+	// rather than a moment — so it fills a gap and never displaces a real node.
+	if !premiere.IsZero() {
+		if err := q.SetWantedItemAirsAtIfNull(ctx, db.SetWantedItemAirsAtIfNullParams{
+			AirsAt:   sql.NullString{String: store.FormatTimestamp(premiere), Valid: true},
+			SeriesID: series.ID,
+			Kind:     string(kind),
+			Number:   sql.NullInt64{Int64: 1, Valid: true},
+		}); err != nil {
+			return fmt.Errorf("date the film from its release date: %w", err)
 		}
 	}
 
