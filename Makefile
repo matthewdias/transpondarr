@@ -4,11 +4,17 @@ BIN     := transpondarrd
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/matthewdias/transpondarr/internal/version.Version=$(VERSION)
 SQLC_VERSION := $(shell sed -n 's/^sqlc = "\([^"]*\)".*/\1/p' mise.toml)
+GO_BUILD := CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/transpondarrd
 
-.PHONY: build web web-deps hooks gen gen-api lint web-lint test web-test dev run migrate tidy notices clean
+.PHONY: build server web web-deps hooks gen gen-api lint go-lint web-lint test go-test web-test dev run migrate tidy notices clean
 
 build: web ## Build frontend + server into ./$(BIN)
-	CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/transpondarrd
+	$(GO_BUILD)
+
+# Spelled out rather than `build: web server`, which under `make -j` would let
+# the binary link against a stale web/dist.
+server: ## Build the server alone (web/dist/.gitkeep satisfies the embed)
+	$(GO_BUILD)
 
 web: web-deps ## Build the frontend into web/dist (embedded by the binary)
 	cd frontend && npm run build
@@ -42,14 +48,18 @@ gen-api: ## Regenerate the frontend API types from the OpenAPI spec
 	cd frontend && npx --yes openapi-typescript@7.13.0 openapi.gen.yaml -o src/lib/api-types.ts
 	rm -f frontend/openapi.gen.yaml
 
-lint: web-lint ## Run linters (Go + frontend)
+lint: go-lint web-lint ## Run linters (Go + frontend)
+
+go-lint: ## Lint the Go tree (golangci-lint)
 	golangci-lint run
 
 web-lint: web-deps ## Lint the frontend (oxlint + prettier check)
 	cd frontend && npm run lint
 	cd frontend && npm run format:check
 
-test: web-test ## Run tests (Go + frontend)
+test: go-test web-test ## Run tests (Go + frontend)
+
+go-test: ## Run the Go tests (race detector)
 	# -race: the job runner's status fields are written by each job's goroutine and
 	# read by the HTTP handler, so a missing lock is invisible without the detector.
 	# cgo because the race runtime needs it on Linux — macOS links it without, so

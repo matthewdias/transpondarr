@@ -1,0 +1,69 @@
+name: Setup
+description: Pinned toolchain plus the dependency caches a CI job needs.
+
+inputs:
+  go-cache:
+    description: Build-cache key prefix for this job; empty skips the Go caches entirely.
+    default: ""
+  node:
+    description: Set to "true" to restore frontend/node_modules.
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    # Installs the exact toolchain pinned in mise.toml (Go, Node, sqlc,
+    # golangci-lint, goreleaser, …) so CI matches local development.
+    - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
+
+    # Asked of the toolchain rather than hardcoded: Go lives under mise here, so
+    # GOPATH is not necessarily ~/go.
+    - if: inputs.go-cache != ''
+      id: go-env
+      shell: bash
+      run: |
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+        echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+
+    # Kept separate from the build cache, and keyed on go.sum alone: the module
+    # cache is most of the bytes and changes only with dependencies, so a
+    # per-commit key would rewrite it every run and evict everything else under
+    # the repo's 10GB cache cap.
+    - if: inputs.go-cache != ''
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.go-env.outputs.mod }}
+        key: gomod-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+
+    # Keyed on go.sum rather than the commit, so it saves once per dependency
+    # set instead of re-uploading hundreds of MB per run: the bulk of the value
+    # is compiled *dependencies* (modernc.org/sqlite under -race dominates), and
+    # those turn over only with go.sum. Our own packages recompile on an exact
+    # hit, which is the accepted cost. Restoring across keys is safe regardless
+    # — the cache is content-addressed per package, so a stale entry misses and
+    # recompiles, it never returns a wrong result.
+    - if: inputs.go-cache != ''
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.go-env.outputs.build }}
+        key: ${{ inputs.go-cache }}-${{ runner.os }}-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ inputs.go-cache }}-${{ runner.os }}-
+
+    # package.json is in the key, not just the lockfile: a hit skips `npm ci`,
+    # and `npm ci` is what fails (EUSAGE) when the two have drifted out of sync.
+    # Keying on the lockfile alone would let a hand-edited range reach the
+    # Dockerfile and the release build, which both run `npm ci` for real.
+    # No restore-keys — a tree built from different inputs is worse than none.
+    - if: inputs.node == 'true'
+      id: node-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: frontend/node_modules
+        key: node_modules-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json', 'frontend/package.json') }}
+
+    # web-deps gates `npm ci` on node_modules being newer than the lockfile, and
+    # checkout writes the lockfile fresh — so without this the restored tree
+    # looks stale and every job reinstalls anyway, buying the cache nothing.
+    - if: steps.node-cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: touch frontend/node_modules

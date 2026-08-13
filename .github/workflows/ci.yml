@@ -6,6 +6,8 @@ on:
   pull_request:
   # Reused as the release gate (release.yml), so a tag must pass the exact same
   # bar as a PR — including the generated-output drift checks and govulncheck.
+  # `needs` on a called workflow waits for every job in it, so the split below
+  # keeps that guarantee without release.yml naming the jobs.
   workflow_call:
 
 permissions:
@@ -15,45 +17,68 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Three independent jobs rather than one serial one: nothing here depends on
+# anything else here, and `make notices` (six cross-compiles) used to sit behind
+# the full test suite for no reason.
 jobs:
-  build-test:
+  go:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+        with:
+          go-cache: gobuild-go
 
-      # Installs the exact toolchain pinned in mise.toml (Go, Node, sqlc,
-      # golangci-lint, goreleaser, …) so CI matches local development.
-      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
-
-      - name: Build (frontend + backend)
-        run: make build
-
-      # Catch build steps that clobber committed files (e.g. web/dist/.gitkeep).
-      - name: Build leaves tree clean
-        run: git diff --exit-code
+      # web/dist/.gitkeep is committed, so go:embed resolves without a frontend
+      # build — building the real assets belongs to the web job.
+      - name: Build
+        run: make server
 
       - name: Vet
         run: go vet ./...
 
       - name: Lint
-        run: make lint
+        run: make go-lint
 
       - name: Test
-        run: make test
+        run: make go-test
 
-      # THIRD-PARTY-NOTICES.md is committed generated output; fail if it has
-      # drifted from what the current dependency set would produce.
-      - name: Notices up to date
-        run: |
-          make notices
-          git diff --exit-code THIRD-PARTY-NOTICES.md
+      - name: Vulnerability scan
+        run: govulncheck ./... # version pinned in mise.toml
 
-      # api-types.ts is committed generated output; fail if it has drifted
-      # from what the current OpenAPI spec would produce.
-      - name: API types up to date
-        run: |
-          make gen-api
-          git diff --exit-code frontend/src/lib/api-types.ts
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+        with:
+          node: "true"
+
+      # `npm run build` is `tsc -b && vite build`, so this is also the typecheck.
+      - name: Build
+        run: make web
+
+      # Catch build steps that clobber committed files (e.g. web/dist/.gitkeep).
+      - name: Build leaves tree clean
+        run: git diff --exit-code
+
+      - name: Lint
+        run: make web-lint
+
+      - name: Test
+        run: make web-test
+
+  generated:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup
+        with:
+          go-cache: gobuild-generated
+          node: "true"
+
+      # Ordered cheapest first, so a stale commit fails in seconds instead of
+      # behind the cross-compiles `make notices` needs.
 
       # internal/store/db is committed sqlc output; fail if it has drifted from
       # what the current queries and migrations would produce.
@@ -62,5 +87,16 @@ jobs:
           make gen
           git diff --exit-code internal/store/db
 
-      - name: Vulnerability scan
-        run: govulncheck ./... # version pinned in mise.toml
+      # api-types.ts is committed generated output; fail if it has drifted
+      # from what the current OpenAPI spec would produce.
+      - name: API types up to date
+        run: |
+          make gen-api
+          git diff --exit-code frontend/src/lib/api-types.ts
+
+      # THIRD-PARTY-NOTICES.md is committed generated output; fail if it has
+      # drifted from what the current dependency set would produce.
+      - name: Notices up to date
+        run: |
+          make notices
+          git diff --exit-code THIRD-PARTY-NOTICES.md
