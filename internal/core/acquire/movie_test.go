@@ -184,10 +184,39 @@ func TestSweepMovieIgnoresThePinDelayWithNoAirDate(t *testing.T) {
 	}
 }
 
-// Movie mode reads a release's number for identity and never for mapping, so
-// the batch tokens that ride on film names carry no meaning here. In series mode
-// "(Complete)" would send this down the pack path and be answered by maxItem.
-func TestSweepGrabsAFilmReleaseCarryingBatchTokens(t *testing.T) {
+// The wrong grab both of movie mode's numeric gates are blind to: a numberless
+// season pack of the film's parent series names no episode and carries no year,
+// so nothing refuses it and the importer then hardlinks the series' episode 1
+// into the Movies root under the film's name. Automation must decline it; the
+// reason is stored, so the Wanted page says which release and why.
+func TestSweepNeverGrabsAParentSeriesSeasonPackForAFilm(t *testing.T) {
+	rel := indexer.Release{
+		Title:       "[ExampleSubs] Placeholder Saga (Complete Series) [1080p]",
+		DownloadURL: "magnet:?xt=urn:btih:completesaga",
+		Seeders:     900,
+	}
+	h := newSweep(t, []indexer.Release{rel}, fakeConfig{})
+	id := seedMovie(t, h.st, "Placeholder Saga: The Final", 2019)
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
+		t.Fatalf("grabbed %v for the film, want nothing — that is the parent series' pack", got)
+	}
+	row := wantOutcome(t, h.st, id, 1, acquire.OutcomeDeclined)
+	if row.ReleaseTitle != rel.Title {
+		t.Errorf("release = %q, want the pack named", row.ReleaseTitle)
+	}
+	if row.Detail != "the release is a batch or season pack, which may be the series rather than the film" {
+		t.Errorf("detail = %q, want the pack reason", row.Detail)
+	}
+}
+
+// The deliberate cost of the rule above, stated as its own test: a genuine
+// multi-part film release is withheld from automation too, because nothing can
+// tell it from its parent series' pack. A human still takes it (PR #57).
+func TestSweepWithholdsAFilmsOwnBatchTokenedRelease(t *testing.T) {
 	rel := indexer.Release{
 		Title:       "[ExampleSubs] Sample Film (2019) (Complete) [1080p][Dual Audio]",
 		DownloadURL: "magnet:?xt=urn:btih:complete2019",
@@ -199,8 +228,8 @@ func TestSweepGrabsAFilmReleaseCarryingBatchTokens(t *testing.T) {
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
-	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 1 {
-		t.Errorf("grabbed items = %v, want [1]", got)
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
+		t.Errorf("grabbed items = %v, want nothing taken unattended", got)
 	}
 }
 

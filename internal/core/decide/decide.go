@@ -344,6 +344,13 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 	if score < profile.MinScore {
 		return fmt.Sprintf("score %d is below the profile minimum %d", score, profile.MinScore)
 	}
+	// A numberless pack names no episode and carries no year, so both of movie
+	// mode's numeric gates are blind to it and the parent series' pack would be
+	// placed as the film. Eligibility rather than matching, because a multi-part
+	// film release is indistinguishable from one: only automation is held back.
+	if o.Format == domain.FormatMovie && p.Batch {
+		return "the release is a batch or season pack, which may be the series rather than the film"
+	}
 	// Last, because it is a title-level fact identical on every row: when a
 	// release also refuses itself, that reason is the more actionable one.
 	if o.Format == domain.FormatMovie && o.Year == 0 {

@@ -541,6 +541,21 @@ Behaviour changes are test-driven. Work red → green → refactor:
   display-only — `webhook.go` must never map it, because `item_number: 1` is
   *correct* for a movie and the payload is a contract (#207 broke it once,
   deliberately and with an upgrade note).
+- **A batch token on a movie release is an eligibility rule, not a matching one
+  (#211).** Movie mode's two numeric gates both read what a release *names*, and
+  a numberless pack names neither an episode nor a year — so `[Grp] Placeholder
+  Saga (Complete Series)` matched the film `Placeholder Saga: The Final`
+  eligibly, the sweep grabbed it, and the importer placed one of the *series'*
+  episodes into the Movies root under the film's name. This is movie-specific: on the
+  series path a numberless pack filling the entry is what a season pack *is*.
+  The refusal sits in `ineligibleReason` rather than `movieCandidate` because a
+  genuine multi-part film release is indistinguishable from a parent series'
+  pack — unmatched would 422 the manual grab and make it ungrabbable without
+  renaming, so the precision risk goes on the supervised path alone, exactly as
+  the null-year rule splits it. It ranks **above** the null-year reason (per
+  release, so it discriminates between rows) and **below** the profile rules
+  (which the user set deliberately). An explicit range stays a *matching*
+  refusal, unchanged: a film cannot span episodes however it is packaged.
 - **Neither automation entry point filters on format (#211).** The sweep's due
   query briefly did — #208 parked movies there because decide could not match one,
   so `next_search_at` would never advance and the film would hold a slot at the

@@ -166,3 +166,44 @@ func TestMovieWrongYearIsRefusedWithAReason(t *testing.T) {
 		t.Errorf("download Add called %d times, want 0", len(dl.Adds))
 	}
 }
+
+// A season pack may be the film's parent series, so automation declines it --
+// but it may equally be a genuine multi-part film release, so the manual grab
+// carries the reason on the 201 rather than refusing. PR #57's shape again.
+func TestMovieSeasonPackIsGrabbableButFlagged(t *testing.T) {
+	const url = "magnet:?xt=urn:btih:completesaga"
+	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
+		{Title: "[ExampleSubs] Placeholder Saga (Complete Series) [1080p]",
+			DownloadURL: url, Seeders: 900},
+	}}
+	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "packhash", Outcome: download.AddSuccess}}
+	h := newHarness(t, idx, dl)
+	seriesID := seedMovie(t, h.store, "Placeholder Saga: The Final", 2019)
+
+	results := movieSearch(t, h, seriesID)
+	if len(results) != 1 || !results[0].Matched {
+		t.Fatalf("results = %+v, want the pack matched so it stays grabbable", results)
+	}
+	if results[0].Eligible {
+		t.Error("eligible = true, want a season pack withheld from automation")
+	}
+	const want = "the release is a batch or season pack, which may be the series rather than the film"
+	if results[0].IneligibleReason != want {
+		t.Errorf("ineligible_reason = %q, want the pack reason", results[0].IneligibleReason)
+	}
+
+	var grabOut struct {
+		IneligibleReason string `json:"ineligible_reason"`
+	}
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+		map[string]any{"download_url": url}, &grabOut)
+	if code != http.StatusCreated {
+		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)
+	}
+	if grabOut.IneligibleReason != want {
+		t.Errorf("ineligible_reason = %q, want the reason carried on the 201", grabOut.IneligibleReason)
+	}
+	if len(dl.Adds) != 1 {
+		t.Errorf("download Add called %d times, want 1", len(dl.Adds))
+	}
+}

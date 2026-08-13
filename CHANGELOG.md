@@ -32,7 +32,10 @@ All notable changes to this project are documented here. The format is based on
   mismatch as its reason instead of matching.
   A film whose year is not yet on record still matches and is still grabbable by
   hand, but is marked ineligible so automation leaves it alone until a metadata
-  refresh fills the year in.
+  refresh fills the year in. A batch or season pack is held back the same way and
+  for the same reason: it is as likely to be the film's parent series as a
+  multi-part release of the film, so it is listed with that caution and left to
+  you to judge.
 
 ### Changed
 
