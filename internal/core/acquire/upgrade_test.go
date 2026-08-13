@@ -294,7 +294,7 @@ func TestUpgradeLifecycleReplacesTheHeldFile(t *testing.T) {
 	reg := clients.New()
 	reg.SetIndexer(feed)
 	reg.SetDownload(dl)
-	reg.SetLibrary(mediaserver.New(root, "copy", nil))
+	reg.SetLibrary(mediaserver.New(mediaserver.Roots{Series: root}, "copy", nil))
 
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
 	enableUpgrades(t, st, 400)

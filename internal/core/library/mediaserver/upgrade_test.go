@@ -41,7 +41,7 @@ func TestReplaceOverwritesALargerDestination(t *testing.T) {
 
 	r := req(src, "Placeholder Saga", 3)
 	r.Replace = true
-	dest, err := New(root, "copy", nil).Place(context.Background(), r)
+	dest, err := New(Roots{Series: root}, "copy", nil).Place(context.Background(), r)
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestPlaceWithoutReplaceKeepsTheLargerDestination(t *testing.T) {
 	seedLibraryFile(t, root, "Placeholder Saga - S01E03.mkv", 4096)
 	src := writeSized(t, "raw.mkv", 128)
 
-	dest, err := New(root, "copy", nil).Place(context.Background(), req(src, "Placeholder Saga", 3))
+	dest, err := New(Roots{Series: root}, "copy", nil).Place(context.Background(), req(src, "Placeholder Saga", 3))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestReplaceRemovesTheStemMatesItSupersedes(t *testing.T) {
 	src := writeSized(t, "upgrade.mp4", 128)
 	r := req(src, "Placeholder Saga", 3)
 	r.Replace = true
-	dest, err := New(root, "copy", nil).Place(context.Background(), r)
+	dest, err := New(Roots{Series: root}, "copy", nil).Place(context.Background(), r)
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestReplaceInLinkModeSwapsAtomically(t *testing.T) {
 
 	r := req(src, "Placeholder Saga", 3)
 	r.Replace = true
-	got, err := New(root, "hardlink", nil).Place(context.Background(), r)
+	got, err := New(Roots{Series: root}, "hardlink", nil).Place(context.Background(), r)
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}

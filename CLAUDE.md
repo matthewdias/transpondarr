@@ -524,27 +524,57 @@ Behaviour changes are test-driven. Work red → green → refactor:
   with an unreleased title, which is exactly when every candidate a search returns
   is wrong. The stored year is refresh-maintained rather than an add-time
   snapshot, and `SetSeriesYear` guards `? > 0` **in SQL** so no caller can let a
-  transient upstream null erase one.
-- **A release names a year only when it isolates one; the tail token is decided
+  transient upstream null erase one. **A movie's path is keyed on that
+  refresh-maintained year**, so a 0 -> N fill after an import orphans the
+  year-less folder the next upgrade replaces into — the same class as an AniList
+  title edit orphaning `<root>/<Old Name>/`, which the series branch has always
+  had. Repaired by #213's placed-path memory, never by enumerating the library:
+  `Place` only warns that its naming inputs moved.
+- **The library has a root per format, and a missing one is an error, never a
+  fallback (#198).** `mediaserver.Roots` splits Series from Movies because Plex
+  and Jellyfin want a Movies library separate from Shows, and `Place` picks
+  between them on `Format` alone — the same discriminator, so a one-item OVA
+  files under Shows with the rest. Placing a movie with no movies root returns
+  `ErrNoMoviesRoot` rather than falling back to the series root: an import
+  failure is the one settled-status exception (it stays `grabbed` and retries),
+  so the error holds the grab, surfaces as `last_error` in the Activity queue
+  plus one import-stuck notification, and the next scan imports it once the root
+  is set — where a file already hardlinked into the wrong library would need
+  hand cleanup. Root (destination) and layout (shape within a root) stay
+  different axes: the movie shape is hard-wired in `destination`, which is the
+  one branch point #129 parameterizes later.
+- **A year is read the same way whichever form names it, and both are decided
   against the variants (#209).** anitogo fills `AnimeYear` only from a
   *bracket-isolated* token, so `[Grp] Film (2019)` yields a year while the scene
   form `Film.2019.1080p.x264-GRP` glues it into the anime title and reports
-  none — which would have left the year gate inert on the naming form films
-  most often ship in. `parser.Parsed.Year` keeps that dumb reading, since the
-  parser is deliberately dumb about identity, and `decide.releaseYear` resolves
-  what only the variants can: a four-digit tail token in 1900-2050 is the release
-  year **unless an accepted variant carries it**, in which case it is the film's
-  own number (`Placeholder Legend 1979`). The collision case reports *no* year,
-  so the gate passes rather than refuses — deliberate, because a wrong year is a
-  **matching** refusal, and an unmatched release is the 422 in
-  `grabRelease`: over-reading a year would block the manual grab PR #57
+  none — which would have left the year gate inert on the naming form films most
+  often ship in. `parser.Parsed.Year` keeps that dumb reading, since the parser
+  is deliberately dumb about identity, and `decide.releaseYear` derives from
+  either source — the isolated token, else the **rightmost** in-range four-digit
+  token in the title, never the first, because unrecognized scene tags trail the
+  year (`Sample Film 2021 REPACK`) while a leading number is the film naming
+  itself. Then **one** variant check, on the result rather than on one source: a
+  year an accepted variant carries names the film (`Placeholder Legend 1979`),
+  not the release. Checking only the scanned source made the two forms of one
+  release disagree, and it was the bracketed one that refused. A collision
+  reports *no* year, so the gate passes rather than refuses — deliberate, because
+  a wrong year is a **matching** refusal and an unmatched release is
+  `grabRelease`'s 422, so over-reading a year would block the manual grab PR #57
   protects. The null-year *title* is the other half and is never a refusal — it
   rides `ineligibleReason`, **last** in that chain, because it is a title-level
   fact identical on every row while every rule above it discriminates between
-  them. Movie mode also reads no episode number, season marker or batch token:
-  all three appear on movie names (`Sample Film 2 (2021)` parses as episode 2)
-  and none mean anything there, so `movieCandidate` returns before the
-  episode-mapping apparatus rather than special-casing around it.
+  them.
+- **Movie mode ignores a release's number for *mapping* and reads it for
+  *identity* (#209)** — not the same thing, and conflating them was a bug. Every
+  episodic token appears on movie names (`Sample Film 2 (2021)` parses as episode
+  2, `(Complete)` sets `Batch`), so none may map onto a film; but `titleBelongs`
+  is fuzzy containment, so a long-runner sharing a name prefix reaches the movie
+  path carrying episode 250, and refusing *that* is the number's remaining job.
+  It is disqualifying unless reattaching it to the parsed title matches a
+  variant — the same "ask the variants" move the year rule makes, padded widths
+  included, since a release writes `0080` where anitogo hands back 80; an
+  explicit range never qualifies. So `movieCandidate` never reaches the
+  episode-mapping apparatus, which is not the same as never reading the number.
 - **The library flag and the derived item status share one name, deliberately
   (#84): `in_library`.** `wanted_items.in_library` sources the status
   `deriveItemState` returns, so renaming either alone would hide the derivation.

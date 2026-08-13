@@ -143,7 +143,8 @@ are simply disabled — the server still starts.
 | `TRANSPONDARR_TORZNAB_APIKEY`              | —                         | Torznab API key.                                                                                          |
 | `TRANSPONDARR_TORZNAB_NAME`                | `torznab`                 | Display name for the indexer.                                                                             |
 | `TRANSPONDARR_TORZNAB_CATEGORIES`          | —                         | Comma-separated Newznab category IDs sent as `cat=` on every search and the recent feed (anime is usually `5070`); unset ⇒ no filter. |
-| `TRANSPONDARR_LIBRARY_DIR`                 | —                         | Library root for imports; unset ⇒ import disabled.                                                        |
+| `TRANSPONDARR_LIBRARY_DIR`                 | —                         | Library root episodes import into; unset ⇒ episodes do not import.                                                        |
+| `TRANSPONDARR_LIBRARY_MOVIES_DIR`          | —                         | Library root films place into, separate from the root above; unset ⇒ movies do not import.                |
 | `TRANSPONDARR_IMPORT_MODE`                 | `auto`                    | `auto` (hardlink, copy across filesystems) \| `hardlink` \| `copy`.                                       |
 | `TRANSPONDARR_AUTOMATION_ENABLED`          | `false`                   | `off` \| `notify_only` \| `on` (bools also accepted). `notify_only` rehearses: it reports what automation would grab, without grabbing. |
 | `TRANSPONDARR_PIN_DELAY_HOURS`             | `0`                       | Hours automation waits for a series' pinned group before taking another; per-series overrides in the UI.  |
@@ -163,7 +164,8 @@ For a real deployment alongside qBittorrent and a media server, use
 - **Imports hardlink from the path qBittorrent reports.** Mount your shared
   downloads/library volume into Transpondarr at the _same path_ qBittorrent uses,
   with both on one filesystem (a hardlink can't cross filesystems). The standard
-  single-mount layout (`/data/torrents` + `/data/media`) satisfies this.
+  single-mount layout (`/data/torrents` + `/data/media`) satisfies this. The
+  movies root is one more directory under the same mount, not a second one.
 - **Ownership.** Set `PUID`/`PGID` to the UID:GID that owns your media volume —
   the container starts as root, fixes `/config` ownership, and drops to that user
   before serving, so hardlinks into the library land with the right ownership.

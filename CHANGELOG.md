@@ -8,15 +8,21 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Films import into their own library directory.** Plex and Jellyfin both want
+  a Movies library separate from Shows, so **Settings → Library** now takes a
+  movies directory alongside the existing one, and a film places into it as
+  `Placeholder Film (2019)/Placeholder Film (2019).mkv` — no season folder,
+  and no year in the name when the provider publishes none. Nothing changes
+  about where episodes land, single-episode OVAs and specials included. Until a
+  movies directory is set, a grabbed film waits in the Activity queue and says
+  so rather than landing in the wrong library; setting one imports it on the
+  next scan.
 - **Anime films can be added and tracked.** A movie result in search or on the
   Discovery chart is no longer marked reserved and greyed out: adding one
   creates a title with a single wanted item and stores its release year, which a
   metadata refresh fills in later for a film announced before its date was
   published. Because the movie is one item, the add form asks only whether to
-  monitor it rather than for a range of episodes. **A film is tracked, not yet
-  filed** — nothing imports a movie release yet, so an added film sits at 0 of 1
-  until naming lands.
-  Closes [#208](https://github.com/matthewdias/transpondarr/issues/208).
+  monitor it rather than for a range of episodes.
 - **Anime films can be searched for and grabbed.** A film's releases are now
   matched on title and release year, so searching one lists what is available
   and grabbing it works exactly as it does for an episode — by hand from the
@@ -36,7 +42,6 @@ All notable changes to this project are documented here. The format is based on
   now announce **Title added** rather than "Series added". Nothing else
   changes — same behaviour, same data, same database, and your notification
   settings carry over untouched.
-  Closes [#207](https://github.com/matthewdias/transpondarr/issues/207).
 - **Adding a series now opens a form for that title, carrying both add-time
   decisions.** The monitor choice was a single control above the whole result
   list, and the quality profile was not asked for at all — an added series took
@@ -46,7 +51,6 @@ All notable changes to this project are documented here. The format is based on
   still one confirmation and a long-runner is narrowed before its first search.
   The global "Monitor on add" control and the `Add · future only` button
   annotation are gone, and Discovery opens the same form.
-  Closes [#194](https://github.com/matthewdias/transpondarr/issues/194).
 
 ### Fixed
 
@@ -56,23 +60,19 @@ All notable changes to this project are documented here. The format is based on
   trace at all — just a missing control. It now holds its place while loading,
   shows a **Profile unavailable** chip you can click to try again, and links to
   Settings when there are no profiles to pick.
-  Closes [#93](https://github.com/matthewdias/transpondarr/issues/93).
 - **Profile names no longer collide only by case.** Saving a profile named
   `Anime` while `anime` exists is refused with the same conflict a duplicate name
   has always given, matching how group names within a profile are compared.
-  Closes [#90](https://github.com/matthewdias/transpondarr/issues/90).
 
 ### Internal
 
 - **Duplicate-name detection reads SQLite's result code instead of matching on
   the error message**, so a driver that rewords its errors can no longer turn a
   conflict into a 500.
-  Closes [#92](https://github.com/matthewdias/transpondarr/issues/92).
 - **The profiles list reads groups and usage counts in bulk.** `GET
   /api/v1/profiles` fetched both one profile at a time, so every profile cost a
   full scan of the series table. Groups and counts now come back in one query
   each, leaving the endpoint at three queries whatever the profile count.
-  Closes [#91](https://github.com/matthewdias/transpondarr/issues/91).
 
 ### Upgrade notes
 

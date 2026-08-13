@@ -55,6 +55,7 @@ const (
 	keyTorznabAPIKey     = "torznab.apikey"
 	keyTorznabCategories = "torznab.categories"
 	keyLibraryDir        = "library.dir"
+	keyLibraryMoviesDir  = "library.movies_dir"
 	keyLibraryMode       = "library.import_mode"
 
 	keyAutomationEnabled  = "automation.enabled"
@@ -103,10 +104,13 @@ type IndexerConfig struct {
 	Categories string
 }
 
-// LibraryConfig is the library import target configuration.
+// LibraryConfig is the library import target configuration. MoviesDir is the
+// per-format root movies place into (#198); empty is not a fallback into Dir,
+// so a movie import fails until one is set.
 type LibraryConfig struct {
-	Dir  string
-	Mode string // auto | hardlink | copy
+	Dir       string
+	MoviesDir string
+	Mode      string // auto | hardlink | copy
 }
 
 // AutomationMode is the global toggle's three states (#102, widened by #116).
@@ -166,6 +170,10 @@ func (c *IndexerConfig) applyDefaults() {
 }
 
 func (c *LibraryConfig) applyDefaults() {
+	// Trimmed here, the one point every read and write passes through, so what is
+	// stored, displayed, tested and joined into a path are the same string.
+	c.Dir = strings.TrimSpace(c.Dir)
+	c.MoviesDir = strings.TrimSpace(c.MoviesDir)
 	if strings.TrimSpace(c.Mode) == "" {
 		c.Mode = defaultImportMode
 	}
@@ -236,7 +244,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 		addr:    base.Addr,
 		dl:      DownloadConfig{URL: base.QbitURL, User: base.QbitUser, Password: base.QbitPassword, Category: base.QbitCategory},
 		idx:     IndexerConfig{Name: base.TorznabName, URL: base.TorznabURL, APIKey: base.TorznabAPIKey, Categories: base.TorznabCategories},
-		lib:     LibraryConfig{Dir: base.LibraryDir, Mode: base.ImportMode},
+		lib:     LibraryConfig{Dir: base.LibraryDir, MoviesDir: base.LibraryMoviesDir, Mode: base.ImportMode},
 	}
 
 	rows, err := st.Q.ListSettings(ctx)
@@ -256,6 +264,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	overlay(m, keyTorznabAPIKey, &cfg.idx.APIKey)
 	overlay(m, keyTorznabCategories, &cfg.idx.Categories)
 	overlay(m, keyLibraryDir, &cfg.lib.Dir)
+	overlay(m, keyLibraryMoviesDir, &cfg.lib.MoviesDir)
 	overlay(m, keyLibraryMode, &cfg.lib.Mode)
 	overlay(m, keyNotifyDiscordURL, &cfg.ntf.DiscordURL)
 	overlay(m, keyNotifyWebhookURL, &cfg.ntf.WebhookURL)
@@ -489,8 +498,9 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 	defer s.updateMu.Unlock()
 
 	if err := s.persist(ctx, map[string]string{
-		keyLibraryDir:  in.Dir,
-		keyLibraryMode: in.Mode,
+		keyLibraryDir:       in.Dir,
+		keyLibraryMoviesDir: in.MoviesDir,
+		keyLibraryMode:      in.Mode,
 	}); err != nil {
 		return err
 	}
@@ -683,23 +693,39 @@ func (s *Service) TestIndexer(ctx context.Context, in IndexerConfig) error {
 	return err
 }
 
-// TestLibrary verifies the library directory exists and is writable.
+// TestLibrary verifies each configured library root exists and is writable. An
+// unset root passes when the other is set: either alone is a valid library, in
+// which the missing one's format does not import.
 func (s *Service) TestLibrary(_ context.Context, in LibraryConfig) error {
-	dir := strings.TrimSpace(in.Dir)
-	if dir == "" {
+	in.applyDefaults()
+	if in.Dir == "" && in.MoviesDir == "" {
 		return errors.New("a library directory is required")
 	}
+	if in.Dir != "" {
+		if err := checkWritableDir(in.Dir, "library"); err != nil {
+			return err
+		}
+	}
+	if in.MoviesDir != "" {
+		return checkWritableDir(in.MoviesDir, "movies library")
+	}
+	return nil
+}
+
+// checkWritableDir reports whether dir is a directory this process can write to,
+// naming which root failed so a two-root check says which one.
+func checkWritableDir(dir, what string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
-		return fmt.Errorf("cannot access %q: %w", dir, err)
+		return fmt.Errorf("cannot access the %s directory %q: %w", what, dir, err)
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("%q is not a directory", dir)
+		return fmt.Errorf("the %s path %q is not a directory", what, dir)
 	}
 	probe := filepath.Join(dir, ".transpondarr-write-test")
 	f, err := os.Create(probe)
 	if err != nil {
-		return fmt.Errorf("%q is not writable: %w", dir, err)
+		return fmt.Errorf("the %s directory %q is not writable: %w", what, dir, err)
 	}
 	_ = f.Close()
 	_ = os.Remove(probe)
@@ -787,10 +813,15 @@ func buildIndexer(c IndexerConfig) indexer.Indexer {
 // buildLibrary returns a library.Target (interface) so an unconfigured library
 // is a true nil interface — returning a typed nil *mediaserver.Target would read
 // as non-nil through the interface and defeat the importer's nil check.
+//
+// Either root alone builds one: a films-only library is a supported install, and
+// only "no root at all" still means import is off. Requiring the series root
+// would leave a movies-only install with no target, and the importer skips a nil
+// target silently — the stuck-queue failure a missing root must never become.
 func buildLibrary(c LibraryConfig, log *slog.Logger) library.Target {
-	if strings.TrimSpace(c.Dir) == "" {
+	c.applyDefaults()
+	if c.Dir == "" && c.MoviesDir == "" {
 		return nil
 	}
-	c.applyDefaults()
-	return mediaserver.New(c.Dir, c.Mode, log)
+	return mediaserver.New(mediaserver.Roots{Series: c.Dir, Movies: c.MoviesDir}, c.Mode, log)
 }
