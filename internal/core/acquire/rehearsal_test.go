@@ -9,6 +9,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/config"
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
@@ -45,6 +46,9 @@ func wantRehearsalEvent(t *testing.T, fn *coretest.FakeNotifier) notify.Event {
 	case ev := <-fn.Events:
 		if ev.Kind != notify.KindRehearsal {
 			t.Fatalf("kind = %s, want rehearsal", ev.Kind)
+		}
+		if ev.ItemKind != domain.KindEpisode {
+			t.Errorf("item kind = %q, want episode", ev.ItemKind)
 		}
 		return ev
 	case <-time.After(2 * time.Second):

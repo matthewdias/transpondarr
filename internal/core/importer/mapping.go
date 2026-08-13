@@ -1,8 +1,7 @@
 package importer
 
 import (
-	"fmt"
-
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/parser"
 )
 
@@ -14,10 +13,10 @@ type fileClaim struct {
 }
 
 // mapResult is a payload's files mapped onto the items a release claimed: what
-// to place, what nothing could tell apart, and what is left over.
+// to place, how many files nothing could tell apart, and what is left over.
 type mapResult struct {
 	assigned  map[int]candidate
-	conflicts map[int]string
+	conflicts map[int]int
 	leftovers []fileClaim
 }
 
@@ -25,9 +24,10 @@ type mapResult struct {
 // driving an irreversible file move can be tested exhaustively. overrides are a
 // human's explicit answer from the retry endpoint, keyed on the payload-relative
 // path, and win over every rule below — being wrong about a filename is the
-// whole reason the escape hatch exists.
-func mapFiles(files []candidate, covers map[int]bool, overrides map[string]int) mapResult {
-	res := mapResult{assigned: make(map[int]candidate), conflicts: make(map[int]string)}
+// whole reason the escape hatch exists. format is the discriminator: a movie is
+// identified by size, never by a number in a filename.
+func mapFiles(files []candidate, covers map[int]bool, overrides map[string]int, format domain.Format) mapResult {
+	res := mapResult{assigned: make(map[int]candidate), conflicts: make(map[int]int)}
 
 	rest := make([]candidate, 0, len(files))
 	for _, f := range files {
@@ -43,6 +43,10 @@ func mapFiles(files []candidate, covers map[int]bool, overrides map[string]int) 
 		// An episode this release never claimed still goes through the
 		// out-of-coverage guard, which only the caller can apply.
 		res.leftovers = append(res.leftovers, fileClaim{file: f, number: n})
+	}
+
+	if format == domain.FormatMovie {
+		return mapMovie(rest, covers, res)
 	}
 
 	// Identity by construction: we chose this release, so a lone file is the lone
@@ -79,11 +83,75 @@ func mapFiles(files []candidate, covers map[int]bool, overrides map[string]int) 
 		best, tied := pickVersion(claims[n])
 		if tied {
 			// Guessing here silently drops the other file, so the row defers and a
-			// human names the one they want.
-			res.conflicts[n] = fmt.Sprintf("%d files claim episode %d and nothing tells them apart", len(claims[n]), n)
+			// human names the one they want. The caller words it: only it knows
+			// whether the item is an episode or a movie.
+			res.conflicts[n] = len(claims[n])
 			continue
 		}
 		res.assigned[n] = best
+	}
+	return res
+}
+
+// mapMovie takes the payload's largest video as the film. A film is the biggest
+// thing shipped with it, which is a property of what a movie payload *is* rather
+// than of how a releaser named it — so a numbered extra ("Deleted Scene 1")
+// cannot claim the one item the way a number-driven mapping let it. Samples are
+// already gone before this sees anything, so size never re-admits one.
+func mapMovie(rest []candidate, covers map[int]bool, res mapResult) mapResult {
+	item, single := soleItem(covers)
+	_, taken := res.assigned[item]
+	if !single || taken || len(rest) == 0 {
+		// Nothing left to identify: a human's override already answered, or there
+		// is no film-shaped question to ask.
+		return withLooseFiles(res, rest)
+	}
+	best, tied := largestVideo(rest)
+	if tied > 1 {
+		// Taking either silently drops the other, exactly as for same-number claims.
+		res.conflicts[item] = tied
+		return withLooseFiles(res, rest)
+	}
+	res.assigned[item] = best
+	for _, f := range rest {
+		if f.rel != best.rel {
+			// A number on a movie's extra establishes nothing, so it names no item.
+			res.leftovers = append(res.leftovers, fileClaim{file: f})
+		}
+	}
+	return res
+}
+
+// largestVideo returns the biggest candidate and how many share its size.
+func largestVideo(cands []candidate) (candidate, int) {
+	best, tied := cands[0], 1
+	for _, c := range cands[1:] {
+		switch {
+		case c.size > best.size:
+			best, tied = c, 1
+		case c.size == best.size:
+			tied++
+		}
+	}
+	return best, tied
+}
+
+// soleItem is the single item a release covers, reporting false when it covers
+// any other number of them.
+func soleItem(covers map[int]bool) (int, bool) {
+	if len(covers) != 1 {
+		return 0, false
+	}
+	for n := range covers {
+		return n, true
+	}
+	return 0, false
+}
+
+// withLooseFiles leaves every remaining file unmatched and unnumbered.
+func withLooseFiles(res mapResult, rest []candidate) mapResult {
+	for _, f := range rest {
+		res.leftovers = append(res.leftovers, fileClaim{file: f})
 	}
 	return res
 }

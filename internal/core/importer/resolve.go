@@ -59,6 +59,7 @@ var sampleTokens = map[string]bool{"sample": true, "samples": true}
 type candidate struct {
 	path   string // absolute, as handed to the library target
 	rel    string // payload-relative, the identity a retry assignment names
+	size   int64  // what identifies a movie, where numbering says nothing
 	parsed parser.Parsed
 }
 
@@ -88,7 +89,7 @@ func collectPayloadFiles(root string) (payload, error) {
 		if _, _, ok := archivePart(name); ok {
 			return payload{archives: []archive{{rel: name, parts: 1}}}, nil
 		}
-		return payload{files: []candidate{{path: root, rel: name, parsed: parser.Parse(name)}}}, nil
+		return payload{files: []candidate{{path: root, rel: name, size: info.Size(), parsed: parser.Parse(name)}}}, nil
 	}
 
 	var cands []candidate
@@ -125,7 +126,11 @@ func collectPayloadFiles(root string) (payload, error) {
 		if hasToken(name, sampleTokens) {
 			return nil // a truncated copy of the episode, never the episode
 		}
-		c := candidate{path: path, rel: rel, parsed: parser.Parse(name)}
+		fi, err := d.Info()
+		if err != nil {
+			return err
+		}
+		c := candidate{path: path, rel: rel, size: fi.Size(), parsed: parser.Parse(name)}
 		videos++
 		if videos == 1 {
 			sole = c

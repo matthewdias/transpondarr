@@ -7,6 +7,7 @@ import (
 
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/clients"
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/notify"
@@ -52,6 +53,11 @@ func TestSweepGrabDispatchesGrabbedEvent(t *testing.T) {
 		}
 		if ev.ItemNumber != 5 {
 			t.Errorf("item = %d, want the single covered episode", ev.ItemNumber)
+		}
+		// The kind is what keeps an adapter from labelling a movie "Episode 1"; a
+		// series must still carry the episode kind that earns the label.
+		if ev.ItemKind != domain.KindEpisode {
+			t.Errorf("item kind = %q, want episode", ev.ItemKind)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for the grabbed event")

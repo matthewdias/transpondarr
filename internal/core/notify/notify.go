@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 )
 
 // sendTimeout bounds one adapter's delivery so a hung endpoint cannot leak its
@@ -37,11 +39,12 @@ const (
 type Event struct {
 	Kind         Kind
 	Title        string
-	ItemNumber   int    // 0 when not item-scoped or multi-item
-	Items        []int  // sorted item numbers when one release covered several; nil otherwise
-	ReleaseTitle string // empty when not release-scoped
-	Error        string // stuck/failed reason; on rehearsal, the outcome either way
-	Path         string // library destination on imported
+	ItemNumber   int               // 0 when not item-scoped or multi-item
+	ItemKind     domain.WantedKind // what ItemNumber counts; empty reads as an episode
+	Items        []int             // sorted item numbers when one release covered several; nil otherwise
+	ReleaseTitle string            // empty when not release-scoped
+	Error        string            // stuck/failed reason; on rehearsal, the outcome either way
+	Path         string            // library destination on imported
 }
 
 // ItemsLabel renders Items as contiguous runs ("1-3, 5"), so every adapter

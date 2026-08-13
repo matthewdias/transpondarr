@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/notify"
 )
 
@@ -123,5 +124,38 @@ func TestSendRendersMultipleEpisodesOnOneLine(t *testing.T) {
 	}
 	if !strings.Contains(got.body, "Episodes 1-3, 5") {
 		t.Errorf("body = %q, want the episode run named", got.body)
+	}
+}
+
+// A movie has one item, so its number would say nothing the title has not: the
+// item line comes out entirely rather than being reworded.
+func TestSendOmitsTheItemLineForAMovie(t *testing.T) {
+	ts, got := capture(t)
+	if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{
+		Kind: notify.KindImported, Title: "Placeholder Film", ItemNumber: 1, ItemKind: domain.KindMovie,
+	}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if strings.Contains(got.body, "Episode") {
+		t.Errorf("body = %q, want no episode line for a movie", got.body)
+	}
+	if !strings.Contains(got.body, "Placeholder Film") {
+		t.Errorf("body = %q, want the title still named", got.body)
+	}
+}
+
+// An item kind the emitter did not set still reads as an episode, so nothing
+// that predates the field goes quiet.
+func TestSendKeepsTheItemLineForAnEpisode(t *testing.T) {
+	for _, kind := range []domain.WantedKind{"", domain.KindEpisode} {
+		ts, got := capture(t)
+		if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{
+			Kind: notify.KindImported, Title: "Placeholder Saga", ItemNumber: 5, ItemKind: kind,
+		}); err != nil {
+			t.Fatalf("send: %v", err)
+		}
+		if !strings.Contains(got.body, "Episode 5") {
+			t.Errorf("body = %q for kind %q, want the episode line", got.body, kind)
+		}
 	}
 }

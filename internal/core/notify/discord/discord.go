@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/notify"
 )
 
@@ -79,7 +80,8 @@ func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
 	if ev.Title != "" {
 		e.Fields = append(e.Fields, field{Name: "Title", Value: capValue(ev.Title)})
 	}
-	if ev.ItemNumber > 0 {
+	// A movie has exactly one item, so its number says nothing the title does not.
+	if ev.ItemNumber > 0 && ev.ItemKind != domain.KindMovie {
 		e.Fields = append(e.Fields, field{Name: "Episode", Value: strconv.Itoa(ev.ItemNumber)})
 	}
 	if label := ev.ItemsLabel(); label != "" {
