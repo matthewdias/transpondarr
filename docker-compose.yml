@@ -8,8 +8,9 @@
 # standard *arr / TRaSH single-mount layout:
 #
 #   /data
-#   ├── torrents   <- qBittorrent's download dir
-#   └── media      <- your library (Jellyfin/Plex reads here) -> TRANSPONDARR_LIBRARY_DIR
+#   ├── torrents      <- qBittorrent's download dir
+#   ├── media         <- your Shows library (Jellyfin/Plex reads here) -> TRANSPONDARR_LIBRARY_DIR
+#   └── media-movies  <- your Movies library -> TRANSPONDARR_LIBRARY_MOVIES_DIR
 #
 # Add this service to your existing stack (qBittorrent, Jackett/Prowlarr, media
 # server) so it shares their network and volume, or run it standalone as below.
@@ -43,6 +44,8 @@ services:
       TRANSPONDARR_TORZNAB_CATEGORIES: "${TORZNAB_CATEGORIES:-}"
       # --- library import (must live under the shared /data mount) ---
       TRANSPONDARR_LIBRARY_DIR: "/data/media"
+      # Films place here instead; unset = movies do not import.
+      TRANSPONDARR_LIBRARY_MOVIES_DIR: "/data/media-movies"
       TRANSPONDARR_IMPORT_MODE: "auto"   # auto | hardlink | copy
     volumes:
       - ./config:/config              # SQLite DB + state (ownership is fixed automatically on start)

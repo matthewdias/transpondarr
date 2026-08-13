@@ -37,7 +37,7 @@ function settings(automation: Settings["automation"]): Settings {
       apikey_set: false,
       categories: "",
     },
-    library: { configured: false, dir: "", mode: "" },
+    library: { configured: false, dir: "", movies_dir: "", mode: "" },
     automation,
     notifications: {
       discord: { configured: false, url: "", ...notifyEvents },

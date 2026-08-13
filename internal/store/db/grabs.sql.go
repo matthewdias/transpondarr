@@ -19,7 +19,8 @@ SELECT
     w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
-    s.format AS series_format
+    s.format AS series_format,
+    s.year   AS series_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -40,6 +41,7 @@ type GetGrabByIDRow struct {
 	SeriesID      int64          `json:"series_id"`
 	SeriesTitle   string         `json:"series_title"`
 	SeriesFormat  string         `json:"series_format"`
+	SeriesYear    int64          `json:"series_year"`
 }
 
 func (q *Queries) GetGrabByID(ctx context.Context, id int64) (GetGrabByIDRow, error) {
@@ -59,6 +61,7 @@ func (q *Queries) GetGrabByID(ctx context.Context, id int64) (GetGrabByIDRow, er
 		&i.SeriesID,
 		&i.SeriesTitle,
 		&i.SeriesFormat,
+		&i.SeriesYear,
 	)
 	return i, err
 }
@@ -101,7 +104,8 @@ SELECT
     w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
-    s.format AS series_format
+    s.format AS series_format,
+    s.year   AS series_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -123,11 +127,13 @@ type ListGrabsByInfoHashRow struct {
 	SeriesID      int64          `json:"series_id"`
 	SeriesTitle   string         `json:"series_title"`
 	SeriesFormat  string         `json:"series_format"`
+	SeriesYear    int64          `json:"series_year"`
 }
 
 // One release's rows, in episode order: the group the importer settles together.
 // item_in_library rides along because it is what makes an import a replacement (#97);
-// the three grab row shapes stay parallel.
+// format and year ride along because the library target routes and names on them (#198).
+// The three grab row shapes stay parallel: a retry converts between two of them.
 func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]ListGrabsByInfoHashRow, error) {
 	rows, err := q.db.QueryContext(ctx, listGrabsByInfoHash, infoHash)
 	if err != nil {
@@ -151,6 +157,7 @@ func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]L
 			&i.SeriesID,
 			&i.SeriesTitle,
 			&i.SeriesFormat,
+			&i.SeriesYear,
 		); err != nil {
 			return nil, err
 		}
@@ -214,7 +221,8 @@ SELECT
     w.in_library AS item_in_library,
     s.id     AS series_id,
     s.title  AS series_title,
-    s.format AS series_format
+    s.format AS series_format,
+    s.year   AS series_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -236,6 +244,7 @@ type ListGrabsByStatusRow struct {
 	SeriesID      int64          `json:"series_id"`
 	SeriesTitle   string         `json:"series_title"`
 	SeriesFormat  string         `json:"series_format"`
+	SeriesYear    int64          `json:"series_year"`
 }
 
 func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListGrabsByStatusRow, error) {
@@ -261,6 +270,7 @@ func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListG
 			&i.SeriesID,
 			&i.SeriesTitle,
 			&i.SeriesFormat,
+			&i.SeriesYear,
 		); err != nil {
 			return nil, err
 		}

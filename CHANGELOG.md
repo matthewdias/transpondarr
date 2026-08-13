@@ -8,6 +8,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Films import into their own library directory.** Plex and Jellyfin both want
+  a Movies library separate from Shows, so **Settings → Library** now takes a
+  movies directory alongside the existing one, and a film places into it as
+  `Placeholder Film (2019)/Placeholder Film (2019).mkv` — no season folder,
+  and no year in the name when the provider publishes none. Nothing changes
+  about where episodes land, single-episode OVAs and specials included. Until a
+  movies directory is set, a grabbed film waits in the Activity queue and says
+  so rather than landing in the wrong library; setting one imports it on the
+  next scan.
+  Closes [#198](https://github.com/matthewdias/transpondarr/issues/198).
+
 - **Anime films can be added and tracked.** A movie result in search or on the
   Discovery chart is no longer marked reserved and greyed out: adding one
   creates a title with a single wanted item and stores its release year, which a

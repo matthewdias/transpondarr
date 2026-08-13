@@ -1334,11 +1334,15 @@ export interface components {
             dir?: string;
             /** @enum {string} */
             mode?: "auto" | "hardlink" | "copy";
+            /** @description Root movies are placed into; empty = movies do not import */
+            movies_dir?: string;
         };
         LibrarySettingsDTO: {
             configured: boolean;
             dir: string;
             mode: string;
+            /** @description Root movies are placed into; empty = movies do not import */
+            movies_dir: string;
         };
         ListJobsOutputBody: {
             /**

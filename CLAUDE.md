@@ -525,6 +525,19 @@ Behaviour changes are test-driven. Work red → green → refactor:
   is wrong. The stored year is refresh-maintained rather than an add-time
   snapshot, and `SetSeriesYear` guards `? > 0` **in SQL** so no caller can let a
   transient upstream null erase one.
+- **The library has a root per format, and a missing one is an error, never a
+  fallback (#198).** `mediaserver.Roots` splits Series from Movies because Plex
+  and Jellyfin want a Movies library separate from Shows, and `Place` picks
+  between them on `Format` alone — the same discriminator, so a one-item OVA
+  files under Shows with the rest. Placing a movie with no movies root returns
+  `ErrNoMoviesRoot` rather than falling back to the series root: an import
+  failure is the one settled-status exception (it stays `grabbed` and retries),
+  so the error holds the grab, surfaces as `last_error` in the Activity queue
+  plus one import-stuck notification, and the next scan imports it once the root
+  is set — where a file already hardlinked into the wrong library would need
+  hand cleanup. Root (destination) and layout (shape within a root) stay
+  different axes: the movie shape is hard-wired in `destination`, which is the
+  one branch point #129 parameterizes later.
 - **The library flag and the derived item status share one name, deliberately
   (#84): `in_library`.** `wanted_items.in_library` sources the status
   `deriveItemState` returns, so renaming either alone would hide the derivation.

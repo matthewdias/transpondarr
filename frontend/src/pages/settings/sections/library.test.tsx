@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Settings } from "@/lib/api";
-import { IndexerSection } from "@/pages/settings/sections/indexer";
+import { LibrarySection } from "@/pages/settings/sections/library";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -21,7 +21,7 @@ const notifyEvents = {
   on_rehearsal: true,
 };
 
-function settings(indexer: Settings["indexer"]): Settings {
+function settings(library: Settings["library"]): Settings {
   return {
     download: {
       configured: false,
@@ -30,8 +30,14 @@ function settings(indexer: Settings["indexer"]): Settings {
       password_set: false,
       category: "",
     },
-    indexer,
-    library: { configured: false, dir: "", movies_dir: "", mode: "" },
+    indexer: {
+      configured: false,
+      name: "",
+      url: "",
+      apikey_set: false,
+      categories: "",
+    },
+    library,
     automation: { mode: "off", pin_delay_hours: 0 },
     notifications: {
       discord: { configured: false, url: "", ...notifyEvents },
@@ -55,52 +61,55 @@ function settings(indexer: Settings["indexer"]): Settings {
   };
 }
 
-function renderSection(indexer: Settings["indexer"]) {
+function renderSection(library: Settings["library"]) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <IndexerSection settings={settings(indexer)} />
+      <LibrarySection settings={settings(library)} />
     </QueryClientProvider>,
   );
 }
 
-describe("IndexerSection", () => {
-  // #142: the filter is stored config, not a secret, so it is seeded from the
-  // snapshot and an edit — including clearing it — goes out with the save.
-  it("seeds the category filter and saves an edited one", async () => {
+describe("LibrarySection", () => {
+  // #198: movies place into their own root, so the section edits both and a
+  // save carries them together.
+  it("seeds both roots and saves an edited movies directory", async () => {
     let body: unknown;
+    const saved: Settings["library"] = {
+      configured: true,
+      dir: "/media/Anime",
+      movies_dir: "/media/Anime Films",
+      mode: "auto",
+    };
     server.use(
-      http.put("/api/v1/settings/indexer", async ({ request }) => {
+      http.put("/api/v1/settings/library", async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json(
-          settings({
-            configured: true,
-            name: "prowlarr",
-            url: "http://prowlarr:9696/1/api",
-            apikey_set: true,
-            categories: "5070",
-          }),
-        );
+        return HttpResponse.json(settings(saved));
       }),
     );
     const user = userEvent.setup();
     renderSection({
       configured: true,
-      name: "prowlarr",
-      url: "http://prowlarr:9696/1/api",
-      apikey_set: true,
-      categories: "5070,127720",
+      dir: "/media/Anime",
+      movies_dir: "",
+      mode: "auto",
     });
 
-    const field = screen.getByLabelText(/categories/i);
-    expect(field).toHaveValue("5070,127720");
+    expect(screen.getByLabelText(/^library directory/i)).toHaveValue(
+      "/media/Anime",
+    );
+    const movies = screen.getByLabelText(/^movies directory/i);
+    expect(movies).toHaveValue("");
 
-    await user.clear(field);
-    await user.type(field, "5070");
+    await user.type(movies, "/media/Anime Films");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(body).toMatchObject({ categories: "5070" });
+    expect(body).toMatchObject({
+      dir: "/media/Anime",
+      movies_dir: "/media/Anime Films",
+      mode: "auto",
+    });
   });
 });

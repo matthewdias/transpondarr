@@ -20,12 +20,13 @@ export function LibrarySection({ settings }: { settings: Settings }) {
   const l = settings.library;
   const queryClient = useQueryClient();
   const [dir, setDir] = useState(l.dir);
+  const [moviesDir, setMoviesDir] = useState(l.movies_dir);
   const [mode, setMode] = useState<NonNullable<LibraryInput["mode"]>>(
     (l.mode as NonNullable<LibraryInput["mode"]>) || "auto",
   );
   const [testState, setTestState] = useState<TestState>(null);
 
-  const body = (): LibraryInput => ({ dir, mode });
+  const body = (): LibraryInput => ({ dir, movies_dir: moviesDir, mode });
 
   const test = useMutation({
     mutationFn: () => api.testLibrary(body()),
@@ -64,6 +65,13 @@ export function LibrarySection({ settings }: { settings: Settings }) {
         value={dir}
         onChange={(e) => setDir(e.target.value)}
         hint="Must be reachable from the Transpondarr host; share a mount with the download client for hardlinks."
+      />
+      <Field
+        label="Movies directory"
+        placeholder="/media/Anime Films"
+        value={moviesDir}
+        onChange={(e) => setMoviesDir(e.target.value)}
+        hint="Films place here instead, as Plex and Jellyfin expect a Movies library separate from Shows. Until it is set, a grabbed movie waits in the queue rather than importing."
       />
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-muted-foreground">

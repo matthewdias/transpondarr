@@ -1,7 +1,13 @@
 // Package mediaserver implements the library.Target interface by placing files
-// into a Jellyfin/Plex-friendly layout:
+// into a Jellyfin/Plex-friendly layout, one root per format:
 //
-//	<root>/<Series Name>/Season 01/<Series Name> - S01EMM<ext>
+//	<series root>/<Series Name>/Season 01/<Series Name> - S01EMM<ext>
+//	<movies root>/<Movie Name> (<Year>)/<Movie Name> (<Year>)<ext>
+//
+// The format is the discriminator and the item count never is, so a
+// single-episode OVA takes the series layout; both media servers expect one
+// under Shows. A movie with no year on record drops the suffix from both
+// components rather than filing under a year the provider has not published.
 //
 // Anime providers model each season as a SEPARATE entry with its own title (e.g. "...
 // 2nd Season") and its own 1..N numbering, so each entry maps to its own
@@ -22,6 +28,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/library"
 )
 
@@ -29,6 +36,12 @@ import (
 // its own single-season show; a "2nd Season" is a distinct entry/title, not
 // Season 02 inside the first entry's folder.
 const seasonNumber = 1
+
+// ErrNoMoviesRoot is why a movie cannot be placed with no movies root
+// configured. Deliberately an error rather than a fallback into the series
+// root: the grab stays open and the next scan imports it once the root is set,
+// where a file already hardlinked into the wrong library would not.
+var ErrNoMoviesRoot = errors.New("no movies library directory is configured; set one under Settings > Library")
 
 // Mode selects how a file is transferred into the library.
 type Mode string
@@ -51,20 +64,28 @@ func ParseMode(s string) Mode {
 	}
 }
 
-// Target places imported files into a media-server library layout.
-type Target struct {
-	root string
-	mode Mode
-	log  *slog.Logger
+// Roots are the per-format library destinations. Movies get their own because
+// Plex and Jellyfin want a Movies library separate from Shows; Series takes
+// every other format, single-episode OVAs included.
+type Roots struct {
+	Series string
+	Movies string
 }
 
-// New constructs a media-server layout target rooted at root. mode is
+// Target places imported files into a media-server library layout.
+type Target struct {
+	roots Roots
+	mode  Mode
+	log   *slog.Logger
+}
+
+// New constructs a media-server layout target over roots. mode is
 // auto|hardlink|copy (see ParseMode). A nil log discards.
-func New(root, mode string, log *slog.Logger) *Target {
+func New(roots Roots, mode string, log *slog.Logger) *Target {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	return &Target{root: root, mode: ParseMode(mode), log: log}
+	return &Target{roots: roots, mode: ParseMode(mode), log: log}
 }
 
 func (t *Target) Name() string { return "mediaserver" }
@@ -87,12 +108,14 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 
 	name := sanitize(req.Title.Name)
 	if name == "" {
-		return "", errors.New("mediaserver: empty series name")
+		return "", errors.New("mediaserver: empty title name")
 	}
 	ext := filepath.Ext(req.SourcePath)
 
-	destDir := filepath.Join(t.root, name, fmt.Sprintf("Season %02d", seasonNumber))
-	stem := fmt.Sprintf("%s - S%02dE%02d", name, seasonNumber, req.Item.Number)
+	destDir, stem, err := t.destination(req, name)
+	if err != nil {
+		return "", err
+	}
 	dest := filepath.Join(destDir, stem+ext)
 
 	occupied := false
@@ -126,6 +149,30 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 		t.removeStemMates(destDir, stem, dest)
 	}
 	return dest, nil
+}
+
+// destination picks the root and the extension-less path shape for a request.
+// Format is the sole discriminator, so a one-item OVA is still series-shaped;
+// #129 will parameterize the shape within each branch, not the branch itself.
+func (t *Target) destination(req library.ImportRequest, name string) (dir, stem string, err error) {
+	if req.Title.Format == domain.FormatMovie {
+		if strings.TrimSpace(t.roots.Movies) == "" {
+			return "", "", fmt.Errorf("mediaserver: %w", ErrNoMoviesRoot)
+		}
+		folder := movieName(name, req.Title.Year)
+		return filepath.Join(t.roots.Movies, folder), folder, nil
+	}
+	return filepath.Join(t.roots.Series, name, fmt.Sprintf("Season %02d", seasonNumber)),
+		fmt.Sprintf("%s - S%02dE%02d", name, seasonNumber, req.Item.Number), nil
+}
+
+// movieName is the folder and file stem a movie is filed under. A year of 0
+// means none is on record, and drops the suffix rather than inventing one.
+func movieName(name string, year int) string {
+	if year <= 0 {
+		return name
+	}
+	return fmt.Sprintf("%s (%d)", name, year)
 }
 
 // replace transfers over a destination the library already holds. Link mode
