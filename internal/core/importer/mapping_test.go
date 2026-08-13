@@ -155,8 +155,8 @@ func TestIndistinguishableClaimsConflict(t *testing.T) {
 	if len(res.assigned) != 0 {
 		t.Errorf("assigned = %v, want nothing guessed between two equal claims", assignedNames(res))
 	}
-	if res.conflicts[1] == "" {
-		t.Errorf("conflicts = %v, want episode 1 reported as ambiguous", res.conflicts)
+	if res.conflicts[1] != 2 {
+		t.Errorf("conflicts = %v, want both claims on episode 1 reported as ambiguous", res.conflicts)
 	}
 }
 

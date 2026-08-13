@@ -515,6 +515,15 @@ Behaviour changes are test-driven. Work red → green → refactor:
   backfill does: `idx_wanted_items_identity` is `(series_id, kind, number)`, so a
   stale `('episode', 1)` does not collide with `('movie', 1)` and the next refresh
   silently doubles the title instead of failing.
+- **User-facing copy follows the same rule, and only where a movie reaches it
+  (#210).** The importer's settled reasons and the notification adapters word
+  themselves off the item's kind (`itemLabel`, and the adapters' second condition
+  on `Event.ItemKind`), so a film is never "episode 1"; every string an episode
+  alone can reach keeps its wording byte-identical, which is what the series
+  assertions in `events_test.go` and `retry_test.go` pin. `Event.ItemKind` is
+  display-only — `webhook.go` must never map it, because `item_number: 1` is
+  *correct* for a movie and the payload is a contract (#207 broke it once,
+  deliberately and with an upgrade note).
 - **The null-year rule is one rule split by actor, not two (#208).** `series.year`
   is `0`, never NULL, for "no year on record", and the split is: **naming** drops
   the ` (Year)` suffix (#198), while **matching** stays free for manual search and

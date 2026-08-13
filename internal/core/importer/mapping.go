@@ -1,8 +1,6 @@
 package importer
 
 import (
-	"fmt"
-
 	"github.com/matthewdias/transpondarr/internal/core/parser"
 )
 
@@ -14,10 +12,10 @@ type fileClaim struct {
 }
 
 // mapResult is a payload's files mapped onto the items a release claimed: what
-// to place, what nothing could tell apart, and what is left over.
+// to place, how many files nothing could tell apart, and what is left over.
 type mapResult struct {
 	assigned  map[int]candidate
-	conflicts map[int]string
+	conflicts map[int]int
 	leftovers []fileClaim
 }
 
@@ -27,7 +25,7 @@ type mapResult struct {
 // path, and win over every rule below — being wrong about a filename is the
 // whole reason the escape hatch exists.
 func mapFiles(files []candidate, covers map[int]bool, overrides map[string]int) mapResult {
-	res := mapResult{assigned: make(map[int]candidate), conflicts: make(map[int]string)}
+	res := mapResult{assigned: make(map[int]candidate), conflicts: make(map[int]int)}
 
 	rest := make([]candidate, 0, len(files))
 	for _, f := range files {
@@ -79,8 +77,9 @@ func mapFiles(files []candidate, covers map[int]bool, overrides map[string]int) 
 		best, tied := pickVersion(claims[n])
 		if tied {
 			// Guessing here silently drops the other file, so the row defers and a
-			// human names the one they want.
-			res.conflicts[n] = fmt.Sprintf("%d files claim episode %d and nothing tells them apart", len(claims[n]), n)
+			// human names the one they want. The caller words it: only it knows
+			// whether the item is an episode or a movie.
+			res.conflicts[n] = len(claims[n])
 			continue
 		}
 		res.assigned[n] = best

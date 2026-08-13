@@ -324,6 +324,7 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 				Kind:         notify.KindGrabbed,
 				Title:        series.Title,
 				ItemNumber:   item,
+				ItemKind:     domain.KindFor(domain.Format(series.Format)),
 				ReleaseTitle: c.Release.Title,
 			})
 		}
@@ -432,6 +433,7 @@ func (s *Service) dispatchRehearsal(ctx context.Context, series db.Series, items
 		Kind:         notify.KindRehearsal,
 		Title:        series.Title,
 		ItemNumber:   item,
+		ItemKind:     domain.KindFor(domain.Format(series.Format)),
 		ReleaseTitle: release,
 		Error:        outcome,
 	})

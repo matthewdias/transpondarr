@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/notify"
 )
 
@@ -205,5 +206,41 @@ func TestSendRendersMultipleEpisodesAsOneField(t *testing.T) {
 	}
 	if _, ok := fieldValue(got.Embeds[0], "Episode"); ok {
 		t.Error("a multi-item event must not also render a single Episode field")
+	}
+}
+
+// A movie has one item, so its number would say nothing the title has not: the
+// Episode field comes out entirely rather than being relabelled.
+func TestSendOmitsTheEpisodeFieldForAMovie(t *testing.T) {
+	ts, got := capture(t, http.StatusNoContent)
+	if err := New(ts.URL).Send(context.Background(), notify.Event{
+		Kind: notify.KindImported, Title: "Placeholder Film", ItemNumber: 1, ItemKind: domain.KindMovie,
+	}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if len(got.Embeds) != 1 {
+		t.Fatalf("embeds = %+v, want one", got.Embeds)
+	}
+	if v, ok := fieldValue(got.Embeds[0], "Episode"); ok {
+		t.Errorf("Episode field = %q, want none for a movie", v)
+	}
+	if v, _ := fieldValue(got.Embeds[0], "Title"); v != "Placeholder Film" {
+		t.Errorf("Title field = %q, want the movie still named", v)
+	}
+}
+
+// An item kind the emitter did not set still reads as an episode, so nothing
+// that predates the field loses its field.
+func TestSendKeepsTheEpisodeFieldForAnEpisode(t *testing.T) {
+	for _, kind := range []domain.WantedKind{"", domain.KindEpisode} {
+		ts, got := capture(t, http.StatusNoContent)
+		if err := New(ts.URL).Send(context.Background(), notify.Event{
+			Kind: notify.KindImported, Title: "Placeholder Saga", ItemNumber: 5, ItemKind: kind,
+		}); err != nil {
+			t.Fatalf("send: %v", err)
+		}
+		if v, ok := fieldValue(got.Embeds[0], "Episode"); !ok || v != "5" {
+			t.Errorf("Episode field = %q (present %v) for kind %q, want 5", v, ok, kind)
+		}
 	}
 }

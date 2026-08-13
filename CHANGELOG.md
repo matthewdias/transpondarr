@@ -54,6 +54,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **A film is no longer called an episode.** Notifications for a movie dropped
+  the "Episode 1" line, and the Activity queue's import messages now name the
+  film rather than an episode number it does not have — "no file matched this
+  movie; 2 unmatched file(s) in the payload". Episode wording is untouched
+  everywhere an episode is what arrived, single-episode OVAs and specials
+  included, and the webhook payload is unchanged for every event.
 - **The quality-profile chip on a series page no longer vanishes while it loads
   or when it fails.** The picker rendered nothing until the profile list
   arrived, so the chips row shifted on every visit, and a failed fetch left no
