@@ -25,7 +25,6 @@ All notable changes to this project are documented here. The format is based on
   A film whose year is not yet on record still matches and is still grabbable by
   hand, but is marked ineligible so automation leaves it alone until a metadata
   refresh fills the year in.
-  Closes [#209](https://github.com/matthewdias/transpondarr/issues/209).
 
 ### Changed
 
