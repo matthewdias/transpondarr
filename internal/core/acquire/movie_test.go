@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -371,7 +372,7 @@ func TestNotifyOnlySweepReportsAWouldGrabMovie(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
-	ev := wantRehearsalEvent(t, h.fn)
+	ev := wantRehearsalEventOfKind(t, h.fn, domain.KindMovie)
 	if ev.Title != "Sample Film" {
 		t.Errorf("title = %q", ev.Title)
 	}
@@ -403,7 +404,7 @@ func TestNotifyOnlySweepReportsANullYearMovieRefusal(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
-	ev := wantRehearsalEvent(t, h.fn)
+	ev := wantRehearsalEventOfKind(t, h.fn, domain.KindMovie)
 	if ev.Error != "would have grabbed nothing: the movie has no year on record" {
 		t.Errorf("outcome = %q, want the null-year refusal reported", ev.Error)
 	}
