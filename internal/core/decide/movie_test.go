@@ -503,3 +503,61 @@ func TestSeriesSeasonPackIsUnaffectedByTheMoviePackRule(t *testing.T) {
 		t.Errorf("reason = %q, want the unchanged series pack reason", got[0].Reason)
 	}
 }
+
+// The guard above only bit when the film's title was longer than the release's
+// parsed title. Reverse the lengths and fuzzy containment made it inert: the
+// rebuilt name contains the variant by construction, so a long-runner's episode
+// was matched and grabbed as the film. Both directions must refuse.
+func TestMovieRefusesAnEpisodeWhateverTheNameLengths(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		variant string
+		release string
+	}{
+		{"film title equals the release's", "Placeholder Saga",
+			"[ExampleSubs] Placeholder Saga - 250 [1080p]"},
+		{"film title is contained in the release's", "Sample Film",
+			"[ExampleSubs] Sample Film Chronicles - 250 [1080p]"},
+		{"film title is longer than the release's", "Placeholder Saga: The Final",
+			"[ExampleSubs] Placeholder Saga - 250 [1080p]"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Match(movieItem(), []string{tc.variant},
+				[]indexer.Release{{Title: tc.release, Seeders: 900}},
+				domain.QualityProfile{}, movieOpts(2019))
+
+			if len(got) != 1 {
+				t.Fatalf("candidates = %d, want 1", len(got))
+			}
+			if got[0].Matched {
+				t.Fatalf("candidate matched over %v, want the episode refused", got[0].Items)
+			}
+			if got[0].Reason != "release names episode 250, which this film does not have" {
+				t.Errorf("reason = %q, want the episode refusal", got[0].Reason)
+			}
+		})
+	}
+}
+
+// The accepted cost of comparing exactly: a film whose variant renders its
+// number differently from the release goes unmatched -- and being a matching
+// refusal rather than an eligibility one, that 422s the manual grab too. Named
+// deliberately, so the strictness is not later read as an oversight and loosened
+// back into the false positives it exists to prevent.
+func TestMovieRefusesANumberedFilmWhoseVariantRendersDifferently(t *testing.T) {
+	releases := []indexer.Release{
+		{Title: "[ExampleSubs] Sample Film 2 (2021) [1080p]", Seeders: 900},
+	}
+	got := Match(movieItem(), []string{"Sample Film 2nd Movie"}, releases,
+		domain.QualityProfile{}, movieOpts(2021))
+
+	if len(got) != 1 {
+		t.Fatalf("candidates = %d, want 1", len(got))
+	}
+	if got[0].Matched {
+		t.Fatalf("candidate matched over %v, want the differing rendering refused", got[0].Items)
+	}
+	if got[0].Reason != "release names episode 2, which this film does not have" {
+		t.Errorf("reason = %q, want the episode refusal", got[0].Reason)
+	}
+}

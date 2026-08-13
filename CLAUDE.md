@@ -623,6 +623,17 @@ Behaviour changes are test-driven. Work red → green → refactor:
   included, since a release writes `0080` where anitogo hands back 80; an
   explicit range never qualifies. So `movieCandidate` never reaches the
   episode-mapping apparatus, which is not the same as never reading the number.
+  **That variant match is exact, and the asymmetry with `titleBelongs` is the
+  point (#211).** Containment proves nothing about a name we assembled: any
+  variant prefixing the parsed title is contained by construction, so the fuzzy
+  branch only ever answers yes. It shipped fuzzy and the guard was inert
+  whenever the film's title was *not* longer than the release's — `Sample Film`
+  took `Sample Film Chronicles - 250` unattended. `titleBelongs` compares a name
+  the releaser wrote and stays fuzzy; this compares one we built. The cost is
+  accepted knowingly: a film whose variant renders its number differently
+  (`Sample Film 2` against `Sample Film 2nd Movie`) goes unmatched, and being a
+  *matching* refusal that 422s the manual grab too — pinned by a named test so
+  the strictness is not read as an oversight and loosened back.
 - **The library flag and the derived item status share one name, deliberately
   (#84): `in_library`.** `wanted_items.in_library` sources the status
   `deriveItemState` returns, so renaming either alone would hide the derivation.
