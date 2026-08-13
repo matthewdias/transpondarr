@@ -318,7 +318,7 @@ it("links to the series for episodes past the group cap", async () => {
   renderPage();
 
   expect(await screen.findByText("60 episodes missing")).toBeInTheDocument();
-  const more = screen.getByRole("link", { name: /go to series/i });
+  const more = screen.getByRole("link", { name: /go to title/i });
   expect(more).toHaveAttribute("href", "/series/7");
   expect(more).toHaveTextContent("58 more episodes not shown");
 });
@@ -586,7 +586,7 @@ it("words the queued-search toast for what actually happened", () => {
       automation: "on",
       run_triggered: true,
     }).title,
-  ).toBe("Search queued for every series.");
+  ).toBe("Search queued for every title.");
   expect(
     searchQueuedToast({
       titles_queued: 3,
@@ -601,7 +601,7 @@ it("words the queued-search toast for what actually happened", () => {
       run_triggered: false,
     }),
   ).toMatchObject({
-    title: "Search queued for 1 series.",
+    title: "Search queued for 1 title.",
     description: "The next scheduled sweep will pick it up.",
   });
 });

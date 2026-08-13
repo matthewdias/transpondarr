@@ -101,7 +101,7 @@ export function AutomationSection({ settings }: { settings: Settings }) {
         max={24 * 365}
         value={pinDelay}
         onChange={(e) => setPinDelay(e.target.value)}
-        hint="How long a series with a pinned group waits for that group before taking another's release. 0 takes the best release immediately; a series can override this."
+        hint="How long a title with a pinned group waits for that group before taking another's release. 0 takes the best release immediately; a title can override this."
       />
     </SectionShell>
   );

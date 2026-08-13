@@ -60,7 +60,7 @@ export function AppSidebar() {
     to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
 
   const library: NavItem[] = [
-    { title: "Series", to: "/", icon: Library, badge: series?.length },
+    { title: "Titles", to: "/", icon: Library, badge: series?.length },
     { title: "Discovery", to: "/discovery", icon: Compass },
     { title: "Calendar", to: "/calendar", icon: CalendarDays },
     { title: "Wanted", to: "/wanted", icon: ListChecks },

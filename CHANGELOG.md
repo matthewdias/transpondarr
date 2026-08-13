@@ -34,6 +34,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- **Films no longer read as one-episode series across the web UI.** A film's
+  detail page drops the episodes table for a status card saying whether it is
+  wanted, downloading or in the library, and its header reads the release year
+  rather than an episode count; the library list says **In library** or
+  **Wanted** instead of counting to one; and search and Discovery stop
+  reporting a film as one episode. Adding a film with no movies directory
+  configured now says so on the add form, so it is clear before the download
+  finishes rather than after. Series screens are untouched, single-episode OVAs
+  and specials included. Wording that called a title a series has followed
+  suit — the sidebar and page title now read **Titles** — while genuinely
+  episodic screens keep their wording.
 - **The REST resource is now `titles`, not `series`.** Movies are the next
   feature, and an endpoint called `series` that returns them would be a wart the
   1.0 stability promise freezes in place. Every `/api/v1/series...` route is now

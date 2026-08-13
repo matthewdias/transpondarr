@@ -115,7 +115,7 @@ export function CalendarPage() {
               size="chip"
               pressed={unmonitored}
               onPressedChange={setUnmonitored}
-              aria-label="Show unmonitored series"
+              aria-label="Show unmonitored titles"
             >
               <EyeOff /> Unmonitored
             </Toggle>
@@ -191,8 +191,8 @@ export function CalendarPage() {
                   </span>
                 ))}
                 <span className="text-faint">
-                  — AniList publishes no air dates for these, so their episodes
-                  can’t be placed on the calendar.
+                  — AniList publishes no air dates for these, so nothing they
+                  are still missing can be placed on the calendar.
                 </span>
               </div>
             )}

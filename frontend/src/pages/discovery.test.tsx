@@ -46,6 +46,19 @@ const profilesHandler = http.get("/api/v1/profiles", () =>
   }),
 );
 
+// The add form reads the movies root for a film, so a movie card fetches this.
+const settingsHandler = http.get("/api/v1/settings", () =>
+  HttpResponse.json({
+    automation: { mode: "on" },
+    library: {
+      dir: "/media/shows",
+      movies_dir: "/media/films",
+      mode: "hardlink",
+      configured: true,
+    },
+  }),
+);
+
 const chartHandler = (entries: SeasonEntry[]) =>
   http.get("/api/v1/browse/season", ({ request }) => {
     const url = new URL(request.url);
@@ -246,6 +259,7 @@ describe("DiscoveryPage", () => {
         entry({ provider_id: 103, romaji: "Gamma the Movie", format: "MOVIE" }),
       ]),
       profilesHandler,
+      settingsHandler,
     );
 
     const user = userEvent.setup();
