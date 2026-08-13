@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { Link } from "react-router";
+import { ChevronLeft, Loader2, TriangleAlert } from "lucide-react";
 import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
 import { formatLabel, statusLabel } from "@/lib/chart";
-import { profilesQuery, seriesQuery } from "@/lib/queries";
+import { profilesQuery, seriesQuery, settingsQuery } from "@/lib/queries";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -74,11 +75,15 @@ export function AddTitleForm({
   const [profileId, setProfileId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const profiles = useQuery(profilesQuery());
+  // Only a film's destination is in question here, so a series pays no request.
+  const settings = useQuery({ ...settingsQuery(), enabled: isMovie });
+  const noMoviesRoot = isMovie && settings.data?.library.movies_dir === "";
 
   const shown = profileId ?? profiles.data?.find((p) => p.is_default)?.id;
   const meta = [
     target.format && formatLabel(target.format),
-    target.episodes ? `${target.episodes} ep` : null,
+    // AniList reports a film as one episode, which is not a fact about it.
+    !isMovie && target.episodes ? `${target.episodes} ep` : null,
     target.status && statusLabel(target.status),
   ].filter(Boolean) as string[];
 
@@ -92,7 +97,7 @@ export function AddTitleForm({
       }),
     onSuccess: (series) => {
       queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
-      toast.success("Series added", {
+      toast.success("Title added", {
         description: `${series.title} — ${series.items.length} wanted ${
           series.items.length === 1 ? "item" : "items"
         } expanded`,
@@ -105,7 +110,7 @@ export function AddTitleForm({
         onExists?.();
         return;
       }
-      toast.error("Could not add series", {
+      toast.error("Could not add title", {
         description: err instanceof Error ? err.message : String(err),
       });
     },
@@ -121,6 +126,25 @@ export function AddTitleForm({
       <div className="space-y-3">
         {meta.length > 0 && (
           <p className="text-[12.5px] text-faint">{meta.join(" · ")}</p>
+        )}
+
+        {/* Told, not blocked: gating a manual add is what #198 and PR #57 both
+            refuse, and the grab holds until the root is set rather than failing. */}
+        {noMoviesRoot && (
+          <Link
+            to="/settings"
+            className="group flex items-start gap-2 rounded-md border border-dashed bg-panel-2/40 px-3 py-2 text-[12.5px] text-muted-foreground hover:text-foreground"
+          >
+            <TriangleAlert className="mt-0.5 size-3.5 flex-none text-dl" />
+            <span>
+              No movies directory is configured, so this film will wait in the
+              queue instead of importing. Set one under{" "}
+              <span className="underline underline-offset-2">
+                Settings &rsaquo; Library
+              </span>
+              .
+            </span>
+          </Link>
         )}
 
         {!isMovie && (

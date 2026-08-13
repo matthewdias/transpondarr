@@ -10,11 +10,13 @@ export function MonitorToggle({
   disabled,
 }: {
   monitored: boolean;
-  itemNumber: number;
+  // Absent for a film, which has one control and so nothing to disambiguate.
+  itemNumber?: number;
   onChange: (monitored: boolean) => void;
   disabled?: boolean;
 }) {
   const Icon = monitored ? Eye : EyeOff;
+  const what = itemNumber === undefined ? "" : ` episode ${itemNumber}`;
   return (
     <Toggle
       variant="monitor"
@@ -23,11 +25,7 @@ export function MonitorToggle({
       disabled={disabled}
       onPressedChange={onChange}
       title={monitored ? "Stop monitoring" : "Monitor"}
-      aria-label={
-        monitored
-          ? `Stop monitoring episode ${itemNumber}`
-          : `Monitor episode ${itemNumber}`
-      }
+      aria-label={monitored ? `Stop monitoring${what}` : `Monitor${what}`}
       className="shrink-0"
     >
       <Icon />

@@ -4,16 +4,31 @@ import { cn } from "@/lib/utils";
 // so a currently-airing show reads 3 / 3 rather than 3 / 12. The raw total rides
 // along in a parenthetical, and is suppressed when the two agree.
 export function LibraryProgress({
+  format,
   inLibrary,
   tracked,
   monitored,
   total,
 }: {
+  format: string;
   inLibrary: number;
   tracked: number;
   monitored: number;
   total: number;
 }) {
+  // A film is had or not; a bar and a denominator of 1 measure nothing. Keyed on
+  // format alone (#208), so a one-episode OVA still counts like the series it is.
+  if (format === "MOVIE") {
+    return (
+      <span className="whitespace-nowrap text-xs text-muted-foreground">
+        {inLibrary > 0
+          ? "In library"
+          : monitored > 0
+            ? "Wanted"
+            : "Not monitored"}
+      </span>
+    );
+  }
   const pct = tracked > 0 ? (inLibrary / tracked) * 100 : 0;
   const complete = tracked > 0 && inLibrary >= tracked;
   // "0 / 0" would read as "this series has no episodes", which is exactly wrong

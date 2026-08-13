@@ -22,12 +22,12 @@ export function SeriesListPage() {
 
   return (
     <>
-      <Topbar title="Series" actions={<AddSeriesButton />} />
+      <Topbar title="Titles" actions={<AddSeriesButton />} />
 
       <div className="px-4 py-6 sm:px-6">
         {isError && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Failed to load series:{" "}
+            Failed to load titles:{" "}
             {error instanceof Error ? error.message : String(error)}
           </div>
         )}
@@ -37,10 +37,10 @@ export function SeriesListPage() {
         {series && series.length === 0 && (
           <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-16 text-center">
             <Tv className="mb-4 size-8 text-faint" />
-            <h2 className="text-base font-semibold">No series yet</h2>
+            <h2 className="text-base font-semibold">No titles yet</h2>
             <p className="mb-5 mt-2 text-sm text-muted-foreground">
-              Add a series from AniList to start tracking and grabbing its
-              episodes.
+              Add a series or a film from AniList to start tracking and grabbing
+              it.
             </p>
             <AddSeriesButton />
           </div>
@@ -57,7 +57,7 @@ export function SeriesListPage() {
                       Format
                     </TableHead>
                     <TableHead>Monitored</TableHead>
-                    <TableHead className="sm:w-[200px]">Episodes</TableHead>
+                    <TableHead className="sm:w-[200px]">Progress</TableHead>
                     <TableHead className="hidden w-8 sm:table-cell" />
                   </TableRow>
                 </TableHeader>
@@ -86,6 +86,7 @@ export function SeriesListPage() {
                       </TableCell>
                       <TableCell>
                         <LibraryProgress
+                          format={s.format}
                           inLibrary={s.in_library}
                           tracked={s.tracked}
                           monitored={s.monitored_items}

@@ -11,6 +11,7 @@ import {
   type SeriesDetail,
 } from "@/lib/api";
 import { statusLabel } from "@/lib/chart";
+import { plural } from "@/lib/format";
 import {
   profilesQuery,
   releasesQuery,
@@ -45,10 +46,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DeleteSeriesDialog } from "@/components/detail/delete-series-dialog";
 import { EpisodesTab } from "@/components/detail/episodes-tab";
+import { MovieStatusCard } from "@/components/detail/movie-status-card";
 import { ReleasesTab } from "@/components/detail/releases-tab";
 import { HistoryTab } from "@/components/detail/history-tab";
 
-type TabKey = "episodes" | "releases" | "history";
+type TabKey = "episodes" | "status" | "releases" | "history";
+
+const isMovieFormat = (format: string) => format === "MOVIE";
+
+// The first tab is the format's own, so a tab held across a title-to-title
+// navigation resolves to the one this format actually renders.
+function resolveTab(tab: TabKey | null, isMovie: boolean): TabKey {
+  const first: TabKey = isMovie ? "status" : "episodes";
+  if (tab === null || tab === "episodes" || tab === "status") return first;
+  return tab;
+}
 
 const chipClass =
   "inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground";
@@ -60,7 +72,9 @@ export function SeriesDetailPage() {
   // Wanted rows); the Episodes tab's own button sets the same state directly.
   const [search] = useSearchParams();
   const linkedItem = Number(search.get("item")) || null;
-  const [tab, setTab] = useState<TabKey>(linkedItem ? "releases" : "episodes");
+  // Null means "whatever this format lands on", resolved below: the format is
+  // not known until the detail loads, so it cannot seed the initial state.
+  const [tab, setTab] = useState<TabKey | null>(linkedItem ? "releases" : null);
   // Radix unmounts an inactive panel, so the focused episode is the page's to
   // hold, not the Releases tab's.
   const [focusItem, setFocusItem] = useState<number | null>(linkedItem);
@@ -163,11 +177,13 @@ export function SeriesDetailPage() {
   });
 
   const notFound = isError && error instanceof ApiError && error.status === 404;
+  const isMovie = !!detail && isMovieFormat(detail.format);
+  const activeTab: TabKey = resolveTab(tab, isMovie);
 
   const breadcrumb = (
     <div className="flex min-w-0 items-center gap-2">
       <Link to="/" className="font-medium text-faint hover:text-foreground">
-        Series
+        Titles
       </Link>
       <span className="text-faint">/</span>
       <h1 className="truncate text-base font-semibold tracking-tight">
@@ -210,11 +226,11 @@ export function SeriesDetailPage() {
 
         {notFound && (
           <div className="rounded-lg border border-dashed bg-card px-6 py-16 text-center">
-            <h2 className="text-base font-semibold">Series not found</h2>
+            <h2 className="text-base font-semibold">Title not found</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               It may have been removed.{" "}
               <Link to="/" className="text-accent-foreground hover:underline">
-                Back to series
+                Back to titles
               </Link>
               .
             </p>
@@ -223,7 +239,7 @@ export function SeriesDetailPage() {
 
         {isError && !notFound && (
           <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Failed to load series:{" "}
+            Failed to load title:{" "}
             {error instanceof Error ? error.message : String(error)}
           </div>
         )}
@@ -237,7 +253,7 @@ export function SeriesDetailPage() {
             />
 
             <Tabs
-              value={tab}
+              value={activeTab}
               // Radix fires this only on a user-driven change, which is exactly
               // the seam: clicking the tab is the series-wide intent.
               onValueChange={(v) => {
@@ -250,46 +266,66 @@ export function SeriesDetailPage() {
                 variant="line"
                 className="mb-[18px] h-auto w-full justify-start gap-0.5 rounded-none border-b bg-transparent p-0"
               >
-                <DetailTab
-                  value="episodes"
-                  label="Episodes"
-                  count={detail.items.length}
-                  active={tab === "episodes"}
-                />
+                {isMovie ? (
+                  <DetailTab
+                    value="status"
+                    label="Status"
+                    active={activeTab === "status"}
+                  />
+                ) : (
+                  <DetailTab
+                    value="episodes"
+                    label="Episodes"
+                    count={detail.items.length}
+                    active={activeTab === "episodes"}
+                  />
+                )}
                 <DetailTab
                   value="releases"
                   label="Releases"
-                  active={tab === "releases"}
+                  active={activeTab === "releases"}
                 />
                 <DetailTab
                   value="history"
                   label="History"
-                  active={tab === "history"}
+                  active={activeTab === "history"}
                 />
               </TabsList>
 
-              <TabsContent value="episodes">
-                <EpisodesTab
-                  detail={detail}
-                  onSearchAll={searchAll}
-                  onSearchItem={searchItem}
-                  selected={selected}
-                  onToggleSelect={toggleSelect}
-                  onSelectRange={selectRange}
-                  onSetSelection={setSelection}
-                  onSetMonitored={setMonitored}
-                />
-              </TabsContent>
+              {isMovie ? (
+                <TabsContent value="status">
+                  {detail.items[0] && (
+                    <MovieStatusCard
+                      item={detail.items[0]}
+                      onSearch={searchAll}
+                      onSetMonitored={setMonitored}
+                    />
+                  )}
+                </TabsContent>
+              ) : (
+                <TabsContent value="episodes">
+                  <EpisodesTab
+                    detail={detail}
+                    onSearchAll={searchAll}
+                    onSearchItem={searchItem}
+                    selected={selected}
+                    onToggleSelect={toggleSelect}
+                    onSelectRange={selectRange}
+                    onSetSelection={setSelection}
+                    onSetMonitored={setMonitored}
+                  />
+                </TabsContent>
+              )}
               <TabsContent value="releases">
                 <ReleasesTab
                   seriesId={id}
-                  active={tab === "releases"}
+                  active={activeTab === "releases"}
                   focusItem={focusItem}
                   onClearFocus={() => setFocusItem(null)}
                 />
               </TabsContent>
               <TabsContent value="history">
-                <HistoryTab seriesId={id} active={tab === "history"} />
+                <HistoryTab seriesId={id} active={activeTab === "history"} />
               </TabsContent>
             </Tabs>
           </>
@@ -441,7 +477,7 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
           <DialogTitle>Pinned release group</DialogTitle>
           <DialogDescription>
             This group&apos;s eligible releases always rank first for this
-            series, above profile scoring.
+            title, above profile scoring.
           </DialogDescription>
         </DialogHeader>
         <form
@@ -491,8 +527,8 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
                 placeholder="Global default"
               />
               <p id={delayHintId} className="text-xs text-muted-foreground">
-                How many hours automatic searches wait for this group after an
-                episode airs. Blank uses the global default; 0 never waits.
+                How many hours automatic searches wait for this group after a
+                release is due. Blank uses the global default; 0 never waits.
               </p>
             </div>
           </div>
@@ -601,7 +637,13 @@ function DetailHeader({
   const subtitle = detail.english !== detail.title ? detail.english : null;
   const chips = [
     detail.format,
-    `${detail.items.length} episodes`,
+    // A film is identified by its year (#208/#209); an episode count of 1 is
+    // not a fact about it.
+    isMovieFormat(detail.format)
+      ? detail.year
+        ? String(detail.year)
+        : null
+      : plural(detail.items.length, "episode"),
     detail.status ? statusLabel(detail.status) : null,
   ].filter(Boolean) as string[];
 

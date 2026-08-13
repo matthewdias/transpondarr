@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from "lucide-react";
 import { ApiError, type Candidate } from "@/lib/api";
+import { formatLabel } from "@/lib/chart";
 import { metadataSearchQuery } from "@/lib/queries";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -150,8 +151,11 @@ function AddSeriesBody({
         )}
 
         {results.map((c) => {
+          // AniList reports a film as one episode, which is not a fact about it.
+          const episodes = c.format !== "MOVIE" && c.episodes;
           const meta = [
-            c.format && `${c.format}${c.episodes ? ` · ${c.episodes} ep` : ""}`,
+            c.format &&
+              `${formatLabel(c.format)}${episodes ? ` · ${episodes} ep` : ""}`,
             [c.year, c.status].filter(Boolean).join(" · ") || null,
           ].filter(Boolean) as string[];
           const english =
@@ -218,7 +222,7 @@ export function AddSeriesButton() {
 
   const trigger = (
     <Button onClick={() => setOpen(true)}>
-      <Plus className="size-4" /> Add series
+      <Plus className="size-4" /> Add title
     </Button>
   );
 
@@ -232,7 +236,7 @@ export function AddSeriesButton() {
             onEscapeKeyDown={stepBackOnEscape}
           >
             <DrawerHeader className="px-0">
-              <DrawerTitle>Add series</DrawerTitle>
+              <DrawerTitle>Add title</DrawerTitle>
               <DrawerDescription>
                 Search AniList and pick a title to track.
               </DrawerDescription>
@@ -250,7 +254,7 @@ export function AddSeriesButton() {
       <Dialog open={open} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-xl" onEscapeKeyDown={stepBackOnEscape}>
           <DialogHeader>
-            <DialogTitle>Add series</DialogTitle>
+            <DialogTitle>Add title</DialogTitle>
             <DialogDescription>
               Search AniList and pick a title to track.
             </DialogDescription>

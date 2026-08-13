@@ -336,7 +336,7 @@ function OverflowRow({ seriesId, label }: { seriesId: number; label: string }) {
     >
       <span className="text-faint">{label}</span>
       <span className="inline-flex items-center gap-1 font-medium text-primary">
-        Go to series <ChevronRight className="size-3.5" />
+        Go to title <ChevronRight className="size-3.5" />
       </span>
     </Link>
   );
@@ -473,7 +473,7 @@ function itemReasonTitle(item: MissingItem): string | undefined {
       : undefined,
     pass.source === "feed"
       ? "Decided by a feed poll"
-      : "Decided by a search of this series",
+      : "Decided by a search of this title",
   ]
     .filter(Boolean)
     .join(" · ");

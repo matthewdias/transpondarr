@@ -14,6 +14,17 @@ const server = setupServer(
     }),
   ),
   http.get("/api/v1/titles", () => HttpResponse.json({ titles: [] })),
+  http.get("/api/v1/settings", () =>
+    HttpResponse.json({
+      automation: { mode: "on" },
+      library: {
+        dir: "/media/shows",
+        movies_dir: "/media/films",
+        mode: "hardlink",
+        configured: true,
+      },
+    }),
+  ),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
@@ -96,4 +107,55 @@ it("keeps the monitor mode for a series", async () => {
 
   await waitFor(() => expect(bodies).toHaveLength(1));
   expect(bodies[0]).toMatchObject({ monitor_items: "all" });
+});
+
+function libraryRoots(dir: string, moviesDir: string) {
+  server.use(
+    http.get("/api/v1/settings", () =>
+      HttpResponse.json({
+        automation: { mode: "on" },
+        library: {
+          dir,
+          movies_dir: moviesDir,
+          mode: "hardlink",
+          configured: true,
+        },
+      }),
+    ),
+  );
+}
+
+const noMoviesRoot = /movies (directory|folder|library)|Settings/i;
+
+// #198 made a missing movies root a configuration error at import time; the add
+// form is where a user can find that out before it bites them.
+it("warns when a film is added with no movies root configured", async () => {
+  libraryRoots("/media/shows", "");
+  const bodies = captureAdd();
+  const user = renderForm(movie, "Sample Film");
+
+  const note = await screen.findByRole("link", { name: noMoviesRoot });
+  expect(note).toHaveAttribute("href", "/settings");
+
+  // Never blocking: gating a manual path is what #198 and PR #57 both refuse.
+  await user.click(screen.getByRole("button", { name: "Add Sample Film" }));
+  await waitFor(() => expect(bodies).toHaveLength(1));
+});
+
+// Either root alone is a library, so a films-only install is not misconfigured.
+it("stays quiet on a movies-only library", async () => {
+  libraryRoots("", "/media/films");
+  renderForm(movie, "Sample Film");
+
+  await screen.findByRole("combobox", { name: /quality profile/i });
+  expect(screen.queryByRole("link", { name: noMoviesRoot })).toBeNull();
+});
+
+// The root a series places into is not this film-only concern.
+it("stays quiet for a series with no movies root", async () => {
+  libraryRoots("/media/shows", "");
+  renderForm(series, "Placeholder Saga");
+
+  await screen.findByRole("combobox", { name: "Monitor" });
+  expect(screen.queryByRole("link", { name: noMoviesRoot })).toBeNull();
 });

@@ -67,7 +67,7 @@ async function openWithResults() {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await user.click(screen.getByRole("button", { name: /add series/i }));
+  await user.click(screen.getByRole("button", { name: /add title/i }));
   await user.type(
     screen.getByPlaceholderText(/search anilist/i),
     "placeholder",
@@ -258,7 +258,7 @@ it("adds a movie result like any other title", async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await user.click(screen.getByRole("button", { name: /add series/i }));
+  await user.click(screen.getByRole("button", { name: /add title/i }));
   await user.type(screen.getByPlaceholderText(/search anilist/i), "sample");
   await screen.findByText("Sample Film", undefined, { timeout: 3000 });
 
