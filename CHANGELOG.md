@@ -17,8 +17,6 @@ All notable changes to this project are documented here. The format is based on
   movies directory is set, a grabbed film waits in the Activity queue and says
   so rather than landing in the wrong library; setting one imports it on the
   next scan.
-  Closes [#198](https://github.com/matthewdias/transpondarr/issues/198).
-
 - **Anime films can be added and tracked.** A movie result in search or on the
   Discovery chart is no longer marked reserved and greyed out: adding one
   creates a title with a single wanted item and stores its release year, which a
