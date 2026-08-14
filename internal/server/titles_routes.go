@@ -34,6 +34,10 @@ type titleDTO struct {
 	Tracked        int    `json:"tracked" doc:"Items this title is pursuing: monitored and already broadcast"`
 	MonitoredItems int    `json:"monitored_items" doc:"Monitored items whether or not they have aired, so a zero tracked count can name its cause"`
 	InLibrary      int    `json:"in_library" doc:"Held items inside the tracked set, so progress can never exceed it"`
+	// The state is per item and this row is per title, so it is published only
+	// where format guarantees the two are the same thing (#208).
+	ItemStatus  string `json:"item_status,omitempty" enum:"in_library,downloading,stuck,deferred,wanted" doc:"Derived acquisition state of the sole item; present for a movie only"`
+	ImportError string `json:"import_error,omitempty" doc:"Why the last import attempt failed (item_status stuck)"`
 }
 
 type listTitlesOutput struct {
@@ -286,10 +290,31 @@ func (h *titleHandler) listTitles(ctx context.Context, _ *struct{}) (*listTitles
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list series", err)
 	}
+	// A second pass rather than a wider aggregate: the state reads the item's
+	// grab, which no GROUP BY can carry, and deriving it once here keeps the
+	// counts query -- and so a series' progress column -- untouched.
+	movieRows, err := h.store.Q.ListMovieItemStates(ctx)
+	if err != nil {
+		return nil, huma.Error500InternalServerError("failed to load movie item state", err)
+	}
+	stateByTitle := make(map[int64]itemState, len(movieRows))
+	for _, r := range movieRows {
+		// First by number, which is the item the detail page renders: #208
+		// guarantees one item only for a film added since it, and 00022 leaves a
+		// legacy movie the several it was created with.
+		if _, seen := stateByTitle[r.SeriesID]; seen {
+			continue
+		}
+		stateByTitle[r.SeriesID] = deriveItemState(r.InLibrary == 1, db.Grab{
+			Status:       r.GrabStatus.String,
+			ReleaseTitle: r.GrabReleaseTitle.String,
+			LastError:    r.GrabLastError,
+		}, r.GrabStatus.Valid)
+	}
 	out := &listTitlesOutput{}
 	out.Body.Titles = make([]titleDTO, 0, len(rows))
 	for _, s := range rows {
-		out.Body.Titles = append(out.Body.Titles, titleDTO{
+		dto := titleDTO{
 			ID:             s.ID,
 			Title:          s.Title,
 			Format:         s.Format,
@@ -299,7 +324,12 @@ func (h *titleHandler) listTitles(ctx context.Context, _ *struct{}) (*listTitles
 			Tracked:        int(s.TrackedItems),
 			MonitoredItems: int(s.MonitoredItems),
 			InLibrary:      int(s.InLibraryItems),
-		})
+		}
+		if state, ok := stateByTitle[s.ID]; ok {
+			dto.ItemStatus = state.Status
+			dto.ImportError = state.ImportError
+		}
+		out.Body.Titles = append(out.Body.Titles, dto)
 	}
 	return out, nil
 }

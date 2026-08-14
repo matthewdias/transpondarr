@@ -1,4 +1,6 @@
 import { cn } from "@/lib/utils";
+import type { ItemStatus } from "@/lib/api";
+import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
 
 // tracked is what the series is pursuing -- monitored and already broadcast --
 // so a currently-airing show reads 3 / 3 rather than 3 / 12. The raw total rides
@@ -9,23 +11,27 @@ export function LibraryProgress({
   tracked,
   monitored,
   total,
+  status,
+  importError,
 }: {
   format: string;
   inLibrary: number;
   tracked: number;
   monitored: number;
   total: number;
+  status?: ItemStatus;
+  importError?: string;
 }) {
-  // A held film is had, which the count states as "1 / 1"; anything else is a
-  // state this DTO cannot see (downloading, deferred, import-blocked), so the
-  // count stands rather than guessing "Wanted" at it. Interim: #215 carries item
-  // status onto the list and replaces this with the real state. Keyed on format
-  // alone (#208), so a one-episode OVA counts like the series it is.
-  if (format === "MOVIE" && inLibrary > 0) {
-    return (
-      <span className="whitespace-nowrap text-xs text-muted-foreground">
-        In library
-      </span>
+  // Keyed on format alone (#208), which is what guarantees the film one item and
+  // so makes the item's own state the row's: a one-episode OVA counts like the
+  // series it is. A film with no state to report falls through to the count.
+  if (format === "MOVIE" && status) {
+    // Substituted, not qualified, as the detail page does it: every other status
+    // stays true when unmonitored, and only "Wanted" turns into a false claim.
+    return monitored === 0 && status === "wanted" ? (
+      <UnmonitoredItemBadge />
+    ) : (
+      <ItemStatusBadge status={status} error={importError} movie />
     );
   }
   const pct = tracked > 0 ? (inLibrary / tracked) * 100 : 0;

@@ -91,6 +91,8 @@ export function TitleListPage() {
                           tracked={s.tracked}
                           monitored={s.monitored_items}
                           total={s.total}
+                          status={s.item_status}
+                          importError={s.import_error}
                         />
                       </TableCell>
                       <TableCell className="hidden text-faint sm:table-cell">

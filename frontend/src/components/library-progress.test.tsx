@@ -84,26 +84,33 @@ it("keeps the ratio for a series with no items at all", () => {
   expect(screen.queryByText(/^Nothing/)).not.toBeInTheDocument();
 });
 
-// Format is the discriminator (#208), but the list DTO carries counts and not
-// item status, so only "held" is knowable here: downloading, deferred and
-// import-blocked all look like inLibrary 0. #215 brings the real state.
-it("says a held film is in the library", () => {
+// Format is the discriminator (#208) and it guarantees one item, so a film's
+// row shows that item's own state -- the count it replaces is 0 / 1 either way.
+it.each([
+  ["in_library", "In library"],
+  ["downloading", "Downloading"],
+  ["deferred", "Downloaded, not imported"],
+  ["stuck", "Import blocked"],
+  ["wanted", "Wanted"],
+] as const)("shows a film's %s state rather than a count", (status, label) => {
   render(
     <LibraryProgress
       format="MOVIE"
-      inLibrary={1}
+      inLibrary={status === "in_library" ? 1 : 0}
       tracked={1}
       monitored={1}
       total={1}
+      status={status}
     />,
   );
 
-  expect(screen.getByText("In library")).toBeInTheDocument();
+  expect(screen.getByText(label)).toBeInTheDocument();
+  expect(screen.queryByText(/\d+ \/ \d+/)).not.toBeInTheDocument();
 });
 
-// "Wanted" would be a claim about a film that may be downloading right now; the
-// count makes no claim at all, which is the honest fallback until #215.
-it("falls back to the count rather than guessing why a film is not held", () => {
+// The defect: every one of these was "not held", so the interim had to fall
+// back to 0 / 1 and a downloading film was indistinguishable from a wanted one.
+it("distinguishes a downloading film from a wanted one", () => {
   render(
     <LibraryProgress
       format="MOVIE"
@@ -111,11 +118,80 @@ it("falls back to the count rather than guessing why a film is not held", () => 
       tracked={1}
       monitored={1}
       total={1}
+      status="downloading"
     />,
   );
 
-  expect(screen.getByText("0 / 1")).toBeInTheDocument();
   expect(screen.queryByText("Wanted")).not.toBeInTheDocument();
+});
+
+it("hangs the import reason off the blocked film", () => {
+  render(
+    <LibraryProgress
+      format="MOVIE"
+      inLibrary={0}
+      tracked={1}
+      monitored={1}
+      total={1}
+      status="stuck"
+      importError="no movies root configured"
+    />,
+  );
+
+  expect(screen.getByText("Import blocked")).toHaveAttribute(
+    "title",
+    "no movies root configured",
+  );
+});
+
+// Substituted, not qualified, exactly as the detail page does it: every other
+// status stays true when unmonitored, and only "Wanted" becomes a false claim.
+it("names monitoring instead of wanting an unmonitored film", () => {
+  render(
+    <LibraryProgress
+      format="MOVIE"
+      inLibrary={0}
+      tracked={0}
+      monitored={0}
+      total={1}
+      status="wanted"
+    />,
+  );
+
+  expect(screen.getByText("Not monitored")).toBeInTheDocument();
+  expect(screen.queryByText("Wanted")).not.toBeInTheDocument();
+});
+
+it("keeps a film's real state when it is unmonitored", () => {
+  render(
+    <LibraryProgress
+      format="MOVIE"
+      inLibrary={0}
+      tracked={0}
+      monitored={0}
+      total={1}
+      status="deferred"
+    />,
+  );
+
+  expect(screen.getByText("Downloaded, not imported")).toBeInTheDocument();
+  expect(screen.queryByText("Not monitored")).not.toBeInTheDocument();
+});
+
+// A film with no item at all publishes no state; the shared count path is the
+// answer, not a movie-shaped guess at one.
+it("takes the count path for a film with no state to report", () => {
+  render(
+    <LibraryProgress
+      format="MOVIE"
+      inLibrary={0}
+      tracked={0}
+      monitored={0}
+      total={0}
+    />,
+  );
+
+  expect(screen.getByText("0 / 0")).toBeInTheDocument();
 });
 
 it("keeps the count for a single-episode OVA", () => {

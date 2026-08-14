@@ -54,9 +54,11 @@ export function UnmonitoredItemBadge() {
 export function ItemStatusBadge({
   status,
   error,
+  movie,
 }: {
   status: ItemStatus;
   error?: string;
+  movie?: boolean;
 }) {
   switch (status) {
     case "stuck":
@@ -91,7 +93,16 @@ export function ItemStatusBadge({
         </span>
       );
     case "deferred":
-      return (
+      // A film's deferral is a size tie or an unextracted archive (#210), never
+      // a batch, so neither the label nor the single-episode advice holds.
+      return movie ? (
+        <span
+          className={cn(badgeBase, "border-dl/40 bg-transparent text-dl")}
+          title="The download finished but the film could not be picked out of it. The Activity queue says what it needs."
+        >
+          <FolderClock className="size-3" /> Downloaded, not imported
+        </span>
+      ) : (
         <span
           className={cn(badgeBase, "border-dl/40 bg-transparent text-dl")}
           title="A batch was downloaded but no single episode file could be imported. Grab a single-episode release to replace it."

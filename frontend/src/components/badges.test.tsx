@@ -24,6 +24,27 @@ describe("ItemStatusBadge", () => {
       expect.stringContaining("single-episode"),
     );
   });
+
+  // A film's deferral is a size tie or an unextracted archive (#210), never a
+  // batch, so neither the label nor the advice to grab a single episode holds.
+  it("words a deferred film off its kind rather than off episodes", () => {
+    render(<ItemStatusBadge status="deferred" movie />);
+
+    expect(screen.queryByText("Batch downloaded")).not.toBeInTheDocument();
+    const badge = screen.getByText("Downloaded, not imported");
+    expect(badge.getAttribute("title")).not.toMatch(/episode/i);
+    expect(badge).toHaveAttribute("title", expect.stringContaining("Activity"));
+  });
+
+  // Every other status stays byte-identical, which is #210's rule: only the
+  // strings a film can reach change.
+  it("leaves the other statuses worded as they are for a film", () => {
+    render(<ItemStatusBadge status="stuck" movie />);
+    expect(screen.getByText("Import blocked")).toBeInTheDocument();
+
+    render(<ItemStatusBadge status="in_library" movie />);
+    expect(screen.getByText("In library")).toBeInTheDocument();
+  });
 });
 
 describe("MonitoredBadge", () => {

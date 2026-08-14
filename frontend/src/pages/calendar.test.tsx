@@ -159,6 +159,48 @@ describe("CalendarPage", () => {
     expect(statesATime(agenda)).toBe(false);
   });
 
+  // A film's deferral is a size tie or an unextracted archive (#210), never a
+  // batch, so neither the compact label (week) nor the badge (agenda) may say
+  // one. The two renderers word it separately, so both are asserted here.
+  it("says a deferred film was not imported, never that a batch was", async () => {
+    server.use(calendarHandler([film({ status: "deferred" })]));
+
+    renderPage();
+    await screen.findByRole("link", { name: /placeholder legend/i });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Week" }));
+    const week = await screen.findByRole("link", {
+      name: /placeholder legend/i,
+    });
+    expect(week).toHaveTextContent(/Downloaded, not imported/);
+    expect(week).not.toHaveTextContent(/Batch downloaded/);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Agenda" }));
+    const agenda = await screen.findByRole("link", {
+      name: /placeholder legend/i,
+    });
+    expect(agenda).toHaveTextContent(/Downloaded, not imported/);
+    expect(agenda).not.toHaveTextContent(/Batch downloaded/);
+  });
+
+  // #210's rule: only the strings a film can reach change wording.
+  it("keeps the batch wording for a deferred episode in both views", async () => {
+    server.use(calendarHandler([item({ status: "deferred" })]));
+
+    renderPage();
+    await screen.findByRole("link", { name: /signal anomaly/i });
+
+    await userEvent.click(screen.getByRole("tab", { name: "Week" }));
+    expect(
+      await screen.findByRole("link", { name: /signal anomaly/i }),
+    ).toHaveTextContent(/Batch downloaded/);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Agenda" }));
+    expect(
+      await screen.findByRole("link", { name: /signal anomaly/i }),
+    ).toHaveTextContent(/Batch downloaded/);
+  });
+
   // Format is the sole discriminator (#208): a one-item OVA is series-shaped.
   it("keeps the episode line for a single-item OVA", async () => {
     server.use(
