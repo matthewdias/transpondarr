@@ -55,8 +55,8 @@ All notable changes to this project are documented here. The format is based on
 - **A title page's link parameters now do one job each.** `?tab=releases` opens
   the Releases tab and `?item=N` filters it to one episode, where a single
   `?item=N` used to do both. A saved link or bookmark carrying only `?item=N`
-  now opens the title on its usual landing tab rather than on Releases; the
-  **Search** buttons on the Wanted page send both and are unaffected.
+  now opens the title on its usual landing tab rather than on Releases; a
+  series' **Search** button on the Wanted page sends both, so it is unaffected.
 - **Films no longer read as one-episode series across the web UI.** A film's
   detail page drops the episodes table for a status card saying whether it is
   wanted, downloading or in the library, and its header reads the release year
