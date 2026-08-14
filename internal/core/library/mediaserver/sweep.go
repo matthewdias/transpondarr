@@ -121,8 +121,9 @@ func (t *Target) collectStale(ctx context.Context, cutoff time.Time) ([]staleTem
 	return out, nil
 }
 
-// sweepRoots resolves the configured roots and drops duplicates: WalkDir will not
-// descend a symlinked root, so `/media -> /mnt/user/media` would sweep nothing.
+// sweepRoots resolves the configured roots, since WalkDir will not descend a
+// symlinked root and `/media -> /mnt/user/media` would sweep nothing. Dropping
+// duplicates only spares a second walk; a repeated path is already harmless.
 func (t *Target) sweepRoots() []string {
 	out := make([]string, 0, 2)
 	seen := make(map[string]bool, 2)
