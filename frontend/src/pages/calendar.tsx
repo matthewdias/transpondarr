@@ -56,6 +56,14 @@ const statusLabel: Record<ItemStatus, string> = {
 // here can tell them apart, so any clock or countdown might be invented.
 const isPremiere = (item: CalendarItem) => item.format === "MOVIE";
 
+// A film's deferral is a size tie or an unextracted archive (#210), never a
+// batch. Worded exactly as ItemStatusBadge does, so the two renderers on this
+// page say one thing; every other status reads the same either way.
+const statusText = (item: CalendarItem) =>
+  isPremiere(item) && item.status === "deferred"
+    ? "Downloaded, not imported"
+    : statusLabel[item.status];
+
 export function CalendarPage() {
   // Read the viewport synchronously: deriving this from useIsMobile would
   // render (and fetch) the month view once before the effect flips to agenda.
@@ -351,7 +359,7 @@ function WeekGrid({
                         statusDot[item.status],
                       )}
                     />
-                    <span className="truncate">{statusLabel[item.status]}</span>
+                    <span className="truncate">{statusText(item)}</span>
                   </div>
                 </Link>
               ))}
@@ -427,6 +435,7 @@ function Agenda({
                   <ItemStatusBadge
                     status={item.status}
                     error={item.import_error}
+                    movie={isPremiere(item)}
                   />
                 </Link>
               ))}
