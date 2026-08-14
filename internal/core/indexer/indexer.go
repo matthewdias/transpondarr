@@ -48,7 +48,7 @@ type FeedEntry struct {
 // RecentFeed is an optional Indexer capability: sources that can list their
 // newest releases without a search term implement it. It stays off Indexer
 // because not every source has a feed, and because one request answering for the
-// whole library is a different cost model from one search per series.
+// whole library is a different cost model from one search per title.
 //
 // Two rules follow, as for metadata.AiringProvider. A caller treats a missing
 // capability as a supported configuration, not an error — degrade to the

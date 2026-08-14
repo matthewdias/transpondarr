@@ -7,7 +7,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 )
 
-// All fixtures use invented film/series/group names; only the naming structure
+// All fixtures use invented film/title/group names; only the naming structure
 // under test is real.
 
 // movieItem is a movie's whole item list: one item, per #208's add.
@@ -318,7 +318,7 @@ func TestMovieAlreadyHadIsNotMatched(t *testing.T) {
 }
 
 // The mode keys on the Format, never on item count: a one-item OVA is
-// series-shaped, so its releases are matched by number and never year-gated.
+// title-shaped, so its releases are matched by number and never year-gated.
 func TestSingleItemOVAStillMatchesEpisodically(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Sample Work - 01 [1080p]", Seeders: 40},
@@ -349,7 +349,7 @@ func TestSingleItemOVAWithNoYearIsEligible(t *testing.T) {
 }
 
 // The movie path keys on the Format alone, so the same release still covers a
-// series. Guards against over-firing.
+// title. Guards against over-firing.
 func TestNumberlessPackStillCoversASeries(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Sample Show (Complete) [1080p][HEVC]", Seeders: 40},
@@ -397,8 +397,8 @@ func TestMovieKeepsTheTitleMismatchReason(t *testing.T) {
 }
 
 // The wrong grab both numeric gates are blind to: a numberless season pack of
-// the film's parent series names no episode and carries no year, so nothing
-// above refuses it, and the importer would then place the series' episode 1 as
+// the film's parent title names no episode and carries no year, so nothing
+// above refuses it, and the importer would then place the title' episode 1 as
 // the film. It is an eligibility rule rather than a matching one -- the pack may
 // genuinely be a multi-part film, so only automation is held back (PR #57).
 func TestMovieWithholdsASeasonPackFromAutomation(t *testing.T) {
@@ -479,7 +479,7 @@ func TestPackReasonYieldsToAProfileRule(t *testing.T) {
 	}
 }
 
-// A batch token on a series release keeps meaning exactly what it always has:
+// A batch token on a title release keeps meaning exactly what it always has:
 // the pack matches the items it covers and is eligible. The new rule is gated on
 // Format, and this is what proves it.
 func TestSeriesSeasonPackIsUnaffectedByTheMoviePackRule(t *testing.T) {

@@ -37,15 +37,13 @@ afterEach(() => {
 });
 
 describe("typed client (openapi-fetch)", () => {
-  it("unwraps the series list envelope", async () => {
-    const series = [
+  it("unwraps the title list envelope", async () => {
+    const titles = [
       { id: 1, title: "Example Show", monitored: true },
       { id: 2, title: "Another Example", monitored: false },
     ];
-    server.use(
-      http.get("/api/v1/titles", () => HttpResponse.json({ titles: series })),
-    );
-    await expect(api.listSeries()).resolves.toEqual(series);
+    server.use(http.get("/api/v1/titles", () => HttpResponse.json({ titles })));
+    await expect(api.listTitles()).resolves.toEqual(titles);
   });
 
   it("maps problem+json failures to a thrown ApiError carrying the detail", async () => {
@@ -57,7 +55,7 @@ describe("typed client (openapi-fetch)", () => {
         ),
       ),
     );
-    const err = await api.listSeries().catch((e: unknown) => e);
+    const err = await api.listTitles().catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({ status: 500, message: "indexer unreachable" });
   });
@@ -70,7 +68,7 @@ describe("typed client (openapi-fetch)", () => {
         return HttpResponse.json({ title_id: 7, pinned_group: "ShinyRip" });
       }),
     );
-    await expect(api.setSeriesPinnedGroup(7, "ShinyRip")).resolves.toEqual({
+    await expect(api.setTitlePinnedGroup(7, "ShinyRip")).resolves.toEqual({
       title_id: 7,
       pinned_group: "ShinyRip",
     });
@@ -82,7 +80,7 @@ describe("typed client (openapi-fetch)", () => {
     server.use(
       http.get("/api/v1/titles", () => new HttpResponse(null, { status: 401 })),
     );
-    await expect(api.listSeries()).rejects.toBeInstanceOf(UnauthorizedError);
+    await expect(api.listTitles()).rejects.toBeInstanceOf(UnauthorizedError);
     expect(listener).toHaveBeenCalledTimes(1);
   });
 });

@@ -43,11 +43,11 @@ func TestUnmatchedDownloadsListsOnlyTorrentsNoGrabReferences(t *testing.T) {
 		{Hash: "9999aaaa", Name: "uncategorized", State: download.StateComplete},
 	}}
 	h := newHarness(t, nil, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 6)
-	seedOpenGrab(t, h.store, seriesID, 1, "aaaa1111", "rel 1", "grabbed")
-	seedOpenGrab(t, h.store, seriesID, 2, "bbbb2222", "rel 2", "import_deferred")
-	seedOpenGrab(t, h.store, seriesID, 3, "cccc3333", "rel 3", "imported")
-	seedOpenGrab(t, h.store, seriesID, 4, "dddd4444", "rel 4", "failed")
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 6)
+	seedOpenGrab(t, h.store, titleID, 1, "aaaa1111", "rel 1", "grabbed")
+	seedOpenGrab(t, h.store, titleID, 2, "bbbb2222", "rel 2", "import_deferred")
+	seedOpenGrab(t, h.store, titleID, 3, "cccc3333", "rel 3", "imported")
+	seedOpenGrab(t, h.store, titleID, 4, "dddd4444", "rel 4", "failed")
 
 	var got unmatchedJSON
 	if code := h.get(t, "/api/v1/activity/unmatched", &got); code != http.StatusOK {
@@ -89,10 +89,10 @@ func TestASupersededGrabsTorrentBecomesUnmatched(t *testing.T) {
 		dl.Result = download.AddResult{Hash: byURL[opts.URL], Outcome: download.AddSuccess}
 	}
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	for _, url := range []string{firstURL, secondURL} {
-		if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+		if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 			map[string]any{"download_url": url}, nil); code != http.StatusCreated {
 			t.Fatalf("grab %s = %d, want 201", url, code)
 		}
@@ -151,8 +151,8 @@ func TestUnmatchedDownloadsMatchHashesCaseInsensitively(t *testing.T) {
 		{Hash: "AAAA1111AAAA1111", Name: "grabbed one", Category: "transpondarr", State: download.StateDownloading},
 	}}
 	h := newHarness(t, nil, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 2)
-	seedOpenGrab(t, h.store, seriesID, 1, "aaaa1111aaaa1111", "rel 1", "grabbed")
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 2)
+	seedOpenGrab(t, h.store, titleID, 1, "aaaa1111aaaa1111", "rel 1", "grabbed")
 
 	var got unmatchedJSON
 	if code := h.get(t, "/api/v1/activity/unmatched", &got); code != http.StatusOK {
@@ -232,8 +232,8 @@ func TestRemoveUnmatchedDownloadRefusesAHashThatBecameReferenced(t *testing.T) {
 		{Hash: "eeee5555", Name: "no longer an orphan", Category: "transpondarr", State: download.StateDownloading},
 	}}
 	h := newHarness(t, nil, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 2)
-	seedOpenGrab(t, h.store, seriesID, 1, "eeee5555", "rel", "grabbed")
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 2)
+	seedOpenGrab(t, h.store, titleID, 1, "eeee5555", "rel", "grabbed")
 
 	code := do(t, h, http.MethodDelete, "/api/v1/activity/unmatched/eeee5555", nil, nil)
 	if code != http.StatusConflict {
@@ -263,7 +263,7 @@ func TestRemoveUnmatchedDownloadRefusesATorrentOutsideOurCategory(t *testing.T) 
 	}
 }
 
-// A client that refuses the delete is a 502, as the series removal is: the
+// A client that refuses the delete is a 502, as the title removal is: the
 // request was fine, the client said no.
 func TestRemoveUnmatchedDownloadReportsAClientRefusal(t *testing.T) {
 	dl := &coretest.FakeDownload{

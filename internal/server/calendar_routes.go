@@ -66,7 +66,7 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 		out := &calendarOutput{}
 		out.Body.Items = make([]calendarItemDTO, 0, len(rows))
 		for _, r := range rows {
-			monitored := r.SeriesMonitored == 1
+			monitored := r.TitleMonitored == 1
 			if !monitored && !in.Unmonitored {
 				continue
 			}
@@ -78,10 +78,10 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 			out.Body.Items = append(out.Body.Items, calendarItemDTO{
 				ID:          r.ID,
 				TitleID:     r.SeriesID,
-				Title:       r.SeriesTitle,
+				Title:       r.TitleName,
 				Monitored:   monitored,
 				Number:      int(r.Number.Int64),
-				Format:      r.SeriesFormat,
+				Format:      r.TitleFormat,
 				Name:        r.Title.String,
 				AirsAt:      storedTimeRFC3339(r.AirsAt),
 				Status:      state.Status,
@@ -89,7 +89,7 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 			})
 		}
 
-		unscheduled, err := deps.store.Q.ListUnscheduledSeries(ctx)
+		unscheduled, err := deps.store.Q.ListUnscheduledTitles(ctx)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to load unscheduled series", err)
 		}

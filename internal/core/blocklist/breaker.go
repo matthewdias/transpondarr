@@ -24,7 +24,7 @@ type BreakerState struct {
 // releaseRef identifies a release the way the blocklist's own unique index does,
 // so the breaker and the table agree on what "the same release" means.
 type releaseRef struct {
-	seriesID   int64
+	titleID    int64
 	normalized string
 }
 

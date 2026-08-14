@@ -5,7 +5,7 @@
 // heuristic problem better handled by a maintained library than by hand.
 //
 // The parser is deliberately dumb about *identity*: it extracts what the release
-// name says, and never decides which series or wanted item it belongs to — that
+// name says, and never decides which title or wanted item it belongs to — that
 // reconciliation is the decide layer's job.
 package parser
 
@@ -82,7 +82,7 @@ func Parse(title string) Parsed {
 		Version:         firstInt(e.ReleaseVersion),
 	}
 
-	// Post-passes scan the title with the parsed series and episode names
+	// Post-passes scan the title with the parsed title and episode names
 	// removed, so e.g. "Ghost Web" cannot satisfy a source/codec token.
 	rem := remainderOf(title, e)
 	p.Source = sourceFrom(e, rem)
@@ -273,7 +273,7 @@ var (
 	multiSubRe = regexp.MustCompile(`\bmulti[-_. ]?subs?\b`)
 )
 
-// remainderOf lowercases a raw title and removes the parsed series and episode
+// remainderOf lowercases a raw title and removes the parsed title and episode
 // names, so token scans cannot match words that belong to the show itself.
 // Scene delimiters are folded to spaces first: anitogo joins parsed names with
 // spaces, so "Ghost Web" would never match a dot-named "Ghost.Web" verbatim.

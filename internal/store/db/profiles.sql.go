@@ -40,42 +40,42 @@ func (q *Queries) AddProfileGroup(ctx context.Context, arg AddProfileGroupParams
 	return i, err
 }
 
-const countSeriesByProfile = `-- name: CountSeriesByProfile :one
+const countTitlesByProfile = `-- name: CountTitlesByProfile :one
 SELECT COUNT(*)
 FROM series
 WHERE quality_profile_id = ?
 `
 
-func (q *Queries) CountSeriesByProfile(ctx context.Context, qualityProfileID int64) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countSeriesByProfile, qualityProfileID)
+func (q *Queries) CountTitlesByProfile(ctx context.Context, qualityProfileID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countTitlesByProfile, qualityProfileID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
-const countSeriesPerProfile = `-- name: CountSeriesPerProfile :many
-SELECT quality_profile_id, COUNT(*) AS series_count
+const countTitlesPerProfile = `-- name: CountTitlesPerProfile :many
+SELECT quality_profile_id, COUNT(*) AS title_count
 FROM series
 GROUP BY quality_profile_id
 `
 
-type CountSeriesPerProfileRow struct {
+type CountTitlesPerProfileRow struct {
 	QualityProfileID int64 `json:"quality_profile_id"`
-	SeriesCount      int64 `json:"series_count"`
+	TitleCount       int64 `json:"title_count"`
 }
 
 // Usage counts for every profile at once, for the unpaginated list endpoint. A
 // profile no series uses has no row, so the caller's zero value is the answer.
-func (q *Queries) CountSeriesPerProfile(ctx context.Context) ([]CountSeriesPerProfileRow, error) {
-	rows, err := q.db.QueryContext(ctx, countSeriesPerProfile)
+func (q *Queries) CountTitlesPerProfile(ctx context.Context) ([]CountTitlesPerProfileRow, error) {
+	rows, err := q.db.QueryContext(ctx, countTitlesPerProfile)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CountSeriesPerProfileRow{}
+	items := []CountTitlesPerProfileRow{}
 	for rows.Next() {
-		var i CountSeriesPerProfileRow
-		if err := rows.Scan(&i.QualityProfileID, &i.SeriesCount); err != nil {
+		var i CountTitlesPerProfileRow
+		if err := rows.Scan(&i.QualityProfileID, &i.TitleCount); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -376,27 +376,27 @@ func (q *Queries) ListQualityProfiles(ctx context.Context) ([]QualityProfile, er
 	return items, nil
 }
 
-const listSeriesByProfile = `-- name: ListSeriesByProfile :many
+const listTitlesByProfile = `-- name: ListTitlesByProfile :many
 SELECT id, title
 FROM series
 WHERE quality_profile_id = ?
 ORDER BY title
 `
 
-type ListSeriesByProfileRow struct {
+type ListTitlesByProfileRow struct {
 	ID    int64  `json:"id"`
 	Title string `json:"title"`
 }
 
-func (q *Queries) ListSeriesByProfile(ctx context.Context, qualityProfileID int64) ([]ListSeriesByProfileRow, error) {
-	rows, err := q.db.QueryContext(ctx, listSeriesByProfile, qualityProfileID)
+func (q *Queries) ListTitlesByProfile(ctx context.Context, qualityProfileID int64) ([]ListTitlesByProfileRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTitlesByProfile, qualityProfileID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListSeriesByProfileRow{}
+	items := []ListTitlesByProfileRow{}
 	for rows.Next() {
-		var i ListSeriesByProfileRow
+		var i ListTitlesByProfileRow
 		if err := rows.Scan(&i.ID, &i.Title); err != nil {
 			return nil, err
 		}
@@ -411,37 +411,37 @@ func (q *Queries) ListSeriesByProfile(ctx context.Context, qualityProfileID int6
 	return items, nil
 }
 
-const reassignSeriesProfile = `-- name: ReassignSeriesProfile :exec
+const reassignTitleProfile = `-- name: ReassignTitleProfile :exec
 UPDATE series
 SET quality_profile_id = ?
 WHERE quality_profile_id = ?
 `
 
-type ReassignSeriesProfileParams struct {
+type ReassignTitleProfileParams struct {
 	QualityProfileID   int64 `json:"quality_profile_id"`
 	QualityProfileID_2 int64 `json:"quality_profile_id_2"`
 }
 
-func (q *Queries) ReassignSeriesProfile(ctx context.Context, arg ReassignSeriesProfileParams) error {
-	_, err := q.db.ExecContext(ctx, reassignSeriesProfile, arg.QualityProfileID, arg.QualityProfileID_2)
+func (q *Queries) ReassignTitleProfile(ctx context.Context, arg ReassignTitleProfileParams) error {
+	_, err := q.db.ExecContext(ctx, reassignTitleProfile, arg.QualityProfileID, arg.QualityProfileID_2)
 	return err
 }
 
-const setSeriesProfile = `-- name: SetSeriesProfile :execrows
+const setTitleProfile = `-- name: SetTitleProfile :execrows
 UPDATE series
 SET quality_profile_id = ?
 WHERE series.id = ?
   AND EXISTS (SELECT 1 FROM quality_profiles WHERE quality_profiles.id = ?)
 `
 
-type SetSeriesProfileParams struct {
+type SetTitleProfileParams struct {
 	QualityProfileID int64 `json:"quality_profile_id"`
 	ID               int64 `json:"id"`
 	ID_2             int64 `json:"id_2"`
 }
 
-func (q *Queries) SetSeriesProfile(ctx context.Context, arg SetSeriesProfileParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, setSeriesProfile, arg.QualityProfileID, arg.ID, arg.ID_2)
+func (q *Queries) SetTitleProfile(ctx context.Context, arg SetTitleProfileParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setTitleProfile, arg.QualityProfileID, arg.ID, arg.ID_2)
 	if err != nil {
 		return 0, err
 	}

@@ -57,9 +57,9 @@ func do(t *testing.T, h *harness, method, path string, body, out any) int {
 	return resp.StatusCode
 }
 
-func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
+func TestProfileCRUDAndTitleAssignment(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
 
 	// --- create ---------------------------------------------------------------
 	in := map[string]any{
@@ -126,12 +126,12 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 		t.Errorf("groups = %+v, want blocked rows sorted last", updated.Groups)
 	}
 
-	// --- assign to a series ---------------------------------------------------
+	// --- assign to a title ---------------------------------------------------
 	var assigned struct {
 		TitleID   int64 `json:"title_id"`
 		ProfileID int64 `json:"profile_id"`
 	}
-	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/profile", seriesID),
+	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/profile", titleID),
 		map[string]any{"profile_id": created.ID}, &assigned)
 	if code != http.StatusOK {
 		t.Fatalf("assign status = %d, want 200", code)
@@ -139,7 +139,7 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 	var detail struct {
 		QualityProfileID int64 `json:"quality_profile_id"`
 	}
-	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/titles/%d", seriesID), nil, &detail); code != http.StatusOK {
+	if code := do(t, h, "GET", fmt.Sprintf("/api/v1/titles/%d", titleID), nil, &detail); code != http.StatusOK {
 		t.Fatalf("detail status = %d, want 200", code)
 	}
 	if detail.QualityProfileID != created.ID {
@@ -157,16 +157,16 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 		t.Error("in-use delete should explain the conflict")
 	}
 
-	// --- delete with a migration target: series move, profile goes ------------
+	// --- delete with a migration target: title move, profile goes ------------
 	if code := do(t, h, "DELETE", fmt.Sprintf("/api/v1/profiles/%d?reassign_to=1", created.ID), nil, nil); code != http.StatusNoContent {
 		t.Fatalf("reassigning delete status = %d, want 204", code)
 	}
-	series, err := h.store.Q.GetSeries(context.Background(), seriesID)
+	title, err := h.store.Q.GetTitle(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("get series: %v", err)
 	}
-	if series.QualityProfileID != 1 {
-		t.Errorf("series profile after delete = %d, want default 1", series.QualityProfileID)
+	if title.QualityProfileID != 1 {
+		t.Errorf("series profile after delete = %d, want default 1", title.QualityProfileID)
 	}
 	if code := do(t, h, "GET", "/api/v1/profiles", nil, &list); code != http.StatusOK || len(list.Profiles) != 1 {
 		t.Fatalf("profiles after delete = %d (status %d), want just Default", len(list.Profiles), code)
@@ -177,9 +177,9 @@ func TestProfileCRUDAndSeriesAssignment(t *testing.T) {
 // and a profile nothing uses counting something other than zero.
 func TestListProfilesGroupsAndCountsPerProfile(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	first := seedSeries(t, h.store, "Placeholder Saga", 3)
-	second := seedSeries(t, h.store, "Placeholder Chronicle", 2)
-	seedSeries(t, h.store, "Placeholder Legend", 1)
+	first := seedTitle(t, h.store, "Placeholder Saga", 3)
+	second := seedTitle(t, h.store, "Placeholder Chronicle", 2)
+	seedTitle(t, h.store, "Placeholder Legend", 1)
 
 	alpha := map[string]any{"name": "Alpha", "groups": []profileGroupJSON{
 		{Name: "AlphaFirst"}, {Name: "AlphaBlocked", Blocked: true}, {Name: "AlphaSecond"},
@@ -240,8 +240,8 @@ func TestDeleteDefaultProfileRefused(t *testing.T) {
 
 func TestAssignUnknownProfileRejected(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/profile", seriesID),
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/profile", titleID),
 		map[string]any{"profile_id": 999}, nil)
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("assign unknown profile status = %d, want 422", code)

@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useRef } from "react";
 import { Eye, EyeOff, Search } from "lucide-react";
-import type { SeriesDetail, WantedItem } from "@/lib/api";
+import type { TitleDetail, WantedItem } from "@/lib/api";
 import { airDate, pad2, parseTimestamp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -50,7 +50,7 @@ export function EpisodesTab({
   onSetSelection,
   onSetMonitored,
 }: {
-  detail: SeriesDetail;
+  detail: TitleDetail;
   onSearchAll: () => void;
   onSearchItem: (n: number) => void;
   selected: Set<number>;
@@ -64,8 +64,8 @@ export function EpisodesTab({
   // Memoized because a 1,200-row series recomputes these on every selection
   // change otherwise, and none of them depend on the selection.
   const counts = useMemo(() => {
-    // Exactly ListSeriesWithProgress's definition of tracked, so this strip and
-    // the series-list bar can never disagree about the same series.
+    // Exactly ListTitlesWithProgress's definition of tracked, so this strip and
+    // the titles-list bar can never disagree about the same title.
     const now = Date.now();
     const aired = (i: WantedItem) =>
       !i.airs_at || parseTimestamp(i.airs_at) <= now;

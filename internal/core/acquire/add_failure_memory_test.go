@@ -33,7 +33,7 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 		t.Fatalf("blocklist records = %d, want the dead release remembered once", len(h.rec.calls))
 	}
 	got := h.rec.calls[0]
-	if got.seriesID != id || got.releaseTitle != dead.Title {
+	if got.titleID != id || got.releaseTitle != dead.Title {
 		t.Errorf("recorded %+v, want series %d and release %q", got, id, dead.Title)
 	}
 	if got.reason == "" {

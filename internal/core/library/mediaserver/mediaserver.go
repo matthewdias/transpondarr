@@ -1,16 +1,16 @@
 // Package mediaserver implements the library.Target interface by placing files
 // into a Jellyfin/Plex-friendly layout, one root per format:
 //
-//	<series root>/<Series Name>/Season 01/<Series Name> - S01EMM<ext>
-//	<series root>/<Series Name>/<Series Name> - S01EMM<ext>          (Layout flat)
+//	<title root>/<Title Name>/Season 01/<Title Name> - S01EMM<ext>
+//	<title root>/<Title Name>/<Title Name> - S01EMM<ext>          (Layout flat)
 //	<movies root>/<Movie Name> (<Year>)/<Movie Name> (<Year>)<ext>
 //
 // The format is the discriminator and the item count never is, so a
-// single-episode OVA takes the series layout; both media servers expect one
+// single-episode OVA takes the title layout; both media servers expect one
 // under Shows. A movie with no year on record drops the suffix from both
 // components rather than filing under a year the provider has not published.
-// Layout (#129) shapes the series path within its root and is a different axis
-// from the root itself: only the series branch reads it, and the movie shape is
+// Layout (#129) shapes the title path within its root and is a different axis
+// from the root itself: only the title branch reads it, and the movie shape is
 // the same under either.
 //
 // Anime providers model each season as a SEPARATE entry with its own title (e.g. "...
@@ -49,7 +49,7 @@ var videoExts = map[string]bool{
 // Season 02 inside the first entry's folder.
 const seasonNumber = 1
 
-// ErrNoMoviesRoot and ErrNoSeriesRoot are why a file cannot be placed when the
+// ErrNoMoviesRoot and ErrNoTitleRoot are why a file cannot be placed when the
 // root its format calls for is unset. Deliberately an error rather than a
 // fallback into the other root: the grab stays open and the next scan imports
 // it once the root is set, where a file already hardlinked into the wrong
@@ -60,9 +60,9 @@ var (
 	ErrNoSeriesRoot = errors.New("no series library directory is configured; set one under Settings > Library")
 )
 
-// Layout selects the path shape a series takes within its root (#129). It is a
+// Layout selects the path shape a title takes within its root (#129). It is a
 // different axis from the root: the format still picks the root and the branch,
-// and only the series branch reads this.
+// and only the title branch reads this.
 type Layout string
 
 const (
@@ -101,7 +101,7 @@ func ParseMode(s string) Mode {
 }
 
 // Roots are the per-format library destinations. Movies get their own because
-// Plex and Jellyfin want a Movies library separate from Shows; Series takes
+// Plex and Jellyfin want a Movies library separate from Shows; Title takes
 // every other format, single-episode OVAs included.
 type Roots struct {
 	Series string
@@ -117,7 +117,7 @@ type Target struct {
 }
 
 // New constructs a media-server layout target over roots. layout shapes the
-// series path (see ParseLayout); mode is auto|hardlink|copy (see ParseMode). A
+// title path (see ParseLayout); mode is auto|hardlink|copy (see ParseMode). A
 // nil log discards. Roots are trimmed here so the path joined is the path
 // configured: a pasted " /media/films" is otherwise a directory named " " away,
 // or relative to the process cwd.
@@ -209,7 +209,7 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 }
 
 // destination picks the root and the extension-less path shape for a request.
-// Format is the sole discriminator, so a one-item OVA is still series-shaped;
+// Format is the sole discriminator, so a one-item OVA is still title-shaped;
 // #129 will parameterize the shape within each branch, not the branch itself.
 func (t *Target) destination(req library.ImportRequest, name string) (dir, stem string, err error) {
 	if req.Title.Format == domain.FormatMovie {
@@ -226,7 +226,7 @@ func (t *Target) destination(req library.ImportRequest, name string) (dir, stem 
 	return dir, stem, nil
 }
 
-// seriesShape is the series path under layout. Flat drops the season folder and
+// titleShape is the title path under layout. Flat drops the season folder and
 // nothing else: the SxxExx in the name is what a scanner reads the episode from.
 func seriesShape(layout Layout, root, name string, number int) (dir, stem string) {
 	dir = filepath.Join(root, name)
@@ -236,9 +236,9 @@ func seriesShape(layout Layout, root, name string, number int) (dir, stem string
 	return dir, fmt.Sprintf("%s - S%02dE%02d", name, seasonNumber, number)
 }
 
-// heldElsewhere finds this item under the series layout that is not configured.
+// heldElsewhere finds this item under the title layout that is not configured.
 // Switching layouts moves nothing already placed, so an upgrade writes the new
-// shape beside the old file rather than over it — and the series folder still
+// shape beside the old file rather than over it — and the title folder still
 // exists, so the missing-directory warning below cannot catch it.
 func (t *Target) heldElsewhere(req library.ImportRequest, name string) (string, bool) {
 	if req.Title.Format == domain.FormatMovie || t.roots.Series == "" {
@@ -444,7 +444,7 @@ func syncDir(dir string) {
 }
 
 // reservedNames are Windows device names that can't be a path component, even
-// with an extension ("CON.txt" is still reserved). A series literally named one
+// with an extension ("CON.txt" is still reserved). A title literally named one
 // of these would break on a Windows/SMB share, so sanitize prefixes an underscore.
 var reservedNames = map[string]bool{
 	"con": true, "prn": true, "aux": true, "nul": true,
@@ -455,7 +455,7 @@ var reservedNames = map[string]bool{
 }
 
 // sanitize strips characters that are illegal or awkward in file paths so the
-// series name is usable as a directory/file component. It also drops control
+// title name is usable as a directory/file component. It also drops control
 // characters and dodges Windows reserved device names, so the layout survives an
 // SMB/CIFS share mounted from Windows.
 func sanitize(name string) string {

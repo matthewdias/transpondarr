@@ -17,10 +17,10 @@ import (
 
 // passOutcome reads what the last pass recorded about one item, reporting
 // whether anything was recorded at all -- an absent row is a real answer.
-func passOutcome(t *testing.T, st *store.Store, seriesID int64, number int) (db.PassOutcome, bool) {
+func passOutcome(t *testing.T, st *store.Store, titleID int64, number int) (db.PassOutcome, bool) {
 	t.Helper()
 	ctx := context.Background()
-	items, err := st.Q.ListWantedItems(ctx, seriesID)
+	items, err := st.Q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}
@@ -37,13 +37,13 @@ func passOutcome(t *testing.T, st *store.Store, seriesID int64, number int) (db.
 		}
 		return row, true
 	}
-	t.Fatalf("no item %d on series %d", number, seriesID)
+	t.Fatalf("no item %d on series %d", number, titleID)
 	return db.PassOutcome{}, false
 }
 
-func wantOutcome(t *testing.T, st *store.Store, seriesID, number int64, kind string) db.PassOutcome {
+func wantOutcome(t *testing.T, st *store.Store, titleID, number int64, kind string) db.PassOutcome {
 	t.Helper()
-	row, ok := passOutcome(t, st, seriesID, int(number))
+	row, ok := passOutcome(t, st, titleID, int(number))
 	if !ok {
 		t.Fatalf("episode %d recorded no outcome, want %s", number, kind)
 	}
@@ -126,7 +126,7 @@ func TestSweepRecordsAPinHoldWithItsWindow(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)},
 		fakeConfig{pinDelay: 6 * time.Hour})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
-	pinSeries(t, h.st, id, "OtherSubs", -1)
+	pinTitle(t, h.st, id, "OtherSubs", -1)
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -168,7 +168,7 @@ func TestSweepRecordsNoMatchWhenTheSearchCoveredNothing(t *testing.T) {
 }
 
 // A feed page is ~100 entries covering the whole library, not a search for this
-// series, so it has no standing to say nothing matched -- that write would
+// title, so it has no standing to say nothing matched -- that write would
 // clobber a sweep's real refusal on every poll.
 func TestFeedPollNeverRecordsNoMatch(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -228,7 +228,7 @@ func TestAGrabOverwritesAnEarlierRefusal(t *testing.T) {
 		`UPDATE quality_profiles SET min_score = 0 WHERE id = 1`); err != nil {
 		t.Fatalf("lower the profile floor: %v", err)
 	}
-	makeSeriesDue(t, h.st, id)
+	makeTitleDue(t, h.st, id)
 	if err := h.svc.SweepOnce(ctx); err != nil {
 		t.Fatalf("second SweepOnce: %v", err)
 	}
@@ -399,7 +399,7 @@ func TestRepeatedPassesKeepOneRowPerItem(t *testing.T) {
 		sweepItem{number: 1, airsAt: &past}, sweepItem{number: 2, airsAt: &past})
 
 	for i := range 3 {
-		makeSeriesDue(t, h.st, id)
+		makeTitleDue(t, h.st, id)
 		if err := h.svc.SweepOnce(context.Background()); err != nil {
 			t.Fatalf("SweepOnce %d: %v", i, err)
 		}

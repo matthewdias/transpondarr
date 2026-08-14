@@ -20,7 +20,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// titleDTO carries two denominators deliberately: tracked is what the series is
+// titleDTO carries two denominators deliberately: tracked is what the title is
 // actually pursuing (monitored and broadcast), total is every item it has. total
 // keeps its old meaning because narrowing it in place would be a silent break
 // for API clients.
@@ -178,20 +178,20 @@ type titleGrabsOutput struct {
 	}
 }
 
-// seriesHandler owns the dependencies shared by the series endpoints — the
+// titleHandler owns the dependencies shared by the title endpoints — the
 // read/CRUD handlers here and the acquisition handlers in
-// series_acquisition_routes.go. Bundling them on a receiver lets both files hang
-// handlers off the same type and share helpers like requireSeries without
+// titles_acquisition_routes.go. Bundling them on a receiver lets both files hang
+// handlers off the same type and share helpers like requireTitle without
 // threading deps through every call.
-type seriesHandler struct {
+type titleHandler struct {
 	store   *store.Store
 	catalog *catalog.Service
 	clients *clients.Registry
 	acquire *acquire.Service
 }
 
-func newSeriesHandler(deps routeDeps) *seriesHandler {
-	return &seriesHandler{
+func newTitleHandler(deps routeDeps) *titleHandler {
+	return &titleHandler{
 		store:   deps.store,
 		catalog: deps.catalog,
 		clients: deps.clients,
@@ -199,25 +199,25 @@ func newSeriesHandler(deps routeDeps) *seriesHandler {
 	}
 }
 
-// requireSeries loads a series or returns the appropriate huma status error (404
+// requireTitle loads a title or returns the appropriate huma status error (404
 // when absent, 500 otherwise), so handlers can `return nil, err` on failure.
-func (h *seriesHandler) requireSeries(ctx context.Context, id int64) (db.Series, error) {
-	series, err := h.store.Q.GetSeries(ctx, id)
+func (h *titleHandler) requireTitle(ctx context.Context, id int64) (db.Series, error) {
+	title, err := h.store.Q.GetTitle(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return db.Series{}, huma.Error404NotFound("series not found")
 	}
 	if err != nil {
 		return db.Series{}, huma.Error500InternalServerError("failed to load series", err)
 	}
-	return series, nil
+	return title, nil
 }
 
-// registerSeriesRoutes wires the series read/CRUD endpoints: listing, adding,
+// registerTitleRoutes wires the title read/CRUD endpoints: listing, adding,
 // fetching detail with derived acquisition state, monitoring toggle, and grab
 // history. The search/grab acquisition endpoints live in
-// series_acquisition_routes.go as methods on the same seriesHandler.
-func registerSeriesRoutes(api huma.API, deps routeDeps) {
-	h := newSeriesHandler(deps)
+// titles_acquisition_routes.go as methods on the same titleHandler.
+func registerTitleRoutes(api huma.API, deps routeDeps) {
+	h := newTitleHandler(deps)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-titles",
@@ -225,7 +225,7 @@ func registerSeriesRoutes(api huma.API, deps routeDeps) {
 		Path:        "/api/v1/titles",
 		Summary:     "List monitored titles",
 		Tags:        []string{"titles"},
-	}, h.listSeries)
+	}, h.listTitles)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "add-title",
@@ -234,7 +234,7 @@ func registerSeriesRoutes(api huma.API, deps routeDeps) {
 		Summary:       "Add a title by AniList id (expands its wanted items)",
 		Tags:          []string{"titles"},
 		DefaultStatus: http.StatusCreated,
-	}, h.addSeries)
+	}, h.addTitle)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "get-title",
@@ -242,7 +242,7 @@ func registerSeriesRoutes(api huma.API, deps routeDeps) {
 		Path:        "/api/v1/titles/{id}",
 		Summary:     "Get a title with its wanted items and their acquisition state",
 		Tags:        []string{"titles"},
-	}, h.getSeries)
+	}, h.getTitle)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "delete-title",
@@ -251,7 +251,7 @@ func registerSeriesRoutes(api huma.API, deps routeDeps) {
 		Summary:       "Delete a title and everything tracked for it; library files are never touched",
 		Tags:          []string{"titles"},
 		DefaultStatus: http.StatusNoContent,
-	}, h.deleteSeries)
+	}, h.deleteTitle)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "set-title-monitored",
@@ -278,9 +278,9 @@ func registerSeriesRoutes(api huma.API, deps routeDeps) {
 	}, h.listGrabs)
 }
 
-func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listTitlesOutput, error) {
+func (h *titleHandler) listTitles(ctx context.Context, _ *struct{}) (*listTitlesOutput, error) {
 	now := sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true}
-	rows, err := h.store.Q.ListSeriesWithProgress(ctx, db.ListSeriesWithProgressParams{
+	rows, err := h.store.Q.ListTitlesWithProgress(ctx, db.ListTitlesWithProgressParams{
 		AirsAt: now, AirsAt_2: now,
 	})
 	if err != nil {
@@ -304,7 +304,7 @@ func (h *seriesHandler) listSeries(ctx context.Context, _ *struct{}) (*listTitle
 	return out, nil
 }
 
-func (h *seriesHandler) addSeries(ctx context.Context, in *addTitleInput) (*addTitleOutput, error) {
+func (h *titleHandler) addTitle(ctx context.Context, in *addTitleInput) (*addTitleOutput, error) {
 	monitored := true
 	if in.Body.Monitored != nil {
 		monitored = *in.Body.Monitored
@@ -315,7 +315,7 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addTitleInput) (*addT
 		mode = catalog.MonitorMode(in.Body.MonitorItems)
 	}
 
-	title, err := h.catalog.AddSeries(ctx, in.Body.Provider, in.Body.ProviderID, monitored, mode, in.Body.QualityProfileID)
+	title, err := h.catalog.AddTitle(ctx, in.Body.Provider, in.Body.ProviderID, monitored, mode, in.Body.QualityProfileID)
 	if errors.Is(err, catalog.ErrAlreadyExists) {
 		return nil, huma.Error409Conflict("series already exists")
 	}
@@ -358,19 +358,19 @@ func (h *seriesHandler) addSeries(ctx context.Context, in *addTitleInput) (*addT
 	return out, nil
 }
 
-func (h *seriesHandler) getSeries(ctx context.Context, in *getTitleInput) (*getTitleOutput, error) {
-	series, err := h.requireSeries(ctx, in.ID)
+func (h *titleHandler) getTitle(ctx context.Context, in *getTitleInput) (*getTitleOutput, error) {
+	title, err := h.requireTitle(ctx, in.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	rows, err := h.store.Q.ListWantedItems(ctx, series.ID)
+	rows, err := h.store.Q.ListWantedItems(ctx, title.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to load wanted items", err)
 	}
 
 	// Index active grabs by wanted item so each row can report downloading state.
-	grabRows, err := h.store.Q.ListGrabsBySeries(ctx, series.ID)
+	grabRows, err := h.store.Q.ListGrabsByTitle(ctx, title.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to load grabs", err)
 	}
@@ -381,28 +381,28 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getTitleInput) (*getT
 
 	out := &getTitleOutput{}
 	out.Body = titleDetailReadDTO{
-		ID:               series.ID,
-		Title:            series.Title,
-		Format:           series.Format,
-		Year:             int(series.Year),
-		Monitored:        series.Monitored == 1,
-		QualityProfileID: series.QualityProfileID,
-		PinnedGroup:      series.PinnedGroup.String,
+		ID:               title.ID,
+		Title:            title.Title,
+		Format:           title.Format,
+		Year:             int(title.Year),
+		Monitored:        title.Monitored == 1,
+		QualityProfileID: title.QualityProfileID,
+		PinnedGroup:      title.PinnedGroup.String,
 		Items:            make([]detailItemDTO, 0, len(rows)),
 	}
-	if series.PinDelayHours.Valid {
-		hours := int(series.PinDelayHours.Int64)
+	if title.PinDelayHours.Valid {
+		hours := int(title.PinDelayHours.Int64)
 		out.Body.PinDelayHours = &hours
 	}
-	if series.ProviderID.Valid {
-		out.Body.Provider = series.Provider.String
-		out.Body.ProviderID = series.ProviderID.Int64
+	if title.ProviderID.Valid {
+		out.Body.Provider = title.Provider.String
+		out.Body.ProviderID = title.ProviderID.Int64
 		// Best-effort enrichment from the metadata cache (no network call): the
-		// series row only stores the display title, so english/native/status come
+		// title row only stores the display title, so english/native/status come
 		// from the cached snapshot when present.
 		if row, cerr := h.store.Q.GetCachedMetadata(ctx, db.GetCachedMetadataParams{
-			Provider:   series.Provider.String,
-			ProviderID: series.ProviderID.Int64,
+			Provider:   title.Provider.String,
+			ProviderID: title.ProviderID.Int64,
 		}); cerr == nil {
 			var snap metadata.CachedTitle
 			if json.Unmarshal([]byte(row.Raw), &snap) == nil {
@@ -432,16 +432,16 @@ func (h *seriesHandler) getSeries(ctx context.Context, in *getTitleInput) (*getT
 	return out, nil
 }
 
-// deleteSeries removes a series and, via FK cascades, its wanted items, grabs,
+// deleteTitle removes a title and, via FK cascades, its wanted items, grabs,
 // and blocklist memory. The client removal runs first so a refusal leaves the
-// series intact and the delete retryable; delete-first would orphan torrents
+// title intact and the delete retryable; delete-first would orphan torrents
 // with no record and no retry path.
-func (h *seriesHandler) deleteSeries(ctx context.Context, in *deleteTitleInput) (*struct{}, error) {
-	if _, err := h.requireSeries(ctx, in.ID); err != nil {
+func (h *titleHandler) deleteTitle(ctx context.Context, in *deleteTitleInput) (*struct{}, error) {
+	if _, err := h.requireTitle(ctx, in.ID); err != nil {
 		return nil, err
 	}
 	if in.RemoveDownloads {
-		grabs, err := h.store.Q.ListGrabsBySeries(ctx, in.ID)
+		grabs, err := h.store.Q.ListGrabsByTitle(ctx, in.ID)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to load grabs", err)
 		}
@@ -467,7 +467,7 @@ func (h *seriesHandler) deleteSeries(ctx context.Context, in *deleteTitleInput) 
 			}
 		}
 	}
-	rows, err := h.store.Q.DeleteSeries(ctx, in.ID)
+	rows, err := h.store.Q.DeleteTitle(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to delete series", err)
 	}
@@ -477,20 +477,20 @@ func (h *seriesHandler) deleteSeries(ctx context.Context, in *deleteTitleInput) 
 	return nil, nil
 }
 
-func (h *seriesHandler) setMonitored(ctx context.Context, in *setMonitoredInput) (*setMonitoredOutput, error) {
-	if _, err := h.requireSeries(ctx, in.ID); err != nil {
+func (h *titleHandler) setMonitored(ctx context.Context, in *setMonitoredInput) (*setMonitoredOutput, error) {
+	if _, err := h.requireTitle(ctx, in.ID); err != nil {
 		return nil, err
 	}
-	if err := h.store.Q.SetSeriesMonitored(ctx, db.SetSeriesMonitoredParams{
+	if err := h.store.Q.SetTitleMonitored(ctx, db.SetTitleMonitoredParams{
 		Monitored: boolToInt(in.Body.Monitored),
 		ID:        in.ID,
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to update series", err)
 	}
-	// Monitoring a series again asks for it to be looked after now, not once a
+	// Monitoring a title again asks for it to be looked after now, not once a
 	// backoff accumulated before it was paused has run down.
 	if in.Body.Monitored {
-		if err := h.store.Q.ResetSeriesSearchState(ctx, in.ID); err != nil {
+		if err := h.store.Q.ResetTitleSearchState(ctx, in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
 		}
 	}
@@ -500,7 +500,7 @@ func (h *seriesHandler) setMonitored(ctx context.Context, in *setMonitoredInput)
 	return out, nil
 }
 
-func (h *seriesHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupInput) (*setPinnedGroupOutput, error) {
+func (h *titleHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupInput) (*setPinnedGroupOutput, error) {
 	group := strings.TrimSpace(in.Body.Group)
 	// PUT replaces: an omitted delay falls back to the global default, and a
 	// cleared group takes its delay with it.
@@ -508,7 +508,7 @@ func (h *seriesHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupIn
 	if group != "" && in.Body.DelayHours != nil {
 		delay = sql.NullInt64{Int64: int64(*in.Body.DelayHours), Valid: true}
 	}
-	rows, err := h.store.Q.SetSeriesPinnedGroup(ctx, db.SetSeriesPinnedGroupParams{
+	rows, err := h.store.Q.SetTitlePinnedGroup(ctx, db.SetTitlePinnedGroupParams{
 		PinnedGroup:   sql.NullString{String: group, Valid: group != ""},
 		PinDelayHours: delay,
 		ID:            in.ID,
@@ -519,10 +519,10 @@ func (h *seriesHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupIn
 	if rows == 0 {
 		return nil, huma.Error404NotFound("series not found")
 	}
-	// A held series' next_search_at was computed from the pin that just changed,
+	// A held title' next_search_at was computed from the pin that just changed,
 	// so without this a shortened wait or a new group does nothing until the old
 	// window closes.
-	if err := h.store.Q.ResetSeriesSearchState(ctx, in.ID); err != nil {
+	if err := h.store.Q.ResetTitleSearchState(ctx, in.ID); err != nil {
 		return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
 	}
 	out := &setPinnedGroupOutput{}
@@ -531,19 +531,19 @@ func (h *seriesHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupIn
 	return out, nil
 }
 
-func (h *seriesHandler) listGrabs(ctx context.Context, in *titleGrabsInput) (*titleGrabsOutput, error) {
-	series, err := h.requireSeries(ctx, in.ID)
+func (h *titleHandler) listGrabs(ctx context.Context, in *titleGrabsInput) (*titleGrabsOutput, error) {
+	title, err := h.requireTitle(ctx, in.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	events, err := h.store.Q.ListSeriesGrabEvents(ctx, series.ID)
+	events, err := h.store.Q.ListTitleGrabEvents(ctx, title.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to load grab history", err)
 	}
 
 	out := &titleGrabsOutput{}
-	out.Body.Title = series.Title
+	out.Body.Title = title.Title
 	out.Body.Events = make([]grabEventDTO, 0, len(events))
 	for _, e := range events {
 		out.Body.Events = append(out.Body.Events, grabEventDTO{

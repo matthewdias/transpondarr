@@ -52,7 +52,7 @@ func TestSweepThenImportLifecycle(t *testing.T) {
 	if len(lib.Placed) != 1 || lib.Placed[0].Item.Number != 3 {
 		t.Fatalf("library placed %+v, want episode 3", lib.Placed)
 	}
-	grabs, _ := st.Q.ListGrabsBySeries(ctx, id)
+	grabs, _ := st.Q.ListGrabsByTitle(ctx, id)
 	if len(grabs) != 1 || grabs[0].Status != "imported" {
 		t.Fatalf("grabs = %+v, want one imported", grabs)
 	}
@@ -104,7 +104,7 @@ func TestFailedGrabDegradesToTheNextBestReleaseThenToNothing(t *testing.T) {
 		if err := im.ScanOnce(ctx); err != nil {
 			t.Fatalf("pass %d ScanOnce: %v", pass, err)
 		}
-		grabs, err := st.Q.ListGrabsBySeries(ctx, id)
+		grabs, err := st.Q.ListGrabsByTitle(ctx, id)
 		if err != nil {
 			t.Fatalf("list grabs: %v", err)
 		}
@@ -135,7 +135,7 @@ func TestFailedGrabDegradesToTheNextBestReleaseThenToNothing(t *testing.T) {
 	if len(dl.Adds) != 2 {
 		t.Errorf("download adds = %d after the third pass, want no further adds", len(dl.Adds))
 	}
-	entries, err := st.Q.ListBlocklistBySeries(ctx, id)
+	entries, err := st.Q.ListBlocklistByTitle(ctx, id)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}

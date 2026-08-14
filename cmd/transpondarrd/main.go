@@ -47,13 +47,13 @@ const shutdownTimeout = 10 * time.Second
 // plenty for a 30-day session TTL.
 const sessionCleanupInterval = 24 * time.Hour
 
-// airingSyncInterval ticks often so a newly added series gets its air dates
-// within minutes. What each pass actually fetches is throttled by the per-series
+// airingSyncInterval ticks often so a newly added title gets its air dates
+// within minutes. What each pass actually fetches is throttled by the per-title
 // staleness cutoffs, so a tick with nothing due costs one query and no requests.
 const airingSyncInterval = 15 * time.Minute
 
 // metadataRefreshInterval ticks on the same rhythm as the airing sync and for
-// the same reason: per-series TTL cutoffs decide what actually gets fetched, so
+// the same reason: per-title TTL cutoffs decide what actually gets fetched, so
 // an idle tick costs one query and no requests.
 const metadataRefreshInterval = 15 * time.Minute
 
@@ -62,13 +62,13 @@ const metadataRefreshInterval = 15 * time.Minute
 // requests.
 const seasonRefreshInterval = 15 * time.Minute
 
-// wantedSearchInterval ticks on the same rhythm: the per-series backoff decides
+// wantedSearchInterval ticks on the same rhythm: the per-title backoff decides
 // what a pass actually searches, and it is persisted, so running at start costs
 // an idle tick rather than an indexer stampede after a restart loop.
 const wantedSearchInterval = 15 * time.Minute
 
 // feedPollInterval matches the sweep's tick but does far more with it: one
-// request covers every series at once, where a sweep pass searches five and then
+// request covers every title at once, where a sweep pass searches five and then
 // backs each off for an hour or more. 15 minutes is also the floor indexers ask
 // for — Sonarr's RSS sync defaults here and refuses to go below 10.
 const feedPollInterval = 15 * time.Minute

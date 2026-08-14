@@ -1,4 +1,4 @@
--- name: ListSeriesDueWantedSearch :many
+-- name: ListTitlesDueWantedSearch :many
 -- Monitored series with something actually searchable right now: an item still
 -- wanted (never grabbed, or a grab that failed), itself monitored, whose
 -- broadcast has happened or was never published. Air dates are nullable by
@@ -24,7 +24,7 @@ WHERE s.monitored = 1
 ORDER BY s.next_search_at IS NOT NULL, s.next_search_at
 LIMIT ?;
 
--- name: ListSeriesWithWantedItems :many
+-- name: ListTitlesWithWantedItems :many
 -- Monitored series with something worth grabbing right now, ignoring search
 -- cadence. The feed poll issues no indexer request per series -- one request
 -- answers for every series at once -- so the budget the sweep's LIMIT protects
@@ -69,7 +69,7 @@ WHERE s.monitored = 1
   )
 ORDER BY s.id;
 
--- name: ListBackedOffSeriesWantedInWindow :many
+-- name: ListBackedOffTitlesWantedInWindow :many
 -- Series the sweep is postponing that had a broadcast inside a window: what the
 -- feed poll resets after it detects a gap in its own coverage. Already-due
 -- series are excluded because a reset buys them nothing and would spend one of
@@ -106,7 +106,7 @@ LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ?
 ORDER BY w.number;
 
--- name: SetSeriesSearchState :execrows
+-- name: SetTitleSearchState :execrows
 -- Guarded on the epoch read at selection: a reset that landed mid-sweep (the
 -- series grew, was re-monitored, or was repinned) must win over the backoff
 -- computed against the stale state. Guarding on next_search_at could not do
@@ -116,14 +116,14 @@ UPDATE series
 SET last_searched_at = ?, search_backoff = ?, next_search_at = ?
 WHERE id = ? AND search_epoch = ?;
 
--- name: ResetSeriesSearchState :exec
+-- name: ResetTitleSearchState :exec
 -- Puts a series back at the front of the queue: due now, no accumulated backoff.
 -- Bumping the epoch is what makes an in-flight sweep's write lose.
 UPDATE series
 SET search_backoff = 0, next_search_at = NULL, search_epoch = search_epoch + 1
 WHERE id = ?;
 
--- name: ResetAllSeriesSearchState :exec
+-- name: ResetAllTitlesSearchState :exec
 -- The whole library back at the front of the queue. Notify-only rehearses a pass
 -- that settles nothing, so every rehearsed series climbs the backoff ladder to
 -- its daily cap; switching automation on has to undo that or the first real

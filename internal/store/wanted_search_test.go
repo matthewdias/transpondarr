@@ -9,10 +9,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// seedSearchSeries inserts a series and returns its id.
-func seedSearchSeries(t *testing.T, st *Store, title string, monitored int64) int64 {
+// seedSearchTitle inserts a title and returns its id.
+func seedSearchTitle(t *testing.T, st *Store, title string, monitored int64) int64 {
 	t.Helper()
-	s, err := st.Q.CreateSeries(context.Background(), db.CreateSeriesParams{
+	s, err := st.Q.CreateTitle(context.Background(), db.CreateTitleParams{
 		Title: title, Format: "TV", Monitored: monitored,
 	})
 	if err != nil {
@@ -22,14 +22,14 @@ func seedSearchSeries(t *testing.T, st *Store, title string, monitored int64) in
 }
 
 // seedSearchItem inserts one wanted item; airsAt is optional (nil = unscheduled).
-func seedSearchItem(t *testing.T, st *Store, seriesID int64, number int, inLibrary int64, airsAt *time.Time) int64 {
+func seedSearchItem(t *testing.T, st *Store, titleID int64, number int, inLibrary int64, airsAt *time.Time) int64 {
 	t.Helper()
 	var at sql.NullString
 	if airsAt != nil {
 		at = sql.NullString{String: FormatTimestamp(*airsAt), Valid: true}
 	}
 	item, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
-		SeriesID: seriesID, Kind: "episode",
+		SeriesID: titleID, Kind: "episode",
 		Number:    sql.NullInt64{Int64: int64(number), Valid: true},
 		InLibrary: inLibrary,
 		Monitored: 1,
@@ -58,7 +58,7 @@ func seedSearchGrab(t *testing.T, st *Store, itemID int64, status string) {
 func dueTitles(t *testing.T, st *Store, now time.Time, limit int64) []string {
 	t.Helper()
 	stamp := FormatTimestamp(now)
-	rows, err := st.Q.ListSeriesDueWantedSearch(context.Background(), db.ListSeriesDueWantedSearchParams{
+	rows, err := st.Q.ListTitlesDueWantedSearch(context.Background(), db.ListTitlesDueWantedSearchParams{
 		NextSearchAt: sql.NullString{String: stamp, Valid: true},
 		AirsAt:       sql.NullString{String: stamp, Valid: true},
 		Limit:        limit,
@@ -83,44 +83,44 @@ func contains(list []string, want string) bool {
 }
 
 // The due predicate is the whole budget control for the sweep: it must admit
-// only monitored series that actually have something searchable right now.
-func TestListSeriesDueWantedSearchPredicate(t *testing.T) {
+// only monitored title that actually have something searchable right now.
+func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 	now := time.Now()
 	past := now.Add(-24 * time.Hour)
 	future := now.Add(24 * time.Hour)
 
-	// Included: a monitored series with an aired, ungrabbed item.
-	seedSearchItem(t, st, seedSearchSeries(t, st, "aired", 1), 1, 0, &past)
+	// Included: a monitored title with an aired, ungrabbed item.
+	seedSearchItem(t, st, seedSearchTitle(t, st, "aired", 1), 1, 0, &past)
 	// Included: no air date at all — AniList coverage gaps are normal, not a reason
 	// to never search.
-	seedSearchItem(t, st, seedSearchSeries(t, st, "unscheduled", 1), 1, 0, nil)
+	seedSearchItem(t, st, seedSearchTitle(t, st, "unscheduled", 1), 1, 0, nil)
 	// Included: a previous grab that failed is wanted again.
-	failed := seedSearchSeries(t, st, "failed-grab", 1)
+	failed := seedSearchTitle(t, st, "failed-grab", 1)
 	seedSearchGrab(t, st, seedSearchItem(t, st, failed, 1, 0, &past), "failed")
 
 	// Included: only one of the two items is unmonitored, which is the normal case.
-	mixed := seedSearchSeries(t, st, "mixed", 1)
+	mixed := seedSearchTitle(t, st, "mixed", 1)
 	unmonitorItem(t, st, seedSearchItem(t, st, mixed, 1, 0, &past))
 	seedSearchItem(t, st, mixed, 2, 0, &past)
 
 	// Excluded: unmonitored.
-	seedSearchItem(t, st, seedSearchSeries(t, st, "unmonitored", 0), 1, 0, &past)
-	// Excluded: monitored series, but the only thing wanted is not.
-	unmonitorItem(t, st, seedSearchItem(t, st, seedSearchSeries(t, st, "narrowed-away", 1), 1, 0, &past))
+	seedSearchItem(t, st, seedSearchTitle(t, st, "unmonitored", 0), 1, 0, &past)
+	// Excluded: monitored title, but the only thing wanted is not.
+	unmonitorItem(t, st, seedSearchItem(t, st, seedSearchTitle(t, st, "narrowed-away", 1), 1, 0, &past))
 	// Excluded: everything already had.
-	seedSearchItem(t, st, seedSearchSeries(t, st, "all-had", 1), 1, 1, &past)
+	seedSearchItem(t, st, seedSearchTitle(t, st, "all-had", 1), 1, 1, &past)
 	// Excluded: the only wanted item is already in flight.
-	inFlight := seedSearchSeries(t, st, "in-flight", 1)
+	inFlight := seedSearchTitle(t, st, "in-flight", 1)
 	seedSearchGrab(t, st, seedSearchItem(t, st, inFlight, 1, 0, &past), "grabbed")
 	// Excluded: a deferred grab is settled and must not be re-grabbed.
-	deferred := seedSearchSeries(t, st, "deferred", 1)
+	deferred := seedSearchTitle(t, st, "deferred", 1)
 	seedSearchGrab(t, st, seedSearchItem(t, st, deferred, 1, 0, &past), "import_deferred")
 	// Excluded: nothing has aired yet.
-	seedSearchItem(t, st, seedSearchSeries(t, st, "future-only", 1), 1, 0, &future)
+	seedSearchItem(t, st, seedSearchTitle(t, st, "future-only", 1), 1, 0, &future)
 	// Excluded: backed off until later, even though it has an aired item.
-	backedOff := seedSearchSeries(t, st, "backed-off", 1)
+	backedOff := seedSearchTitle(t, st, "backed-off", 1)
 	seedSearchItem(t, st, backedOff, 1, 0, &past)
 	if _, err := st.DB.ExecContext(ctx, `UPDATE series SET next_search_at = ? WHERE id = ?`,
 		FormatTimestamp(future), backedOff); err != nil {
@@ -156,16 +156,16 @@ func unmonitorItem(t *testing.T, st *Store, itemID int64) int64 {
 	return itemID
 }
 
-// Never-searched series sort first so a freshly added title is not queued behind
+// Never-searched title sort first so a freshly added title is not queued behind
 // a backlog of routine re-searches, and the limit bounds one pass' budget.
-func TestListSeriesDueWantedSearchOrdersNeverSearchedFirstAndLimits(t *testing.T) {
+func TestListTitlesDueWantedSearchOrdersNeverSearchedFirstAndLimits(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 	now := time.Now()
 	past := now.Add(-24 * time.Hour)
 
 	for _, name := range []string{"due-earlier", "due-later", "never-searched"} {
-		seedSearchItem(t, st, seedSearchSeries(t, st, name, 1), 1, 0, &past)
+		seedSearchItem(t, st, seedSearchTitle(t, st, name, 1), 1, 0, &past)
 	}
 	for name, at := range map[string]time.Time{
 		"due-earlier": now.Add(-2 * time.Hour),
@@ -189,7 +189,7 @@ func TestListSeriesDueWantedSearchOrdersNeverSearchedFirstAndLimits(t *testing.T
 	}
 }
 
-// setNextSearchAt postpones a series, which is the state a gap recovery undoes.
+// setNextSearchAt postpones a title, which is the state a gap recovery undoes.
 func setNextSearchAt(t *testing.T, st *Store, id int64, at time.Time) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
@@ -201,8 +201,8 @@ func setNextSearchAt(t *testing.T, st *Store, id int64, at time.Time) {
 
 func gapTitles(t *testing.T, st *Store, now, lo, hi time.Time, limit int64) []string {
 	t.Helper()
-	rows, err := st.Q.ListBackedOffSeriesWantedInWindow(context.Background(),
-		db.ListBackedOffSeriesWantedInWindowParams{
+	rows, err := st.Q.ListBackedOffTitlesWantedInWindow(context.Background(),
+		db.ListBackedOffTitlesWantedInWindowParams{
 			NextSearchAt: sql.NullString{String: FormatTimestamp(now), Valid: true},
 			AirsAt:       sql.NullString{String: FormatTimestamp(lo), Valid: true},
 			AirsAt_2:     sql.NullString{String: FormatTimestamp(hi), Valid: true},
@@ -219,9 +219,9 @@ func gapTitles(t *testing.T, st *Store, now, lo, hi time.Time, limit int64) []st
 }
 
 // The gap-recovery set is the sweep's wanted predicate narrowed to a broadcast
-// window and to series the ladder is actually postponing: a reset buys a due
-// series nothing, and would spend one of the bounded slots.
-func TestListBackedOffSeriesWantedInWindowPredicate(t *testing.T) {
+// window and to title the ladder is actually postponing: a reset buys a due
+// title nothing, and would spend one of the bounded slots.
+func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 	st := tempStore(t)
 	now := time.Now()
 	lo, hi := now.Add(-3*time.Hour), now
@@ -238,7 +238,7 @@ func TestListBackedOffSeriesWantedInWindowPredicate(t *testing.T) {
 	// Excluded: unmonitored.
 	setNextSearchAt(t, st, mustSeed(t, st, "unmonitored", 0, 1, 0, &inside), later)
 	// Excluded: the item that aired inside the gap is not monitored, so no reset
-	// buys anything -- the sweep would drop the series again on arrival.
+	// buys anything -- the sweep would drop the title again on arrival.
 	narrowed := mustSeed(t, st, "narrowed-away", 1, 1, 0, &inside)
 	unmonitorItem(t, st, itemOf(t, st, narrowed))
 	setNextSearchAt(t, st, narrowed, later)
@@ -273,9 +273,9 @@ func TestListBackedOffSeriesWantedInWindowPredicate(t *testing.T) {
 }
 
 // Furthest-postponed first, because the ladder would keep those waiting longest
-// -- and the limit is what keeps a routine gap from resetting more series than
+// -- and the limit is what keeps a routine gap from resetting more title than
 // the sweep can search.
-func TestListBackedOffSeriesWantedInWindowOrdersFurthestFirstAndLimits(t *testing.T) {
+func TestListBackedOffTitlesWantedInWindowOrdersFurthestFirstAndLimits(t *testing.T) {
 	st := tempStore(t)
 	now := time.Now()
 	inside := now.Add(-1 * time.Hour)
@@ -298,21 +298,21 @@ func TestListBackedOffSeriesWantedInWindowOrdersFurthestFirstAndLimits(t *testin
 	}
 }
 
-// mustSeed inserts a series with one wanted item and returns the series id.
+// mustSeed inserts a title with one wanted item and returns the title id.
 func mustSeed(t *testing.T, st *Store, title string, monitored int64, number int, inLibrary int64, airsAt *time.Time) int64 {
 	t.Helper()
-	id := seedSearchSeries(t, st, title, monitored)
+	id := seedSearchTitle(t, st, title, monitored)
 	seedSearchItem(t, st, id, number, inLibrary, airsAt)
 	return id
 }
 
-// itemOf returns the only wanted item of a series seeded by mustSeed.
-func itemOf(t *testing.T, st *Store, seriesID int64) int64 {
+// itemOf returns the only wanted item of a title seeded by mustSeed.
+func itemOf(t *testing.T, st *Store, titleID int64) int64 {
 	t.Helper()
 	var id int64
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT id FROM wanted_items WHERE series_id = ?`, seriesID).Scan(&id); err != nil {
-		t.Fatalf("read item of series %d: %v", seriesID, err)
+		`SELECT id FROM wanted_items WHERE series_id = ?`, titleID).Scan(&id); err != nil {
+		t.Fatalf("read item of series %d: %v", titleID, err)
 	}
 	return id
 }
@@ -320,26 +320,26 @@ func itemOf(t *testing.T, st *Store, seriesID int64) int64 {
 func ptr(t time.Time) *time.Time { return &t }
 
 // The write is guarded on the value read at selection so a concurrent reset — a
-// series that just grew, or was re-monitored — wins over a stale backoff.
-// The guard has to survive the case that motivated it: a due series carries
+// title that just grew, or was re-monitored — wins over a stale backoff.
+// The guard has to survive the case that motivated it: a due title carries
 // next_search_at NULL, and a reset writes NULL too, so the column alone cannot
 // tell "nobody touched this" from "a reset landed while I searched".
-func TestSetSeriesSearchStateGuardsOnReadEpoch(t *testing.T) {
+func TestSetTitleSearchStateGuardsOnReadEpoch(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	id := seedSearchSeries(t, st, "guarded", 1)
+	id := seedSearchTitle(t, st, "guarded", 1)
 	now := time.Now()
 
 	epoch := readEpoch(t, st, id) // read at selection: never searched, NULL, epoch 0
 
 	// A reset lands mid-sweep. next_search_at is NULL before and after.
-	if err := st.Q.ResetSeriesSearchState(ctx, id); err != nil {
+	if err := st.Q.ResetTitleSearchState(ctx, id); err != nil {
 		t.Fatalf("interleave a reset: %v", err)
 	}
 
 	// Zero rows is how the caller learns its write lost, rather than assuming it
 	// landed.
-	rows, err := st.Q.SetSeriesSearchState(ctx, db.SetSeriesSearchStateParams{
+	rows, err := st.Q.SetTitleSearchState(ctx, db.SetTitleSearchStateParams{
 		ID:             id,
 		LastSearchedAt: sql.NullString{String: FormatTimestamp(now), Valid: true},
 		SearchBackoff:  3,
@@ -360,7 +360,7 @@ func TestSetSeriesSearchStateGuardsOnReadEpoch(t *testing.T) {
 	}
 
 	// With the current epoch, the same write lands.
-	rows, err = st.Q.SetSeriesSearchState(ctx, db.SetSeriesSearchStateParams{
+	rows, err = st.Q.SetTitleSearchState(ctx, db.SetTitleSearchStateParams{
 		ID:             id,
 		LastSearchedAt: sql.NullString{String: FormatTimestamp(now), Valid: true},
 		SearchBackoff:  3,
@@ -400,11 +400,11 @@ func readCadence(t *testing.T, st *Store, id int64) (int64, sql.NullString) {
 }
 
 // A reset clears the cadence outright, which is what refresh growth and a
-// re-monitored series need.
-func TestResetSeriesSearchState(t *testing.T) {
+// re-monitored title need.
+func TestResetTitleSearchState(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	id := seedSearchSeries(t, st, "reset", 1)
+	id := seedSearchTitle(t, st, "reset", 1)
 
 	if _, err := st.DB.ExecContext(ctx,
 		`UPDATE series SET search_backoff = 5, next_search_at = ? WHERE id = ?`,
@@ -412,7 +412,7 @@ func TestResetSeriesSearchState(t *testing.T) {
 		t.Fatalf("seed backoff: %v", err)
 	}
 	before := readEpoch(t, st, id)
-	if err := st.Q.ResetSeriesSearchState(ctx, id); err != nil {
+	if err := st.Q.ResetTitleSearchState(ctx, id); err != nil {
 		t.Fatalf("reset: %v", err)
 	}
 
@@ -430,7 +430,7 @@ func TestResetSeriesSearchState(t *testing.T) {
 // in-flight episode from a wanted one without a second query per item.
 func TestListWantedItemsWithGrabState(t *testing.T) {
 	st := tempStore(t)
-	id := seedSearchSeries(t, st, "with-state", 1)
+	id := seedSearchTitle(t, st, "with-state", 1)
 	seedSearchItem(t, st, id, 1, 0, nil)
 	seedSearchGrab(t, st, seedSearchItem(t, st, id, 2, 0, nil), "grabbed")
 

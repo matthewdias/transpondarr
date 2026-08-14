@@ -442,17 +442,17 @@ Behaviour changes are test-driven. Work red → green → refactor:
   gate on manual paths (decided in PR #57).
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
 - **A title's identity is `(provider, provider_id)`, and the pair travels
-  together (#74).** The pair is what `series` is keyed on, what `catalog.AddSeries`
+  together (#74).** The pair is what the `series` table is keyed on, what `catalog.AddTitle`
   dedupes on, and what the API takes and emits — `provider` required rather than
   defaulted, because a default hides which id space the caller meant. Two rules
   follow. **The provider name is read, never written as a literal**:
-  `Provider.Name()` is the source, so `metadata_cache` joins on the series' own
+  `Provider.Name()` is the source, so `metadata_cache` joins on the title's own
   `provider` column and the DTOs carry `ProviderName()`; the surviving literals
   are the `enum:"anilist"` request tags and the migration's backfill, both of
   which are statements about the *schema*, not lookups. And **AniList is still
-  the only provider**: `catalog.AddSeries` refuses a pair it cannot read, so
+  the only provider**: `catalog.AddTitle` refuses a pair it cannot read, so
   nothing persists a row keyed on an unreachable id space. The pair does *not*
-  mean a series can hold two ids — deduping the same title across id spaces
+  mean a title can hold two ids — deduping the same title across id spaces
   needs the cross-reference layer (#189), and until it lands, reaching for a
   `tmdb_id` column is the regression it exists to prevent.
 - **`decide.Match`'s `items` is the numbering basis, not just the candidate set.**
@@ -515,6 +515,23 @@ Behaviour changes are test-driven. Work red → green → refactor:
   backfill does: `idx_wanted_items_identity` is `(series_id, kind, number)`, so a
   stale `('episode', 1)` does not collide with `('movie', 1)` and the next refresh
   silently doubles the title instead of failing.
+- **In Go and in the frontend, `series` now means the episodic format and
+  nothing else (#215).** #207 renamed the contract and this renamed the
+  identifiers behind it, so a tracked work is a `title` everywhere: `AddTitle`,
+  `titleHandler`, `requireTitle`, `titleID`, the sqlc query names, the React
+  Query key `["titles"]`. What deliberately kept the old word is the *other*
+  meaning, which Movies made true rather than false — `mediaserver.Roots.Series`
+  is the Shows root opposite Movies, `ErrNoSeriesRoot` and `seriesShape` are
+  its path arm, and `library.series_layout` (#129) shapes that arm alone. So
+  `series` in a name is now a claim about format, and a reviewer should read it
+  as one. Three things sit outside the rename by construction and must stay:
+  the **`series` table and its columns** (SQLite has no DROP CONSTRAINT, and a
+  `DROP TABLE series` cascade-deletes the library — so `db.Series` and a
+  real-column `SeriesID` field are correct); the settings key
+  `series_added` (`eventTitleAdded`), whose *value* a rename would turn into a
+  silently re-enabled notification; and the `series_layout` settings key and
+  API field. A SELECT alias is ours and renamed with the queries, which is why
+  `s.title AS title_name` and a schema `SeriesID` now sit in the same struct.
 - **A movie's file is identified by size; numbering never gets a say (#210).**
   `mapMovie` takes the payload's largest surviving video, because a film is the
   biggest thing shipped with it — a property of the payload rather than of how a
@@ -670,9 +687,9 @@ Behaviour changes are test-driven. Work red → green → refactor:
 - **Route handlers: group by resource; use a receiver when it earns its keep.**
   Each resource gets a `*_routes.go` file with a `register<Resource>Routes(api,
 deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest.
-  Multi-route resources that share deps/helpers (series, settings) hang handlers
-  off a per-resource receiver struct (`seriesHandler`) built via
-  `new<Resource>Handler(deps)`, with shared logic as methods (e.g. `requireSeries`,
+  Multi-route resources that share deps/helpers (titles, settings) hang handlers
+  off a per-resource receiver struct (`titleHandler`) built via
+  `new<Resource>Handler(deps)`, with shared logic as methods (e.g. `requireTitle`,
   `matchReleases`); single-route groups (system, download, metadata, indexer) keep
   inline closures. The receiver earns its keep around 3+ routes or shared
   helpers/state. Handlers stay thin — push business logic into `internal/core`.

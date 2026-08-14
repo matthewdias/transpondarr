@@ -10,7 +10,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/parser"
 )
 
-// All fixtures use invented series/group names; only the naming structure under
+// All fixtures use invented title/group names; only the naming structure under
 // test is real.
 
 func items(n int) []Item {
@@ -152,7 +152,7 @@ func TestEqualCoverageFallsThroughToScore(t *testing.T) {
 	}
 }
 
-// A pin is per-series knowledge — "this group is definitive" — so it stays above
+// A pin is per-title knowledge — "this group is definitive" — so it stays above
 // coverage: a pinned single is not displaced by an unpinned pack.
 func TestPinnedSingleStillOutranksAnUnpinnedPack(t *testing.T) {
 	rels := []indexer.Release{
@@ -223,7 +223,7 @@ func TestAbsoluteNumberBeyondRangeIsFlagged(t *testing.T) {
 	}
 }
 
-// A release for a different series must be filtered out by title.
+// A release for a different title must be filtered out by title.
 func TestForeignTitleRejected(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[Group] Completely Different Show S1E01 [1080p]", Seeders: 999},
@@ -235,7 +235,7 @@ func TestForeignTitleRejected(t *testing.T) {
 }
 
 // An English-title variant must match a release that uses the English name even
-// when the primary series name is the romaji form.
+// when the primary title name is the romaji form.
 func TestMatchesAlternateTitleVariant(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[Group] Placeholder Legend S1E02 [1080p]", Seeders: 20},
@@ -259,7 +259,7 @@ func TestMultiplicationSignTitleMatchesXRelease(t *testing.T) {
 	}
 }
 
-// A ½-titled series must match releases that write the fraction as digits,
+// A ½-titled title must match releases that write the fraction as digits,
 // mirroring what SearchTerm queries for — search and match share one fold.
 func TestFractionTitleMatchesSplitDigitsRelease(t *testing.T) {
 	rels := []indexer.Release{

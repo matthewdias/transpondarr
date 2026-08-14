@@ -92,7 +92,7 @@ function renderTab(
   });
   return render(
     <QueryClientProvider client={client}>
-      <HistoryTab seriesId={7} active />
+      <HistoryTab titleId={7} active />
     </QueryClientProvider>,
   );
 }

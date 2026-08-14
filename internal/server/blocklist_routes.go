@@ -72,7 +72,7 @@ type blocklistSummaryOutput struct {
 	}
 }
 
-// blocklistHandler owns the per-series blocklist endpoints. Separate from grab
+// blocklistHandler owns the per-title blocklist endpoints. Separate from grab
 // history because the two outlive each other.
 type blocklistHandler struct {
 	store     *store.Store
@@ -112,7 +112,7 @@ func registerBlocklistRoutes(api huma.API, deps routeDeps) {
 		Path:        "/api/v1/titles/{id}/blocklist",
 		Summary:     "Unblock every remembered release for a title",
 		Tags:        []string{"titles"},
-	}, h.clearSeries)
+	}, h.clearTitle)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "clear-title-blocklist-entry",
@@ -125,21 +125,21 @@ func registerBlocklistRoutes(api huma.API, deps routeDeps) {
 }
 
 func (h *blocklistHandler) list(ctx context.Context, in *titleBlocklistInput) (*titleBlocklistOutput, error) {
-	series, err := h.store.Q.GetSeries(ctx, in.ID)
+	title, err := h.store.Q.GetTitle(ctx, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("series not found")
 	}
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to load series", err)
 	}
-	rows, err := h.blocklist.List(ctx, series.ID)
+	rows, err := h.blocklist.List(ctx, title.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to load blocklist", err)
 	}
 
 	now := time.Now().UTC()
 	out := &titleBlocklistOutput{}
-	out.Body.Title = series.Title
+	out.Body.Title = title.Title
 	out.Body.Entries = make([]blocklistEntryDTO, 0, len(rows))
 	for _, e := range rows {
 		out.Body.Entries = append(out.Body.Entries, blocklistEntryDTO{
@@ -190,10 +190,10 @@ func (h *blocklistHandler) clearAll(ctx context.Context, _ *struct{}) (*clearedO
 	return out, nil
 }
 
-// clearSeries is the bulk unblock. It 404s on an unknown series rather than
-// reporting zero cleared, so a stale series id is not read as "nothing to do".
-func (h *blocklistHandler) clearSeries(ctx context.Context, in *clearTitleBlocklistInput) (*clearedOutput, error) {
-	series, err := h.store.Q.GetSeries(ctx, in.ID)
+// clearTitle is the bulk unblock. It 404s on an unknown title rather than
+// reporting zero cleared, so a stale title id is not read as "nothing to do".
+func (h *blocklistHandler) clearTitle(ctx context.Context, in *clearTitleBlocklistInput) (*clearedOutput, error) {
+	title, err := h.store.Q.GetTitle(ctx, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("series not found")
 	}
@@ -201,11 +201,11 @@ func (h *blocklistHandler) clearSeries(ctx context.Context, in *clearTitleBlockl
 		return nil, huma.Error500InternalServerError("failed to load series", err)
 	}
 
-	cleared := h.blocklist.ClearSeries
+	cleared := h.blocklist.ClearTitle
 	if in.Expired {
 		cleared = h.blocklist.ClearExpired
 	}
-	n, err := cleared(ctx, series.ID)
+	n, err := cleared(ctx, title.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to clear blocklist", err)
 	}

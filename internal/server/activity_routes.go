@@ -250,8 +250,8 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 			}, true)
 			item := queueItemDTO{
 				ID:           g.ID,
-				TitleID:      g.SeriesID,
-				Title:        g.SeriesTitle,
+				TitleID:      g.TitleID,
+				Title:        g.TitleName,
 				ItemNumber:   int(g.ItemNumber.Int64),
 				ReleaseTitle: g.ReleaseTitle,
 				InfoHash:     g.InfoHash,
@@ -314,7 +314,7 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 			out.Body.Events = append(out.Body.Events, activityEventDTO{
 				ID:           r.ID,
 				TitleID:      r.SeriesID,
-				Title:        r.SeriesTitle,
+				Title:        r.TitleName,
 				ItemNumber:   int(r.ItemNumber),
 				ReleaseTitle: r.ReleaseTitle,
 				InfoHash:     r.InfoHash,

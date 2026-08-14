@@ -171,7 +171,7 @@ it("renders group and item reasons on their own tiers", async () => {
   const links = screen
     .getAllByRole("link", { name: /search/i })
     .map((a) => a.getAttribute("href"));
-  expect(links).toEqual(["/series/7?item=4", "/series/7?item=5"]);
+  expect(links).toEqual(["/titles/7?item=4", "/titles/7?item=5"]);
 });
 
 // #181's tier. It is the one stored reason on the page, so the chip carries a
@@ -319,7 +319,7 @@ it("links to the series for episodes past the group cap", async () => {
 
   expect(await screen.findByText("60 episodes missing")).toBeInTheDocument();
   const more = screen.getByRole("link", { name: /go to title/i });
-  expect(more).toHaveAttribute("href", "/series/7");
+  expect(more).toHaveAttribute("href", "/titles/7");
   expect(more).toHaveTextContent("58 more episodes not shown");
 });
 

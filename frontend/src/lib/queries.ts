@@ -9,17 +9,17 @@ import {
 import { api } from "@/lib/api";
 import type { SeasonRef } from "@/lib/season";
 
-// seriesQuery's key prefix-matches seriesDetailQuery's: invalidating it covers both.
-export const seriesQuery = () =>
+// titlesQuery's key prefix-matches titleDetailQuery's: invalidating it covers both.
+export const titlesQuery = () =>
   queryOptions({
-    queryKey: ["series"],
-    queryFn: ({ signal }) => api.listSeries(signal),
+    queryKey: ["titles"],
+    queryFn: ({ signal }) => api.listTitles(signal),
   });
 
-export const seriesDetailQuery = (id: number) =>
+export const titleDetailQuery = (id: number) =>
   queryOptions({
-    queryKey: ["series", id],
-    queryFn: ({ signal }) => api.getSeries(id, signal),
+    queryKey: ["titles", id],
+    queryFn: ({ signal }) => api.getTitle(id, signal),
   });
 
 export const authStatusQuery = () =>
@@ -36,25 +36,25 @@ export const metadataSearchQuery = (term: string) =>
 
 // staleTime: Radix unmounts inactive tabs, so re-opening Releases would otherwise
 // re-run a live, rate-limited indexer sweep; refetch() still forces a fresh search.
-export const releasesQuery = (seriesId: number) =>
+export const releasesQuery = (titleId: number) =>
   queryOptions({
-    queryKey: ["releases", seriesId],
-    queryFn: ({ signal }) => api.searchReleases(seriesId, signal),
+    queryKey: ["releases", titleId],
+    queryFn: ({ signal }) => api.searchReleases(titleId, signal),
     staleTime: 5 * 60 * 1000,
   });
 
-export const grabsQuery = (seriesId: number) =>
+export const grabsQuery = (titleId: number) =>
   queryOptions({
-    queryKey: ["grabs", seriesId],
-    queryFn: ({ signal }) => api.listGrabs(seriesId, signal),
+    queryKey: ["grabs", titleId],
+    queryFn: ({ signal }) => api.listGrabs(titleId, signal),
   });
 
 // Blocklist entries outlive grab rows, so this is separate data, not a slice of
 // the grab feed.
-export const blocklistQuery = (seriesId: number) =>
+export const blocklistQuery = (titleId: number) =>
   queryOptions({
-    queryKey: ["blocklist", seriesId],
-    queryFn: ({ signal }) => api.listBlocklist(seriesId, signal),
+    queryKey: ["blocklist", titleId],
+    queryFn: ({ signal }) => api.listBlocklist(titleId, signal),
   });
 
 // staleTime: the chart is a 6h-TTL cache server-side; refetching on every

@@ -35,26 +35,26 @@ func TestGlobalReasonRanking(t *testing.T) {
 	}
 }
 
-func TestSeriesReasonRanking(t *testing.T) {
+func TestTitleReasonRanking(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
-	// ready is a series with nothing wrong: monitored, searched, due now.
-	ready := func() seriesFacts {
-		return seriesFacts{Monitored: true, LastSearchedAt: now.Add(-time.Hour)}
+	// ready is a title with nothing wrong: monitored, searched, due now.
+	ready := func() titleFacts {
+		return titleFacts{Monitored: true, LastSearchedAt: now.Add(-time.Hour)}
 	}
 
 	cases := []struct {
 		name string
-		with func(*seriesFacts)
+		with func(*titleFacts)
 		want string
 	}{
-		{"due now", func(*seriesFacts) {}, reasonSearchDue},
-		{"backing off", func(f *seriesFacts) { f.NextSearchAt = now.Add(2 * time.Hour) }, reasonSearchBackoff},
-		{"never searched", func(f *seriesFacts) { f.LastSearchedAt = time.Time{} }, reasonNeverSearched},
-		{"blocklisted outranks the queue", func(f *seriesFacts) {
+		{"due now", func(*titleFacts) {}, reasonSearchDue},
+		{"backing off", func(f *titleFacts) { f.NextSearchAt = now.Add(2 * time.Hour) }, reasonSearchBackoff},
+		{"never searched", func(f *titleFacts) { f.LastSearchedAt = time.Time{} }, reasonNeverSearched},
+		{"blocklisted outranks the queue", func(f *titleFacts) {
 			f.BlockedReleases = 3
 			f.NextSearchAt = now.Add(2 * time.Hour)
 		}, reasonBlocklisted},
-		{"unmonitored outranks everything", func(f *seriesFacts) {
+		{"unmonitored outranks everything", func(f *titleFacts) {
 			f.Monitored = false
 			f.BlockedReleases = 3
 		}, reasonUnmonitored},
@@ -63,7 +63,7 @@ func TestSeriesReasonRanking(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := ready()
 			tc.with(&f)
-			if got := seriesReason(f, now); got != tc.want {
+			if got := titleReason(f, now); got != tc.want {
 				t.Errorf("seriesReason = %q, want %q", got, tc.want)
 			}
 		})

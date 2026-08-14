@@ -98,7 +98,7 @@ async function rawFetch<T>(
 
 type Schemas = components["schemas"];
 
-export type Series = Schemas["TitleDTO"];
+export type Title = Schemas["TitleDTO"];
 export type Candidate = Schemas["CandidateDTO"];
 // The id space a provider_id is numbered in; the spec's enum, so a new provider
 // widens this type rather than passing an arbitrary string.
@@ -114,12 +114,12 @@ export type WantedItem = Schemas["DetailItemDTO"];
 export type ItemStatus = WantedItem["status"]; // 'in_library' | 'downloading' | 'stuck' | 'deferred' | 'wanted'
 export type CandidateRelease = Schemas["CandidateReleaseDTO"];
 export type CalendarItem = Schemas["CalendarItemDTO"];
-export type UnscheduledSeries = Schemas["UnscheduledTitleDTO"];
+export type UnscheduledTitle = Schemas["UnscheduledTitleDTO"];
 export type Calendar = Schemas["CalendarOutputBody"];
 export type GrabEvent = Schemas["GrabEventDTO"];
 export type MissingItem = Schemas["MissingItemDTO"];
 export type MissingGroup = Schemas["MissingGroupDTO"];
-export type SeriesMissingReason = MissingGroup["reason"];
+export type TitleMissingReason = MissingGroup["reason"];
 export type ItemMissingReason = NonNullable<MissingItem["reason"]>;
 export type GlobalMissingReason = NonNullable<
   Schemas["MissingOutputBody"]["global_reason"]
@@ -156,10 +156,10 @@ export type PayloadArchive = Schemas["PayloadArchiveDTO"];
 export type RetryAssignment = Schemas["RetryAssignmentDTO"];
 export type RetryResult = Schemas["RetryResultDTO"];
 
-// The read model for a single series with its wanted items. Arrays are
+// The read model for a single title with its wanted items. Arrays are
 // non-nullable in the OpenAPI schema (Huma's DefaultArrayNullable is off; the
 // backend always emits []), so this is a plain alias — no null remapping needed.
-export type SeriesDetail = Schemas["TitleDetailReadDTO"];
+export type TitleDetail = Schemas["TitleDetailReadDTO"];
 export type QualityProfile = Schemas["QualityProfileDTO"];
 export type ProfileGroup = Schemas["ProfileGroupDTO"];
 export type ProfileInput = Schemas["ProfileBody"];
@@ -271,20 +271,20 @@ export const api = {
       .then(unwrap)
       .then((r) => r.api_key),
 
-  listSeries: (signal?: AbortSignal) =>
+  listTitles: (signal?: AbortSignal) =>
     client
       .GET("/api/v1/titles", { signal })
       .then(unwrap)
       .then((r) => r.titles),
 
-  getSeries: (id: number, signal?: AbortSignal) =>
+  getTitle: (id: number, signal?: AbortSignal) =>
     client
       .GET("/api/v1/titles/{id}", { params: { path: { id } }, signal })
       .then(unwrap),
 
   // remove_downloads rides as `true` or not at all, so the default request
   // carries no param.
-  deleteSeries: (id: number, removeDownloads?: boolean) =>
+  deleteTitle: (id: number, removeDownloads?: boolean) =>
     client
       .DELETE("/api/v1/titles/{id}", {
         params: {
@@ -354,9 +354,9 @@ export const api = {
       })
       .then(unwrap),
 
-  queueWantedSearch: (seriesIds: number[]) =>
+  queueWantedSearch: (titleIds: number[]) =>
     client
-      .POST("/api/v1/wanted/search", { body: { title_ids: seriesIds } })
+      .POST("/api/v1/wanted/search", { body: { title_ids: titleIds } })
       .then(unwrap),
 
   setItemsMonitored: (itemIds: number[], monitored: boolean) =>
@@ -370,7 +370,7 @@ export const api = {
 
   // qualityProfileId is omitted rather than defaulted client-side: the server's
   // default profile is the one answer that stays right as it changes.
-  addSeries: (
+  addTitle: (
     provider: Provider,
     providerId: number,
     {
@@ -472,7 +472,7 @@ export const api = {
       .then(unwrap)
       .then((r) => r.cleared),
 
-  clearSeriesBlocklist: (id: number, expiredOnly = false) =>
+  clearTitleBlocklist: (id: number, expiredOnly = false) =>
     client
       .DELETE("/api/v1/titles/{id}/blocklist", {
         params: {
@@ -558,23 +558,19 @@ export const api = {
       })
       .then(unwrap),
 
-  assignSeriesProfile: (seriesId: number, profileId: number) =>
+  assignTitleProfile: (titleId: number, profileId: number) =>
     client
       .PUT("/api/v1/titles/{id}/profile", {
-        params: { path: { id: seriesId } },
+        params: { path: { id: titleId } },
         body: { profile_id: profileId },
       })
       .then(unwrap),
 
   // delayHours is PUT-replace: omitting it drops back to the global default.
-  setSeriesPinnedGroup: (
-    seriesId: number,
-    group: string,
-    delayHours?: number,
-  ) =>
+  setTitlePinnedGroup: (titleId: number, group: string, delayHours?: number) =>
     client
       .PUT("/api/v1/titles/{id}/pinned-group", {
-        params: { path: { id: seriesId } },
+        params: { path: { id: titleId } },
         body:
           delayHours === undefined
             ? { group }

@@ -17,10 +17,10 @@ SELECT
     w.number AS item_number,
     w.kind   AS item_kind,
     w.in_library AS item_in_library,
-    s.id     AS series_id,
-    s.title  AS series_title,
-    s.format AS series_format,
-    s.year   AS series_year
+    s.id     AS title_id,
+    s.title  AS title_name,
+    s.format AS title_format,
+    s.year   AS title_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -38,10 +38,10 @@ type GetGrabByIDRow struct {
 	ItemNumber    sql.NullInt64  `json:"item_number"`
 	ItemKind      string         `json:"item_kind"`
 	ItemInLibrary int64          `json:"item_in_library"`
-	SeriesID      int64          `json:"series_id"`
-	SeriesTitle   string         `json:"series_title"`
-	SeriesFormat  string         `json:"series_format"`
-	SeriesYear    int64          `json:"series_year"`
+	TitleID       int64          `json:"title_id"`
+	TitleName     string         `json:"title_name"`
+	TitleFormat   string         `json:"title_format"`
+	TitleYear     int64          `json:"title_year"`
 }
 
 func (q *Queries) GetGrabByID(ctx context.Context, id int64) (GetGrabByIDRow, error) {
@@ -58,10 +58,10 @@ func (q *Queries) GetGrabByID(ctx context.Context, id int64) (GetGrabByIDRow, er
 		&i.ItemNumber,
 		&i.ItemKind,
 		&i.ItemInLibrary,
-		&i.SeriesID,
-		&i.SeriesTitle,
-		&i.SeriesFormat,
-		&i.SeriesYear,
+		&i.TitleID,
+		&i.TitleName,
+		&i.TitleFormat,
+		&i.TitleYear,
 	)
 	return i, err
 }
@@ -102,10 +102,10 @@ SELECT
     w.number AS item_number,
     w.kind   AS item_kind,
     w.in_library AS item_in_library,
-    s.id     AS series_id,
-    s.title  AS series_title,
-    s.format AS series_format,
-    s.year   AS series_year
+    s.id     AS title_id,
+    s.title  AS title_name,
+    s.format AS title_format,
+    s.year   AS title_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -124,10 +124,10 @@ type ListGrabsByInfoHashRow struct {
 	ItemNumber    sql.NullInt64  `json:"item_number"`
 	ItemKind      string         `json:"item_kind"`
 	ItemInLibrary int64          `json:"item_in_library"`
-	SeriesID      int64          `json:"series_id"`
-	SeriesTitle   string         `json:"series_title"`
-	SeriesFormat  string         `json:"series_format"`
-	SeriesYear    int64          `json:"series_year"`
+	TitleID       int64          `json:"title_id"`
+	TitleName     string         `json:"title_name"`
+	TitleFormat   string         `json:"title_format"`
+	TitleYear     int64          `json:"title_year"`
 }
 
 // One release's rows, in episode order: the group the importer settles together.
@@ -154,10 +154,10 @@ func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]L
 			&i.ItemNumber,
 			&i.ItemKind,
 			&i.ItemInLibrary,
-			&i.SeriesID,
-			&i.SeriesTitle,
-			&i.SeriesFormat,
-			&i.SeriesYear,
+			&i.TitleID,
+			&i.TitleName,
+			&i.TitleFormat,
+			&i.TitleYear,
 		); err != nil {
 			return nil, err
 		}
@@ -172,7 +172,80 @@ func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]L
 	return items, nil
 }
 
-const listGrabsBySeries = `-- name: ListGrabsBySeries :many
+const listGrabsByStatus = `-- name: ListGrabsByStatus :many
+SELECT
+    g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
+    g.missing_since, g.last_error,
+    w.number AS item_number,
+    w.kind   AS item_kind,
+    w.in_library AS item_in_library,
+    s.id     AS title_id,
+    s.title  AS title_name,
+    s.format AS title_format,
+    s.year   AS title_year
+FROM grabs g
+JOIN wanted_items w ON w.id = g.wanted_item_id
+JOIN series s ON s.id = w.series_id
+WHERE g.status = ?
+ORDER BY g.info_hash
+`
+
+type ListGrabsByStatusRow struct {
+	ID            int64          `json:"id"`
+	WantedItemID  int64          `json:"wanted_item_id"`
+	InfoHash      string         `json:"info_hash"`
+	ReleaseTitle  string         `json:"release_title"`
+	Status        string         `json:"status"`
+	MissingSince  sql.NullString `json:"missing_since"`
+	LastError     sql.NullString `json:"last_error"`
+	ItemNumber    sql.NullInt64  `json:"item_number"`
+	ItemKind      string         `json:"item_kind"`
+	ItemInLibrary int64          `json:"item_in_library"`
+	TitleID       int64          `json:"title_id"`
+	TitleName     string         `json:"title_name"`
+	TitleFormat   string         `json:"title_format"`
+	TitleYear     int64          `json:"title_year"`
+}
+
+func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListGrabsByStatusRow, error) {
+	rows, err := q.db.QueryContext(ctx, listGrabsByStatus, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGrabsByStatusRow{}
+	for rows.Next() {
+		var i ListGrabsByStatusRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WantedItemID,
+			&i.InfoHash,
+			&i.ReleaseTitle,
+			&i.Status,
+			&i.MissingSince,
+			&i.LastError,
+			&i.ItemNumber,
+			&i.ItemKind,
+			&i.ItemInLibrary,
+			&i.TitleID,
+			&i.TitleName,
+			&i.TitleFormat,
+			&i.TitleYear,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGrabsByTitle = `-- name: ListGrabsByTitle :many
 SELECT g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status, g.created_at, g.missing_since, g.last_error
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
@@ -180,8 +253,8 @@ WHERE w.series_id = ?
 ORDER BY g.created_at DESC
 `
 
-func (q *Queries) ListGrabsBySeries(ctx context.Context, seriesID int64) ([]Grab, error) {
-	rows, err := q.db.QueryContext(ctx, listGrabsBySeries, seriesID)
+func (q *Queries) ListGrabsByTitle(ctx context.Context, seriesID int64) ([]Grab, error) {
+	rows, err := q.db.QueryContext(ctx, listGrabsByTitle, seriesID)
 	if err != nil {
 		return nil, err
 	}
@@ -212,87 +285,14 @@ func (q *Queries) ListGrabsBySeries(ctx context.Context, seriesID int64) ([]Grab
 	return items, nil
 }
 
-const listGrabsByStatus = `-- name: ListGrabsByStatus :many
-SELECT
-    g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
-    g.missing_since, g.last_error,
-    w.number AS item_number,
-    w.kind   AS item_kind,
-    w.in_library AS item_in_library,
-    s.id     AS series_id,
-    s.title  AS series_title,
-    s.format AS series_format,
-    s.year   AS series_year
-FROM grabs g
-JOIN wanted_items w ON w.id = g.wanted_item_id
-JOIN series s ON s.id = w.series_id
-WHERE g.status = ?
-ORDER BY g.info_hash
-`
-
-type ListGrabsByStatusRow struct {
-	ID            int64          `json:"id"`
-	WantedItemID  int64          `json:"wanted_item_id"`
-	InfoHash      string         `json:"info_hash"`
-	ReleaseTitle  string         `json:"release_title"`
-	Status        string         `json:"status"`
-	MissingSince  sql.NullString `json:"missing_since"`
-	LastError     sql.NullString `json:"last_error"`
-	ItemNumber    sql.NullInt64  `json:"item_number"`
-	ItemKind      string         `json:"item_kind"`
-	ItemInLibrary int64          `json:"item_in_library"`
-	SeriesID      int64          `json:"series_id"`
-	SeriesTitle   string         `json:"series_title"`
-	SeriesFormat  string         `json:"series_format"`
-	SeriesYear    int64          `json:"series_year"`
-}
-
-func (q *Queries) ListGrabsByStatus(ctx context.Context, status string) ([]ListGrabsByStatusRow, error) {
-	rows, err := q.db.QueryContext(ctx, listGrabsByStatus, status)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListGrabsByStatusRow{}
-	for rows.Next() {
-		var i ListGrabsByStatusRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.WantedItemID,
-			&i.InfoHash,
-			&i.ReleaseTitle,
-			&i.Status,
-			&i.MissingSince,
-			&i.LastError,
-			&i.ItemNumber,
-			&i.ItemKind,
-			&i.ItemInLibrary,
-			&i.SeriesID,
-			&i.SeriesTitle,
-			&i.SeriesFormat,
-			&i.SeriesYear,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listOpenGrabs = `-- name: ListOpenGrabs :many
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
     g.missing_since, g.last_error, g.created_at,
     w.number AS item_number,
     w.kind   AS item_kind,
-    s.id     AS series_id,
-    s.title  AS series_title
+    s.id     AS title_id,
+    s.title  AS title_name
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -311,8 +311,8 @@ type ListOpenGrabsRow struct {
 	CreatedAt    string         `json:"created_at"`
 	ItemNumber   sql.NullInt64  `json:"item_number"`
 	ItemKind     string         `json:"item_kind"`
-	SeriesID     int64          `json:"series_id"`
-	SeriesTitle  string         `json:"series_title"`
+	TitleID      int64          `json:"title_id"`
+	TitleName    string         `json:"title_name"`
 }
 
 // Open mirrors the importer's scan set: grabbed plus deferred.
@@ -336,8 +336,8 @@ func (q *Queries) ListOpenGrabs(ctx context.Context) ([]ListOpenGrabsRow, error)
 			&i.CreatedAt,
 			&i.ItemNumber,
 			&i.ItemKind,
-			&i.SeriesID,
-			&i.SeriesTitle,
+			&i.TitleID,
+			&i.TitleName,
 		); err != nil {
 			return nil, err
 		}

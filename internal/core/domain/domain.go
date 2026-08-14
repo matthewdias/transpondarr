@@ -9,7 +9,7 @@ package domain
 import "time"
 
 // Format is the shape of a title, and the sole discriminator between movie and
-// series treatment.
+// title treatment.
 type Format string
 
 const (
@@ -29,7 +29,7 @@ const (
 )
 
 // KindFor derives an item's kind from its title's Format, which is the only
-// discriminator: a single-episode OVA stays series-shaped.
+// discriminator: a single-episode OVA stays title-shaped.
 func KindFor(f Format) WantedKind {
 	if f == FormatMovie {
 		return KindMovie

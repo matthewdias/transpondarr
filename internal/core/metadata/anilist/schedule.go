@@ -10,7 +10,7 @@ import (
 const (
 	schedulePerPage = 25 // AniList silently clamps this connection to 25, whatever is asked
 	// maxSchedulePages bounds one call at ~3000 episodes, comfortably past the
-	// longest running series. It exists so a provider that never clears
+	// longest running title. It exists so a provider that never clears
 	// hasNextPage cannot page forever against a 30 req/min budget.
 	maxSchedulePages = 120
 )

@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
-import { AddSeriesButton } from "@/components/add-series";
+import { AddTitleButton } from "@/components/add-title";
 
 const server = setupServer(
   http.get("/api/v1/metadata/search", () =>
@@ -75,7 +75,7 @@ async function openWithResults() {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <AddSeriesButton />
+        <AddTitleButton />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -266,7 +266,7 @@ it("adds a movie result like any other title", async () => {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <AddSeriesButton />
+        <AddTitleButton />
       </MemoryRouter>
     </QueryClientProvider>,
   );

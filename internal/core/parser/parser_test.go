@@ -2,7 +2,7 @@ package parser
 
 import "testing"
 
-// All fixtures use invented series and group names; only the structural naming
+// All fixtures use invented title and group names; only the structural naming
 // conventions (season-relative vs absolute numbering, batch ranges, dual-audio,
 // resolution/group tags) are what the parser is exercised against.
 
@@ -261,7 +261,7 @@ func TestParseScoringAxes(t *testing.T) {
 			subs: "softsub"},
 		{title: "[SubCorp] Placeholder Saga - 09 [1080p][Multi-Sub]",
 			multiSub: true},
-		// A series title containing "Web" must not read as Source=web.
+		// A title title containing "Web" must not read as Source=web.
 		{title: "[SpiderGroup] Ghost Web - 03 [1080p]"},
 		// The same guard must hold for scene dot-names, where anitogo's parsed
 		// title ("Ghost Web") no longer matches the raw text ("Ghost.Web").

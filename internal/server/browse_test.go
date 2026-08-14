@@ -149,15 +149,15 @@ func TestBrowseSeasonMarksTrackedAndOverlaysAiring(t *testing.T) {
 	]`)
 
 	ctx := context.Background()
-	seriesID := seedSeries(t, h.store, "Tracked Show", 6)
+	titleID := seedTitle(t, h.store, "Tracked Show", 6)
 	localNext := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
 	if _, err := h.store.DB.ExecContext(ctx,
-		`UPDATE series SET provider = 'anilist', provider_id = 101, airing_synced_at = datetime('now') WHERE id = ?`, seriesID); err != nil {
+		`UPDATE series SET provider = 'anilist', provider_id = 101, airing_synced_at = datetime('now') WHERE id = ?`, titleID); err != nil {
 		t.Fatalf("mark series tracked: %v", err)
 	}
 	if _, err := h.store.DB.ExecContext(ctx,
 		`UPDATE wanted_items SET airs_at = ? WHERE series_id = ? AND number = 6`,
-		localNext.Format("2006-01-02 15:04:05"), seriesID); err != nil {
+		localNext.Format("2006-01-02 15:04:05"), titleID); err != nil {
 		t.Fatalf("schedule item: %v", err)
 	}
 
@@ -170,8 +170,8 @@ func TestBrowseSeasonMarksTrackedAndOverlaysAiring(t *testing.T) {
 	}
 
 	tracked := out.Entries[0]
-	if !tracked.Tracked || tracked.TitleID != seriesID {
-		t.Errorf("entry 101 tracked=%t title_id=%d, want tracked with series %d", tracked.Tracked, tracked.TitleID, seriesID)
+	if !tracked.Tracked || tracked.TitleID != titleID {
+		t.Errorf("entry 101 tracked=%t title_id=%d, want tracked with series %d", tracked.Tracked, tracked.TitleID, titleID)
 	}
 	if tracked.NextEpisode != 6 || tracked.NextAirsAt != localNext.Format(time.RFC3339) {
 		t.Errorf("entry 101 next airing = ep %d at %q, want the local ep 6 at %s", tracked.NextEpisode, tracked.NextAirsAt, localNext.Format(time.RFC3339))

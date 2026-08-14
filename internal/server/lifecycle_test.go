@@ -33,14 +33,14 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hash3", Outcome: download.AddSuccess}}
 
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	// Grab episode 3 through the API (records the grab in "grabbed").
 	var grabOut struct {
 		InfoHash string `json:"infohash"`
 		Items    []int  `json:"items"`
 	}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": matchURL}, &grabOut); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -59,7 +59,7 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	// The library received exactly the episode-3 file of this series.
+	// The library received exactly the episode-3 file of this title.
 	if len(h.lib.Placed) != 1 {
 		t.Fatalf("library Place called %d times, want 1", len(h.lib.Placed))
 	}
@@ -72,11 +72,11 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	}
 
 	// The grab is now imported and the wanted item is had.
-	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
 	if len(grabs) != 1 || grabs[0].Status != "imported" {
 		t.Fatalf("grab status = %+v, want one imported", grabs)
 	}
-	items, _ := h.store.Q.ListWantedItems(context.Background(), seriesID)
+	items, _ := h.store.Q.ListWantedItems(context.Background(), titleID)
 	for _, it := range items {
 		if int(it.Number.Int64) == 3 && it.InLibrary != 1 {
 			t.Errorf("episode 3 in_library = %d, want 1 after import", it.InLibrary)
@@ -84,7 +84,7 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	}
 }
 
-// titleDetailDTO mirrors the fields of the series detail response asserted on here.
+// titleDetailDTO mirrors the fields of the title detail response asserted on here.
 type titleDetailDTO struct {
 	Items []struct {
 		Number       int    `json:"number"`
@@ -104,20 +104,20 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hash7", Outcome: download.AddSuccess}}
 
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
 
-	if got := itemStatus(t, h, seriesID, 7); got != "downloading" {
+	if got := itemStatus(t, h, titleID, 7); got != "downloading" {
 		t.Fatalf("episode 7 status = %q, want downloading right after the grab", got)
 	}
 
 	// Removed in the client, with the absence already past the grace period.
 	dl.Statuses = nil
-	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
 	if len(grabs) != 1 {
 		t.Fatalf("got %d grabs, want 1", len(grabs))
 	}
@@ -132,10 +132,10 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	if got := itemStatus(t, h, seriesID, 7); got != "wanted" {
+	if got := itemStatus(t, h, titleID, 7); got != "wanted" {
 		t.Errorf("episode 7 status = %q, want wanted after the torrent vanished", got)
 	}
-	grabs, _ = h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	grabs, _ = h.store.Q.ListGrabsByTitle(context.Background(), titleID)
 	if grabs[0].Status != "failed" {
 		t.Errorf("grab status = %q, want failed", grabs[0].Status)
 	}
@@ -151,9 +151,9 @@ func TestAmbiguousPayloadShowsDeferred(t *testing.T) {
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hash9", Outcome: download.AddSuccess}}
 
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -175,7 +175,7 @@ func TestAmbiguousPayloadShowsDeferred(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	if got := itemStatus(t, h, seriesID, 9); got != "deferred" {
+	if got := itemStatus(t, h, titleID, 9); got != "deferred" {
 		t.Errorf("episode 9 status = %q, want deferred after a batch payload", got)
 	}
 }
@@ -193,10 +193,10 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashA", Outcome: download.AddSuccess}}
 
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	// First grab lands a payload nothing can disambiguate; the importer defers it.
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": batchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -213,21 +213,21 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if got := itemStatus(t, h, seriesID, 9); got != "deferred" {
+	if got := itemStatus(t, h, titleID, 9); got != "deferred" {
 		t.Fatalf("episode 9 status = %q, want deferred before the re-grab", got)
 	}
 
 	// The deferred item still matches a search, and grabbing the alternative
 	// release replaces the deferred grab rather than stacking a second one.
 	dl.Result = download.AddResult{Hash: "hashB", Outcome: download.AddSuccess}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": singleURL}, nil); code != http.StatusCreated {
 		t.Fatalf("re-grab status = %d, want 201", code)
 	}
-	if got := itemStatus(t, h, seriesID, 9); got != "downloading" {
+	if got := itemStatus(t, h, titleID, 9); got != "downloading" {
 		t.Errorf("episode 9 status = %q, want downloading after the re-grab", got)
 	}
-	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
 	if len(grabs) != 1 || grabs[0].InfoHash != "hashB" || grabs[0].Status != "grabbed" {
 		t.Fatalf("grabs = %+v, want one grabbed row for hashB", grabs)
 	}
@@ -242,7 +242,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	if got := itemStatus(t, h, seriesID, 9); got != "in_library" {
+	if got := itemStatus(t, h, titleID, 9); got != "in_library" {
 		t.Errorf("episode 9 status = %q, want in_library after the replacement import", got)
 	}
 	if len(h.lib.Placed) != 1 || h.lib.Placed[0].SourcePath != src {
@@ -261,9 +261,9 @@ func TestStuckImportShowsReason(t *testing.T) {
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashC", Outcome: download.AddSuccess}}
 
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -276,7 +276,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 	}
 
 	var out titleDetailDTO
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
 		t.Fatalf("GET series detail = %d, want 200", code)
 	}
 	found := false
@@ -304,7 +304,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 			Detail string `json:"detail"`
 		} `json:"events"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/grabs", seriesID), &hist); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/grabs", titleID), &hist); code != http.StatusOK {
 		t.Fatalf("GET grabs = %d, want 200", code)
 	}
 	if len(hist.Events) != 1 || hist.Events[0].Status != "grabbed" {
@@ -321,10 +321,10 @@ func TestStuckImportShowsReason(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	if got := itemStatus(t, h, seriesID, 4); got != "in_library" {
+	if got := itemStatus(t, h, titleID, 4); got != "in_library" {
 		t.Errorf("episode 4 status = %q, want in_library after the path is reachable", got)
 	}
-	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
 	if len(grabs) != 1 || grabs[0].LastError.Valid {
 		t.Errorf("grabs = %+v, want one row with last_error cleared", grabs)
 	}
@@ -337,10 +337,10 @@ func TestStuckImportShowsReason(t *testing.T) {
 // looks like from outside.
 func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 	h := newHarness(t, &coretest.FakeIndexer{}, &coretest.FakeDownload{})
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	ctx := context.Background()
-	items, err := h.store.Q.ListWantedItems(ctx, seriesID)
+	items, err := h.store.Q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list wanted items: %v", err)
 	}
@@ -366,7 +366,7 @@ func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 	}
 
 	var out titleDetailDTO
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
 		t.Fatalf("GET series detail = %d, want 200", code)
 	}
 	for _, it := range out.Items {
@@ -382,11 +382,11 @@ func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 	}
 }
 
-// itemStatus reads one episode's derived status off the series detail endpoint.
-func itemStatus(t *testing.T, h *harness, seriesID int64, number int) string {
+// itemStatus reads one episode's derived status off the title detail endpoint.
+func itemStatus(t *testing.T, h *harness, titleID int64, number int) string {
 	t.Helper()
 	var out titleDetailDTO
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
 		t.Fatalf("GET series detail = %d, want 200", code)
 	}
 	for _, it := range out.Items {

@@ -59,7 +59,7 @@ func TestPlaceMovieWithoutAYearDropsTheSuffix(t *testing.T) {
 }
 
 // A missing movies root is a configuration error, never a fallback into the
-// series root: the grab stays open and self-heals once the root is set, where a
+// title root: the grab stays open and self-heals once the root is set, where a
 // file hardlinked into the wrong library would not.
 func TestPlaceMovieWithoutAMoviesRootIsAnError(t *testing.T) {
 	t.Chdir(t.TempDir()) // an empty root must not resolve to a relative path
@@ -115,7 +115,7 @@ func TestRootsAreTrimmed(t *testing.T) {
 }
 
 // Format is the discriminator, item count never is: a one-item OVA is still
-// series-shaped, which is also where Plex and Jellyfin expect to find it.
+// title-shaped, which is also where Plex and Jellyfin expect to find it.
 func TestPlaceSingleItemOVAStaysInTheSeriesRoot(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	series, movies := t.TempDir(), t.TempDir()

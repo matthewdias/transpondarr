@@ -38,7 +38,7 @@ var errItemsTaken = errors.New("acquire: items taken by another grab")
 // closes it, and it is race-free precisely because the claim serializes writers:
 // any automation grab that committed did so before releasing, and so before this
 // one acquired.
-func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem) (GrabResult, error) {
+func (s *Service) AutoGrab(ctx context.Context, titleID int64, cand decide.Candidate, items []domain.WantedItem) (GrabResult, error) {
 	// Automation acts on the take set alone: a grab row is written per covered
 	// item, so grabbing on Items would re-open the held items the upgrade policy
 	// just refused.
@@ -51,21 +51,21 @@ func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Cand
 	}
 	defer s.claims.Release(ids)
 
-	if settled, err := s.anySettled(ctx, seriesID, ids, upgrades); err != nil {
+	if settled, err := s.anySettled(ctx, titleID, ids, upgrades); err != nil {
 		return GrabResult{}, err
 	} else if settled {
 		return GrabResult{}, fmt.Errorf("%w: settled since the pass read them", errItemsTaken)
 	}
 
-	res, err := s.Grab(ctx, seriesID, cand, items, false)
+	res, err := s.Grab(ctx, titleID, cand, items, false)
 	if err == nil || !errors.Is(err, download.ErrBadRelease) || s.blocklist == nil {
 		return res, err
 	}
-	if _, rerr := s.blocklist.Record(ctx, seriesID, ids,
+	if _, rerr := s.blocklist.Record(ctx, titleID, ids,
 		cand.Release.InfoHash, cand.Release.Title,
 		"the download URL could not be fetched or parsed"); rerr != nil {
 		s.log.Error("acquire: record blocklist entry for a refused add",
-			"series", seriesID, "release", cand.Release.Title, "err", rerr)
+			"series", titleID, "release", cand.Release.Title, "err", rerr)
 	}
 	return res, err
 }
@@ -75,10 +75,10 @@ func (s *Service) AutoGrab(ctx context.Context, seriesID int64, cand decide.Cand
 // ungrabbable — one definition, so a re-check cannot disagree with the read it
 // is guarding — with the one exception an upgrade is: an imported grab is
 // exactly what an approved upgrade replaces.
-func (s *Service) anySettled(ctx context.Context, seriesID int64, ids []int64, upgrades map[int64]bool) (bool, error) {
-	grabs, err := s.store.Q.ListGrabsBySeries(ctx, seriesID)
+func (s *Service) anySettled(ctx context.Context, titleID int64, ids []int64, upgrades map[int64]bool) (bool, error) {
+	grabs, err := s.store.Q.ListGrabsByTitle(ctx, titleID)
 	if err != nil {
-		return false, fmt.Errorf("re-read grab state for series %d: %w", seriesID, err)
+		return false, fmt.Errorf("re-read grab state for series %d: %w", titleID, err)
 	}
 	wanted := make(map[int64]bool, len(ids))
 	for _, id := range ids {
@@ -135,9 +135,9 @@ func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
 // must not be refused (PR #57), so enforcement belongs to the sweep, which
 // checks Eligible before calling. It takes an unconditional claim for the same
 // reason — the claim exists to make automation yield to a grab in flight, never
-// to gate one. seriesID must be the series the items belong to — nothing
+// to gate one. titleID must be the title the items belong to — nothing
 // cross-checks it, and history events are recorded under it.
-func (s *Service) Grab(ctx context.Context, seriesID int64, cand decide.Candidate, items []domain.WantedItem, paused bool) (GrabResult, error) {
+func (s *Service) Grab(ctx context.Context, titleID int64, cand decide.Candidate, items []domain.WantedItem, paused bool) (GrabResult, error) {
 	dl := s.clients.Download()
 	if dl == nil {
 		return GrabResult{}, ErrNoDownloadClient
@@ -190,7 +190,7 @@ func (s *Service) Grab(ctx context.Context, seriesID int64, cand decide.Candidat
 		}
 		// Same tx as the grab row: the history row and the state it explains are atomic.
 		if err := q.AppendGrabEvent(ctx, db.AppendGrabEventParams{
-			SeriesID:     seriesID,
+			SeriesID:     titleID,
 			WantedItemID: id,
 			ItemNumber:   int64(n),
 			ItemKind:     string(itemKind[n]),

@@ -15,7 +15,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// All fixtures use invented film, series and group names; only the naming
+// All fixtures use invented film, title and group names; only the naming
 // structure under test is real.
 
 // seedMovie inserts a monitored movie with its single wanted item. year 0 is
@@ -23,7 +23,7 @@ import (
 func seedMovie(t *testing.T, st *store.Store, title string, year int64) int64 {
 	t.Helper()
 	ctx := context.Background()
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: title, Format: "MOVIE", Monitored: 1, Year: year,
 	})
 	if err != nil {
@@ -86,7 +86,7 @@ func TestSweepGrabsAWantedMovie(t *testing.T) {
 	}
 }
 
-// A film nobody is seeding for climbs the same ladder as a series, rather than
+// A film nobody is seeding for climbs the same ladder as a title, rather than
 // holding a slot at the head of the due queue and burning a search every tick.
 func TestSweepMovieClimbsTheBackoffLadder(t *testing.T) {
 	h := newSweep(t, nil, fakeConfig{})
@@ -197,7 +197,7 @@ func TestSweepMovieIgnoresThePinDelayWithNoAirDate(t *testing.T) {
 	h := newSweep(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2019)},
 		fakeConfig{pinDelay: 6 * time.Hour})
 	id := seedMovie(t, h.st, "Sample Film", 2019)
-	pinSeries(t, h.st, id, "OtherSubs", -1)
+	pinTitle(t, h.st, id, "OtherSubs", -1)
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -212,8 +212,8 @@ func TestSweepMovieIgnoresThePinDelayWithNoAirDate(t *testing.T) {
 }
 
 // The wrong grab both of movie mode's numeric gates are blind to: a numberless
-// season pack of the film's parent series names no episode and carries no year,
-// so nothing refuses it and the importer then hardlinks the series' episode 1
+// season pack of the film's parent title names no episode and carries no year,
+// so nothing refuses it and the importer then hardlinks the title' episode 1
 // into the Movies root under the film's name. Automation must decline it; the
 // reason is stored, so the Wanted page says which release and why.
 func TestSweepNeverGrabsAParentSeriesSeasonPackForAFilm(t *testing.T) {
@@ -242,7 +242,7 @@ func TestSweepNeverGrabsAParentSeriesSeasonPackForAFilm(t *testing.T) {
 
 // The deliberate cost of the rule above, stated as its own test: a genuine
 // multi-part film release is withheld from automation too, because nothing can
-// tell it from its parent series' pack. A human still takes it (PR #57).
+// tell it from its parent title' pack. A human still takes it (PR #57).
 func TestSweepWithholdsAFilmsOwnBatchTokenedRelease(t *testing.T) {
 	rel := indexer.Release{
 		Title:       "[ExampleSubs] Sample Film (2019) (Complete) [1080p][Dual Audio]",

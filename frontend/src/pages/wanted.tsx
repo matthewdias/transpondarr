@@ -26,7 +26,7 @@ import {
   type ItemMissingReason,
   type MissingGroup,
   type MissingItem,
-  type SeriesMissingReason,
+  type TitleMissingReason,
 } from "@/lib/api";
 import { wantedCutoffQuery, wantedMissingQuery } from "@/lib/queries";
 import { airDate, countdownOrDate, pad2, plural, timeAgo } from "@/lib/format";
@@ -57,7 +57,7 @@ const globalReasonText: Record<GlobalMissingReason, string> = {
     "Automation is rehearsing: decisions are notified, but nothing reaches the download client.",
 };
 
-const seriesReasonLabel: Record<SeriesMissingReason, string> = {
+const titleReasonLabel: Record<TitleMissingReason, string> = {
   unmonitored: "Unmonitored",
   blocklisted: "Releases blocklisted",
   never_searched: "Not searched yet",
@@ -65,7 +65,7 @@ const seriesReasonLabel: Record<SeriesMissingReason, string> = {
   search_due: "Queued for search",
 };
 
-const seriesReasonTone: Record<SeriesMissingReason, string> = {
+const titleReasonTone: Record<TitleMissingReason, string> = {
   unmonitored: "border-border bg-panel-2 text-faint",
   blocklisted: "border-dl/40 text-dl",
   never_searched: "border-border bg-panel-2 text-muted-foreground",
@@ -183,10 +183,10 @@ function MissingTab({
   // user can no longer see would still be queued by "Search selected".
   useEffect(() => setSelected(new Set()), [unaired, unmonitored]);
 
-  const toggle = (seriesId: number) =>
+  const toggle = (titleId: number) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      if (!next.delete(seriesId)) next.add(seriesId);
+      if (!next.delete(titleId)) next.add(titleId);
       return next;
     });
 
@@ -207,7 +207,7 @@ function MissingTab({
         </div>
       )}
       <SearchActions
-        selectedSeries={[...selected]}
+        selectedTitles={[...selected]}
         onDone={() => setSelected(new Set())}
       />
       {groups.length === 0 ? (
@@ -328,10 +328,10 @@ function RowMonitorToggle({
 }
 
 // overflowRow links to the series for what the group cap left out.
-function OverflowRow({ seriesId, label }: { seriesId: number; label: string }) {
+function OverflowRow({ titleId, label }: { titleId: number; label: string }) {
   return (
     <Link
-      to={`/series/${seriesId}`}
+      to={`/titles/${titleId}`}
       className="flex items-center justify-between px-3.5 py-2 text-xs hover:bg-panel-2/40"
     >
       <span className="text-faint">{label}</span>
@@ -367,7 +367,7 @@ function MissingGroupCard({
             aria-label={`Select ${group.title}`}
           />
           <Link
-            to={`/series/${group.title_id}`}
+            to={`/titles/${group.title_id}`}
             className="min-w-0 flex-1 truncate text-sm font-semibold hover:underline"
           >
             {group.title}
@@ -377,16 +377,16 @@ function MissingGroupCard({
               ? `${group.missing - unmonitored} missing · ${unmonitored} not monitored`
               : `${plural(group.missing, "episode")} missing`}
           </span>
-          <SeriesReasonBadge group={group} />
+          <TitleReasonBadge group={group} />
         </>
       }
     >
       {group.items.map((item) => (
-        <MissingRow key={item.id} seriesId={group.title_id} item={item} />
+        <MissingRow key={item.id} titleId={group.title_id} item={item} />
       ))}
       {hidden > 0 && (
         <OverflowRow
-          seriesId={group.title_id}
+          titleId={group.title_id}
           label={`${plural(hidden, "more episode")} not shown`}
         />
       )}
@@ -394,13 +394,7 @@ function MissingGroupCard({
   );
 }
 
-function MissingRow({
-  seriesId,
-  item,
-}: {
-  seriesId: number;
-  item: MissingItem;
-}) {
+function MissingRow({ titleId, item }: { titleId: number; item: MissingItem }) {
   return (
     <div className="flex items-center gap-3 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40">
       <span className="w-8 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
@@ -422,7 +416,7 @@ function MissingRow({
       <Button variant="outline" size="sm" asChild>
         {/* #105's episode-targeted search: the Releases tab opens filtered to
             this episode, where the unchanged manual grab lives. */}
-        <Link to={`/series/${seriesId}?item=${item.number}`}>
+        <Link to={`/titles/${titleId}?item=${item.number}`}>
           <Search className="size-4" /> Search
         </Link>
       </Button>
@@ -435,7 +429,7 @@ function MissingRow({
   );
 }
 
-function SeriesReasonBadge({ group }: { group: MissingGroup }) {
+function TitleReasonBadge({ group }: { group: MissingGroup }) {
   const detail =
     group.reason === "blocklisted"
       ? plural(group.blocked_releases ?? 0, "release")
@@ -447,10 +441,10 @@ function SeriesReasonBadge({ group }: { group: MissingGroup }) {
       title={detail || undefined}
       className={cn(
         "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap md:inline-flex",
-        seriesReasonTone[group.reason],
+        titleReasonTone[group.reason],
       )}
     >
-      {seriesReasonLabel[group.reason]}
+      {titleReasonLabel[group.reason]}
     </span>
   );
 }
@@ -557,7 +551,7 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
       header={
         <>
           <Link
-            to={`/series/${group.title_id}`}
+            to={`/titles/${group.title_id}`}
             className="min-w-0 flex-1 truncate text-sm font-semibold hover:underline"
           >
             {group.title}
@@ -584,7 +578,7 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
       {group.items.map((item) => (
         <CutoffRow
           key={item.id}
-          seriesId={group.title_id}
+          titleId={group.title_id}
           cutoff={group.cutoff_score}
           item={item}
           shared={shared}
@@ -592,7 +586,7 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
       ))}
       {hidden > 0 && (
         <OverflowRow
-          seriesId={group.title_id}
+          titleId={group.title_id}
           label={`${plural(hidden, "more episode")} not shown`}
         />
       )}
@@ -601,12 +595,12 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
 }
 
 function CutoffRow({
-  seriesId,
+  titleId,
   cutoff,
   item,
   shared,
 }: {
-  seriesId: number;
+  titleId: number;
   cutoff: number;
   item: CutoffItem;
   shared: { label: string; points: number }[];
@@ -646,7 +640,7 @@ function CutoffRow({
       </span>
       <ItemStatusBadge status={item.status} />
       <Button variant="outline" size="sm" asChild>
-        <Link to={`/series/${seriesId}?item=${item.number}`}>
+        <Link to={`/titles/${titleId}?item=${item.number}`}>
           <Search className="size-4" /> Search
         </Link>
       </Button>
@@ -659,18 +653,18 @@ function CutoffRow({
   );
 }
 
-// A search is queued, never run here: seriesPerPass bounds how much of the
+// A search is queued, never run here: titlesPerPass bounds how much of the
 // indexer budget one pass can spend, so the toast says queued rather than done.
 function SearchActions({
-  selectedSeries,
+  selectedTitles,
   onDone,
 }: {
-  selectedSeries: number[];
+  selectedTitles: number[];
   onDone: () => void;
 }) {
   const queryClient = useQueryClient();
   const queue = useMutation({
-    mutationFn: (seriesIds: number[]) => api.queueWantedSearch(seriesIds),
+    mutationFn: (titleIds: number[]) => api.queueWantedSearch(titleIds),
     onSuccess: (res) => {
       const { title, description } = searchQueuedToast(res);
       toast.success(title, { description });
@@ -688,12 +682,12 @@ function SearchActions({
       <Button
         variant="outline"
         size="sm"
-        disabled={selectedSeries.length === 0 || queue.isPending}
-        onClick={() => queue.mutate(selectedSeries)}
+        disabled={selectedTitles.length === 0 || queue.isPending}
+        onClick={() => queue.mutate(selectedTitles)}
       >
         <Search className="size-4" />
         Search selected
-        {selectedSeries.length > 0 && ` (${selectedSeries.length})`}
+        {selectedTitles.length > 0 && ` (${selectedTitles.length})`}
       </Button>
       <Button
         variant="ghost"

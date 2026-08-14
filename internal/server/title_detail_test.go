@@ -11,12 +11,12 @@ import (
 
 // The detail read model enriches best-effort from the cached AniList snapshot:
 // english/native titles, provider status, and cover art.
-func TestSeriesDetailEnrichedFromMetadataCache(t *testing.T) {
+func TestTitleDetailEnrichedFromMetadataCache(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Enriched Show", 2)
+	titleID := seedTitle(t, h.store, "Enriched Show", 2)
 	ctx := context.Background()
 	if _, err := h.store.DB.ExecContext(ctx,
-		`UPDATE series SET provider = 'anilist', provider_id = 42 WHERE id = ?`, seriesID); err != nil {
+		`UPDATE series SET provider = 'anilist', provider_id = 42 WHERE id = ?`, titleID); err != nil {
 		t.Fatalf("set provider identity: %v", err)
 	}
 	if _, err := h.store.DB.ExecContext(ctx,
@@ -33,10 +33,10 @@ func TestSeriesDetailEnrichedFromMetadataCache(t *testing.T) {
 		Status     string `json:"status"`
 		CoverURL   string `json:"cover_url"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
 		t.Fatalf("GET series detail = %d, want 200", code)
 	}
-	// The enrichment is looked up on the series' own provider, not a literal.
+	// The enrichment is looked up on the title' own provider, not a literal.
 	if out.Provider != "anilist" || out.ProviderID != 42 {
 		t.Errorf("identity = (%q, %d), want (anilist, 42)", out.Provider, out.ProviderID)
 	}
@@ -50,7 +50,7 @@ func TestSeriesDetailEnrichedFromMetadataCache(t *testing.T) {
 
 // The add endpoint takes the pair and echoes it back; a clean break, so a
 // request in the old anilist_id shape is rejected rather than quietly defaulted.
-func TestAddSeriesTakesTheProviderPair(t *testing.T) {
+func TestAddTitleTakesTheProviderPair(t *testing.T) {
 	provider := variantProvider{meta: metadata.TitleMeta{
 		Titles: metadata.Titles{Romaji: "Paired Show"}, Format: "TV",
 	}}
@@ -82,7 +82,7 @@ func TestAddSeriesTakesTheProviderPair(t *testing.T) {
 
 // The profile travels in the add request, so the add is atomic: the alternative
 // is a client-side add-then-assign whose second half can fail on its own.
-func TestAddSeriesTakesTheQualityProfile(t *testing.T) {
+func TestAddTitleTakesTheQualityProfile(t *testing.T) {
 	provider := variantProvider{meta: metadata.TitleMeta{
 		Titles: metadata.Titles{Romaji: "Profiled Show"}, Format: "TV",
 	}}
@@ -167,10 +167,10 @@ func TestTitleYearOnEveryTitleSurface(t *testing.T) {
 // Zero means "not on record", so it is omitted rather than published as 0.
 func TestTitleYearOmittedWhenUnknown(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Undated Show", 1)
+	titleID := seedTitle(t, h.store, "Undated Show", 1)
 
 	var raw map[string]any
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &raw); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &raw); code != http.StatusOK {
 		t.Fatalf("GET title detail = %d, want 200", code)
 	}
 	if _, present := raw["year"]; present {

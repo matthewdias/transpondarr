@@ -26,13 +26,13 @@ func TestSearchSanitizesTitleTypography(t *testing.T) {
 			DownloadURL: "magnet:?xt=urn:btih:aa03", Seeders: 100}},
 	}}
 	h := newHarness(t, idx, nil)
-	seriesID := seedSeries(t, h.store, "RANGER×RANGER (2013)", 12)
+	titleID := seedTitle(t, h.store, "RANGER×RANGER (2013)", 12)
 
 	var out struct {
 		Term    string         `json:"term"`
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(idx.Queries) != 1 || idx.Queries[0].Term != sanitized {
@@ -59,13 +59,13 @@ func TestSearchFallsBackToVariantOnZeroResults(t *testing.T) {
 		Titles:     metadata.Titles{Romaji: "Sora・no・Fixture Gaiden", English: english},
 	}}
 	h := newHarnessWithProvider(t, idx, nil, provider)
-	seriesID := seedAnilistSeries(t, h, "Sora・no・Fixture Gaiden", 42, 12)
+	titleID := seedAnilistTitle(t, h, "Sora・no・Fixture Gaiden", 42, 12)
 
 	var out struct {
 		Term    string         `json:"term"`
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(idx.Queries) != 2 ||
@@ -93,10 +93,10 @@ func TestSearchIndexerErrorMidFallback502(t *testing.T) {
 		Titles:     metadata.Titles{Romaji: "Sora・no・Fixture Gaiden", English: english},
 	}}
 	h := newHarnessWithProvider(t, idx, nil, provider)
-	seriesID := seedAnilistSeries(t, h, "Sora・no・Fixture Gaiden", 42, 12)
+	titleID := seedAnilistTitle(t, h, "Sora・no・Fixture Gaiden", 42, 12)
 
 	var out struct{}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusBadGateway {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &out); code != http.StatusBadGateway {
 		t.Fatalf("search status = %d, want 502", code)
 	}
 	if len(idx.Queries) != 2 || idx.Queries[1].Term != english {
@@ -117,12 +117,12 @@ func (p variantProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, [
 	return p.meta, nil, nil
 }
 
-// seedAnilistSeries is seedSeries plus an AniList id, so the handler consults
+// seedAnilistTitle is seedTitle plus an AniList id, so the handler consults
 // the metadata provider for title variants.
-func seedAnilistSeries(t *testing.T, h *harness, title string, anilistID int64, count int) int64 {
+func seedAnilistTitle(t *testing.T, h *harness, title string, anilistID int64, count int) int64 {
 	t.Helper()
 	ctx := context.Background()
-	s, err := h.store.Q.CreateSeries(ctx, db.CreateSeriesParams{
+	s, err := h.store.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: title, Format: "TV", Monitored: 1,
 		Provider:   sql.NullString{String: "anilist", Valid: true},
 		ProviderID: sql.NullInt64{Int64: anilistID, Valid: true},

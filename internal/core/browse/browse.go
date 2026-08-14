@@ -82,14 +82,14 @@ func (s *Service) Season(ctx context.Context, season metadata.Season, year int) 
 // plus this library's view of the same title.
 type Entry struct {
 	metadata.SeasonEntry
-	SeriesID int64
-	Tracked  bool
+	TitleID int64
+	Tracked bool
 }
 
-// Chart is Season enriched with the tracked-series overlay: an entry already in
+// Chart is Season enriched with the tracked-title overlay: an entry already in
 // the library is marked as such, and once the airing job has synced it, local
 // wanted_items.airs_at replaces the snapshot's countdown — same AniList fact,
-// fresher schedule. A never-synced series has no local truth yet, so its
+// fresher schedule. A never-synced title has no local truth yet, so its
 // snapshot stands.
 func (s *Service) Chart(ctx context.Context, season metadata.Season, year int) ([]Entry, error) {
 	entries, err := s.Season(ctx, season, year)
@@ -97,7 +97,7 @@ func (s *Service) Chart(ctx context.Context, season metadata.Season, year int) (
 		return nil, err
 	}
 	// Scoped to this provider's id space: a chart entry's id only means anything
-	// against a series numbered in the same one.
+	// against a title numbered in the same one.
 	rows, err := s.store.Q.ListTrackedNextAiring(ctx, db.ListTrackedNextAiringParams{
 		AirsAt:   sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true},
 		Provider: sql.NullString{String: s.provider.Name(), Valid: true},
@@ -115,7 +115,7 @@ func (s *Service) Chart(ctx context.Context, season metadata.Season, year int) (
 		entry := Entry{SeasonEntry: e}
 		if row, ok := tracked[e.ProviderID]; ok {
 			entry.Tracked = true
-			entry.SeriesID = row.ID
+			entry.TitleID = row.ID
 			if row.AiringSyncedAt.Valid {
 				entry.NextAiring = localAiring(row)
 			}

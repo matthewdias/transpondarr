@@ -14,7 +14,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { api, AUTH_EXPIRED_EVENT } from "@/lib/api";
-import { authStatusQuery, seriesQuery } from "@/lib/queries";
+import { authStatusQuery, titlesQuery } from "@/lib/queries";
 import { useTheme } from "@/components/theme-provider";
 import {
   Sidebar,
@@ -43,7 +43,7 @@ export function AppSidebar() {
   const { setOpenMobile } = useSidebar();
   const { resolved, setTheme } = useTheme();
   const queryClient = useQueryClient();
-  const { data: series } = useQuery(seriesQuery());
+  const { data: titles } = useQuery(titlesQuery());
   const { data: auth } = useQuery(authStatusQuery());
 
   const logout = async () => {
@@ -60,7 +60,7 @@ export function AppSidebar() {
     to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
 
   const library: NavItem[] = [
-    { title: "Titles", to: "/", icon: Library, badge: series?.length },
+    { title: "Titles", to: "/", icon: Library, badge: titles?.length },
     { title: "Discovery", to: "/discovery", icon: Compass },
     { title: "Calendar", to: "/calendar", icon: CalendarDays },
     { title: "Wanted", to: "/wanted", icon: ListChecks },

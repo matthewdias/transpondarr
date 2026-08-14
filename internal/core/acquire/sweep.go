@@ -16,10 +16,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// seriesPerPass bounds how much of the indexer budget one pass can spend. Due
-// series sort never-searched first, so a newly added title is picked up on the
+// titlesPerPass bounds how much of the indexer budget one pass can spend. Due
+// title sort never-searched first, so a newly added title is picked up on the
 // next tick rather than queued behind a backlog.
-const seriesPerPass = 5
+const titlesPerPass = 5
 
 // Settled grab statuses the pass reasons about: failed leaves an item wanted
 // again, imported is what an upgrade re-opens.
@@ -28,7 +28,7 @@ const (
 	statusImported = "imported"
 )
 
-// maxAddFailures ends a series' pass once the download client has refused this
+// maxAddFailures ends a title' pass once the download client has refused this
 // many releases: past a couple, the client is unwell rather than the releases.
 const maxAddFailures = 3
 
@@ -50,7 +50,7 @@ func backoffDelay(n int) time.Duration {
 }
 
 // passSource names the entry point driving a pass. It is control flow, not just
-// a log field: only the sweep spent a search on this series, so only the sweep
+// a log field: only the sweep spent a search on this title, so only the sweep
 // reports a rehearsal that would have done nothing.
 type passSource string
 
@@ -73,11 +73,11 @@ type sweepItem struct {
 	heldTitle string // what the library holds, when this item is in the upgrade pool
 }
 
-// SweepOnce searches every series due one and grabs what it can, and is what the
+// SweepOnce searches every title due one and grabs what it can, and is what the
 // job runner calls. The clients and the kill switch are both read per run, so
 // configuring an integration or flipping automation in Settings takes effect on
 // the next tick without a restart — except on a hand-triggered run, which passes
-// the kill switch as explicit intent (#122). One series' failure never costs the
+// the kill switch as explicit intent (#122). One title' failure never costs the
 // rest their pass.
 func (s *Service) SweepOnce(ctx context.Context) error {
 	// Gated jobs are mirrored in the UI's AUTOMATION_GATED list (jobs.tsx).
@@ -91,10 +91,10 @@ func (s *Service) SweepOnce(ctx context.Context) error {
 
 	now := time.Now()
 	stamp := sql.NullString{String: store.FormatTimestamp(now), Valid: true}
-	due, err := s.store.Q.ListSeriesDueWantedSearch(ctx, db.ListSeriesDueWantedSearchParams{
+	due, err := s.store.Q.ListTitlesDueWantedSearch(ctx, db.ListTitlesDueWantedSearchParams{
 		NextSearchAt: stamp,
 		AirsAt:       stamp,
-		Limit:        seriesPerPass,
+		Limit:        titlesPerPass,
 	})
 	if err != nil {
 		return fmt.Errorf("list series due a wanted search: %w", err)
@@ -105,60 +105,60 @@ func (s *Service) SweepOnce(ctx context.Context) error {
 	_, hasFeed := idx.(indexer.RecentFeed)
 
 	var errs []error
-	for _, series := range due {
+	for _, title := range due {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := s.sweepSeries(ctx, idx, series, now, hasFeed); err != nil {
-			errs = append(errs, fmt.Errorf("series %d: %w", series.ID, err))
+		if err := s.sweepTitle(ctx, idx, title, now, hasFeed); err != nil {
+			errs = append(errs, fmt.Errorf("series %d: %w", title.ID, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// sweepSeries searches one series and grabs every eligible release covering
+// sweepTitle searches one title and grabs every eligible release covering
 // items nothing else in this pass already took.
-func (s *Service) sweepSeries(ctx context.Context, idx indexer.Indexer, series db.Series, now time.Time, hasFeed bool) error {
-	sweep, err := s.loadSweepItems(ctx, series.ID, now)
+func (s *Service) sweepTitle(ctx context.Context, idx indexer.Indexer, title db.Series, now time.Time, hasFeed bool) error {
+	sweep, err := s.loadSweepItems(ctx, title.ID, now)
 	if err != nil {
-		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
+		return errors.Join(err, s.backOffAfterFailure(ctx, title, now))
 	}
 
-	m, err := s.match(ctx, idx, series, passItems(sweep))
+	m, err := s.match(ctx, idx, title, passItems(sweep))
 	if err != nil {
-		// An indexer outage is the one fault a series is not charged for: every due
-		// series shares it, so backing them all off idles the library on one hiccup.
+		// An indexer outage is the one fault a title is not charged for: every due
+		// title shares it, so backing them all off idles the library on one hiccup.
 		if errors.Is(err, ErrIndexerSearch) {
 			return err
 		}
-		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
+		return errors.Join(err, s.backOffAfterFailure(ctx, title, now))
 	}
 
-	grabbed, held, err := s.grabPass(ctx, series, m, sweep, now, sourceSweep)
+	grabbed, held, err := s.grabPass(ctx, title, m, sweep, now, sourceSweep)
 	// A pass that landed something is progress even if it ended badly, and its
 	// successful grabs settle those items, so it records the ordinary cadence.
 	if err != nil && grabbed == 0 {
-		return errors.Join(err, s.backOffAfterFailure(ctx, series, now))
+		return errors.Join(err, s.backOffAfterFailure(ctx, title, now))
 	}
-	return errors.Join(err, s.writeSearchState(ctx, series, sweep, now, grabbed, held, hasFeed))
+	return errors.Join(err, s.writeSearchState(ctx, title, sweep, now, grabbed, held, hasFeed))
 }
 
 // backOffAfterFailure makes a failed pass yield its slot. The due query is a
-// small LIMIT ordered by next_search_at, so a series that keeps failing without
-// this holds the head of the queue and starves every healthy series behind it.
+// small LIMIT ordered by next_search_at, so a title that keeps failing without
+// this holds the head of the queue and starves every healthy title behind it.
 // last_searched_at deliberately stays put: nothing was searched, and moving it
 // would hide an already-aired episode from airedSince.
-func (s *Service) backOffAfterFailure(ctx context.Context, series db.Series, now time.Time) error {
+func (s *Service) backOffAfterFailure(ctx context.Context, title db.Series, now time.Time) error {
 	if ctx.Err() != nil {
 		return nil
 	}
-	backoff := series.SearchBackoff + 1
-	return s.setSearchState(ctx, db.SetSeriesSearchStateParams{
-		ID:             series.ID,
-		LastSearchedAt: series.LastSearchedAt,
+	backoff := title.SearchBackoff + 1
+	return s.setSearchState(ctx, db.SetTitleSearchStateParams{
+		ID:             title.ID,
+		LastSearchedAt: title.LastSearchedAt,
 		SearchBackoff:  backoff,
 		NextSearchAt:   nullTimestamp(now.Add(backoffDelay(int(backoff)))),
-		SearchEpoch:    series.SearchEpoch,
+		SearchEpoch:    title.SearchEpoch,
 	})
 }
 
@@ -188,12 +188,12 @@ func passItems(sweep []sweepItem) []passItem {
 // In notify-only (#116) the walk is the same walk — the one decision layer both
 // entry points share — but every take dispatches a rehearsal event instead of
 // grabbing, and the count returned is 0. So the search cadence is rehearsed and
-// the grab-driven reset is not: a real grab makes a series due next tick, while
+// the grab-driven reset is not: a real grab makes a title due next tick, while
 // a would-grab backs it off, because nothing settled and counting it would
 // re-decide the same items every tick. Switching to on clears that (see
 // settings.UpdateAutomation).
-func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source passSource) (int, time.Time, error) {
-	res, err := s.walkCandidates(ctx, series, m, sweep, now, source)
+func (s *Service) grabPass(ctx context.Context, title db.Series, m Match, sweep []sweepItem, now time.Time, source passSource) (int, time.Time, error) {
+	res, err := s.walkCandidates(ctx, title, m, sweep, now, source)
 	idx := indexCandidates(m.Candidates)
 	// A pass that gave up partway still decided something real, so what it did
 	// decide is flushed on the error path too (#181).
@@ -204,10 +204,10 @@ func (s *Service) grabPass(ctx context.Context, series db.Series, m Match, sweep
 	}
 	if res.rehearsed {
 		// "Would have done nothing, and here's why" is the useful half of a
-		// rehearsal — but only the sweep's, which spent a search on this series;
-		// per-series silence is the feed page's normal state.
+		// rehearsal — but only the sweep's, which spent a search on this title;
+		// per-title silence is the feed page's normal state.
 		if source == sourceSweep {
-			s.rehearseNoAction(ctx, series, idx, sweep, res.covered)
+			s.rehearseNoAction(ctx, title, idx, sweep, res.covered)
 		}
 		return 0, res.held, nil
 	}
@@ -230,7 +230,7 @@ type walkResult struct {
 // walkCandidates takes every eligible release whose items are still unspoken
 // for, in rank order. It is split from grabPass so there is one exit that acts
 // on what the walk decided.
-func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match, sweep []sweepItem, now time.Time, source passSource) (walkResult, error) {
+func (s *Service) walkCandidates(ctx context.Context, title db.Series, m Match, sweep []sweepItem, now time.Time, source passSource) (walkResult, error) {
 	notifyOnly := s.cfg.NotifyOnly()
 	airs := make(map[int]time.Time, len(sweep))
 	for _, it := range sweep {
@@ -257,7 +257,7 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 		if anyCovered(covered, take) {
 			continue
 		}
-		if until, ok := s.pinHold(series, c, take, airs, now); ok {
+		if until, ok := s.pinHold(title, c, take, airs, now); ok {
 			if res.held.IsZero() || until.Before(res.held) {
 				res.held = until
 			}
@@ -268,26 +268,26 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 			res.outcomes.settle(take, outcome{
 				kind:      OutcomePinHeld,
 				release:   c.Release.Title,
-				detail:    fmt.Sprintf("waiting for the pinned group %q", series.PinnedGroup.String),
+				detail:    fmt.Sprintf("waiting for the pinned group %q", title.PinnedGroup.String),
 				heldUntil: until,
 			})
 			if notifyOnly {
-				s.dispatchRehearsal(ctx, series, take, c.Release.Title,
+				s.dispatchRehearsal(ctx, title, take, c.Release.Title,
 					fmt.Sprintf("would have waited: held %s for the pinned group %q",
-						until.Sub(now).Round(time.Minute), series.PinnedGroup.String))
+						until.Sub(now).Round(time.Minute), title.PinnedGroup.String))
 			}
 			continue
 		}
 		if notifyOnly {
 			s.log.Info("rehearsal: would have grabbed a release",
-				"source", string(source), "series", series.ID, "release", c.Release.Title, "items", take)
-			s.dispatchRehearsal(ctx, series, take, c.Release.Title, "would have grabbed")
+				"source", string(source), "series", title.ID, "release", c.Release.Title, "items", take)
+			s.dispatchRehearsal(ctx, title, take, c.Release.Title, "would have grabbed")
 			markCovered(covered, take)
 			res.outcomes.settle(take, outcome{kind: OutcomeWouldGrab, release: c.Release.Title})
 			res.grabbed++
 			continue
 		}
-		if _, err := s.AutoGrab(ctx, series.ID, c, m.Items); err != nil {
+		if _, err := s.AutoGrab(ctx, title.ID, c, m.Items); err != nil {
 			// Another grab has these items — in flight, or settled since this pass read
 			// them. Leave them uncovered either way: an in-flight holder may still
 			// fail, and a later pass must be free to retry them.
@@ -298,7 +298,7 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 			if !errors.Is(err, ErrDownloadAdd) {
 				return res, err
 			}
-			// A dead download URL is this release's problem, not the series': the
+			// A dead download URL is this release's problem, not the title': the
 			// items stay unclaimed so the next-ranked release is still tried, and
 			// only a client that keeps refusing ends the pass. AutoGrab has already
 			// remembered it if the release itself was at fault (#120).
@@ -307,14 +307,14 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 				kind: OutcomeAddFailed, release: c.Release.Title, detail: err.Error(),
 			})
 			s.log.Warn("could not add a release; trying the next candidate",
-				"source", string(source), "series", series.ID, "release", c.Release.Title, "err", err)
+				"source", string(source), "series", title.ID, "release", c.Release.Title, "err", err)
 			if failed >= maxAddFailures {
 				return res, fmt.Errorf("%d refused adds: %w", failed, err)
 			}
 			continue
 		}
 		s.log.Info("grabbed a release",
-			"source", string(source), "series", series.ID, "release", c.Release.Title, "items", take)
+			"source", string(source), "series", title.ID, "release", c.Release.Title, "items", take)
 		if d := s.clients.Notify(); d != nil {
 			item := 0
 			if len(take) == 1 {
@@ -322,9 +322,9 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 			}
 			d.Dispatch(ctx, notify.Event{
 				Kind:         notify.KindGrabbed,
-				Title:        series.Title,
+				Title:        title.Title,
 				ItemNumber:   item,
-				ItemKind:     domain.KindFor(domain.Format(series.Format)),
+				ItemKind:     domain.KindFor(domain.Format(title.Format)),
 				ReleaseTitle: c.Release.Title,
 			})
 		}
@@ -340,7 +340,7 @@ func (s *Service) walkCandidates(ctx context.Context, series db.Series, m Match,
 // the refused candidate that came closest to covering it, and failing that the
 // pass says nothing matched — but only a sweep that ran to the end may. A hard
 // return never examined the remaining candidates, and a feed poll saw one page
-// covering the whole library rather than a search for this series, so either
+// covering the whole library rather than a search for this title, so either
 // claiming nothing matched would clobber a real refusal with a guess.
 func finalizeOutcomes(res *walkResult, idx passIndex, sweep []sweepItem, source passSource) {
 	for _, it := range sweep {
@@ -363,8 +363,8 @@ func finalizeOutcomes(res *walkResult, idx passIndex, sweep []sweepItem, source 
 }
 
 // persistOutcomes writes one row per decided item. A failure only logs:
-// sweepSeries treats a returned error with nothing grabbed as grounds to back
-// the series off, so surfacing a failed display-column write would cost it its
+// sweepTitle treats a returned error with nothing grabbed as grounds to back
+// the title off, so surfacing a failed display-column write would cost it its
 // place in the search queue.
 func (s *Service) persistOutcomes(ctx context.Context, sweep []sweepItem, set outcomeSet, source passSource, now time.Time) {
 	if len(set) == 0 {
@@ -420,7 +420,7 @@ func (s *Service) persistOutcomes(ctx context.Context, sweep []sweepItem, set ou
 // dispatchRehearsal reports one rehearsed decision (#116). The outcome is always
 // spelled out: an adapter renders this field as the event's detail, so a correct
 // "would have grabbed" must not arrive as a blank where a reason belongs.
-func (s *Service) dispatchRehearsal(ctx context.Context, series db.Series, items []int, release, outcome string) {
+func (s *Service) dispatchRehearsal(ctx context.Context, title db.Series, items []int, release, outcome string) {
 	d := s.clients.Notify()
 	if d == nil {
 		return
@@ -431,9 +431,9 @@ func (s *Service) dispatchRehearsal(ctx context.Context, series db.Series, items
 	}
 	d.Dispatch(ctx, notify.Event{
 		Kind:         notify.KindRehearsal,
-		Title:        series.Title,
+		Title:        title.Title,
 		ItemNumber:   item,
-		ItemKind:     domain.KindFor(domain.Format(series.Format)),
+		ItemKind:     domain.KindFor(domain.Format(title.Format)),
 		ReleaseTitle: release,
 		Error:        outcome,
 	})
@@ -442,9 +442,9 @@ func (s *Service) dispatchRehearsal(ctx context.Context, series db.Series, items
 // rehearseNoAction reports the wanted items a searched pass would have left
 // untouched, blaming the best matched-but-refused candidate when there is one.
 // It reports on what the walk did not cover rather than on "nothing happened",
-// so a series whose episode 1 was pin-held still says that 2 and 3 went
+// so a title whose episode 1 was pin-held still says that 2 and 3 went
 // unmatched — the mismatch a rehearsal exists to surface.
-func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, idx passIndex, sweep []sweepItem, covered map[int]bool) {
+func (s *Service) rehearseNoAction(ctx context.Context, title db.Series, idx passIndex, sweep []sweepItem, covered map[int]bool) {
 	var wanted []int
 	for _, it := range sweep {
 		if it.grabbable && !covered[it.number] {
@@ -460,20 +460,20 @@ func (s *Service) rehearseNoAction(ctx context.Context, series db.Series, idx pa
 	if reason == "" {
 		reason = "no matching release found"
 	}
-	s.dispatchRehearsal(ctx, series, wanted, release, "would have grabbed nothing: "+reason)
+	s.dispatchRehearsal(ctx, title, wanted, release, "would have grabbed nothing: "+reason)
 }
 
 // writeSearchState records what the pass found. The write is guarded on the
 // cadence read at selection, so a reset that landed mid-sweep wins.
 // The airing-aimed parts of the cadence exist only for the feedless world; with
 // a feed, a missed broadcast is the feed poll's gap reset to recover (#100, #140).
-func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep []sweepItem, now time.Time, grabbed int, held time.Time, hasFeed bool) error {
+func (s *Service) writeSearchState(ctx context.Context, title db.Series, sweep []sweepItem, now time.Time, grabbed int, held time.Time, hasFeed bool) error {
 	upcoming := nextAiring(sweep, now)
 	if hasFeed {
 		upcoming = time.Time{}
 	}
 
-	backoff := series.SearchBackoff
+	backoff := title.SearchBackoff
 	var next time.Time
 	switch {
 	case grabbed > 0:
@@ -486,28 +486,28 @@ func (s *Service) writeSearchState(ctx context.Context, series db.Series, sweep 
 		backoff = 0
 		next = earliest(held, upcoming)
 	default:
-		if !hasFeed && airedSince(sweep, series.LastSearchedAt, now) {
+		if !hasFeed && airedSince(sweep, title.LastSearchedAt, now) {
 			backoff = 0
 		}
 		backoff++
 		next = earliest(now.Add(backoffDelay(int(backoff))), upcoming)
 	}
 
-	return s.setSearchState(ctx, db.SetSeriesSearchStateParams{
-		ID:             series.ID,
+	return s.setSearchState(ctx, db.SetTitleSearchStateParams{
+		ID:             title.ID,
 		LastSearchedAt: sql.NullString{String: store.FormatTimestamp(now), Valid: true},
 		SearchBackoff:  backoff,
 		NextSearchAt:   nullTimestamp(next),
-		SearchEpoch:    series.SearchEpoch,
+		SearchEpoch:    title.SearchEpoch,
 	})
 }
 
 // setSearchState applies a cadence write and reports a lost epoch guard rather
 // than swallowing it: zero rows means a reset landed mid-sweep and deliberately
-// won, or the series is gone. Neither is an error, but both explain a backoff
+// won, or the title is gone. Neither is an error, but both explain a backoff
 // that silently did not stick.
-func (s *Service) setSearchState(ctx context.Context, p db.SetSeriesSearchStateParams) error {
-	rows, err := s.store.Q.SetSeriesSearchState(ctx, p)
+func (s *Service) setSearchState(ctx context.Context, p db.SetTitleSearchStateParams) error {
+	rows, err := s.store.Q.SetTitleSearchState(ctx, p)
 	if err != nil {
 		return fmt.Errorf("write search cadence for series %d: %w", p.ID, err)
 	}
@@ -520,8 +520,8 @@ func (s *Service) setSearchState(ctx context.Context, p db.SetSeriesSearchStateP
 
 // loadSweepItems reads every wanted item with the grab state that decides
 // whether it is worth searching for right now.
-func (s *Service) loadSweepItems(ctx context.Context, seriesID int64, now time.Time) ([]sweepItem, error) {
-	rows, err := s.store.Q.ListWantedItemsWithGrabState(ctx, seriesID)
+func (s *Service) loadSweepItems(ctx context.Context, titleID int64, now time.Time) ([]sweepItem, error) {
+	rows, err := s.store.Q.ListWantedItemsWithGrabState(ctx, titleID)
 	if err != nil {
 		return nil, fmt.Errorf("load wanted items with grab state: %w", err)
 	}
@@ -635,13 +635,13 @@ func nullTimestamp(t time.Time) sql.NullString {
 // window since the latest covered broadcast is still open — a covered item with
 // no air date makes that window unmeasurable, so the delay does not apply rather
 // than anchoring to now, which would restart the wait on every process restart.
-func (s *Service) pinHold(series db.Series, c decide.Candidate, items []int, airs map[int]time.Time, now time.Time) (time.Time, bool) {
-	if !series.PinnedGroup.Valid || series.PinnedGroup.String == "" || c.Pinned {
+func (s *Service) pinHold(title db.Series, c decide.Candidate, items []int, airs map[int]time.Time, now time.Time) (time.Time, bool) {
+	if !title.PinnedGroup.Valid || title.PinnedGroup.String == "" || c.Pinned {
 		return time.Time{}, false
 	}
 	delay := s.cfg.PinDelayDefault()
-	if series.PinDelayHours.Valid {
-		delay = domain.PinDelay(series.PinDelayHours.Int64)
+	if title.PinDelayHours.Valid {
+		delay = domain.PinDelay(title.PinDelayHours.Int64)
 	}
 	if delay <= 0 {
 		return time.Time{}, false

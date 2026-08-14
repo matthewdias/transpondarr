@@ -9,10 +9,10 @@ import { AuthGate } from "@/components/auth-gate";
 import { Toaster } from "@/components/ui/sonner";
 import { ApiError } from "@/lib/api";
 import { AppLayout } from "@/components/app-layout";
-import { SeriesListPage } from "@/pages/series-list";
+import { TitleListPage } from "@/pages/titles-list";
 import { DiscoveryPage } from "@/pages/discovery";
 import { CalendarPage } from "@/pages/calendar";
-import { SeriesDetailPage } from "@/pages/series-detail";
+import { TitleDetailPage } from "@/pages/title-detail";
 import { SettingsPage } from "@/pages/settings";
 import { ActivityPage } from "@/pages/activity";
 import { WantedPage } from "@/pages/wanted";
@@ -37,8 +37,8 @@ createRoot(document.getElementById("root")!).render(
           <HashRouter>
             <Routes>
               <Route element={<AppLayout />}>
-                <Route index element={<SeriesListPage />} />
-                <Route path="series/:id" element={<SeriesDetailPage />} />
+                <Route index element={<TitleListPage />} />
+                <Route path="titles/:id" element={<TitleDetailPage />} />
                 <Route path="discovery" element={<DiscoveryPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
                 <Route path="wanted" element={<WantedPage />} />

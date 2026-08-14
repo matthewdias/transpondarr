@@ -51,8 +51,8 @@ func newService(t *testing.T, st *store.Store, prov metadata.Provider) *refresh.
 	return refresh.New(st, prov, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
-// seedSeries inserts a monitored series with items 1..episodes and returns its id.
-func seedSeries(t *testing.T, st *store.Store, anilistID int64, episodes int) int64 {
+// seedTitle inserts a monitored title with items 1..episodes and returns its id.
+func seedTitle(t *testing.T, st *store.Store, anilistID int64, episodes int) int64 {
 	t.Helper()
 	ctx := context.Background()
 	var id int64
@@ -86,19 +86,19 @@ func seedCache(t *testing.T, st *store.Store, anilistID int64, status string, ep
 	}
 }
 
-func setSyncedAt(t *testing.T, st *store.Store, seriesID int64, at time.Time) {
+func setSyncedAt(t *testing.T, st *store.Store, titleID int64, at time.Time) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET airing_synced_at = ? WHERE id = ?`, store.FormatTimestamp(at), seriesID); err != nil {
+		`UPDATE series SET airing_synced_at = ? WHERE id = ?`, store.FormatTimestamp(at), titleID); err != nil {
 		t.Fatalf("set airing_synced_at: %v", err)
 	}
 }
 
-func syncedAt(t *testing.T, st *store.Store, seriesID int64) (string, bool) {
+func syncedAt(t *testing.T, st *store.Store, titleID int64) (string, bool) {
 	t.Helper()
 	var stored *string
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT airing_synced_at FROM series WHERE id = ?`, seriesID).Scan(&stored); err != nil {
+		`SELECT airing_synced_at FROM series WHERE id = ?`, titleID).Scan(&stored); err != nil {
 		t.Fatalf("read airing_synced_at: %v", err)
 	}
 	if stored == nil {
@@ -107,11 +107,11 @@ func syncedAt(t *testing.T, st *store.Store, seriesID int64) (string, bool) {
 	return *stored, true
 }
 
-// items returns number -> in_library for a series' wanted items.
-func items(t *testing.T, st *store.Store, seriesID int64) map[int]int {
+// items returns number -> in_library for a title' wanted items.
+func items(t *testing.T, st *store.Store, titleID int64) map[int]int {
 	t.Helper()
 	rows, err := st.DB.QueryContext(context.Background(),
-		`SELECT number, in_library FROM wanted_items WHERE series_id = ?`, seriesID)
+		`SELECT number, in_library FROM wanted_items WHERE series_id = ?`, titleID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}
@@ -130,11 +130,11 @@ func items(t *testing.T, st *store.Store, seriesID int64) map[int]int {
 	return out
 }
 
-func TestRefreshGrowsSeriesWhenEpisodeCountRises(t *testing.T) {
+func TestRefreshGrowsTitleWhenEpisodeCountRises(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 13
-	id := seedSeries(t, st, 100, 12)
+	id := seedTitle(t, st, 100, 12)
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
@@ -153,7 +153,7 @@ func TestRefreshLeavesExistingItemsUntouched(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	id := seedSeries(t, st, 100, 12)
+	id := seedTitle(t, st, 100, 12)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE wanted_items SET in_library = 1 WHERE series_id = ? AND number = 5`, id); err != nil {
 		t.Fatalf("mark item had: %v", err)
@@ -172,11 +172,11 @@ func TestRefreshLeavesExistingItemsUntouched(t *testing.T) {
 	}
 }
 
-func TestRefreshFillsItemsForASeriesAddedWithNullCount(t *testing.T) {
+func TestRefreshFillsItemsForATitleAddedWithNullCount(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	id := seedSeries(t, st, 100, 0)
+	id := seedTitle(t, st, 100, 0)
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
@@ -187,11 +187,11 @@ func TestRefreshFillsItemsForASeriesAddedWithNullCount(t *testing.T) {
 	}
 }
 
-func TestRefreshClearsAiringStampWhenTheSeriesGrows(t *testing.T) {
+func TestRefreshClearsAiringStampWhenTheTitleGrows(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 13
-	id := seedSeries(t, st, 100, 12)
+	id := seedTitle(t, st, 100, 12)
 	setSyncedAt(t, st, id, time.Now())
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
@@ -204,12 +204,12 @@ func TestRefreshClearsAiringStampWhenTheSeriesGrows(t *testing.T) {
 }
 
 // A new episode is worth looking for now, whatever backoff the sweep had
-// accumulated while the series had nothing left to find.
+// accumulated while the title had nothing left to find.
 func TestGrowthResetsSearchCadence(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 13
-	id := seedSeries(t, st, 100, 12)
+	id := seedTitle(t, st, 100, 12)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE series SET search_backoff = 8, next_search_at = ? WHERE id = ?`,
 		store.FormatTimestamp(time.Now().Add(24*time.Hour)), id); err != nil {
@@ -231,12 +231,12 @@ func TestGrowthResetsSearchCadence(t *testing.T) {
 	}
 }
 
-// A refresh that inserts nothing must not hand a backed-off series a free retry.
+// A refresh that inserts nothing must not hand a backed-off title a free retry.
 func TestRefreshKeepsSearchCadenceWhenNothingNew(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	id := seedSeries(t, st, 100, 12)
+	id := seedTitle(t, st, 100, 12)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE series SET search_backoff = 8 WHERE id = ?`, id); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
@@ -260,7 +260,7 @@ func TestRefreshKeepsAiringStampWhenNothingNew(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	id := seedSeries(t, st, 100, 12)
+	id := seedTitle(t, st, 100, 12)
 	setSyncedAt(t, st, id, time.Now())
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
@@ -272,11 +272,11 @@ func TestRefreshKeepsAiringStampWhenNothingNew(t *testing.T) {
 	}
 }
 
-func TestRefreshSkipsFreshlyFetchedSeries(t *testing.T) {
+func TestRefreshSkipsFreshlyFetchedTitles(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	seedSeries(t, st, 100, 12)
+	seedTitle(t, st, 100, 12)
 	seedCache(t, st, 100, "RELEASING", 12, time.Now())
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
@@ -288,11 +288,11 @@ func TestRefreshSkipsFreshlyFetchedSeries(t *testing.T) {
 	}
 }
 
-func TestRefreshHoldsFinishedSeriesForTheLongCutoff(t *testing.T) {
+func TestRefreshHoldsFinishedTitlesForTheLongCutoff(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	seedSeries(t, st, 100, 12)
+	seedTitle(t, st, 100, 12)
 	seedCache(t, st, 100, "FINISHED", 12, time.Now().Add(-7*24*time.Hour))
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
@@ -304,11 +304,11 @@ func TestRefreshHoldsFinishedSeriesForTheLongCutoff(t *testing.T) {
 	}
 }
 
-func TestRefreshRefetchesFinishedSeriesPastTheLongCutoff(t *testing.T) {
+func TestRefreshRefetchesFinishedTitlesPastTheLongCutoff(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	seedSeries(t, st, 100, 12)
+	seedTitle(t, st, 100, 12)
 	seedCache(t, st, 100, "FINISHED", 12, time.Now().Add(-31*24*time.Hour))
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
@@ -324,7 +324,7 @@ func TestRefreshUsesShortCutoffWhenTheCountIsUnknown(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	seedSeries(t, st, 100, 0)
+	seedTitle(t, st, 100, 0)
 	// FINISHED but with no episode count: the empty snapshot must ride the short
 	// TTL, mirroring metadata.Cached's freshness rule.
 	seedCache(t, st, 100, "FINISHED", 0, time.Now().Add(-7*time.Hour))
@@ -338,11 +338,11 @@ func TestRefreshUsesShortCutoffWhenTheCountIsUnknown(t *testing.T) {
 	}
 }
 
-func TestRefreshSkipsUnmonitoredSeries(t *testing.T) {
+func TestRefreshSkipsUnmonitoredTitles(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	id := seedSeries(t, st, 100, 0)
+	id := seedTitle(t, st, 100, 0)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE series SET monitored = 0 WHERE id = ?`, id); err != nil {
 		t.Fatalf("unmonitor series: %v", err)
@@ -360,15 +360,15 @@ func TestRefreshSkipsUnmonitoredSeries(t *testing.T) {
 func TestRefreshBoundsEachPassAndPrioritizesNeverFetched(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
-	// Six stale series and one never fetched: a pass is capped at five, and the
+	// Six stale title and one never fetched: a pass is capped at five, and the
 	// never-fetched one must make the cut.
 	for i := int64(1); i <= 6; i++ {
 		prov.episodes[i] = 12
-		seedSeries(t, st, i, 12)
+		seedTitle(t, st, i, 12)
 		seedCache(t, st, i, "RELEASING", 12, time.Now().Add(-24*time.Hour))
 	}
 	prov.episodes[7] = 12
-	seedSeries(t, st, 7, 12)
+	seedTitle(t, st, 7, 12)
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
@@ -382,13 +382,13 @@ func TestRefreshBoundsEachPassAndPrioritizesNeverFetched(t *testing.T) {
 	}
 }
 
-// Through the real cached provider, a refresh both grows the series and stamps
+// Through the real cached provider, a refresh both grows the title and stamps
 // the cache row, so the next pass finds nothing due and costs no request.
 func TestRefreshThroughCachedProviderSettlesUntilStale(t *testing.T) {
 	st := coretest.NewStore(t)
 	inner := newFakeProvider()
 	inner.episodes[100] = 13
-	id := seedSeries(t, st, 100, 12)
+	id := seedTitle(t, st, 100, 12)
 	seedCache(t, st, 100, "RELEASING", 12, time.Now().Add(-7*time.Hour))
 
 	svc := newService(t, st, metadata.Cached(inner, dbcache.New(st.Q)))
@@ -407,13 +407,13 @@ func TestRefreshThroughCachedProviderSettlesUntilStale(t *testing.T) {
 	}
 }
 
-func TestRefreshContinuesPastAFailingSeries(t *testing.T) {
+func TestRefreshContinuesPastAFailingTitle(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.errs[1] = errors.New("boom")
 	prov.episodes[2] = 12
-	seedSeries(t, st, 1, 0)
-	idB := seedSeries(t, st, 2, 0)
+	seedTitle(t, st, 1, 0)
+	idB := seedTitle(t, st, 2, 0)
 
 	err := newService(t, st, prov).RefreshOnce(context.Background())
 	if err == nil {
@@ -429,11 +429,11 @@ func TestRefreshContinuesPastAFailingSeries(t *testing.T) {
 // disentangled: the air-date sync ignores monitoring entirely, so the stamp
 // still clears, while the search cadence is only worth resetting for something
 // the sweep will actually look for.
-func TestRefreshHonoursTheSeriesMonitorCut(t *testing.T) {
+func TestRefreshHonoursTheTitleMonitorCut(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 13
-	id := seedSeries(t, st, 100, 12)
+	id := seedTitle(t, st, 100, 12)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE series SET monitor_new_from = NULL, search_backoff = 8, next_search_at = ? WHERE id = ?`,
 		store.FormatTimestamp(time.Now().Add(24*time.Hour)), id); err != nil {

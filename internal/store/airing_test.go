@@ -13,12 +13,12 @@ func TestWantedItemIdentityIsUnique(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 
-	seriesID := insertSeries(t, st, 1)
+	titleID := insertTitle(t, st, 1)
 	const insert = `INSERT INTO wanted_items (series_id, kind, number) VALUES (?, 'episode', 1)`
-	if _, err := st.DB.ExecContext(ctx, insert, seriesID); err != nil {
+	if _, err := st.DB.ExecContext(ctx, insert, titleID); err != nil {
 		t.Fatalf("insert first item: %v", err)
 	}
-	if _, err := st.DB.ExecContext(ctx, insert, seriesID); err == nil {
+	if _, err := st.DB.ExecContext(ctx, insert, titleID); err == nil {
 		t.Fatal("a duplicate (series_id, kind, number) was accepted; the identity index is missing")
 	}
 }
@@ -30,7 +30,7 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 
-	seriesID := insertSeries(t, st, 2)
+	titleID := insertTitle(t, st, 2)
 	// DownTo pins the rollback at the pre-airing schema; a one-step Down would
 	// start unwinding whichever migration is newest once 00011 lands.
 	if err := goose.DownTo(st.DB, "migrations", 9); err != nil {
@@ -43,7 +43,7 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 	for _, have := range []int{0, 1} {
 		if _, err := st.DB.ExecContext(ctx,
 			`INSERT INTO wanted_items (series_id, kind, number, have) VALUES (?, 'episode', 1, ?)`,
-			seriesID, have); err != nil {
+			titleID, have); err != nil {
 			t.Fatalf("insert duplicate item (have=%d): %v", have, err)
 		}
 	}
@@ -55,7 +55,7 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 	var count, inLibrary int
 	if err := st.DB.QueryRowContext(ctx,
 		`SELECT COUNT(*), COALESCE(MAX(in_library), 0) FROM wanted_items WHERE series_id = ?`,
-		seriesID).Scan(&count, &inLibrary); err != nil {
+		titleID).Scan(&count, &inLibrary); err != nil {
 		t.Fatalf("count items: %v", err)
 	}
 	if count != 1 {
@@ -66,7 +66,7 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 	}
 }
 
-func insertSeries(t *testing.T, st *Store, anilistID int64) int64 {
+func insertTitle(t *testing.T, st *Store, anilistID int64) int64 {
 	t.Helper()
 	var id int64
 	if err := st.DB.QueryRowContext(context.Background(),

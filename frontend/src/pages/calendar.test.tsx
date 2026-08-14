@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { CalendarItem, UnscheduledSeries } from "@/lib/api";
+import type { CalendarItem, UnscheduledTitle } from "@/lib/api";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { CalendarPage } from "@/pages/calendar";
 
@@ -52,7 +52,7 @@ const statesATime = (el: HTMLElement) =>
 
 const calendarHandler = (
   items: CalendarItem[],
-  unscheduled: UnscheduledSeries[] = [],
+  unscheduled: UnscheduledTitle[] = [],
   onCall?: () => void,
 ) =>
   http.get("/api/v1/calendar", () => {
@@ -87,7 +87,7 @@ describe("CalendarPage", () => {
     const entry = await screen.findByRole("link", {
       name: /04 signal anomaly/i,
     });
-    expect(entry).toHaveAttribute("href", "/series/7");
+    expect(entry).toHaveAttribute("href", "/titles/7");
     expect(entry).toHaveAttribute(
       "title",
       "Signal Anomaly — episode 4 (wanted)",
@@ -97,7 +97,7 @@ describe("CalendarPage", () => {
     expect(screen.getByText(/no schedule data/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dusty Archive" })).toHaveAttribute(
       "href",
-      "/series/103",
+      "/titles/103",
     );
   });
 
@@ -135,7 +135,7 @@ describe("CalendarPage", () => {
     const entry = await screen.findByRole("link", {
       name: /placeholder legend/i,
     });
-    expect(entry).toHaveAttribute("href", "/series/12");
+    expect(entry).toHaveAttribute("href", "/titles/12");
     expect(entry).toHaveAttribute(
       "title",
       "Placeholder Legend — premiere (wanted)",

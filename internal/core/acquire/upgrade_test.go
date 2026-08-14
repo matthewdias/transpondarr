@@ -34,30 +34,30 @@ func enableUpgrades(t *testing.T, st *store.Store, cutoff int) {
 }
 
 // grabFor returns the release and status recorded against one item's grab row.
-func grabFor(t *testing.T, st *store.Store, seriesID int64, number int) (string, string) {
+func grabFor(t *testing.T, st *store.Store, titleID int64, number int) (string, string) {
 	t.Helper()
 	var release, status string
 	if err := st.DB.QueryRowContext(context.Background(),
 		`SELECT g.release_title, g.status FROM grabs g
 		 JOIN wanted_items w ON w.id = g.wanted_item_id
-		 WHERE w.series_id = ? AND w.number = ?`, seriesID, number).Scan(&release, &status); err != nil {
+		 WHERE w.series_id = ? AND w.number = ?`, titleID, number).Scan(&release, &status); err != nil {
 		t.Fatalf("read grab for item %d: %v", number, err)
 	}
 	return release, status
 }
 
-// heldTitleOf reads what the store says holds a series' only item.
-func heldTitleOf(t *testing.T, st *store.Store, seriesID int64) string {
+// heldTitleOf reads what the store says holds a title' only item.
+func heldTitleOf(t *testing.T, st *store.Store, titleID int64) string {
 	t.Helper()
 	var title string
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT held_release_title FROM wanted_items WHERE series_id = ?`, seriesID).Scan(&title); err != nil {
+		`SELECT held_release_title FROM wanted_items WHERE series_id = ?`, titleID).Scan(&title); err != nil {
 		t.Fatalf("read held_release_title: %v", err)
 	}
 	return title
 }
 
-// The headline behaviour of #97: a complete series whose profile opts in takes a
+// The headline behaviour of #97: a complete title whose profile opts in takes a
 // better release off the feed, with no wanted item anywhere in sight.
 func TestFeedPollUpgradesAHeldItem(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -184,8 +184,8 @@ func TestSweepUpgradesHeldItemsItSearchedForAnyway(t *testing.T) {
 	}
 }
 
-// A complete series is not worth a search of its own: the sweep's budget is one
-// search per series, so upgrades ride the flat-cost feed alone.
+// A complete title is not worth a search of its own: the sweep's budget is one
+// search per title, so upgrades ride the flat-cost feed alone.
 func TestSweepDoesNotSearchForUpgradesAlone(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	enableUpgrades(t, h.st, 400)
@@ -241,7 +241,7 @@ func TestManualMatchOffersReleasesForHeldItems(t *testing.T) {
 	id := seedSweep(t, st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
-	m, err := svc.MatchSeries(context.Background(), id)
+	m, err := svc.MatchTitle(context.Background(), id)
 	if err != nil {
 		t.Fatalf("MatchSeries: %v", err)
 	}

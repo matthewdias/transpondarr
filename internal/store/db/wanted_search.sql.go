@@ -10,7 +10,7 @@ import (
 	"database/sql"
 )
 
-const listBackedOffSeriesWantedInWindow = `-- name: ListBackedOffSeriesWantedInWindow :many
+const listBackedOffTitlesWantedInWindow = `-- name: ListBackedOffTitlesWantedInWindow :many
 SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
 FROM series s
 WHERE s.monitored = 1
@@ -30,7 +30,7 @@ ORDER BY s.next_search_at DESC, s.id
 LIMIT ?
 `
 
-type ListBackedOffSeriesWantedInWindowParams struct {
+type ListBackedOffTitlesWantedInWindowParams struct {
 	NextSearchAt sql.NullString `json:"next_search_at"`
 	AirsAt       sql.NullString `json:"airs_at"`
 	AirsAt_2     sql.NullString `json:"airs_at_2"`
@@ -46,8 +46,8 @@ type ListBackedOffSeriesWantedInWindowParams struct {
 // waiting longest, and the LIMIT holds the reset to one sweep pass' throughput.
 // NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 // rune offsets and silently truncates the emitted SQL on a multi-byte character.
-func (q *Queries) ListBackedOffSeriesWantedInWindow(ctx context.Context, arg ListBackedOffSeriesWantedInWindowParams) ([]Series, error) {
-	rows, err := q.db.QueryContext(ctx, listBackedOffSeriesWantedInWindow,
+func (q *Queries) ListBackedOffTitlesWantedInWindow(ctx context.Context, arg ListBackedOffTitlesWantedInWindowParams) ([]Series, error) {
+	rows, err := q.db.QueryContext(ctx, listBackedOffTitlesWantedInWindow,
 		arg.NextSearchAt,
 		arg.AirsAt,
 		arg.AirsAt_2,
@@ -92,7 +92,7 @@ func (q *Queries) ListBackedOffSeriesWantedInWindow(ctx context.Context, arg Lis
 	return items, nil
 }
 
-const listSeriesDueWantedSearch = `-- name: ListSeriesDueWantedSearch :many
+const listTitlesDueWantedSearch = `-- name: ListTitlesDueWantedSearch :many
 SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
 FROM series s
 WHERE s.monitored = 1
@@ -111,7 +111,7 @@ ORDER BY s.next_search_at IS NOT NULL, s.next_search_at
 LIMIT ?
 `
 
-type ListSeriesDueWantedSearchParams struct {
+type ListTitlesDueWantedSearchParams struct {
 	NextSearchAt sql.NullString `json:"next_search_at"`
 	AirsAt       sql.NullString `json:"airs_at"`
 	Limit        int64          `json:"limit"`
@@ -125,8 +125,8 @@ type ListSeriesDueWantedSearchParams struct {
 // budget one pass can burn.
 // NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 // rune offsets and silently truncates the emitted SQL on a multi-byte character.
-func (q *Queries) ListSeriesDueWantedSearch(ctx context.Context, arg ListSeriesDueWantedSearchParams) ([]Series, error) {
-	rows, err := q.db.QueryContext(ctx, listSeriesDueWantedSearch, arg.NextSearchAt, arg.AirsAt, arg.Limit)
+func (q *Queries) ListTitlesDueWantedSearch(ctx context.Context, arg ListTitlesDueWantedSearchParams) ([]Series, error) {
+	rows, err := q.db.QueryContext(ctx, listTitlesDueWantedSearch, arg.NextSearchAt, arg.AirsAt, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ func (q *Queries) ListSeriesDueWantedSearch(ctx context.Context, arg ListSeriesD
 	return items, nil
 }
 
-const listSeriesWithWantedItems = `-- name: ListSeriesWithWantedItems :many
+const listTitlesWithWantedItems = `-- name: ListTitlesWithWantedItems :many
 SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
 FROM series s
 JOIN quality_profiles qp ON qp.id = s.quality_profile_id
@@ -212,8 +212,8 @@ ORDER BY s.id
 // also scores the candidates.
 // NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 // rune offsets and silently truncates the emitted SQL on a multi-byte character.
-func (q *Queries) ListSeriesWithWantedItems(ctx context.Context, airsAt sql.NullString) ([]Series, error) {
-	rows, err := q.db.QueryContext(ctx, listSeriesWithWantedItems, airsAt)
+func (q *Queries) ListTitlesWithWantedItems(ctx context.Context, airsAt sql.NullString) ([]Series, error) {
+	rows, err := q.db.QueryContext(ctx, listTitlesWithWantedItems, airsAt)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func (q *Queries) ListWantedItemsWithGrabState(ctx context.Context, seriesID int
 	return items, nil
 }
 
-const resetAllSeriesSearchState = `-- name: ResetAllSeriesSearchState :exec
+const resetAllTitlesSearchState = `-- name: ResetAllTitlesSearchState :exec
 UPDATE series
 SET search_backoff = 0, next_search_at = NULL, search_epoch = search_epoch + 1
 `
@@ -320,12 +320,12 @@ SET search_backoff = 0, next_search_at = NULL, search_epoch = search_epoch + 1
 // its daily cap; switching automation on has to undo that or the first real
 // sweep for a rehearsed series is up to a day away. The due query's LIMIT paces
 // the resulting queue, so this is a reset, not a burst.
-func (q *Queries) ResetAllSeriesSearchState(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, resetAllSeriesSearchState)
+func (q *Queries) ResetAllTitlesSearchState(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, resetAllTitlesSearchState)
 	return err
 }
 
-const resetSeriesSearchState = `-- name: ResetSeriesSearchState :exec
+const resetTitleSearchState = `-- name: ResetTitleSearchState :exec
 UPDATE series
 SET search_backoff = 0, next_search_at = NULL, search_epoch = search_epoch + 1
 WHERE id = ?
@@ -333,18 +333,18 @@ WHERE id = ?
 
 // Puts a series back at the front of the queue: due now, no accumulated backoff.
 // Bumping the epoch is what makes an in-flight sweep's write lose.
-func (q *Queries) ResetSeriesSearchState(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, resetSeriesSearchState, id)
+func (q *Queries) ResetTitleSearchState(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, resetTitleSearchState, id)
 	return err
 }
 
-const setSeriesSearchState = `-- name: SetSeriesSearchState :execrows
+const setTitleSearchState = `-- name: SetTitleSearchState :execrows
 UPDATE series
 SET last_searched_at = ?, search_backoff = ?, next_search_at = ?
 WHERE id = ? AND search_epoch = ?
 `
 
-type SetSeriesSearchStateParams struct {
+type SetTitleSearchStateParams struct {
 	LastSearchedAt sql.NullString `json:"last_searched_at"`
 	SearchBackoff  int64          `json:"search_backoff"`
 	NextSearchAt   sql.NullString `json:"next_search_at"`
@@ -357,8 +357,8 @@ type SetSeriesSearchStateParams struct {
 // computed against the stale state. Guarding on next_search_at could not do
 // that -- a reset writes NULL, which is also what a due series usually already
 // held. execrows is what lets the caller see that its write lost.
-func (q *Queries) SetSeriesSearchState(ctx context.Context, arg SetSeriesSearchStateParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, setSeriesSearchState,
+func (q *Queries) SetTitleSearchState(ctx context.Context, arg SetTitleSearchStateParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setTitleSearchState,
 		arg.LastSearchedAt,
 		arg.SearchBackoff,
 		arg.NextSearchAt,

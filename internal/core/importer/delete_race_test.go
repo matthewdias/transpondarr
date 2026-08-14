@@ -11,13 +11,13 @@ import (
 	"github.com/matthewdias/transpondarr/internal/coretest"
 )
 
-// A series delete landing between the grab-row read and the post-Place writes
+// A title delete landing between the grab-row read and the post-Place writes
 // still places the file — the same outcome as the import finishing one tick
 // before the delete — and then no-ops the cascaded-away rows: both writes are
 // :exec, so zero rows is silent, nothing survives, and nothing retries.
-func TestScanSurvivesSeriesDeletedMidImport(t *testing.T) {
+func TestScanSurvivesTitleDeletedMidImport(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	src := filepath.Join(t.TempDir(), "raw.mkv")
 	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
@@ -29,7 +29,7 @@ func TestScanSurvivesSeriesDeletedMidImport(t *testing.T) {
 	}}
 	target := &coretest.FakeLibrary{}
 	target.PlaceHook = func(library.ImportRequest) {
-		if _, err := st.Q.DeleteSeries(ctx, seriesID); err != nil {
+		if _, err := st.Q.DeleteTitle(ctx, titleID); err != nil {
 			t.Errorf("delete series mid-import: %v", err)
 		}
 	}

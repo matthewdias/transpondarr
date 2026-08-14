@@ -20,7 +20,7 @@ func TestSearchExposesScoreBreakdown(t *testing.T) {
 		{Title: "[BlockedCorp] Placeholder Saga S1E03 [1080p]", DownloadURL: "magnet:?xt=urn:btih:bbbb", Seeders: 50},
 	}}
 	h := newHarness(t, idx, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	ctx := context.Background()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
@@ -48,7 +48,7 @@ func TestSearchExposesScoreBreakdown(t *testing.T) {
 			} `json:"score_parts"`
 		} `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(out.Results) != 2 {

@@ -5,7 +5,7 @@ import { Link } from "react-router";
 import { ChevronLeft, Loader2, TriangleAlert } from "lucide-react";
 import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
 import { formatLabel, statusLabel } from "@/lib/chart";
-import { profilesQuery, seriesQuery, settingsQuery } from "@/lib/queries";
+import { profilesQuery, titlesQuery, settingsQuery } from "@/lib/queries";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,7 +38,7 @@ export type AddTitle = Pick<
   "provider" | "provider_id" | "episodes" | "status" | "format"
 >;
 
-type AddedSeries = Awaited<ReturnType<typeof api.addSeries>>;
+type AddedTitle = Awaited<ReturnType<typeof api.addTitle>>;
 
 // Before the add, not after: a new series sorts to the front of the sweep queue
 // and one pass grabs everything eligible.
@@ -64,7 +64,7 @@ export function AddTitleForm({
 }: {
   title: string;
   target: AddTitle;
-  onAdded: (series: AddedSeries) => void;
+  onAdded: (added: AddedTitle) => void;
   onExists?: () => void;
   onBack?: () => void;
 }) {
@@ -89,20 +89,20 @@ export function AddTitleForm({
 
   const add = useMutation({
     mutationFn: () =>
-      api.addSeries(target.provider, target.provider_id, {
+      api.addTitle(target.provider, target.provider_id, {
         monitorItems,
         // Untouched sends nothing, so the server's default profile applies and
         // the common case stays one click.
         ...(profileId ? { qualityProfileId: profileId } : {}),
       }),
-    onSuccess: (series) => {
-      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
+    onSuccess: (added) => {
+      queryClient.invalidateQueries({ queryKey: titlesQuery().queryKey });
       toast.success("Title added", {
-        description: `${series.title} — ${series.items.length} wanted ${
-          series.items.length === 1 ? "item" : "items"
+        description: `${added.title} — ${added.items.length} wanted ${
+          added.items.length === 1 ? "item" : "items"
         } expanded`,
       });
-      onAdded(series);
+      onAdded(added);
     },
     onError: (err) => {
       if (err instanceof ApiError && err.status === 409) {
@@ -252,7 +252,7 @@ export function AddTitleDialog({
   target: AddTitle;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdded: (series: AddedSeries) => void;
+  onAdded: (added: AddedTitle) => void;
   onExists?: () => void;
 }) {
   const isMobile = useIsMobile();

@@ -32,29 +32,29 @@ func TestBlockDurationLadder(t *testing.T) {
 func newService(t *testing.T) (*Service, *store.Store, db.Series) {
 	t.Helper()
 	st := coretest.NewStore(t)
-	series, err := st.Q.CreateSeries(context.Background(), db.CreateSeriesParams{
+	title, err := st.Q.CreateTitle(context.Background(), db.CreateTitleParams{
 		Title: "Placeholder Saga", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
-	return New(st, nil), st, series
+	return New(st, nil), st, title
 }
 
 // The first failure blocks for a day, the second for a week, the third forever:
 // environmental faults fail many grabs at once, so only a repeat of the same
 // release proves the release itself is dead.
 func TestRecordEscalatesExpiry(t *testing.T) {
-	svc, _, series := newService(t)
+	svc, _, title := newService(t)
 	ctx := context.Background()
-	const title = "[SynthSubs] Placeholder Saga - 03 [1080p].mkv"
+	const release = "[SynthSubs] Placeholder Saga - 03 [1080p].mkv"
 
 	record := func() db.ReleaseBlocklist {
 		t.Helper()
-		if _, err := svc.Record(ctx, series.ID, nil, "abcd1234", title, "download failed in the client"); err != nil {
+		if _, err := svc.Record(ctx, title.ID, nil, "abcd1234", release, "download failed in the client"); err != nil {
 			t.Fatalf("record: %v", err)
 		}
-		all, err := svc.List(ctx, series.ID)
+		all, err := svc.List(ctx, title.ID)
 		if err != nil {
 			t.Fatalf("list: %v", err)
 		}
@@ -103,12 +103,12 @@ func assertBlockedFor(t *testing.T, e db.ReleaseBlocklist, want time.Duration) {
 // Record stores the normalized title decide matches on, so a release differing
 // only in spacing or case is still recognised.
 func TestRecordStoresTheNormalizedTitle(t *testing.T) {
-	svc, _, series := newService(t)
+	svc, _, title := newService(t)
 	ctx := context.Background()
-	if _, err := svc.Record(ctx, series.ID, nil, "", "[SynthSubs]  Placeholder Saga - 03  ", "failed"); err != nil {
+	if _, err := svc.Record(ctx, title.ID, nil, "", "[SynthSubs]  Placeholder Saga - 03  ", "failed"); err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	all, err := svc.List(ctx, series.ID)
+	all, err := svc.List(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -121,13 +121,13 @@ func TestRecordStoresTheNormalizedTitle(t *testing.T) {
 }
 
 func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
-	svc, st, series := newService(t)
+	svc, st, title := newService(t)
 	ctx := context.Background()
 
-	if _, err := svc.Record(ctx, series.ID, nil, "h1", "[SynthSubs] Placeholder Saga - 01", "failed"); err != nil {
+	if _, err := svc.Record(ctx, title.ID, nil, "h1", "[SynthSubs] Placeholder Saga - 01", "failed"); err != nil {
 		t.Fatalf("record live: %v", err)
 	}
-	if _, err := svc.Record(ctx, series.ID, nil, "h2", "[SynthSubs] Placeholder Saga - 02", "failed"); err != nil {
+	if _, err := svc.Record(ctx, title.ID, nil, "h2", "[SynthSubs] Placeholder Saga - 02", "failed"); err != nil {
 		t.Fatalf("record expired: %v", err)
 	}
 	// Expire the second entry behind the service's back; only time can do this.
@@ -138,7 +138,7 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 		t.Fatalf("expire: %v", err)
 	}
 
-	active, err := svc.Active(ctx, series.ID)
+	active, err := svc.Active(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("active: %v", err)
 	}
@@ -146,14 +146,14 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 		t.Fatalf("active = %+v, want only the unexpired entry", active)
 	}
 
-	if err := svc.Clear(ctx, series.ID, active[0].ID); err != nil {
+	if err := svc.Clear(ctx, title.ID, active[0].ID); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
-	if got, _ := svc.Active(ctx, series.ID); len(got) != 0 {
+	if got, _ := svc.Active(ctx, title.ID); len(got) != 0 {
 		t.Errorf("active after clear = %d entries, want 0", len(got))
 	}
 	// Clear is scoped: a cleared entry that is gone reports ErrNotFound.
-	if err := svc.Clear(ctx, series.ID, active[0].ID); !errors.Is(err, ErrNotFound) {
+	if err := svc.Clear(ctx, title.ID, active[0].ID); !errors.Is(err, ErrNotFound) {
 		t.Errorf("clear of a missing entry = %v, want ErrNotFound", err)
 	}
 }
@@ -162,25 +162,25 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 // a test can move time rather than backdate rows -- and so the breaker's pinned
 // clock does not sit next to methods that quietly disagree with it.
 func TestExpiryHonoursTheServiceClock(t *testing.T) {
-	svc, _, series := newService(t)
+	svc, _, title := newService(t)
 	ctx := context.Background()
 	start := time.Now()
 	at(svc, start)
 
-	if _, err := svc.Record(ctx, series.ID, []int64{1}, "h1",
+	if _, err := svc.Record(ctx, title.ID, []int64{1}, "h1",
 		"[SynthSubs] Placeholder Saga - 01", "failed"); err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	if active, _ := svc.Active(ctx, series.ID); len(active) != 1 {
+	if active, _ := svc.Active(ctx, title.ID); len(active) != 1 {
 		t.Fatalf("active entries = %d at the moment of recording, want 1", len(active))
 	}
 
 	// Past the first rung of the ladder, so the entry has lapsed.
 	at(svc, start.Add(firstBlock+time.Hour))
-	if active, _ := svc.Active(ctx, series.ID); len(active) != 0 {
+	if active, _ := svc.Active(ctx, title.ID); len(active) != 0 {
 		t.Errorf("active entries = %d after the block lapsed, want 0", len(active))
 	}
-	cleared, err := svc.ClearExpired(ctx, series.ID)
+	cleared, err := svc.ClearExpired(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("clear expired: %v", err)
 	}
@@ -209,11 +209,11 @@ func hashes(entries []db.ReleaseBlocklist) []string {
 }
 
 // ClearExpired is the "forget the history, keep what still blocks" affordance;
-// ClearSeries is the whole-series one. Both stop at the series boundary.
-func TestClearExpiredAndClearSeries(t *testing.T) {
-	svc, st, series := newService(t)
+// ClearTitle is the whole-title one. Both stop at the title boundary.
+func TestClearExpiredAndClearTitle(t *testing.T) {
+	svc, st, title := newService(t)
 	ctx := context.Background()
-	other, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
+	other, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: "Another Placeholder", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
@@ -221,15 +221,15 @@ func TestClearExpiredAndClearSeries(t *testing.T) {
 	}
 
 	for _, e := range []struct {
-		seriesID    int64
+		titleID     int64
 		hash, title string
 	}{
-		{series.ID, "live", "[SynthSubs] Placeholder Saga - 01"},
-		{series.ID, "gone", "[SynthSubs] Placeholder Saga - 02"},
-		{series.ID, "forever", "[SynthSubs] Placeholder Saga - 03"},
+		{title.ID, "live", "[SynthSubs] Placeholder Saga - 01"},
+		{title.ID, "gone", "[SynthSubs] Placeholder Saga - 02"},
+		{title.ID, "forever", "[SynthSubs] Placeholder Saga - 03"},
 		{other.ID, "elsewhere", "[SynthSubs] Another Placeholder - 01"},
 	} {
-		if _, err := svc.Record(ctx, e.seriesID, nil, e.hash, e.title, "failed"); err != nil {
+		if _, err := svc.Record(ctx, e.titleID, nil, e.hash, e.title, "failed"); err != nil {
 			t.Fatalf("record %s: %v", e.hash, err)
 		}
 	}
@@ -240,14 +240,14 @@ func TestClearExpiredAndClearSeries(t *testing.T) {
 		t.Fatalf("make permanent: %v", err)
 	}
 
-	cleared, err := svc.ClearExpired(ctx, series.ID)
+	cleared, err := svc.ClearExpired(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("clear expired: %v", err)
 	}
 	if cleared != 1 {
 		t.Errorf("cleared %d expired entries, want 1", cleared)
 	}
-	left, err := svc.List(ctx, series.ID)
+	left, err := svc.List(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -255,17 +255,17 @@ func TestClearExpiredAndClearSeries(t *testing.T) {
 		t.Errorf("entries after clearing expired = %v, want the live and permanent ones", got)
 	}
 
-	cleared, err = svc.ClearSeries(ctx, series.ID)
+	cleared, err = svc.ClearTitle(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("clear series: %v", err)
 	}
 	if cleared != 2 {
 		t.Errorf("cleared %d entries, want the 2 that were left", cleared)
 	}
-	if left, _ := svc.List(ctx, series.ID); len(left) != 0 {
+	if left, _ := svc.List(ctx, title.ID); len(left) != 0 {
 		t.Errorf("entries after clearing the series = %v, want none", hashes(left))
 	}
-	// Neither clear reaches past the series it was scoped to.
+	// Neither clear reaches past the title it was scoped to.
 	if elsewhere, _ := svc.List(ctx, other.ID); len(elsewhere) != 1 {
 		t.Errorf("other series has %d entries, want its own 1 untouched", len(elsewhere))
 	}

@@ -19,7 +19,7 @@ func acquireHTTPError(err error) error {
 	case errors.Is(err, acquire.ErrNoDownloadClient):
 		return huma.Error503ServiceUnavailable(
 			"no download client configured (set it in Settings, or TRANSPONDARR_QBIT_URL/_USER/_PASSWORD)")
-	case errors.Is(err, acquire.ErrSeriesNotFound):
+	case errors.Is(err, acquire.ErrTitleNotFound):
 		return huma.Error404NotFound("series not found")
 	case errors.Is(err, acquire.ErrIndexerSearch):
 		return huma.Error502BadGateway("indexer search failed", err)

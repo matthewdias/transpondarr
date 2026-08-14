@@ -8,15 +8,15 @@ import {
   ApiError,
   PartialBatchError,
   type AutomationMode,
-  type SeriesDetail,
+  type TitleDetail,
 } from "@/lib/api";
 import { formatLabel, statusLabel } from "@/lib/chart";
 import { plural } from "@/lib/format";
 import {
   profilesQuery,
   releasesQuery,
-  seriesDetailQuery,
-  seriesQuery,
+  titleDetailQuery,
+  titlesQuery,
   settingsQuery,
 } from "@/lib/queries";
 import { cn } from "@/lib/utils";
@@ -44,7 +44,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DeleteSeriesDialog } from "@/components/detail/delete-series-dialog";
+import { DeleteTitleDialog } from "@/components/detail/delete-title-dialog";
 import { EpisodesTab } from "@/components/detail/episodes-tab";
 import { MovieStatusCard } from "@/components/detail/movie-status-card";
 import { ReleasesTab } from "@/components/detail/releases-tab";
@@ -65,7 +65,7 @@ function resolveTab(tab: TabKey | null, isMovie: boolean): TabKey {
 const chipClass =
   "inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground";
 
-export function SeriesDetailPage() {
+export function TitleDetailPage() {
   const params = useParams();
   const id = Number(params.id);
   // ?item=N is how another page asks for an episode-targeted search (#150's
@@ -87,7 +87,7 @@ export function SeriesDetailPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
-  const detailKey = seriesDetailQuery(id).queryKey;
+  const detailKey = titleDetailQuery(id).queryKey;
 
   const {
     data: detail,
@@ -95,7 +95,7 @@ export function SeriesDetailPage() {
     isError,
     error,
   } = useQuery({
-    ...seriesDetailQuery(id),
+    ...titleDetailQuery(id),
     enabled: Number.isFinite(id),
   });
 
@@ -121,7 +121,7 @@ export function SeriesDetailPage() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: detailKey });
-      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
+      queryClient.invalidateQueries({ queryKey: titlesQuery().queryKey });
     },
   });
 
@@ -172,7 +172,7 @@ export function SeriesDetailPage() {
     onSuccess: () => setSelected(new Set()),
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: detailKey });
-      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
+      queryClient.invalidateQueries({ queryKey: titlesQuery().queryKey });
     },
   });
 
@@ -214,7 +214,7 @@ export function SeriesDetailPage() {
         breadcrumb={breadcrumb}
         actions={
           detail && (
-            <DeleteSeriesDialog
+            <DeleteTitleDialog
               detail={detail}
               onDeleted={() => navigate("/", { replace: true })}
             />
@@ -318,14 +318,14 @@ export function SeriesDetailPage() {
               )}
               <TabsContent value="releases">
                 <ReleasesTab
-                  seriesId={id}
+                  titleId={id}
                   active={activeTab === "releases"}
                   focusItem={focusItem}
                   onClearFocus={() => setFocusItem(null)}
                 />
               </TabsContent>
               <TabsContent value="history">
-                <HistoryTab seriesId={id} active={activeTab === "history"} />
+                <HistoryTab titleId={id} active={activeTab === "history"} />
               </TabsContent>
             </Tabs>
           </>
@@ -337,17 +337,17 @@ export function SeriesDetailPage() {
 
 // ProfilePicker sits in the chips row: the profile is context you glance at and
 // occasionally change, not a form you fill in.
-export function ProfilePicker({ detail }: { detail: SeriesDetail }) {
+export function ProfilePicker({ detail }: { detail: TitleDetail }) {
   const queryClient = useQueryClient();
   const profiles = useQuery(profilesQuery());
   const assign = useMutation({
     mutationFn: (profileId: number) =>
-      api.assignSeriesProfile(detail.id, profileId),
+      api.assignTitleProfile(detail.id, profileId),
     onSuccess: (_res, profileId) => {
       const name = profiles.data?.find((p) => p.id === profileId)?.name;
       toast.success(name ? `Profile set to “${name}”` : "Profile updated");
       queryClient.invalidateQueries({
-        queryKey: seriesDetailQuery(detail.id).queryKey,
+        queryKey: titleDetailQuery(detail.id).queryKey,
       });
       queryClient.invalidateQueries({ queryKey: profilesQuery().queryKey });
     },
@@ -414,7 +414,7 @@ export function ProfilePicker({ detail }: { detail: SeriesDetail }) {
 
 // PinnedGroupChip is the per-series "this group is definitive" knob (#61): free
 // text because the pinned group need not be in the profile's ranked list.
-export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
+export function PinnedGroupChip({ detail }: { detail: TitleDetail }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [group, setGroup] = useState("");
@@ -435,11 +435,11 @@ export function PinnedGroupChip({ detail }: { detail: SeriesDetail }) {
 
   const pin = useMutation({
     mutationFn: ({ g, d }: { g: string; d?: number }) =>
-      api.setSeriesPinnedGroup(detail.id, g, d),
+      api.setTitlePinnedGroup(detail.id, g, d),
     onSuccess: (_res, { g }) => {
       toast.success(g.trim() ? `Pinned “${g.trim()}”` : "Pin cleared");
       queryClient.invalidateQueries({
-        queryKey: seriesDetailQuery(detail.id).queryKey,
+        queryKey: titleDetailQuery(detail.id).queryKey,
       });
       queryClient.invalidateQueries({
         queryKey: releasesQuery(detail.id).queryKey,
@@ -629,7 +629,7 @@ function DetailHeader({
   automationMode,
   onToggleMonitored,
 }: {
-  detail: SeriesDetail;
+  detail: TitleDetail;
   automationMode: AutomationMode;
   onToggleMonitored: (v: boolean) => void;
 }) {

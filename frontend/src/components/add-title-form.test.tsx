@@ -57,7 +57,7 @@ function settingsBody(dir: string, moviesDir: string) {
 }
 
 // seedMoviesDir warms the ["settings"] cache the way any detail-page visit does
-// (series-detail fetches it unconditionally). That is what makes the isMovie
+// (title-detail fetches it unconditionally). That is what makes the isMovie
 // guard observable: enabled:false suppresses the fetch, never the cache read, so
 // without the guard a series form would render the notice on its first tick.
 function renderForm(target: AddTitle, title: string, seedMoviesDir?: string) {
@@ -89,7 +89,7 @@ const movie: AddTitle = {
   status: "FINISHED",
 };
 
-const series: AddTitle = {
+const title: AddTitle = {
   provider: "anilist",
   provider_id: 21,
   format: "TV",
@@ -117,7 +117,7 @@ it("hides the monitor mode for a movie and sends all", async () => {
 // The mode keys on the format alone, so a series is untouched.
 it("keeps the monitor mode for a series", async () => {
   const bodies = captureAdd();
-  const user = renderForm(series, "Placeholder Saga");
+  const user = renderForm(title, "Placeholder Saga");
 
   expect(
     await screen.findByRole("combobox", { name: "Monitor" }),
@@ -171,7 +171,7 @@ it("stays quiet on a movies-only library", async () => {
 // however the component behaved.
 it("stays quiet for a series even with the empty root already cached", async () => {
   libraryRoots("/media/shows", "");
-  renderForm(series, "Placeholder Saga", "");
+  renderForm(title, "Placeholder Saga", "");
 
   await screen.findByRole("combobox", { name: "Monitor" });
   expect(screen.queryByRole("link", { name: noMoviesRoot })).toBeNull();

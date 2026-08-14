@@ -76,18 +76,18 @@ func newRegistry(idx indexer.Indexer, dl download.Client) *clients.Registry {
 	return reg
 }
 
-// seedSeries inserts a monitored series with episodes 1..count and no AniList id.
-func seedSeries(t *testing.T, st *store.Store, title string, count int) int64 {
+// seedTitle inserts a monitored title with episodes 1..count and no AniList id.
+func seedTitle(t *testing.T, st *store.Store, title string, count int) int64 {
 	t.Helper()
-	return seedAniListSeries(t, st, title, 0, count)
+	return seedAniListTitle(t, st, title, 0, count)
 }
 
-// seedAniListSeries is seedSeries with an optional provider id (0 = none), so a
+// seedAniListTitle is seedTitle with an optional provider id (0 = none), so a
 // test can exercise the title-variant lookup.
-func seedAniListSeries(t *testing.T, st *store.Store, title string, anilistID int64, count int) int64 {
+func seedAniListTitle(t *testing.T, st *store.Store, title string, anilistID int64, count int) int64 {
 	t.Helper()
 	ctx := context.Background()
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title:      title,
 		Format:     "TV",
 		Monitored:  1,
@@ -110,7 +110,7 @@ func seedAniListSeries(t *testing.T, st *store.Store, title string, anilistID in
 
 // The sanitized stored title is tried first; a zero-result answer falls back to
 // the remaining title variants, and the term that produced results is reported.
-func TestMatchSeriesFallsBackToVariantTerm(t *testing.T) {
+func TestMatchTitleFallsBackToVariantTerm(t *testing.T) {
 	const english = "Fixture of the Sky Side Story"
 	idx := &coretest.FakeIndexer{ByTerm: map[string][]indexer.Release{
 		english: {{Title: "[ExampleSubs] Fixture of the Sky Side Story - 03 [1080p]",
@@ -120,9 +120,9 @@ func TestMatchSeriesFallsBackToVariantTerm(t *testing.T) {
 	svc, _ := newService(t, st, idx, fakeTitles{variants: map[int64][]string{
 		42: {"Sora・no・Fixture Gaiden", english},
 	}})
-	id := seedAniListSeries(t, st, "Sora・no・Fixture Gaiden", 42, 12)
+	id := seedAniListTitle(t, st, "Sora・no・Fixture Gaiden", 42, 12)
 
-	m, err := svc.MatchSeries(context.Background(), id)
+	m, err := svc.MatchTitle(context.Background(), id)
 	if err != nil {
 		t.Fatalf("MatchSeries: %v", err)
 	}
@@ -133,8 +133,8 @@ func TestMatchSeriesFallsBackToVariantTerm(t *testing.T) {
 	if m.Term != english {
 		t.Errorf("term = %q, want the variant that produced results %q", m.Term, english)
 	}
-	if m.Series.ID != id {
-		t.Errorf("series id = %d, want %d", m.Series.ID, id)
+	if m.Title.ID != id {
+		t.Errorf("series id = %d, want %d", m.Title.ID, id)
 	}
 	if len(m.Items) != 12 {
 		t.Errorf("loaded %d wanted items, want 12", len(m.Items))
@@ -147,33 +147,33 @@ func TestMatchSeriesFallsBackToVariantTerm(t *testing.T) {
 
 // An unconfigured indexer is reported as its own sentinel, so the HTTP layer can
 // map it to a 503 without core knowing about status codes.
-func TestMatchSeriesWithoutIndexer(t *testing.T) {
+func TestMatchTitleWithoutIndexer(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc, _ := newService(t, st, nil, fakeTitles{})
-	id := seedSeries(t, st, "Placeholder Saga", 12)
+	id := seedTitle(t, st, "Placeholder Saga", 12)
 
-	if _, err := svc.MatchSeries(context.Background(), id); !errors.Is(err, acquire.ErrNoIndexer) {
+	if _, err := svc.MatchTitle(context.Background(), id); !errors.Is(err, acquire.ErrNoIndexer) {
 		t.Fatalf("MatchSeries error = %v, want ErrNoIndexer", err)
 	}
 }
 
-func TestMatchSeriesUnknownSeries(t *testing.T) {
+func TestMatchTitleUnknownTitle(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc, _ := newService(t, st, &coretest.FakeIndexer{}, fakeTitles{})
 
-	if _, err := svc.MatchSeries(context.Background(), 404); !errors.Is(err, acquire.ErrSeriesNotFound) {
+	if _, err := svc.MatchTitle(context.Background(), 404); !errors.Is(err, acquire.ErrTitleNotFound) {
 		t.Fatalf("MatchSeries error = %v, want ErrSeriesNotFound", err)
 	}
 }
 
 // A failing indexer surfaces immediately rather than degrading to zero results.
-func TestMatchSeriesIndexerError(t *testing.T) {
+func TestMatchTitleIndexerError(t *testing.T) {
 	idx := &coretest.FakeIndexer{Err: errors.New("torznab: upstream timeout")}
 	st := coretest.NewStore(t)
 	svc, _ := newService(t, st, idx, fakeTitles{})
-	id := seedSeries(t, st, "Placeholder Saga", 12)
+	id := seedTitle(t, st, "Placeholder Saga", 12)
 
-	_, err := svc.MatchSeries(context.Background(), id)
+	_, err := svc.MatchTitle(context.Background(), id)
 	if !errors.Is(err, acquire.ErrIndexerSearch) {
 		t.Fatalf("MatchSeries error = %v, want ErrIndexerSearch", err)
 	}
@@ -181,16 +181,16 @@ func TestMatchSeriesIndexerError(t *testing.T) {
 
 // A metadata lookup that fails must not fail the search: the stored title alone
 // is a usable term.
-func TestMatchSeriesTolerationOfVariantLookupFailure(t *testing.T) {
+func TestMatchTitleTolerationOfVariantLookupFailure(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga - 03 [1080p]",
 			DownloadURL: "magnet:?xt=urn:btih:cc03", Seeders: 10},
 	}}
 	st := coretest.NewStore(t)
 	svc, _ := newService(t, st, idx, fakeTitles{err: errors.New("anilist: rate limited")})
-	id := seedAniListSeries(t, st, "Placeholder Saga", 42, 12)
+	id := seedAniListTitle(t, st, "Placeholder Saga", 42, 12)
 
-	m, err := svc.MatchSeries(context.Background(), id)
+	m, err := svc.MatchTitle(context.Background(), id)
 	if err != nil {
 		t.Fatalf("MatchSeries: %v", err)
 	}

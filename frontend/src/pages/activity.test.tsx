@@ -119,13 +119,13 @@ describe("ActivityPage", () => {
     expect(await screen.findByText("Paused")).toBeInTheDocument();
     expect(screen.getByText(/42%/)).toBeInTheDocument();
     const links = screen.getAllByRole("link", { name: "Signal Anomaly" });
-    expect(links[0]).toHaveAttribute("href", "/series/7");
+    expect(links[0]).toHaveAttribute("href", "/titles/7");
 
     // Queue: the stuck row names its import error.
     expect(screen.getByText("import failed: disk full")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dusty Archive" })).toHaveAttribute(
       "href",
-      "/series/9",
+      "/titles/9",
     );
 
     // History: past-tense verbs, failure detail carried through.

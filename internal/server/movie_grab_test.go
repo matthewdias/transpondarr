@@ -18,7 +18,7 @@ import (
 func seedMovie(t *testing.T, st *store.Store, title string, year int64) int64 {
 	t.Helper()
 	ctx := context.Background()
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: title, Format: "MOVIE", Monitored: 1, Year: year,
 	})
 	if err != nil {
@@ -40,12 +40,12 @@ type movieSearchResult struct {
 	IneligibleReason string `json:"ineligible_reason"`
 }
 
-func movieSearch(t *testing.T, h *harness, seriesID int64) []movieSearchResult {
+func movieSearch(t *testing.T, h *harness, titleID int64) []movieSearchResult {
 	t.Helper()
 	var out struct {
 		Results []movieSearchResult `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	return out.Results
@@ -60,9 +60,9 @@ func TestMovieSearchesAndGrabs(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "filmhash", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedMovie(t, h.store, "Sample Film", 2019)
+	titleID := seedMovie(t, h.store, "Sample Film", 2019)
 
-	results := movieSearch(t, h, seriesID)
+	results := movieSearch(t, h, titleID)
 	if len(results) != 1 {
 		t.Fatalf("results = %+v, want the film listed", results)
 	}
@@ -78,7 +78,7 @@ func TestMovieSearchesAndGrabs(t *testing.T) {
 		Items            []int  `json:"items"`
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, &grabOut)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
@@ -103,9 +103,9 @@ func TestMovieWithNoYearIsGrabbableButFlagged(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "noyearhash", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedMovie(t, h.store, "Sample Film", 0)
+	titleID := seedMovie(t, h.store, "Sample Film", 0)
 
-	results := movieSearch(t, h, seriesID)
+	results := movieSearch(t, h, titleID)
 	if len(results) != 1 || !results[0].Matched {
 		t.Fatalf("results = %+v, want the film matched", results)
 	}
@@ -119,7 +119,7 @@ func TestMovieWithNoYearIsGrabbableButFlagged(t *testing.T) {
 	var grabOut struct {
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, &grabOut)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)
@@ -141,9 +141,9 @@ func TestMovieWrongYearIsRefusedWithAReason(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "wrongyearhash", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedMovie(t, h.store, "Sample Film", 2019)
+	titleID := seedMovie(t, h.store, "Sample Film", 2019)
 
-	results := movieSearch(t, h, seriesID)
+	results := movieSearch(t, h, titleID)
 	if len(results) != 1 {
 		t.Fatalf("results = %+v, want the release listed", results)
 	}
@@ -157,7 +157,7 @@ func TestMovieWrongYearIsRefusedWithAReason(t *testing.T) {
 	var grabOut struct {
 		Detail string `json:"detail"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, &grabOut)
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("grab status = %d, want 422 for an unmatched release", code)
@@ -167,7 +167,7 @@ func TestMovieWrongYearIsRefusedWithAReason(t *testing.T) {
 	}
 }
 
-// A season pack may be the film's parent series, so automation declines it --
+// A season pack may be the film's parent title, so automation declines it --
 // but it may equally be a genuine multi-part film release, so the manual grab
 // carries the reason on the 201 rather than refusing. PR #57's shape again.
 func TestMovieSeasonPackIsGrabbableButFlagged(t *testing.T) {
@@ -178,9 +178,9 @@ func TestMovieSeasonPackIsGrabbableButFlagged(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "packhash", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedMovie(t, h.store, "Placeholder Saga: The Final", 2019)
+	titleID := seedMovie(t, h.store, "Placeholder Saga: The Final", 2019)
 
-	results := movieSearch(t, h, seriesID)
+	results := movieSearch(t, h, titleID)
 	if len(results) != 1 || !results[0].Matched {
 		t.Fatalf("results = %+v, want the pack matched so it stays grabbable", results)
 	}
@@ -195,7 +195,7 @@ func TestMovieSeasonPackIsGrabbableButFlagged(t *testing.T) {
 	var grabOut struct {
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, &grabOut)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)

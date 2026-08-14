@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// The schedule doubles from an hour and stops at a day, so a dead series is
+// The schedule doubles from an hour and stops at a day, so a dead title is
 // still re-checked daily rather than drifting into never.
 func TestBackoffDelay(t *testing.T) {
 	for _, tc := range []struct {

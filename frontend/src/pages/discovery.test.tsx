@@ -111,7 +111,7 @@ describe("DiscoveryPage", () => {
 
     // The tracked entry offers its library page, not a second add.
     const inLibrary = screen.getByRole("link", { name: /in library/i });
-    expect(inLibrary).toHaveAttribute("href", "/series/7");
+    expect(inLibrary).toHaveAttribute("href", "/titles/7");
     expect(screen.getAllByRole("button", { name: /^add$/i })).toHaveLength(1);
 
     // The synopsis lives in the detail dialog, not on the card, so an expanded
@@ -190,7 +190,7 @@ describe("DiscoveryPage", () => {
 
     expect(
       await screen.findByRole("link", { name: /in library/i }),
-    ).toHaveAttribute("href", "/series/9");
+    ).toHaveAttribute("href", "/titles/9");
   });
 
   it("shows the detail as a drawer on mobile", async () => {

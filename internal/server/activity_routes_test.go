@@ -36,11 +36,11 @@ type queueJSON struct {
 	ClientOk bool            `json:"client_ok"`
 }
 
-// seedOpenGrab writes a grab for the series' item with the given number.
-func seedOpenGrab(t *testing.T, st *store.Store, seriesID int64, number int, hash, title, status string) db.Grab {
+// seedOpenGrab writes a grab for the title' item with the given number.
+func seedOpenGrab(t *testing.T, st *store.Store, titleID int64, number int, hash, title, status string) db.Grab {
 	t.Helper()
 	ctx := context.Background()
-	items, err := st.Q.ListWantedItems(ctx, seriesID)
+	items, err := st.Q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}
@@ -60,7 +60,7 @@ func seedOpenGrab(t *testing.T, st *store.Store, seriesID int64, number int, has
 			return g
 		}
 	}
-	t.Fatalf("no wanted item numbered %d in series %d", number, seriesID)
+	t.Fatalf("no wanted item numbered %d in series %d", number, titleID)
 	return db.Grab{}
 }
 
@@ -69,18 +69,18 @@ func TestActivityQueueReportsOpenGrabsWithClientState(t *testing.T) {
 		{Hash: "H1", State: download.StatePaused, Progress: 0.42},
 	}}
 	h := newHarness(t, nil, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 6)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 6)
 
-	downloading := seedOpenGrab(t, h.store, seriesID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
-	stuck := seedOpenGrab(t, h.store, seriesID, 2, "h2", "[ExampleSubs] Placeholder Saga - 02 [1080p]", "grabbed")
+	downloading := seedOpenGrab(t, h.store, titleID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
+	stuck := seedOpenGrab(t, h.store, titleID, 2, "h2", "[ExampleSubs] Placeholder Saga - 02 [1080p]", "grabbed")
 	if err := h.store.Q.SetGrabLastError(context.Background(), db.SetGrabLastErrorParams{
 		LastError: sql.NullString{String: "import failed: disk full", Valid: true}, ID: stuck.ID,
 	}); err != nil {
 		t.Fatalf("set last_error: %v", err)
 	}
-	deferred := seedOpenGrab(t, h.store, seriesID, 3, "h3", "[ExampleSubs] Placeholder Saga - 03 [1080p]", "import_deferred")
-	seedOpenGrab(t, h.store, seriesID, 4, "h4", "settled", "imported")
-	seedOpenGrab(t, h.store, seriesID, 5, "h5", "settled", "failed")
+	deferred := seedOpenGrab(t, h.store, titleID, 3, "h3", "[ExampleSubs] Placeholder Saga - 03 [1080p]", "import_deferred")
+	seedOpenGrab(t, h.store, titleID, 4, "h4", "settled", "imported")
+	seedOpenGrab(t, h.store, titleID, 5, "h5", "settled", "failed")
 
 	var got queueJSON
 	if code := h.get(t, "/api/v1/activity/queue", &got); code != http.StatusOK {
@@ -109,7 +109,7 @@ func TestActivityQueueReportsOpenGrabsWithClientState(t *testing.T) {
 	if d.Progress == nil || *d.Progress != 0.42 {
 		t.Errorf("progress = %v, want 0.42", d.Progress)
 	}
-	if d.TitleID != seriesID || d.Title != "Placeholder Saga" || d.ItemNumber != 1 || d.CreatedAt == "" {
+	if d.TitleID != titleID || d.Title != "Placeholder Saga" || d.ItemNumber != 1 || d.CreatedAt == "" {
 		t.Errorf("downloading row = %+v, want series fields and a created_at", d)
 	}
 	s := byID[stuck.ID]
@@ -142,12 +142,12 @@ type activityHistoryJSON struct {
 }
 
 // seedActivityEvent inserts a grab event with a controlled created_at.
-func seedActivityEvent(t *testing.T, st *store.Store, seriesID int64, number int, event, detail, createdAt string) {
+func seedActivityEvent(t *testing.T, st *store.Store, titleID int64, number int, event, detail, createdAt string) {
 	t.Helper()
 	if _, err := st.DB.Exec(
 		`INSERT INTO grab_events (series_id, wanted_item_id, item_number, item_kind, info_hash, release_title, event, detail, created_at)
 		 VALUES (?, ?, ?, 'episode', 'hash', 'rel', ?, ?, ?)`,
-		seriesID, number, number, event, detail, createdAt,
+		titleID, number, number, event, detail, createdAt,
 	); err != nil {
 		t.Fatalf("insert event: %v", err)
 	}
@@ -155,8 +155,8 @@ func seedActivityEvent(t *testing.T, st *store.Store, seriesID int64, number int
 
 func TestActivityHistoryPaginatesToExhaustion(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	first := seedSeries(t, h.store, "Placeholder Saga", 3)
-	second := seedSeries(t, h.store, "Unrelated Show", 2)
+	first := seedTitle(t, h.store, "Placeholder Saga", 3)
+	second := seedTitle(t, h.store, "Unrelated Show", 2)
 
 	// Three share a created_at, so pagination has to tie-break on id.
 	seedActivityEvent(t, h.store, first, 1, "grabbed", "", "2026-01-01 10:00:00")
@@ -202,10 +202,10 @@ func TestActivityHistoryPaginatesToExhaustion(t *testing.T) {
 	}
 }
 
-func TestActivityHistoryCarriesDetailAndSeriesTitle(t *testing.T) {
+func TestActivityHistoryCarriesDetailAndTitleName(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	seedActivityEvent(t, h.store, seriesID, 2, "failed", "the download client reported an error", "2026-01-01 10:00:00")
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	seedActivityEvent(t, h.store, titleID, 2, "failed", "the download client reported an error", "2026-01-01 10:00:00")
 
 	var page activityHistoryJSON
 	if code := h.get(t, "/api/v1/activity/history", &page); code != http.StatusOK {
@@ -218,7 +218,7 @@ func TestActivityHistoryCarriesDetailAndSeriesTitle(t *testing.T) {
 	if e.Status != "failed" || e.Detail != "the download client reported an error" {
 		t.Errorf("event = %+v, want the failed detail carried through", e)
 	}
-	if e.TitleID != seriesID || e.Title != "Placeholder Saga" || e.ItemNumber != 2 {
+	if e.TitleID != titleID || e.Title != "Placeholder Saga" || e.ItemNumber != 2 {
 		t.Errorf("event = %+v, want the series fields", e)
 	}
 	if page.NextCursor != "" {
@@ -247,18 +247,18 @@ func TestActivityHistoryEmpty(t *testing.T) {
 	}
 }
 
-// A failed attempt survives a re-grab in per-series history — the bug the
+// A failed attempt survives a re-grab in per-title history — the bug the
 // grabs-table upsert baked in (each attempt overwrote the last).
-func TestSeriesHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
+func TestTitleHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:00000000000000000000000000000000000000aa"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga - 04 [1080p]", DownloadURL: url, Seeders: 100},
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashA", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
@@ -266,7 +266,7 @@ func TestSeriesHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, nil); code != http.StatusCreated {
 		t.Fatalf("re-grab status = %d, want 201", code)
 	}
@@ -280,7 +280,7 @@ func TestSeriesHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 			CreatedAt  string `json:"created_at"`
 		} `json:"events"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/grabs", seriesID), &hist); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/grabs", titleID), &hist); code != http.StatusOK {
 		t.Fatalf("GET grabs = %d, want 200", code)
 	}
 	if len(hist.Events) != 3 {
@@ -303,8 +303,8 @@ func TestSeriesHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 
 func TestActivityQueueWithoutDownloadClient(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	seedOpenGrab(t, h.store, seriesID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	seedOpenGrab(t, h.store, titleID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
 
 	var got queueJSON
 	if code := h.get(t, "/api/v1/activity/queue", &got); code != http.StatusOK {
@@ -324,8 +324,8 @@ func TestActivityQueueWithoutDownloadClient(t *testing.T) {
 func TestActivityQueueDegradesOnClientError(t *testing.T) {
 	dl := &coretest.FakeDownload{StatusErr: errors.New("client unreachable")}
 	h := newHarness(t, nil, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	seedOpenGrab(t, h.store, seriesID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	seedOpenGrab(t, h.store, titleID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
 
 	var got queueJSON
 	if code := h.get(t, "/api/v1/activity/queue", &got); code != http.StatusOK {

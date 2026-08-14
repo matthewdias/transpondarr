@@ -30,7 +30,7 @@ func TestPinDelayClampsBothEnds(t *testing.T) {
 	}
 }
 
-// Format is the discriminator: a single-episode OVA stays series-shaped, so
+// Format is the discriminator: a single-episode OVA stays title-shaped, so
 // nothing may derive the kind from an item count.
 func TestKindFor(t *testing.T) {
 	for _, tc := range []struct {

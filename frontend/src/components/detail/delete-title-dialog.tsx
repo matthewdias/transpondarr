@@ -2,7 +2,8 @@ import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Trash2 } from "lucide-react";
-import { api, ApiError, type SeriesDetail } from "@/lib/api";
+import { api, ApiError, type TitleDetail } from "@/lib/api";
+import { titleDetailQuery, titlesQuery } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,11 +18,11 @@ import {
 // The delete confirmation: says in counts what goes (tracking, history,
 // blocklist memory) and what stays (library files, always). The checkbox is the
 // only way downloads are touched, and it takes their data with them.
-export function DeleteSeriesDialog({
+export function DeleteTitleDialog({
   detail,
   onDeleted,
 }: {
-  detail: SeriesDetail;
+  detail: TitleDetail;
   onDeleted: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -41,14 +42,16 @@ export function DeleteSeriesDialog({
   ).length;
 
   const del = useMutation({
-    mutationFn: () => api.deleteSeries(detail.id, removeDownloads),
+    mutationFn: () => api.deleteTitle(detail.id, removeDownloads),
     onSuccess: () => {
       toast.success(`Deleted “${detail.title}”`);
-      // Drop the still-mounted detail query first, or the series-prefix
+      // Drop the still-mounted detail query first, or the title-prefix
       // invalidation refetches it into a 404 before the navigation lands.
-      queryClient.removeQueries({ queryKey: ["series", detail.id] });
-      // The calendar caches its own series-derived rows under a separate prefix.
-      queryClient.invalidateQueries({ queryKey: ["series"] });
+      queryClient.removeQueries({
+        queryKey: titleDetailQuery(detail.id).queryKey,
+      });
+      // The calendar caches its own title-derived rows under a separate prefix.
+      queryClient.invalidateQueries({ queryKey: titlesQuery().queryKey });
       queryClient.invalidateQueries({ queryKey: ["calendar"] });
       setOpen(false);
       onDeleted();

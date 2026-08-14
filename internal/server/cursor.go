@@ -21,7 +21,7 @@ func decodeKeysetCursor(cursor string) (sortKey string, id int64, err error) {
 		return "", 0, err
 	}
 	// The LAST separator, because the sort key may itself contain one -- the
-	// cutoff listing keys on series titles -- while the id never does.
+	// cutoff listing keys on title titles -- while the id never does.
 	i := strings.LastIndexByte(string(raw), '|')
 	if i < 0 {
 		return "", 0, fmt.Errorf("cursor missing separator")

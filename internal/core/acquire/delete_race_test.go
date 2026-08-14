@@ -13,7 +13,7 @@ import (
 // A delete landing while the sweep is out on the network must not fail the pass:
 // no tx is open during the search, and the epoch-guarded cadence write treats
 // zero rows as "reset or removed mid-sweep", not an error.
-func TestSweepSurvivesSeriesDeletedMidSearch(t *testing.T) {
+func TestSweepSurvivesTitleDeletedMidSearch(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, nil, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
@@ -22,7 +22,7 @@ func TestSweepSurvivesSeriesDeletedMidSearch(t *testing.T) {
 	var once sync.Once
 	h.idx.SearchHook = func(indexer.Query) {
 		once.Do(func() {
-			if _, err := h.st.Q.DeleteSeries(ctx, id); err != nil {
+			if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
 				t.Errorf("delete series mid-search: %v", err)
 			}
 		})
@@ -35,8 +35,8 @@ func TestSweepSurvivesSeriesDeletedMidSearch(t *testing.T) {
 
 // A delete landing between the client Add (deliberately outside the grab tx) and
 // the grab write hits the wanted_items FK. The pass reports it, records nothing,
-// and the next pass runs clean: no wedge, and the series is not resurrected.
-func TestSweepReportsButRecoversFromSeriesDeletedMidGrab(t *testing.T) {
+// and the next pass runs clean: no wedge, and the title is not resurrected.
+func TestSweepReportsButRecoversFromTitleDeletedMidGrab(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
@@ -45,7 +45,7 @@ func TestSweepReportsButRecoversFromSeriesDeletedMidGrab(t *testing.T) {
 	var once sync.Once
 	h.dl.AddHook = func(download.AddOptions) {
 		once.Do(func() {
-			if _, err := h.st.Q.DeleteSeries(ctx, id); err != nil {
+			if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
 				t.Errorf("delete series mid-grab: %v", err)
 			}
 		})

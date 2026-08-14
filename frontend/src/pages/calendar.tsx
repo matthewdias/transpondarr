@@ -189,7 +189,7 @@ export function CalendarPage() {
                 {cal.data.unscheduled.map((s, i) => (
                   <span key={s.title_id}>
                     <Link
-                      to={`/series/${s.title_id}`}
+                      to={`/titles/${s.title_id}`}
                       className="underline-offset-2 hover:underline"
                     >
                       {s.title}
@@ -214,7 +214,7 @@ function EntryLine({ item }: { item: CalendarItem }) {
   const premiere = isPremiere(item);
   return (
     <Link
-      to={`/series/${item.title_id}`}
+      to={`/titles/${item.title_id}`}
       className="block truncate rounded px-1 py-0.5 text-xs leading-5 hover:bg-panel-2"
       title={`${item.title} — ${premiere ? "premiere" : `episode ${item.number}`} (${item.status})`}
     >
@@ -330,7 +330,7 @@ function WeekGrid({
               {items.map((item) => (
                 <Link
                   key={item.id}
-                  to={`/series/${item.title_id}`}
+                  to={`/titles/${item.title_id}`}
                   className="block overflow-hidden rounded-md border bg-panel-2/40 p-2 hover:bg-panel-2"
                 >
                   <div className="truncate text-xs font-medium">
@@ -407,7 +407,7 @@ function Agenda({
               {(buckets.get(key) ?? []).map((item) => (
                 <Link
                   key={item.id}
-                  to={`/series/${item.title_id}`}
+                  to={`/titles/${item.title_id}`}
                   className="flex items-center gap-3 px-3 py-2.5 hover:bg-panel-2/50"
                 >
                   <span className="w-16 whitespace-nowrap text-xs tabular-nums text-muted-foreground">

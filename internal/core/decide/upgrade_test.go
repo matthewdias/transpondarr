@@ -8,7 +8,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 )
 
-// All fixtures use invented series/group names; only the naming structure under
+// All fixtures use invented title/group names; only the naming structure under
 // test is real.
 
 // upgradeProfile ranks TopSubs above MidSubs, so a held release and a candidate

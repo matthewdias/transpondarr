@@ -13,9 +13,9 @@ func nullString(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: true}
 }
 
-func blocklistSeries(t *testing.T, st *Store, title string) db.Series {
+func blocklistTitle(t *testing.T, st *Store, title string) db.Series {
 	t.Helper()
-	s, err := st.Q.CreateSeries(context.Background(), db.CreateSeriesParams{
+	s, err := st.Q.CreateTitle(context.Background(), db.CreateTitleParams{
 		Title: title, Format: "TV", Monitored: 1,
 	})
 	if err != nil {
@@ -29,11 +29,11 @@ func blocklistSeries(t *testing.T, st *Store, title string) db.Series {
 func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	series := blocklistSeries(t, st, "Blocklist Upsert")
+	title := blocklistTitle(t, st, "Blocklist Upsert")
 
 	until := FormatTimestamp(time.Now().Add(24 * time.Hour))
 	first, err := st.Q.UpsertBlocklistEntry(ctx, db.UpsertBlocklistEntryParams{
-		SeriesID:        series.ID,
+		SeriesID:        title.ID,
 		InfoHash:        "aaaa1111",
 		ReleaseTitle:    "[SynthSubs] Sample Show - 01 [1080p].mkv",
 		NormalizedTitle: "[synthsubs] sample show - 01 [1080p].mkv",
@@ -48,7 +48,7 @@ func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 	}
 
 	second, err := st.Q.UpsertBlocklistEntry(ctx, db.UpsertBlocklistEntryParams{
-		SeriesID:        series.ID,
+		SeriesID:        title.ID,
 		InfoHash:        "bbbb2222",
 		ReleaseTitle:    "[SynthSubs] Sample Show - 01 [1080p].mkv",
 		NormalizedTitle: "[synthsubs] sample show - 01 [1080p].mkv",
@@ -72,7 +72,7 @@ func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 		t.Errorf("reason = %q, want the latest attempt's", second.Reason)
 	}
 
-	all, err := st.Q.ListBlocklistBySeries(ctx, series.ID)
+	all, err := st.Q.ListBlocklistByTitle(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("list by series: %v", err)
 	}
@@ -86,34 +86,34 @@ func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 func TestListActiveBlocklistFiltersExpiredButKeepsPermanent(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	series := blocklistSeries(t, st, "Blocklist Expiry")
-	other := blocklistSeries(t, st, "Other Series")
+	title := blocklistTitle(t, st, "Blocklist Expiry")
+	other := blocklistTitle(t, st, "Other Series")
 	now := time.Now()
 
-	seed := func(seriesID int64, title string, until any) {
+	seed := func(titleID int64, release string, until any) {
 		t.Helper()
 		p := db.UpsertBlocklistEntryParams{
-			SeriesID:        seriesID,
-			InfoHash:        "hash-" + title,
-			ReleaseTitle:    title,
-			NormalizedTitle: title,
+			SeriesID:        titleID,
+			InfoHash:        "hash-" + release,
+			ReleaseTitle:    release,
+			NormalizedTitle: release,
 			Reason:          "test",
 		}
 		if s, ok := until.(string); ok {
 			p.BlockedUntil = nullString(s)
 		}
 		if _, err := st.Q.UpsertBlocklistEntry(ctx, p); err != nil {
-			t.Fatalf("seed %s: %v", title, err)
+			t.Fatalf("seed %s: %v", release, err)
 		}
 	}
 
-	seed(series.ID, "expired", FormatTimestamp(now.Add(-time.Hour)))
-	seed(series.ID, "live", FormatTimestamp(now.Add(time.Hour)))
-	seed(series.ID, "permanent", nil)
+	seed(title.ID, "expired", FormatTimestamp(now.Add(-time.Hour)))
+	seed(title.ID, "live", FormatTimestamp(now.Add(time.Hour)))
+	seed(title.ID, "permanent", nil)
 	seed(other.ID, "other-series-live", FormatTimestamp(now.Add(time.Hour)))
 
 	active, err := st.Q.ListActiveBlocklist(ctx, db.ListActiveBlocklistParams{
-		SeriesID:     series.ID,
+		SeriesID:     title.ID,
 		BlockedUntil: nullString(FormatTimestamp(now)),
 	})
 	if err != nil {
@@ -134,7 +134,7 @@ func TestListActiveBlocklistFiltersExpiredButKeepsPermanent(t *testing.T) {
 	}
 
 	// The expired row must still exist, or the ladder resets every expiry.
-	all, err := st.Q.ListBlocklistBySeries(ctx, series.ID)
+	all, err := st.Q.ListBlocklistByTitle(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("list by series: %v", err)
 	}
@@ -143,14 +143,14 @@ func TestListActiveBlocklistFiltersExpiredButKeepsPermanent(t *testing.T) {
 	}
 }
 
-func TestDeleteBlocklistEntryIsScopedToItsSeries(t *testing.T) {
+func TestDeleteBlocklistEntryIsScopedToItsTitle(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	series := blocklistSeries(t, st, "Blocklist Delete")
-	other := blocklistSeries(t, st, "Blocklist Delete Other")
+	title := blocklistTitle(t, st, "Blocklist Delete")
+	other := blocklistTitle(t, st, "Blocklist Delete Other")
 
 	entry, err := st.Q.UpsertBlocklistEntry(ctx, db.UpsertBlocklistEntryParams{
-		SeriesID: series.ID, InfoHash: "h", ReleaseTitle: "r", NormalizedTitle: "r", Reason: "test",
+		SeriesID: title.ID, InfoHash: "h", ReleaseTitle: "r", NormalizedTitle: "r", Reason: "test",
 	})
 	if err != nil {
 		t.Fatalf("seed: %v", err)
@@ -164,7 +164,7 @@ func TestDeleteBlocklistEntryIsScopedToItsSeries(t *testing.T) {
 		t.Errorf("deleted %d rows via another series; want 0", rows)
 	}
 
-	rows, err = st.Q.DeleteBlocklistEntry(ctx, db.DeleteBlocklistEntryParams{ID: entry.ID, SeriesID: series.ID})
+	rows, err = st.Q.DeleteBlocklistEntry(ctx, db.DeleteBlocklistEntryParams{ID: entry.ID, SeriesID: title.ID})
 	if err != nil {
 		t.Fatalf("delete: %v", err)
 	}

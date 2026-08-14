@@ -28,11 +28,11 @@ func seedMovie(t *testing.T, st *store.Store, providerID int64) int64 {
 	return id
 }
 
-func itemCount(t *testing.T, st *store.Store, seriesID int64) int {
+func itemCount(t *testing.T, st *store.Store, titleID int64) int {
 	t.Helper()
 	var n int
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT COUNT(*) FROM wanted_items WHERE series_id = ?`, seriesID).Scan(&n); err != nil {
+		`SELECT COUNT(*) FROM wanted_items WHERE series_id = ?`, titleID).Scan(&n); err != nil {
 		t.Fatalf("count items: %v", err)
 	}
 	return n
@@ -42,7 +42,7 @@ func itemCount(t *testing.T, st *store.Store, seriesID int64) int {
 // One node at episode 1 is desirable: it dates the item we already have.
 func TestMovieScheduleUpsertsKindMovie(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovie(t, st, 300)
+	titleID := seedMovie(t, st, 300)
 
 	prov := newFakeProvider()
 	prov.schedules[300] = []metadata.Airing{
@@ -52,15 +52,15 @@ func TestMovieScheduleUpsertsKindMovie(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if n := itemCount(t, st, seriesID); n != 1 {
+	if n := itemCount(t, st, titleID); n != 1 {
 		t.Errorf("items after sync = %d, want 1", n)
 	}
-	if _, ok := airsAt(t, st, seriesID, 1); !ok {
+	if _, ok := airsAt(t, st, titleID, 1); !ok {
 		t.Error("the movie's item was left undated; the node at episode 1 should date it")
 	}
 	var kind string
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT kind FROM wanted_items WHERE series_id = ?`, seriesID).Scan(&kind); err != nil {
+		`SELECT kind FROM wanted_items WHERE series_id = ?`, titleID).Scan(&kind); err != nil {
 		t.Fatalf("read kind: %v", err)
 	}
 	if kind != string(domain.KindMovie) {
@@ -72,7 +72,7 @@ func TestMovieScheduleUpsertsKindMovie(t *testing.T) {
 // invariant the whole movie Format rests on.
 func TestMovieScheduleNeverCreatesASecondItem(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovie(t, st, 301)
+	titleID := seedMovie(t, st, 301)
 
 	prov := newFakeProvider()
 	prov.schedules[301] = []metadata.Airing{
@@ -83,7 +83,7 @@ func TestMovieScheduleNeverCreatesASecondItem(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if n := itemCount(t, st, seriesID); n != 1 {
+	if n := itemCount(t, st, titleID); n != 1 {
 		t.Errorf("items after sync = %d, want 1 (a movie has exactly one)", n)
 	}
 }
@@ -92,7 +92,7 @@ func TestMovieScheduleNeverCreatesASecondItem(t *testing.T) {
 // It rides the title metadata the refresh already fetches.
 func TestMovieTakesItsPremiereFromTheStartDate(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovie(t, st, 310)
+	titleID := seedMovie(t, st, 310)
 
 	prov := newFakeProvider()
 	prov.titles[310] = metadata.TitleMeta{
@@ -102,7 +102,7 @@ func TestMovieTakesItsPremiereFromTheStartDate(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	got, ok := airsAt(t, st, seriesID, 1)
+	got, ok := airsAt(t, st, titleID, 1)
 	if !ok {
 		t.Fatal("the film was left undated, so it stays in the unscheduled footer")
 	}
@@ -117,7 +117,7 @@ func TestMovieTakesItsPremiereFromTheStartDate(t *testing.T) {
 // day every time the sync came round.
 func TestMoviePremiereNeverOverwritesABroadcastNode(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovie(t, st, 311)
+	titleID := seedMovie(t, st, 311)
 
 	prov := newFakeProvider()
 	broadcast := time.Date(2026, 3, 6, 15, 30, 0, 0, time.UTC)
@@ -132,12 +132,12 @@ func TestMoviePremiereNeverOverwritesABroadcastNode(t *testing.T) {
 
 	// The premiere has aired, so the tail the next sync asks for is empty.
 	prov.schedules[311] = nil
-	setSyncedAt(t, st, seriesID, time.Now().Add(-60*24*time.Hour))
+	setSyncedAt(t, st, titleID, time.Now().Add(-60*24*time.Hour))
 	if err := svc.SyncOnce(context.Background()); err != nil {
 		t.Fatalf("second SyncOnce: %v", err)
 	}
 
-	got, _ := airsAt(t, st, seriesID, 1)
+	got, _ := airsAt(t, st, titleID, 1)
 	if want := store.FormatTimestamp(broadcast); got != want {
 		t.Errorf("airs_at = %q, want the broadcast node %q", got, want)
 	}
@@ -147,7 +147,7 @@ func TestMoviePremiereNeverOverwritesABroadcastNode(t *testing.T) {
 // date on the calendar, which is worse than the honest "no schedule data".
 func TestMovieWithNoFullStartDateStaysUndated(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovie(t, st, 312)
+	titleID := seedMovie(t, st, 312)
 
 	prov := newFakeProvider()
 	prov.titles[312] = metadata.TitleMeta{Year: 2027}
@@ -155,16 +155,16 @@ func TestMovieWithNoFullStartDateStaysUndated(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if _, ok := airsAt(t, st, seriesID, 1); ok {
+	if _, ok := airsAt(t, st, titleID, 1); ok {
 		t.Error("a year-only film was dated; it must stay unscheduled")
 	}
 }
 
-// Format is the discriminator (#208): a series' items are dated by its schedule,
+// Format is the discriminator (#208): a title' items are dated by its schedule,
 // so a start date must not date episode 1 of a show that has none.
-func TestSeriesIsNeverDatedFromAStartDate(t *testing.T) {
+func TestTitleIsNeverDatedFromAStartDate(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 313, 2)
+	titleID := seedTitle(t, st, 313, 2)
 
 	prov := newFakeProvider()
 	prov.titles[313] = metadata.TitleMeta{
@@ -174,7 +174,7 @@ func TestSeriesIsNeverDatedFromAStartDate(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if _, ok := airsAt(t, st, seriesID, 1); ok {
+	if _, ok := airsAt(t, st, titleID, 1); ok {
 		t.Error("a series episode was dated from the title's start date")
 	}
 	if len(prov.titleCalls) != 0 {
@@ -186,14 +186,14 @@ func TestSeriesIsNeverDatedFromAStartDate(t *testing.T) {
 // re-asked every tick; a movie is the common case of one.
 func TestMovieWithNoScheduleIsStampedAndNotReasked(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovie(t, st, 302)
+	titleID := seedMovie(t, st, 302)
 
 	prov := newFakeProvider()
 	svc := newService(t, st, prov)
 	if err := svc.SyncOnce(context.Background()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
-	if _, ok := syncedAt(t, st, seriesID); !ok {
+	if _, ok := syncedAt(t, st, titleID); !ok {
 		t.Fatal("a movie with no schedule was left unsynced, so it retries forever")
 	}
 
@@ -204,7 +204,7 @@ func TestMovieWithNoScheduleIsStampedAndNotReasked(t *testing.T) {
 	if len(prov.calls) != calls {
 		t.Errorf("provider asked again immediately (%d -> %d calls)", calls, len(prov.calls))
 	}
-	if n := itemCount(t, st, seriesID); n != 1 {
+	if n := itemCount(t, st, titleID); n != 1 {
 		t.Errorf("items after sync = %d, want 1", n)
 	}
 }

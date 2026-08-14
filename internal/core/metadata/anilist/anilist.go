@@ -268,7 +268,7 @@ func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []
 }
 
 // mapFormat translates an AniList MediaFormat string to a domain.Format,
-// defaulting to TV for the series-shaped formats v1 targets.
+// defaulting to TV for the title-shaped formats v1 targets.
 func mapFormat(anilistFormat string) domain.Format {
 	switch anilistFormat {
 	case "OVA":

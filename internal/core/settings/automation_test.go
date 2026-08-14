@@ -122,12 +122,12 @@ func TestUpdateAutomationRejectsUnknownMode(t *testing.T) {
 	}
 }
 
-// backedOffSeries inserts a series parked at the far end of the backoff ladder,
-// which is where a stretch of notify-only leaves every rehearsed series.
-func backedOffSeries(t *testing.T, svc *Service) int64 {
+// backedOffTitles inserts a title parked at the far end of the backoff ladder,
+// which is where a stretch of notify-only leaves every rehearsed title.
+func backedOffTitles(t *testing.T, svc *Service) int64 {
 	t.Helper()
-	row, err := svc.store.Q.CreateSeries(context.Background(),
-		db.CreateSeriesParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
+	row, err := svc.store.Q.CreateTitle(context.Background(),
+		db.CreateTitleParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
@@ -151,11 +151,11 @@ func searchCadence(t *testing.T, svc *Service, id int64) (backoff int64, next sq
 
 // #116: a rehearsed pass settles nothing, so it climbs the backoff ladder and
 // the feed has already consumed what it reported. Switching on has to clear that
-// cadence, or the first real sweep for a rehearsed series is up to a day away.
+// cadence, or the first real sweep for a rehearsed title is up to a day away.
 func TestUpdateAutomationResetsCadenceWhenSwitchedOn(t *testing.T) {
 	ctx := context.Background()
 	svc := newServiceWith(t, &config.Config{AutomationEnabled: "notify_only"}, nil)
-	id := backedOffSeries(t, svc)
+	id := backedOffTitles(t, svc)
 
 	if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: AutomationOn}); err != nil {
 		t.Fatalf("switch on: %v", err)
@@ -178,7 +178,7 @@ func TestUpdateAutomationLeavesCadenceAloneOtherwise(t *testing.T) {
 		{AutomationOff, AutomationNotifyOnly},
 	} {
 		svc := newServiceWith(t, &config.Config{AutomationEnabled: string(tc.from)}, nil)
-		id := backedOffSeries(t, svc)
+		id := backedOffTitles(t, svc)
 
 		if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: tc.to}); err != nil {
 			t.Fatalf("%s -> %s: %v", tc.from, tc.to, err)

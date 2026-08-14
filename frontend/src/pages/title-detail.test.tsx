@@ -4,22 +4,22 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, delay, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { SeriesDetail } from "@/lib/api";
+import type { TitleDetail } from "@/lib/api";
 import { Link, MemoryRouter, Route, Routes } from "react-router";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import {
   MonitoringToggle,
   PinnedGroupChip,
   ProfilePicker,
-  SeriesDetailPage,
-} from "@/pages/series-detail";
+  TitleDetailPage,
+} from "@/pages/title-detail";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-const detail = (over: Partial<SeriesDetail>): SeriesDetail => ({
+const detail = (over: Partial<TitleDetail>): TitleDetail => ({
   id: 7,
   title: "Placeholder Saga",
   format: "TV",
@@ -29,7 +29,7 @@ const detail = (over: Partial<SeriesDetail>): SeriesDetail => ({
   ...over,
 });
 
-function renderChip(d: SeriesDetail) {
+function renderChip(d: TitleDetail) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -241,7 +241,7 @@ describe("PinnedGroupChip", () => {
 });
 
 describe("ProfilePicker", () => {
-  function renderPicker(d: SeriesDetail) {
+  function renderPicker(d: TitleDetail) {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -340,7 +340,7 @@ describe("ProfilePicker", () => {
   });
 });
 
-describe("SeriesDetailPage episode search", () => {
+describe("TitleDetailPage episode search", () => {
   const candidate = (title: string, url: string, items: number[]) => ({
     title,
     download_url: url,
@@ -355,7 +355,7 @@ describe("SeriesDetailPage episode search", () => {
     items,
   });
 
-  function renderPage(entry = "/series/7") {
+  function renderPage(entry = "/titles/7") {
     server.use(
       http.get("/api/v1/titles/7", () =>
         HttpResponse.json(
@@ -438,9 +438,9 @@ describe("SeriesDetailPage episode search", () => {
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[entry]}>
           <SidebarProvider>
-            <Link to="/series/9">Second Saga</Link>
+            <Link to="/titles/9">Second Saga</Link>
             <Routes>
-              <Route path="/series/:id" element={<SeriesDetailPage />} />
+              <Route path="/titles/:id" element={<TitleDetailPage />} />
             </Routes>
           </SidebarProvider>
         </MemoryRouter>
@@ -509,7 +509,7 @@ describe("SeriesDetailPage episode search", () => {
   // ?item=N is the same focus reached from another page (#150's Wanted rows),
   // so the tab has to open already filtered rather than on Episodes.
   it("opens the Releases tab focused when the URL names an episode", async () => {
-    renderPage("/series/7?item=5");
+    renderPage("/titles/7?item=5");
 
     expect(
       await screen.findByText("[GroupA] Placeholder Saga - 05 (1080p)"),
@@ -591,7 +591,7 @@ describe("MonitoringToggle", () => {
 // Format is the discriminator, never item count (#208), so these two mounts are
 // the whole rule: a one-item film loses the episodes table, a one-episode OVA
 // keeps it.
-describe("SeriesDetailPage movie surface", () => {
+describe("TitleDetailPage movie surface", () => {
   const oneItem = [
     {
       id: 1,
@@ -602,7 +602,7 @@ describe("SeriesDetailPage movie surface", () => {
     },
   ];
 
-  function renderPage(over: Partial<SeriesDetail>) {
+  function renderPage(over: Partial<TitleDetail>) {
     server.use(
       http.get("/api/v1/titles/7", () =>
         HttpResponse.json(detail({ items: oneItem, ...over })),
@@ -617,10 +617,10 @@ describe("SeriesDetailPage movie surface", () => {
     });
     render(
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={["/series/7"]}>
+        <MemoryRouter initialEntries={["/titles/7"]}>
           <SidebarProvider>
             <Routes>
-              <Route path="/series/:id" element={<SeriesDetailPage />} />
+              <Route path="/titles/:id" element={<TitleDetailPage />} />
             </Routes>
           </SidebarProvider>
         </MemoryRouter>

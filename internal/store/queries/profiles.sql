@@ -52,30 +52,30 @@ DELETE FROM quality_profiles
 WHERE quality_profiles.id = ? AND is_default = 0
   AND NOT EXISTS (SELECT 1 FROM series WHERE series.quality_profile_id = quality_profiles.id);
 
--- name: CountSeriesByProfile :one
+-- name: CountTitlesByProfile :one
 SELECT COUNT(*)
 FROM series
 WHERE quality_profile_id = ?;
 
--- name: CountSeriesPerProfile :many
+-- name: CountTitlesPerProfile :many
 -- Usage counts for every profile at once, for the unpaginated list endpoint. A
 -- profile no series uses has no row, so the caller's zero value is the answer.
-SELECT quality_profile_id, COUNT(*) AS series_count
+SELECT quality_profile_id, COUNT(*) AS title_count
 FROM series
 GROUP BY quality_profile_id;
 
--- name: ListSeriesByProfile :many
+-- name: ListTitlesByProfile :many
 SELECT id, title
 FROM series
 WHERE quality_profile_id = ?
 ORDER BY title;
 
--- name: ReassignSeriesProfile :exec
+-- name: ReassignTitleProfile :exec
 UPDATE series
 SET quality_profile_id = ?
 WHERE quality_profile_id = ?;
 
--- name: SetSeriesProfile :execrows
+-- name: SetTitleProfile :execrows
 UPDATE series
 SET quality_profile_id = ?
 WHERE series.id = ?

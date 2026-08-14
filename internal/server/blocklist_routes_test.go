@@ -33,10 +33,10 @@ type blocklistJSON struct {
 	Entries []blocklistEntryJSON `json:"entries"`
 }
 
-func seedBlocklistEntry(t *testing.T, st *store.Store, seriesID int64, title string, until sql.NullString) db.ReleaseBlocklist {
+func seedBlocklistEntry(t *testing.T, st *store.Store, titleID int64, title string, until sql.NullString) db.ReleaseBlocklist {
 	t.Helper()
 	e, err := st.Q.UpsertBlocklistEntry(context.Background(), db.UpsertBlocklistEntryParams{
-		SeriesID:        seriesID,
+		SeriesID:        titleID,
 		InfoHash:        "hash-" + title,
 		ReleaseTitle:    title,
 		NormalizedTitle: decide.NormalizeReleaseTitle(title),
@@ -49,20 +49,20 @@ func seedBlocklistEntry(t *testing.T, st *store.Store, seriesID int64, title str
 	return e
 }
 
-func TestListAndClearSeriesBlocklist(t *testing.T) {
+func TestListAndClearTitleBlocklist(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	other := seedSeries(t, h.store, "Unrelated Show", 1)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	other := seedTitle(t, h.store, "Unrelated Show", 1)
 
-	live := seedBlocklistEntry(t, h.store, seriesID, "[TopSubs] Placeholder Saga - 03 [1080p]",
+	live := seedBlocklistEntry(t, h.store, titleID, "[TopSubs] Placeholder Saga - 03 [1080p]",
 		sql.NullString{String: store.FormatTimestamp(time.Now().Add(24 * time.Hour)), Valid: true})
-	seedBlocklistEntry(t, h.store, seriesID, "[OldSubs] Placeholder Saga - 02 [1080p]",
+	seedBlocklistEntry(t, h.store, titleID, "[OldSubs] Placeholder Saga - 02 [1080p]",
 		sql.NullString{String: store.FormatTimestamp(time.Now().Add(-time.Hour)), Valid: true})
-	permanent := seedBlocklistEntry(t, h.store, seriesID, "[DeadSubs] Placeholder Saga - 01 [1080p]", sql.NullString{})
+	permanent := seedBlocklistEntry(t, h.store, titleID, "[DeadSubs] Placeholder Saga - 01 [1080p]", sql.NullString{})
 	elsewhere := seedBlocklistEntry(t, h.store, other, "[TopSubs] Unrelated Show - 01 [1080p]", sql.NullString{})
 
 	var got blocklistJSON
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), &got); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", titleID), &got); code != http.StatusOK {
 		t.Fatalf("list blocklist status = %d, want 200", code)
 	}
 	if got.Title != "Placeholder Saga" {
@@ -88,24 +88,24 @@ func TestListAndClearSeriesBlocklist(t *testing.T) {
 		t.Error("reason not reported")
 	}
 
-	// Unblocking is scoped to the series.
+	// Unblocking is scoped to the title.
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", seriesID, elsewhere.ID), nil, nil); code != http.StatusNotFound {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", titleID, elsewhere.ID), nil, nil); code != http.StatusNotFound {
 		t.Errorf("delete of another series' entry = %d, want 404", code)
 	}
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", seriesID, live.ID), nil, nil); code != http.StatusNoContent {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", titleID, live.ID), nil, nil); code != http.StatusNoContent {
 		t.Errorf("delete status = %d, want 204", code)
 	}
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", seriesID, live.ID), nil, nil); code != http.StatusNotFound {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", titleID, live.ID), nil, nil); code != http.StatusNotFound {
 		t.Errorf("second delete = %d, want 404", code)
 	}
 
 	// Assert the status: an error body decodes into blocklistJSON as zero entries,
 	// which would misreport a broken endpoint as an over-eager delete.
 	var after blocklistJSON
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), &after); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", titleID), &after); code != http.StatusOK {
 		t.Fatalf("re-list status = %d, want 200", code)
 	}
 	if len(after.Entries) != 2 {
@@ -124,8 +124,8 @@ func TestBlocklistedReleaseSurfacesAsIneligibleButStillGrabs(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashZ", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
-	seedBlocklistEntry(t, h.store, seriesID, title,
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
+	seedBlocklistEntry(t, h.store, titleID, title,
 		sql.NullString{String: store.FormatTimestamp(time.Now().Add(24 * time.Hour)), Valid: true})
 
 	var searchOut struct {
@@ -135,7 +135,7 @@ func TestBlocklistedReleaseSurfacesAsIneligibleButStillGrabs(t *testing.T) {
 			IneligibleReason string `json:"ineligible_reason"`
 		} `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &searchOut); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &searchOut); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(searchOut.Results) != 1 {
@@ -156,7 +156,7 @@ func TestBlocklistedReleaseSurfacesAsIneligibleButStillGrabs(t *testing.T) {
 	var grabOut struct {
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, &grabOut)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)
@@ -169,32 +169,32 @@ func TestBlocklistedReleaseSurfacesAsIneligibleButStillGrabs(t *testing.T) {
 	}
 }
 
-// Bulk unblock, the affordance a fan-out needs: one click per series rather
+// Bulk unblock, the affordance a fan-out needs: one click per title rather
 // than one per entry.
-func TestClearSeriesBlocklistInBulk(t *testing.T) {
+func TestClearTitleBlocklistInBulk(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	other := seedSeries(t, h.store, "Unrelated Show", 1)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	other := seedTitle(t, h.store, "Unrelated Show", 1)
 
-	seedBlocklistEntry(t, h.store, seriesID, "[TopSubs] Placeholder Saga - 03 [1080p]",
+	seedBlocklistEntry(t, h.store, titleID, "[TopSubs] Placeholder Saga - 03 [1080p]",
 		sql.NullString{String: store.FormatTimestamp(time.Now().Add(24 * time.Hour)), Valid: true})
-	seedBlocklistEntry(t, h.store, seriesID, "[OldSubs] Placeholder Saga - 02 [1080p]",
+	seedBlocklistEntry(t, h.store, titleID, "[OldSubs] Placeholder Saga - 02 [1080p]",
 		sql.NullString{String: store.FormatTimestamp(time.Now().Add(-time.Hour)), Valid: true})
-	seedBlocklistEntry(t, h.store, seriesID, "[DeadSubs] Placeholder Saga - 01 [1080p]", sql.NullString{})
+	seedBlocklistEntry(t, h.store, titleID, "[DeadSubs] Placeholder Saga - 01 [1080p]", sql.NullString{})
 	seedBlocklistEntry(t, h.store, other, "[TopSubs] Unrelated Show - 01 [1080p]", sql.NullString{})
 
 	var cleared struct {
 		Cleared int `json:"cleared"`
 	}
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/titles/%d/blocklist?expired=true", seriesID), nil, &cleared); code != http.StatusOK {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist?expired=true", titleID), nil, &cleared); code != http.StatusOK {
 		t.Fatalf("clear expired status = %d, want 200", code)
 	}
 	if cleared.Cleared != 1 {
 		t.Errorf("cleared = %d, want only the 1 lapsed entry", cleared.Cleared)
 	}
 	var after blocklistJSON
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), &after); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", titleID), &after); code != http.StatusOK {
 		t.Fatalf("re-list status = %d, want 200", code)
 	}
 	if len(after.Entries) != 2 {
@@ -202,20 +202,20 @@ func TestClearSeriesBlocklistInBulk(t *testing.T) {
 	}
 
 	if code := do(t, h, http.MethodDelete,
-		fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), nil, &cleared); code != http.StatusOK {
+		fmt.Sprintf("/api/v1/titles/%d/blocklist", titleID), nil, &cleared); code != http.StatusOK {
 		t.Fatalf("clear all status = %d, want 200", code)
 	}
 	if cleared.Cleared != 2 {
 		t.Errorf("cleared = %d, want the 2 that were left", cleared.Cleared)
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", seriesID), &after); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", titleID), &after); code != http.StatusOK {
 		t.Fatalf("re-list status = %d, want 200", code)
 	}
 	if len(after.Entries) != 0 {
 		t.Errorf("entries after clearing the series = %d, want none", len(after.Entries))
 	}
 
-	// A bulk clear stops at its series, like the single-entry one.
+	// A bulk clear stops at its title, like the single-entry one.
 	var elsewhere blocklistJSON
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", other), &elsewhere); code != http.StatusOK {
 		t.Fatalf("list other series status = %d, want 200", code)
@@ -225,13 +225,13 @@ func TestClearSeriesBlocklistInBulk(t *testing.T) {
 	}
 }
 
-// The incident affordance: a fault does not respect series boundaries, so
+// The incident affordance: a fault does not respect title boundaries, so
 // neither the summary an operator reads nor the clear they reach for is scoped
 // to one.
 func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	first := seedSeries(t, h.store, "Placeholder Saga", 3)
-	second := seedSeries(t, h.store, "Unrelated Show", 1)
+	first := seedTitle(t, h.store, "Placeholder Saga", 3)
+	second := seedTitle(t, h.store, "Unrelated Show", 1)
 
 	seedBlocklistEntry(t, h.store, first, "[TopSubs] Placeholder Saga - 03 [1080p]",
 		sql.NullString{String: store.FormatTimestamp(time.Now().Add(24 * time.Hour)), Valid: true})
@@ -278,14 +278,14 @@ func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {
 	}
 }
 
-func TestBulkClearOfUnknownSeriesIs404(t *testing.T) {
+func TestBulkClearOfUnknownTitleIs404(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	if code := do(t, h, http.MethodDelete, "/api/v1/titles/9999/blocklist", nil, nil); code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", code)
 	}
 }
 
-func TestBlocklistOfUnknownSeriesIs404(t *testing.T) {
+func TestBlocklistOfUnknownTitleIs404(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	if code := h.get(t, "/api/v1/titles/9999/blocklist", nil); code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", code)

@@ -181,7 +181,7 @@ function QueueRow({ item }: { item: QueueItem }) {
           Episode {item.item_number}
           {" · "}
           <Link
-            to={`/series/${item.title_id}`}
+            to={`/titles/${item.title_id}`}
             className="font-normal text-muted-foreground hover:text-foreground hover:underline"
           >
             {item.title}
@@ -344,7 +344,7 @@ function HistorySection() {
               <GrabEventRow
                 key={e.id}
                 event={e}
-                series={{ id: e.title_id, title: e.title }}
+                title={{ id: e.title_id, name: e.title }}
               />
             ))}
           </ItemGroup>

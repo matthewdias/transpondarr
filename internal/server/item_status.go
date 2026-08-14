@@ -4,7 +4,7 @@ import "github.com/matthewdias/transpondarr/internal/store/db"
 
 // itemState is one wanted item's derived acquisition state — the shared
 // vocabulary (in_library / downloading / stuck / deferred / wanted) rendered by
-// both series detail and the calendar. Derive it here only, so the edges never
+// both title detail and the calendar. Derive it here only, so the edges never
 // drift.
 type itemState struct {
 	Status       string

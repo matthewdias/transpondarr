@@ -16,7 +16,7 @@ import (
 )
 
 // fakeProvider is a metadata.Provider that publishes a schedule, recording what
-// each series was asked for.
+// each title was asked for.
 type fakeProvider struct {
 	schedules map[int64][]metadata.Airing
 	titles    map[int64]metadata.TitleMeta
@@ -78,8 +78,8 @@ func newService(t *testing.T, st *store.Store, prov metadata.Provider) *airing.S
 	return airing.New(st, prov, slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
-// seedSeries inserts a monitored series with items 1..episodes and returns its id.
-func seedSeries(t *testing.T, st *store.Store, anilistID int64, episodes int) int64 {
+// seedTitle inserts a monitored title with items 1..episodes and returns its id.
+func seedTitle(t *testing.T, st *store.Store, anilistID int64, episodes int) int64 {
 	t.Helper()
 	ctx := context.Background()
 	var id int64
@@ -97,10 +97,10 @@ func seedSeries(t *testing.T, st *store.Store, anilistID int64, episodes int) in
 	return id
 }
 
-func setSyncedAt(t *testing.T, st *store.Store, seriesID int64, at time.Time) {
+func setSyncedAt(t *testing.T, st *store.Store, titleID int64, at time.Time) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET airing_synced_at = ? WHERE id = ?`, store.FormatTimestamp(at), seriesID); err != nil {
+		`UPDATE series SET airing_synced_at = ? WHERE id = ?`, store.FormatTimestamp(at), titleID); err != nil {
 		t.Fatalf("set airing_synced_at: %v", err)
 	}
 }
@@ -115,11 +115,11 @@ func setCachedStatus(t *testing.T, st *store.Store, anilistID int64, status stri
 }
 
 // airsAt reads one item's stored air date; ok is false when it is still null.
-func airsAt(t *testing.T, st *store.Store, seriesID int64, number int) (value string, ok bool) {
+func airsAt(t *testing.T, st *store.Store, titleID int64, number int) (value string, ok bool) {
 	t.Helper()
 	var stored *string
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT airs_at FROM wanted_items WHERE series_id = ? AND number = ?`, seriesID, number).Scan(&stored); err != nil {
+		`SELECT airs_at FROM wanted_items WHERE series_id = ? AND number = ?`, titleID, number).Scan(&stored); err != nil {
 		t.Fatalf("read airs_at: %v", err)
 	}
 	if stored == nil {
@@ -128,11 +128,11 @@ func airsAt(t *testing.T, st *store.Store, seriesID int64, number int) (value st
 	return *stored, true
 }
 
-func syncedAt(t *testing.T, st *store.Store, seriesID int64) (string, bool) {
+func syncedAt(t *testing.T, st *store.Store, titleID int64) (string, bool) {
 	t.Helper()
 	var stored *string
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT airing_synced_at FROM series WHERE id = ?`, seriesID).Scan(&stored); err != nil {
+		`SELECT airing_synced_at FROM series WHERE id = ?`, titleID).Scan(&stored); err != nil {
 		t.Fatalf("read airing_synced_at: %v", err)
 	}
 	if stored == nil {
@@ -141,9 +141,9 @@ func syncedAt(t *testing.T, st *store.Store, seriesID int64) (string, bool) {
 	return *stored, true
 }
 
-func TestSyncWritesAirDatesForANeverSyncedSeries(t *testing.T) {
+func TestSyncWritesAirDatesForANeverSyncedTitle(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 3)
+	titleID := seedTitle(t, st, 100, 3)
 
 	prov := newFakeProvider()
 	prov.schedules[100] = []metadata.Airing{
@@ -155,18 +155,18 @@ func TestSyncWritesAirDatesForANeverSyncedSeries(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if got, ok := airsAt(t, st, seriesID, 1); !ok || got != "2026-01-04 15:30:00" {
+	if got, ok := airsAt(t, st, titleID, 1); !ok || got != "2026-01-04 15:30:00" {
 		t.Errorf("item 1 airs_at = %q (set=%t), want 2026-01-04 15:30:00", got, ok)
 	}
-	if got, ok := airsAt(t, st, seriesID, 2); !ok || got != "2026-01-11 15:30:00" {
+	if got, ok := airsAt(t, st, titleID, 2); !ok || got != "2026-01-11 15:30:00" {
 		t.Errorf("item 2 airs_at = %q (set=%t), want 2026-01-11 15:30:00", got, ok)
 	}
 	// Item 3 is outside the schedule AniList published; it must stay null rather
 	// than pick up a neighbour's date.
-	if got, ok := airsAt(t, st, seriesID, 3); ok {
+	if got, ok := airsAt(t, st, titleID, 3); ok {
 		t.Errorf("item 3 airs_at = %q, want null", got)
 	}
-	if _, ok := syncedAt(t, st, seriesID); !ok {
+	if _, ok := syncedAt(t, st, titleID); !ok {
 		t.Error("airing_synced_at was not stamped")
 	}
 	// Never synced before, so history is fetched in full exactly once.
@@ -176,11 +176,11 @@ func TestSyncWritesAirDatesForANeverSyncedSeries(t *testing.T) {
 }
 
 // itemState reads one item's in_library and airs_at; found is false when no row exists.
-func itemState(t *testing.T, st *store.Store, seriesID int64, number int) (inLibrary int, airsAt *string, found bool) {
+func itemState(t *testing.T, st *store.Store, titleID int64, number int) (inLibrary int, airsAt *string, found bool) {
 	t.Helper()
 	err := st.DB.QueryRowContext(context.Background(),
 		`SELECT in_library, airs_at FROM wanted_items WHERE series_id = ? AND number = ?`,
-		seriesID, number).Scan(&inLibrary, &airsAt)
+		titleID, number).Scan(&inLibrary, &airsAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return 0, nil, false
 	}
@@ -195,7 +195,7 @@ func itemState(t *testing.T, st *store.Store, seriesID int64, number int) (inLib
 // already fetched is the only source that knows those episodes exist.
 func TestSyncCreatesItemsTheScheduleKnowsAbout(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 0)
+	titleID := seedTitle(t, st, 100, 0)
 
 	prov := newFakeProvider()
 	prov.schedules[100] = []metadata.Airing{
@@ -207,14 +207,14 @@ func TestSyncCreatesItemsTheScheduleKnowsAbout(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	inLibrary, airs, found := itemState(t, st, seriesID, 1)
+	inLibrary, airs, found := itemState(t, st, titleID, 1)
 	if !found || airs == nil || *airs != "2026-01-04 15:30:00" {
 		t.Errorf("item 1: found=%t airs_at=%v, want a created item dated 2026-01-04 15:30:00", found, airs)
 	}
 	if inLibrary != 0 {
 		t.Errorf("item 1 in_library = %d, want a fresh item at 0", inLibrary)
 	}
-	if _, _, found := itemState(t, st, seriesID, 2); !found {
+	if _, _, found := itemState(t, st, titleID, 2); !found {
 		t.Error("item 2 was not created from the schedule")
 	}
 }
@@ -224,7 +224,7 @@ func TestSyncCreatesItemsTheScheduleKnowsAbout(t *testing.T) {
 // episode 2 — the gap is invisible because nothing claims the item should exist.
 func TestSyncFillsTheGapsAScheduleSkips(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 0)
+	titleID := seedTitle(t, st, 100, 0)
 
 	prov := newFakeProvider()
 	prov.schedules[100] = []metadata.Airing{
@@ -236,7 +236,7 @@ func TestSyncFillsTheGapsAScheduleSkips(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	inLibrary, airs, found := itemState(t, st, seriesID, 2)
+	inLibrary, airs, found := itemState(t, st, titleID, 2)
 	if !found {
 		t.Fatal("item 2 was not created, so the episode that shared a slot is silently missing")
 	}
@@ -246,30 +246,30 @@ func TestSyncFillsTheGapsAScheduleSkips(t *testing.T) {
 	if inLibrary != 0 {
 		t.Errorf("item 2 in_library = %d, want a fresh item at 0", inLibrary)
 	}
-	if _, _, found := itemState(t, st, seriesID, 4); found {
+	if _, _, found := itemState(t, st, titleID, 4); found {
 		t.Error("item 4 was created past the highest number the schedule knows")
 	}
 }
 
-// searchCadence reads a series' accumulated backoff and its next due time.
-func searchCadence(t *testing.T, st *store.Store, seriesID int64) (backoff int, next *string) {
+// searchCadence reads a title' accumulated backoff and its next due time.
+func searchCadence(t *testing.T, st *store.Store, titleID int64) (backoff int, next *string) {
 	t.Helper()
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, seriesID).Scan(&backoff, &next); err != nil {
+		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, titleID).Scan(&backoff, &next); err != nil {
 		t.Fatalf("read search cadence: %v", err)
 	}
 	return backoff, next
 }
 
 // A gap-filled item carries no air date, so airedSince cannot see it and the
-// series that skipped an episode — likely the one that climbed the ladder
+// title that skipped an episode — likely the one that climbed the ladder
 // finding nothing — would wait out its backoff before looking.
 func TestGapFillResetsSearchCadence(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 0)
+	titleID := seedTitle(t, st, 100, 0)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE series SET search_backoff = 8, next_search_at = ? WHERE id = ?`,
-		store.FormatTimestamp(time.Now().Add(24*time.Hour)), seriesID); err != nil {
+		store.FormatTimestamp(time.Now().Add(24*time.Hour)), titleID); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
@@ -283,17 +283,17 @@ func TestGapFillResetsSearchCadence(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if backoff, next := searchCadence(t, st, seriesID); backoff != 0 || next != nil {
+	if backoff, next := searchCadence(t, st, titleID); backoff != 0 || next != nil {
 		t.Errorf("cadence = backoff %d, next %v; want it reset so the sweep looks for the filled item", backoff, next)
 	}
 }
 
-// A sync that fills nothing must not hand a backed-off series a free retry.
+// A sync that fills nothing must not hand a backed-off title a free retry.
 func TestSyncKeepsSearchCadenceWhenNothingIsFilled(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 2)
+	titleID := seedTitle(t, st, 100, 2)
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET search_backoff = 8 WHERE id = ?`, seriesID); err != nil {
+		`UPDATE series SET search_backoff = 8 WHERE id = ?`, titleID); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
@@ -307,7 +307,7 @@ func TestSyncKeepsSearchCadenceWhenNothingIsFilled(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if backoff, _ := searchCadence(t, st, seriesID); backoff != 8 {
+	if backoff, _ := searchCadence(t, st, titleID); backoff != 8 {
 		t.Errorf("search_backoff = %d, want the accumulated 8", backoff)
 	}
 }
@@ -316,7 +316,7 @@ func TestSyncKeepsSearchCadenceWhenNothingIsFilled(t *testing.T) {
 // not an offset season, so a full fetch fills from 1 rather than from that low.
 func TestFullFetchFillsFromOneBelowTheScheduleWindow(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 0)
+	titleID := seedTitle(t, st, 100, 0)
 
 	prov := newFakeProvider()
 	prov.schedules[100] = []metadata.Airing{
@@ -329,14 +329,14 @@ func TestFullFetchFillsFromOneBelowTheScheduleWindow(t *testing.T) {
 	}
 
 	for _, n := range []int{1, 12} {
-		_, airs, found := itemState(t, st, seriesID, n)
+		_, airs, found := itemState(t, st, titleID, n)
 		if !found {
 			t.Errorf("item %d was not created, so the run below the schedule window is lost", n)
 		} else if airs != nil {
 			t.Errorf("item %d airs_at = %v, want null", n, *airs)
 		}
 	}
-	if _, _, found := itemState(t, st, seriesID, 15); found {
+	if _, _, found := itemState(t, st, titleID, 15); found {
 		t.Error("item 15 was created past the highest number the schedule knows")
 	}
 }
@@ -345,9 +345,9 @@ func TestFullFetchFillsFromOneBelowTheScheduleWindow(t *testing.T) {
 // its own span rather than re-deriving a long-runner's whole back catalogue.
 func TestSyncTailFillsOnlyInsideItsOwnSpan(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 101, 0)
+	titleID := seedTitle(t, st, 101, 0)
 	setCachedStatus(t, st, 101, "RELEASING")
-	setSyncedAt(t, st, seriesID, time.Now().Add(-24*time.Hour))
+	setSyncedAt(t, st, titleID, time.Now().Add(-24*time.Hour))
 
 	prov := newFakeProvider()
 	prov.schedules[101] = []metadata.Airing{
@@ -359,19 +359,19 @@ func TestSyncTailFillsOnlyInsideItsOwnSpan(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if _, _, found := itemState(t, st, seriesID, 14); !found {
+	if _, _, found := itemState(t, st, titleID, 14); !found {
 		t.Error("item 14 was not created, so the gap inside the tail stays missing")
 	}
-	if _, _, found := itemState(t, st, seriesID, 1); found {
+	if _, _, found := itemState(t, st, titleID, 1); found {
 		t.Error("the tail fetch created items below its own span")
 	}
 }
 
 func TestSyncUpsertDoesNotClobberInLibrary(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 1)
+	titleID := seedTitle(t, st, 100, 1)
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE wanted_items SET in_library = 1 WHERE series_id = ? AND number = 1`, seriesID); err != nil {
+		`UPDATE wanted_items SET in_library = 1 WHERE series_id = ? AND number = 1`, titleID); err != nil {
 		t.Fatalf("mark item had: %v", err)
 	}
 
@@ -384,7 +384,7 @@ func TestSyncUpsertDoesNotClobberInLibrary(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	inLibrary, airs, _ := itemState(t, st, seriesID, 1)
+	inLibrary, airs, _ := itemState(t, st, titleID, 1)
 	if inLibrary != 1 {
 		t.Errorf("item 1 in_library = %d, want 1 (sync must not clobber it)", inLibrary)
 	}
@@ -393,19 +393,19 @@ func TestSyncUpsertDoesNotClobberInLibrary(t *testing.T) {
 	}
 }
 
-// The metadata refresh clears airing_synced_at when a series grows; a sync
+// The metadata refresh clears airing_synced_at when a title grows; a sync
 // already in flight must not stamp over that clear, or the grown item could
 // wait out the long TTL (or forever, for aired history) for its air date.
-func TestSyncDoesNotRestampASeriesClearedMidSync(t *testing.T) {
+func TestSyncDoesNotRestampATitleClearedMidSync(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 2)
+	titleID := seedTitle(t, st, 100, 2)
 	setCachedStatus(t, st, 100, "RELEASING")
-	setSyncedAt(t, st, seriesID, time.Now().Add(-24*time.Hour))
+	setSyncedAt(t, st, titleID, time.Now().Add(-24*time.Hour))
 
 	prov := newFakeProvider()
 	prov.onGetSchedule = func() {
 		if _, err := st.DB.ExecContext(context.Background(),
-			`UPDATE series SET airing_synced_at = NULL WHERE id = ?`, seriesID); err != nil {
+			`UPDATE series SET airing_synced_at = NULL WHERE id = ?`, titleID); err != nil {
 			t.Errorf("clear stamp mid-sync: %v", err)
 		}
 	}
@@ -414,7 +414,7 @@ func TestSyncDoesNotRestampASeriesClearedMidSync(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if stamp, ok := syncedAt(t, st, seriesID); ok {
+	if stamp, ok := syncedAt(t, st, titleID); ok {
 		t.Errorf("airing_synced_at = %q, want the mid-sync clear preserved", stamp)
 	}
 }
@@ -422,9 +422,9 @@ func TestSyncDoesNotRestampASeriesClearedMidSync(t *testing.T) {
 // The asymmetry that makes full history affordable: a resync pages only the tail.
 func TestSyncRefetchesOnlyTheTailOnResync(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 101, 2)
+	titleID := seedTitle(t, st, 101, 2)
 	setCachedStatus(t, st, 101, "RELEASING")
-	setSyncedAt(t, st, seriesID, time.Now().Add(-24*time.Hour))
+	setSyncedAt(t, st, titleID, time.Now().Add(-24*time.Hour))
 
 	prov := newFakeProvider()
 	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
@@ -439,11 +439,11 @@ func TestSyncRefetchesOnlyTheTailOnResync(t *testing.T) {
 	}
 }
 
-func TestSyncSkipsFreshlySyncedSeries(t *testing.T) {
+func TestSyncSkipsFreshlySyncedTitles(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 102, 2)
+	titleID := seedTitle(t, st, 102, 2)
 	setCachedStatus(t, st, 102, "RELEASING")
-	setSyncedAt(t, st, seriesID, time.Now().Add(-time.Minute))
+	setSyncedAt(t, st, titleID, time.Now().Add(-time.Minute))
 
 	prov := newFakeProvider()
 	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
@@ -456,11 +456,11 @@ func TestSyncSkipsFreshlySyncedSeries(t *testing.T) {
 
 // A finished title's aired times never change, so it must not resync on the
 // releasing cadence.
-func TestSyncHoldsFinishedSeriesForTheLongCutoff(t *testing.T) {
+func TestSyncHoldsFinishedTitlesForTheLongCutoff(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 103, 2)
+	titleID := seedTitle(t, st, 103, 2)
 	setCachedStatus(t, st, 103, "FINISHED")
-	setSyncedAt(t, st, seriesID, time.Now().Add(-48*time.Hour))
+	setSyncedAt(t, st, titleID, time.Now().Add(-48*time.Hour))
 
 	prov := newFakeProvider()
 	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
@@ -473,28 +473,28 @@ func TestSyncHoldsFinishedSeriesForTheLongCutoff(t *testing.T) {
 
 // AniList's coverage thins out badly before ~2015. An empty schedule is a normal
 // answer, and re-asking every tick would burn the request budget for nothing.
-func TestSyncStampsSeriesWithNoScheduleData(t *testing.T) {
+func TestSyncStampsTitleWithNoScheduleData(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 104, 2)
+	titleID := seedTitle(t, st, 104, 2)
 
 	prov := newFakeProvider()
 	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	if _, ok := syncedAt(t, st, seriesID); !ok {
+	if _, ok := syncedAt(t, st, titleID); !ok {
 		t.Fatal("a series with no schedule data was left unsynced, so it retries forever")
 	}
-	if got, ok := airsAt(t, st, seriesID, 1); ok {
+	if got, ok := airsAt(t, st, titleID, 1); ok {
 		t.Errorf("item 1 airs_at = %q, want null", got)
 	}
 }
 
-func TestSyncSkipsUnmonitoredSeries(t *testing.T) {
+func TestSyncSkipsUnmonitoredTitles(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 105, 1)
+	titleID := seedTitle(t, st, 105, 1)
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET monitored = 0 WHERE id = ?`, seriesID); err != nil {
+		`UPDATE series SET monitored = 0 WHERE id = ?`, titleID); err != nil {
 		t.Fatalf("unmonitor: %v", err)
 	}
 
@@ -507,14 +507,14 @@ func TestSyncSkipsUnmonitoredSeries(t *testing.T) {
 	}
 }
 
-// One pass fetches at most seriesPerPass series, and never-synced series go
+// One pass fetches at most titlesPerPass title, and never-synced title go
 // ahead of stale ones, so a newly added title is never queued behind refreshes.
 func TestSyncBoundsEachPassAndPrioritizesNeverSynced(t *testing.T) {
 	st := coretest.NewStore(t)
 	for id := int64(200); id < 206; id++ {
-		seedSeries(t, st, id, 1)
+		seedTitle(t, st, id, 1)
 	}
-	stale := seedSeries(t, st, 210, 1)
+	stale := seedTitle(t, st, 210, 1)
 	setCachedStatus(t, st, 210, "RELEASING")
 	setSyncedAt(t, st, stale, time.Now().Add(-24*time.Hour))
 
@@ -541,11 +541,11 @@ func TestSyncBoundsEachPassAndPrioritizesNeverSynced(t *testing.T) {
 	}
 }
 
-// One unreachable title must not cost every other series its sync.
-func TestSyncContinuesPastAFailingSeries(t *testing.T) {
+// One unreachable title must not cost every other title its sync.
+func TestSyncContinuesPastAFailingTitle(t *testing.T) {
 	st := coretest.NewStore(t)
-	failing := seedSeries(t, st, 106, 1)
-	healthy := seedSeries(t, st, 107, 1)
+	failing := seedTitle(t, st, 106, 1)
+	healthy := seedTitle(t, st, 107, 1)
 
 	prov := newFakeProvider()
 	prov.errs[106] = errors.New("boom")
@@ -569,28 +569,28 @@ func TestSyncContinuesPastAFailingSeries(t *testing.T) {
 // failure: the job no-ops instead of erroring every tick.
 func TestSyncNoOpsWithoutTheAiringCapability(t *testing.T) {
 	st := coretest.NewStore(t)
-	seedSeries(t, st, 108, 1)
+	seedTitle(t, st, 108, 1)
 
 	if err := newService(t, st, &plainProvider{}).SyncOnce(context.Background()); err != nil {
 		t.Fatalf("SyncOnce on a provider without schedules: %v", err)
 	}
 }
 
-// setMonitorCut narrows a series the way the add dialog's "future only" does.
-func setMonitorCut(t *testing.T, st *store.Store, seriesID int64, from any) {
+// setMonitorCut narrows a title the way the add dialog's "future only" does.
+func setMonitorCut(t *testing.T, st *store.Store, titleID int64, from any) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET monitor_new_from = ? WHERE id = ?`, from, seriesID); err != nil {
+		`UPDATE series SET monitor_new_from = ? WHERE id = ?`, from, titleID); err != nil {
 		t.Fatalf("set monitor_new_from: %v", err)
 	}
 }
 
-func itemMonitored(t *testing.T, st *store.Store, seriesID int64, number int) int64 {
+func itemMonitored(t *testing.T, st *store.Store, titleID int64, number int) int64 {
 	t.Helper()
 	var got int64
 	if err := st.DB.QueryRowContext(context.Background(),
 		`SELECT monitored FROM wanted_items WHERE series_id = ? AND number = ?`,
-		seriesID, number).Scan(&got); err != nil {
+		titleID, number).Scan(&got); err != nil {
 		t.Fatalf("read monitored for item %d: %v", number, err)
 	}
 	return got
@@ -599,10 +599,10 @@ func itemMonitored(t *testing.T, st *store.Store, seriesID int64, number int) in
 // Densification is what would otherwise undo a narrowed long-runner (#188,
 // decision 3): the fill range for one of those *is* the back catalogue, so a
 // sync 15 minutes after the add would re-create it monitored.
-func TestSyncHonoursTheSeriesMonitorCut(t *testing.T) {
+func TestSyncHonoursTheTitleMonitorCut(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 0)
-	setMonitorCut(t, st, seriesID, 4)
+	titleID := seedTitle(t, st, 100, 0)
+	setMonitorCut(t, st, titleID, 4)
 
 	prov := newFakeProvider()
 	prov.schedules[100] = []metadata.Airing{
@@ -622,7 +622,7 @@ func TestSyncHonoursTheSeriesMonitorCut(t *testing.T) {
 		{4, 1}, // gap-filled, at the cut
 		{5, 1}, // named by the schedule, above the cut
 	} {
-		if got := itemMonitored(t, st, seriesID, tc.number); got != tc.want {
+		if got := itemMonitored(t, st, titleID, tc.number); got != tc.want {
 			t.Errorf("item %d monitored = %d, want %d", tc.number, got, tc.want)
 		}
 	}
@@ -633,11 +633,11 @@ func TestSyncHonoursTheSeriesMonitorCut(t *testing.T) {
 // nothing will ever grab.
 func TestGapFillBelowTheCutDoesNotResetSearchCadence(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, 100, 0)
-	setMonitorCut(t, st, seriesID, 10)
+	titleID := seedTitle(t, st, 100, 0)
+	setMonitorCut(t, st, titleID, 10)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE series SET search_backoff = 8, next_search_at = ? WHERE id = ?`,
-		store.FormatTimestamp(time.Now().Add(24*time.Hour)), seriesID); err != nil {
+		store.FormatTimestamp(time.Now().Add(24*time.Hour)), titleID); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
@@ -650,7 +650,7 @@ func TestGapFillBelowTheCutDoesNotResetSearchCadence(t *testing.T) {
 	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
-	if backoff, _ := searchCadence(t, st, seriesID); backoff != 8 {
+	if backoff, _ := searchCadence(t, st, titleID); backoff != 8 {
 		t.Errorf("search_backoff = %d, want the accumulated 8 -- an unmonitored fill is not news", backoff)
 	}
 }

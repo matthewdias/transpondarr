@@ -25,10 +25,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function HistoryTab({
-  seriesId,
+  titleId,
   active,
 }: {
-  seriesId: number;
+  titleId: number;
   active: boolean;
 }) {
   const {
@@ -39,7 +39,7 @@ export function HistoryTab({
     error,
     refetch,
   } = useQuery({
-    ...grabsQuery(seriesId),
+    ...grabsQuery(titleId),
     enabled: active,
   });
 
@@ -99,7 +99,7 @@ export function HistoryTab({
           ))}
         </ItemGroup>
       )}
-      <BlockedReleases seriesId={seriesId} active={active} />
+      <BlockedReleases titleId={titleId} active={active} />
     </div>
   );
 }
@@ -107,10 +107,10 @@ export function HistoryTab({
 // Blocklist entries outlive grab rows, so this is its own section and the feed's
 // empty state must not swallow it.
 export function BlockedReleases({
-  seriesId,
+  titleId,
   active,
 }: {
-  seriesId: number;
+  titleId: number;
   active: boolean;
 }) {
   const {
@@ -119,13 +119,13 @@ export function BlockedReleases({
     error,
     refetch,
   } = useQuery({
-    ...blocklistQuery(seriesId),
+    ...blocklistQuery(titleId),
     enabled: active,
   });
   // null until the user decides, so the default can depend on data the first
   // render does not have yet.
   const [showExpired, setShowExpired] = useState<boolean | null>(null);
-  const clear = useClearBlocklist(seriesId);
+  const clear = useClearBlocklist(titleId);
 
   if (isError) {
     return (
@@ -172,7 +172,7 @@ export function BlockedReleases({
             Releases that failed and are skipped when ranking. Each repeat
             failure blocks for longer; the third blocks permanently.
           </p>
-          <BlockedList seriesId={seriesId} entries={blocking} />
+          <BlockedList titleId={titleId} entries={blocking} />
         </>
       )}
       {expired.length > 0 && (
@@ -201,7 +201,7 @@ export function BlockedReleases({
                 overwrites the failed grab row, and the failure count still
                 escalates if the release fails again.
               </p>
-              <BlockedList seriesId={seriesId} entries={expired} />
+              <BlockedList titleId={titleId} entries={expired} />
               <Button
                 variant="ghost"
                 size="sm"
@@ -221,18 +221,18 @@ export function BlockedReleases({
 
 // Bulk unblock. An environmental fault blocks a whole candidate pool at once,
 // and clearing that one entry at a time is the problem, not the recovery.
-function useClearBlocklist(seriesId: number) {
+function useClearBlocklist(titleId: number) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (expiredOnly: boolean) =>
-      api.clearSeriesBlocklist(seriesId, expiredOnly),
+      api.clearTitleBlocklist(titleId, expiredOnly),
     onSuccess: (cleared) => {
       toast.success(`${plural(cleared, "release")} unblocked`);
       queryClient.invalidateQueries({
-        queryKey: blocklistQuery(seriesId).queryKey,
+        queryKey: blocklistQuery(titleId).queryKey,
       });
       queryClient.invalidateQueries({
-        queryKey: grabsQuery(seriesId).queryKey,
+        queryKey: grabsQuery(titleId).queryKey,
       });
     },
     onError: (e) =>
@@ -243,38 +243,38 @@ function useClearBlocklist(seriesId: number) {
 }
 
 function BlockedList({
-  seriesId,
+  titleId,
   entries,
 }: {
-  seriesId: number;
+  titleId: number;
   entries: BlocklistEntry[];
 }) {
   return (
     <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
       {entries.map((e) => (
-        <BlockedRow key={e.id} seriesId={seriesId} entry={e} />
+        <BlockedRow key={e.id} titleId={titleId} entry={e} />
       ))}
     </ItemGroup>
   );
 }
 
 function BlockedRow({
-  seriesId,
+  titleId,
   entry,
 }: {
-  seriesId: number;
+  titleId: number;
   entry: BlocklistEntry;
 }) {
   const queryClient = useQueryClient();
   const unblock = useMutation({
-    mutationFn: () => api.clearBlocklistEntry(seriesId, entry.id),
+    mutationFn: () => api.clearBlocklistEntry(titleId, entry.id),
     onSuccess: () => {
       toast.success("Release unblocked");
       queryClient.invalidateQueries({
-        queryKey: blocklistQuery(seriesId).queryKey,
+        queryKey: blocklistQuery(titleId).queryKey,
       });
       queryClient.invalidateQueries({
-        queryKey: grabsQuery(seriesId).queryKey,
+        queryKey: grabsQuery(titleId).queryKey,
       });
     },
     onError: (e) =>
