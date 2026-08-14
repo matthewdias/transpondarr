@@ -48,6 +48,11 @@ type TitleMeta struct {
 	// Year is the release year, 0 when the provider publishes none. Both movie
 	// matching (#209) and movie naming (#198) read it.
 	Year int
+	// Premiere is the release date of a title the provider dates but does not
+	// schedule (a film), zero when it publishes no full one. It names a calendar
+	// day rather than a moment, so it is not the Japanese broadcast clock Airing
+	// carries; the adapter fixes the instant that reads as that day.
+	Premiere time.Time
 	// NextItem is the number of the next scheduled broadcast, 0 when nothing is
 	// scheduled. It lives here rather than on ItemMeta because it describes the
 	// title's position in its own run, and it keeps ItemMeta air-date-free.

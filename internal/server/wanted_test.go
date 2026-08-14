@@ -200,6 +200,28 @@ func TestMissingUnairedToggle(t *testing.T) {
 	}
 }
 
+// An episode's air date is when it becomes acquirable, so withholding it until
+// then is complete information. A film's is only the earliest it could be: the
+// date AniList publishes is the theatrical premiere, months ahead of anything
+// grabbable. Hiding it there would delete the whole title from the page a user
+// tracks it on, where hiding one episode still leaves its series listed.
+func TestMissingKeepsAnAnnouncedFilmVisible(t *testing.T) {
+	h := wantedHarness(t)
+	movieID := seedMovie(t, h.store, "Announced Film", 2027)
+	setAirsAt(t, h.store, movieID, 1, store.FormatTimestamp(time.Now().Add(90*24*time.Hour)))
+
+	var out missingResponse
+	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
+		t.Fatalf("GET missing = %d, want 200", code)
+	}
+	if len(out.items()) != 1 {
+		t.Fatalf("items = %+v, want the announced film without asking for unaired", out.items())
+	}
+	if len(out.Groups) != 1 || out.Groups[0].Missing != 1 {
+		t.Fatalf("groups = %+v, want the film counted in its group", out.Groups)
+	}
+}
+
 func recordPassOutcome(t *testing.T, st *store.Store, seriesID int64, number int, p db.UpsertPassOutcomeParams) {
 	t.Helper()
 	p.WantedItemID = itemID(t, st, seriesID, number)

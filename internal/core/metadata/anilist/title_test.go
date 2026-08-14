@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 )
@@ -230,6 +231,59 @@ func serveOnce(t *testing.T, body string, query *string) string {
 	}))
 	t.Cleanup(srv.Close)
 	return srv.URL
+}
+
+// datedMediaResponse renders a film whose startDate parts are spelled by the
+// caller as raw JSON literals, so "null" is expressible.
+func datedMediaResponse(year, month, day string) string {
+	return fmt.Sprintf(`{"data":{"Media":{
+		"id": 4321,
+		"title": {"romaji": "Placeholder Legend"},
+		"format": "MOVIE",
+		"episodes": 1,
+		"status": "NOT_YET_RELEASED",
+		"seasonYear": null,
+		"startDate": {"year": %s, "month": %s, "day": %s},
+		"coverImage": {"large": ""},
+		"nextAiringEpisode": null,
+		"airingSchedule": {"nodes": []}
+	}}}`, year, month, day)
+}
+
+// A film has no broadcast schedule, so its startDate is the only date we get.
+// It rides the existing title query, costing no extra AniList request.
+func TestGetTitleReadsAFullStartDate(t *testing.T) {
+	var query string
+	url := serveOnce(t, datedMediaResponse("2026", "3", "15"), &query)
+
+	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	want := time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC)
+	if !meta.Premiere.Equal(want) {
+		t.Errorf("Premiere = %v, want %v (noon UTC names the day in every real zone)", meta.Premiere, want)
+	}
+	if !strings.Contains(query, "month") || !strings.Contains(query, "day") {
+		t.Errorf("title query does not request the full startDate: %s", query)
+	}
+}
+
+// An announced film carries a year long before a day, and January 1st would be
+// a wrong date on the calendar rather than an honest absence.
+func TestGetTitlePremiereIsZeroWithoutAFullDate(t *testing.T) {
+	url := serveOnce(t, datedMediaResponse("2027", "null", "null"), nil)
+
+	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	if err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if !meta.Premiere.IsZero() {
+		t.Errorf("Premiere = %v, want the zero time for a year-only start date", meta.Premiere)
+	}
+	if meta.Year != 2027 {
+		t.Errorf("Year = %d, want 2027 still read from the same field", meta.Year)
+	}
 }
 
 // startDate.year is primary: AniList assigns a season later than a year becomes

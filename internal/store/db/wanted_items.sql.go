@@ -100,6 +100,7 @@ func (q *Queries) GetWantedItemByNumber(ctx context.Context, arg GetWantedItemBy
 const listCalendarItems = `-- name: ListCalendarItems :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored,
        s.title         AS series_title,
+       s.format        AS series_format,
        s.monitored     AS series_monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
@@ -127,6 +128,7 @@ type ListCalendarItemsRow struct {
 	HeldReleaseTitle string         `json:"held_release_title"`
 	Monitored        int64          `json:"monitored"`
 	SeriesTitle      string         `json:"series_title"`
+	SeriesFormat     string         `json:"series_format"`
 	SeriesMonitored  int64          `json:"series_monitored"`
 	GrabStatus       sql.NullString `json:"grab_status"`
 	GrabReleaseTitle sql.NullString `json:"grab_release_title"`
@@ -155,6 +157,7 @@ func (q *Queries) ListCalendarItems(ctx context.Context, arg ListCalendarItemsPa
 			&i.HeldReleaseTitle,
 			&i.Monitored,
 			&i.SeriesTitle,
+			&i.SeriesFormat,
 			&i.SeriesMonitored,
 			&i.GrabStatus,
 			&i.GrabReleaseTitle,
@@ -291,6 +294,32 @@ func (q *Queries) ListWantedItems(ctx context.Context, seriesID int64) ([]Wanted
 		return nil, err
 	}
 	return items, nil
+}
+
+const setWantedItemAirsAtIfNull = `-- name: SetWantedItemAirsAtIfNull :exec
+UPDATE wanted_items
+SET airs_at = ?
+WHERE series_id = ? AND kind = ? AND number = ? AND airs_at IS NULL
+`
+
+type SetWantedItemAirsAtIfNullParams struct {
+	AirsAt   sql.NullString `json:"airs_at"`
+	SeriesID int64          `json:"series_id"`
+	Kind     string         `json:"kind"`
+	Number   sql.NullInt64  `json:"number"`
+}
+
+// Fills a date a broadcast schedule left absent, which is a film's normal state.
+// The null guard is what makes a real broadcast instant win: without it a tail
+// sync, which returns no aired nodes, would replace one every pass.
+func (q *Queries) SetWantedItemAirsAtIfNull(ctx context.Context, arg SetWantedItemAirsAtIfNullParams) error {
+	_, err := q.db.ExecContext(ctx, setWantedItemAirsAtIfNull,
+		arg.AirsAt,
+		arg.SeriesID,
+		arg.Kind,
+		arg.Number,
+	)
+	return err
 }
 
 const setWantedItemHeld = `-- name: SetWantedItemHeld :exec

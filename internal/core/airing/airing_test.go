@@ -19,9 +19,11 @@ import (
 // each series was asked for.
 type fakeProvider struct {
 	schedules map[int64][]metadata.Airing
+	titles    map[int64]metadata.TitleMeta
 	errs      map[int64]error
 
 	calls         []int64 // provider ids, in call order
+	titleCalls    []int64 // provider ids GetTitle was asked for, in call order
 	notYetAired   map[int64]bool
 	onGetSchedule func() // runs mid-fetch, for interleaving concurrent writers
 }
@@ -29,6 +31,7 @@ type fakeProvider struct {
 func newFakeProvider() *fakeProvider {
 	return &fakeProvider{
 		schedules:   map[int64][]metadata.Airing{},
+		titles:      map[int64]metadata.TitleMeta{},
 		errs:        map[int64]error{},
 		notYetAired: map[int64]bool{},
 	}
@@ -40,8 +43,9 @@ func (f *fakeProvider) Search(context.Context, string) ([]metadata.Candidate, er
 	return nil, nil
 }
 
-func (f *fakeProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, []metadata.ItemMeta, error) {
-	return metadata.TitleMeta{}, nil, nil
+func (f *fakeProvider) GetTitle(_ context.Context, id int64) (metadata.TitleMeta, []metadata.ItemMeta, error) {
+	f.titleCalls = append(f.titleCalls, id)
+	return f.titles[id], nil, nil
 }
 
 func (f *fakeProvider) GetSchedule(_ context.Context, id int64, notYetAired bool) ([]metadata.Airing, error) {

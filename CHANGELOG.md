@@ -29,7 +29,10 @@ All notable changes to this project are documented here. The format is based on
   Releases tab, or unattended: a monitored film joins the scheduled search queue
   and the recent-feed poll alongside your series, and backs off the same way
   when nothing turns up. A release naming a different year is listed with that
-  mismatch as its reason instead of matching.
+  mismatch as its reason instead of matching. A film announced for a future date
+  is left alone by automation until that date, since nothing exists to find
+  before it — it stays listed as wanted in the meantime, and searching or
+  grabbing it by hand still works.
   A film whose year is not yet on record still matches and is still grabbable by
   hand, but is marked ineligible so automation leaves it alone until a metadata
   refresh fills the year in. A batch or season pack is held back the same way and
@@ -70,6 +73,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **A film on the calendar reads as a premiere, not as episode 1.** A film with
+  a television premiere already appeared on the calendar, labelled `Ep 01` as
+  though it were the first episode of a series; it now shows as a premiere
+  linking to the title. Films are also placed far more often: the release date
+  AniList publishes now fills in where a broadcast schedule never existed, so a
+  dated film leaves the **No schedule data** footer and lands on its day. A film
+  announced with only a year stays in that footer rather than being placed on a
+  date nobody published. Single-episode OVAs and specials keep their episode
+  line, and the empty week no longer says it found no episodes.
+
 - **A film that ships with extras now imports the film.** A movie download
   holding the feature alongside deleted scenes, an interview or a making-of
   imports the feature — the largest video in the payload — where before a clip
@@ -94,6 +107,9 @@ All notable changes to this project are documented here. The format is based on
 
 ### Internal
 
+- **Built with Go 1.26.6.** The 1.26.5 standard library carries six
+  vulnerabilities the release binary reaches — in `net/http`, `crypto/tls`,
+  `net/url`, `encoding/xml` and `encoding/asn1` — all fixed upstream.
 - **Duplicate-name detection reads SQLite's result code instead of matching on
   the error message**, so a driver that rewords its errors can no longer turn a
   conflict into a 500.

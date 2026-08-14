@@ -979,6 +979,8 @@ export interface components {
              * @description Broadcast time (RFC 3339 UTC)
              */
             airs_at: string;
+            /** @description Title format; the sole discriminator between a film's premiere and an episode */
+            format: string;
             /** Format: int64 */
             id: number;
             /** @description Why the last import attempt failed (status stuck) */

@@ -7,6 +7,7 @@ import {
   EyeOff,
   ChevronLeft,
   ChevronRight,
+  Film,
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
@@ -48,6 +49,12 @@ const statusLabel: Record<ItemStatus, string> = {
   deferred: "Batch downloaded",
   wanted: "Wanted",
 };
+
+// Format alone (#208), so a one-item OVA keeps its episode line. A premiere
+// states no time anywhere below: a film's airs_at is either a real TV-premiere
+// instant or a date-only release stored at noon UTC to name a day, and nothing
+// here can tell them apart, so any clock or countdown might be invented.
+const isPremiere = (item: CalendarItem) => item.format === "MOVIE";
 
 export function CalendarPage() {
   // Read the viewport synchronously: deriving this from useIsMobile would
@@ -204,11 +211,12 @@ export function CalendarPage() {
 }
 
 function EntryLine({ item }: { item: CalendarItem }) {
+  const premiere = isPremiere(item);
   return (
     <Link
       to={`/series/${item.title_id}`}
       className="block truncate rounded px-1 py-0.5 text-xs leading-5 hover:bg-panel-2"
-      title={`${item.title} — episode ${item.number} (${item.status})`}
+      title={`${item.title} — ${premiere ? "premiere" : `episode ${item.number}`} (${item.status})`}
     >
       <span
         className={cn(
@@ -216,7 +224,16 @@ function EntryLine({ item }: { item: CalendarItem }) {
           statusDot[item.status],
         )}
       />
-      <span className="tabular-nums text-faint">{pad2(item.number)}</span>{" "}
+      {/* A month cell is a seventh of the grid, so the marker is an icon where
+          an episode gets its number; the title attribute carries the words. */}
+      {premiere ? (
+        <Film
+          aria-hidden
+          className="mr-1 inline-block size-3 align-middle text-faint"
+        />
+      ) : (
+        <span className="tabular-nums text-faint">{pad2(item.number)} </span>
+      )}
       {item.title}
     </Link>
   );
@@ -320,7 +337,9 @@ function WeekGrid({
                     {item.title}
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    Ep {item.number} · {timeLabel(item.airs_at)}
+                    {isPremiere(item)
+                      ? "Premiere"
+                      : `Ep ${item.number} · ${timeLabel(item.airs_at)}`}
                   </div>
                   <div
                     className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground"
@@ -358,9 +377,9 @@ function Agenda({
     return (
       <div className="mx-auto flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
         <CalendarDays className="mb-3 size-6 text-faint" />
-        <h3 className="text-sm font-semibold">Nothing airing</h3>
+        <h3 className="text-sm font-semibold">Nothing scheduled</h3>
         <p className="mt-1.5 text-sm text-muted-foreground">
-          No monitored episodes are scheduled this week.
+          Nothing monitored is scheduled this week.
         </p>
       </div>
     );
@@ -392,16 +411,18 @@ function Agenda({
                   className="flex items-center gap-3 px-3 py-2.5 hover:bg-panel-2/50"
                 >
                   <span className="w-16 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-                    {timeLabel(item.airs_at)}
+                    {isPremiere(item) ? "" : timeLabel(item.airs_at)}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {item.title}
                     <span className="ml-1.5 text-xs text-faint">
-                      Ep {item.number}
+                      {isPremiere(item) ? "Premiere" : `Ep ${item.number}`}
                     </span>
                   </span>
+                  {/* airDate counts down in hours within a week, which is the
+                      precision a premiere may not have. */}
                   <span className="hidden text-xs text-faint sm:block">
-                    {airDate(item.airs_at)}
+                    {isPremiere(item) ? "" : airDate(item.airs_at)}
                   </span>
                   <ItemStatusBadge
                     status={item.status}

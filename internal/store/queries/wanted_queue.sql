@@ -12,7 +12,12 @@
 -- keeps this page honest about what automation will go after; an in-flight
 -- grab is absent by construction, being Activity's to show. Monitoring and the
 -- unaired cut are display filters, not exclusions: a row has to stay visible
--- after the click that hid it, or there is no way back. Groups are ordered
+-- after the click that hid it, or there is no way back. The unaired cut skips a
+-- movie because its date means something else: an episode's air date is when it
+-- becomes acquirable, so withholding it until then is complete information,
+-- while a film's is the theatrical premiere -- only the earliest it could be,
+-- months ahead of anything grabbable. Hiding it would drop the whole title from
+-- this page, where hiding one episode still leaves its series listed. Groups are ordered
 -- newest missing broadcast first, all-undated series last: COALESCE sorts a
 -- null air date below every timestamp, and lexicographic compare on the one
 -- stored layout is chronological. The keyset lives in HAVING because it binds
@@ -28,7 +33,7 @@ LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR (s.monitored = 1 AND w.monitored = 1))
-  AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
+  AND (? = 1 OR w.kind = 'movie' OR w.airs_at IS NULL OR w.airs_at <= ?)
 GROUP BY s.id
 HAVING MAX(COALESCE(w.airs_at, '')) < ? OR (MAX(COALESCE(w.airs_at, '')) = ? AND s.id > ?)
 ORDER BY MAX(COALESCE(w.airs_at, '')) DESC, s.id
@@ -61,7 +66,7 @@ WHERE w.series_id IN (sqlc.slice('series_ids'))
   AND w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR w.monitored = 1)
-  AND (? = 1 OR w.airs_at IS NULL OR w.airs_at <= ?)
+  AND (? = 1 OR w.kind = 'movie' OR w.airs_at IS NULL OR w.airs_at <= ?)
 ORDER BY w.series_id, w.number;
 
 -- name: ListCutoffSeriesPage :many

@@ -253,6 +253,31 @@ describe("DiscoveryPage", () => {
     ).toBeInTheDocument();
   });
 
+  // A film's premiere is now its next_airs_at, and the card said "Ep 1 in 4h" —
+  // an episode line, with a clock, for the noon-UTC placeholder.
+  it("dates a film's premiere instead of calling it episode 1", async () => {
+    server.use(
+      chartHandler([
+        entry({
+          provider_id: 104,
+          romaji: "Placeholder Legend",
+          format: "MOVIE",
+          next_episode: 1,
+          next_airs_at: "2099-03-15T12:00:00Z",
+        }),
+      ]),
+      profilesHandler,
+      settingsHandler,
+    );
+
+    renderPage();
+
+    expect(await screen.findByText("Placeholder Legend")).toBeInTheDocument();
+    expect(screen.getByText(/^Premieres /)).toBeInTheDocument();
+    expect(screen.queryByText(/Ep 1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\bin \d+[mhd]\b/)).not.toBeInTheDocument();
+  });
+
   it("opens the add form for a movie", async () => {
     server.use(
       chartHandler([

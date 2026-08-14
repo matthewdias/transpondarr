@@ -18,6 +18,7 @@ type calendarItemDTO struct {
 	Title       string `json:"title"`
 	Monitored   bool   `json:"monitored"`
 	Number      int    `json:"number"`
+	Format      string `json:"format" doc:"Title format; the sole discriminator between a film's premiere and an episode"`
 	Name        string `json:"name,omitempty"`
 	AirsAt      string `json:"airs_at" format:"date-time" doc:"Broadcast time (RFC 3339 UTC)"`
 	Status      string `json:"status" enum:"in_library,downloading,stuck,deferred,wanted" doc:"Derived acquisition state"`
@@ -80,6 +81,7 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 				Title:       r.SeriesTitle,
 				Monitored:   monitored,
 				Number:      int(r.Number.Int64),
+				Format:      r.SeriesFormat,
 				Name:        r.Title.String,
 				AirsAt:      storedTimeRFC3339(r.AirsAt),
 				Status:      state.Status,

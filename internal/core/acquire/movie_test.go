@@ -141,6 +141,32 @@ func TestSweepMovieWithNoAirDateLeavesTheCadenceHelpersInert(t *testing.T) {
 	wantNextSearchNear(t, state.nextSearchAt, before.Add(24*time.Hour))
 }
 
+// #224 gave films a date, which makes an announced one unaired and so not
+// grabbable. That is right -- AniList's start date is the theatrical premiere,
+// and nothing exists to find before it -- so the sweep must not spend a search
+// on it. The Wanted page keeps showing it regardless; the two are separate
+// questions, which is why this asserts only the acquisition half.
+func TestSweepSkipsAnAnnouncedFilmUntilItsPremiere(t *testing.T) {
+	h := newSweep(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2027)}, fakeConfig{})
+	id := seedMovie(t, h.st, "Sample Film", 2027)
+	if _, err := h.st.DB.ExecContext(context.Background(),
+		`UPDATE wanted_items SET airs_at = ? WHERE series_id = ?`,
+		store.FormatTimestamp(time.Now().Add(90*24*time.Hour)), id); err != nil {
+		t.Fatalf("date the film ahead: %v", err)
+	}
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+
+	if len(h.idx.Queries) != 0 {
+		t.Errorf("indexer queried %d times for an unreleased film, want 0", len(h.idx.Queries))
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
+		t.Errorf("grabbed items = %v, want none before the premiere", got)
+	}
+}
+
 // #208's amended rule, proved through automation: a film whose year is not yet
 // on record still matches, so a manual grab stays free (PR #57), but the sweep
 // never takes it -- and the pass stores the refusal so the Wanted page says why.

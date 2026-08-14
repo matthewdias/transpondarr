@@ -4,6 +4,7 @@ import {
   formatBytes,
   nextEpisodeLabel,
   pad2,
+  premiereLabel,
   plural,
   timeAgo,
 } from "@/lib/format";
@@ -154,6 +155,42 @@ describe("nextEpisodeLabel", () => {
     freeze("2026-07-23T12:00:00Z");
     expect(nextEpisodeLabel(undefined, "2026-07-26T12:30:00Z")).toBe(
       "Next ep in 3d",
+    );
+  });
+});
+
+describe("premiereLabel", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const freeze = (iso: string) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(iso));
+  };
+
+  it("returns null without a date", () => {
+    expect(premiereLabel(undefined)).toBeNull();
+    expect(premiereLabel("garbage")).toBeNull();
+  });
+
+  // A film's stored date may be a date-only release held at noon UTC, so a
+  // countdown would state precision that was never published.
+  it("never counts down, however close the date", () => {
+    freeze("2026-03-15T08:00:00Z");
+    expect(premiereLabel("2026-03-15T12:00:00Z", "en-US")).toBe(
+      "Premieres Mar 15, 2026",
+    );
+    expect(premiereLabel("2026-03-18T12:00:00Z", "en-US")).toBe(
+      "Premieres Mar 18, 2026",
+    );
+  });
+
+  // "Released" beside a future date is wrong on its own terms.
+  it("tenses on the date rather than calling a future release past", () => {
+    freeze("2026-06-01T12:00:00Z");
+    expect(premiereLabel("2026-03-15T12:00:00Z", "en-US")).toBe(
+      "Released Mar 15, 2026",
     );
   });
 });

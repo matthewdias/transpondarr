@@ -45,6 +45,36 @@ it("offers a search that hands off to the Releases tab", async () => {
   expect(search).toHaveBeenCalled();
 });
 
+// A film's date can be a date-only release held at noon UTC, so a countdown
+// would invent precision — and "Released in 4h" is wrong on its own terms.
+it("dates an upcoming film rather than counting down to it", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-03-15T08:00:00Z"));
+  try {
+    renderCard({ airs_at: "2026-03-15T12:00:00Z" });
+
+    expect(screen.getByText(/^Premieres /)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/\bin \d+[mhd]\b|any moment/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Released /)).not.toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it("still says released once the date has passed", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-06-01T12:00:00Z"));
+  try {
+    renderCard({ airs_at: "2026-03-15T12:00:00Z" });
+
+    expect(screen.getByText(/^Released /)).toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 // Substituted rather than qualified, exactly as the episode row does it.
 it("substitutes the unmonitored badge for a wanted film", () => {
   renderCard({ monitored: false });

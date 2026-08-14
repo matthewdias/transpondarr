@@ -51,6 +51,7 @@ UPDATE wanted_items SET in_library = ?, held_release_title = ? WHERE id = ?;
 -- compare is chronological. One grab per item (UNIQUE) keeps the join 1:1.
 SELECT w.*,
        s.title         AS series_title,
+       s.format        AS series_format,
        s.monitored     AS series_monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
@@ -69,6 +70,14 @@ FROM series s
 JOIN wanted_items w ON w.series_id = s.id
 WHERE s.monitored = 1 AND w.in_library = 0 AND w.airs_at IS NULL
 ORDER BY s.title;
+
+-- name: SetWantedItemAirsAtIfNull :exec
+-- Fills a date a broadcast schedule left absent, which is a film's normal state.
+-- The null guard is what makes a real broadcast instant win: without it a tail
+-- sync, which returns no aired nodes, would replace one every pass.
+UPDATE wanted_items
+SET airs_at = ?
+WHERE series_id = ? AND kind = ? AND number = ? AND airs_at IS NULL;
 
 -- name: UpsertWantedItemAiring :exec
 -- Creating the item matters for a null-count long-runner: the schedule is the
