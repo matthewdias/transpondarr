@@ -16,6 +16,11 @@ const IMPORT_MODES = [
   { value: "copy", label: "Copy" },
 ];
 
+const SERIES_LAYOUTS = [
+  { value: "season_folders", label: "Season folders" },
+  { value: "flat", label: "Flat (no season folder)" },
+];
+
 export function LibrarySection({ settings }: { settings: Settings }) {
   const l = settings.library;
   const queryClient = useQueryClient();
@@ -24,9 +29,20 @@ export function LibrarySection({ settings }: { settings: Settings }) {
   const [mode, setMode] = useState<NonNullable<LibraryInput["mode"]>>(
     (l.mode as NonNullable<LibraryInput["mode"]>) || "auto",
   );
+  const [seriesLayout, setSeriesLayout] = useState<
+    NonNullable<LibraryInput["series_layout"]>
+  >(
+    (l.series_layout as NonNullable<LibraryInput["series_layout"]>) ||
+      "season_folders",
+  );
   const [testState, setTestState] = useState<TestState>(null);
 
-  const body = (): LibraryInput => ({ dir, movies_dir: moviesDir, mode });
+  const body = (): LibraryInput => ({
+    dir,
+    movies_dir: moviesDir,
+    series_layout: seriesLayout,
+    mode,
+  });
 
   const test = useMutation({
     mutationFn: () => api.testLibrary(body()),
@@ -73,6 +89,31 @@ export function LibrarySection({ settings }: { settings: Settings }) {
         onChange={(e) => setMoviesDir(e.target.value)}
         hint="Films place here instead, as Plex and Jellyfin expect a Movies library separate from Shows. Until it is set, a grabbed movie waits in the queue rather than importing."
       />
+      <label className="block">
+        <span className="mb-1 block text-xs font-medium text-muted-foreground">
+          Series layout
+        </span>
+        <select
+          value={seriesLayout}
+          onChange={(e) =>
+            setSeriesLayout(
+              e.target.value as NonNullable<LibraryInput["series_layout"]>,
+            )
+          }
+          className={selectClass}
+        >
+          {SERIES_LAYOUTS.map((s) => (
+            <option key={s.value} value={s.value}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+        <span className="mt-1 block text-xs text-muted-foreground">
+          How episodes are filed inside the library directory. Films are
+          unaffected. Changing this affects future imports only — episodes
+          already in your library stay where they are.
+        </span>
+      </label>
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-muted-foreground">
           Import mode

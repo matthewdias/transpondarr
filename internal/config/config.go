@@ -53,7 +53,10 @@ type Config struct {
 	// wanting a Movies library separate from Shows. Empty is not a fallback into
 	// LibraryDir: a movie import fails until one is set.
 	LibraryMoviesDir string
-	ImportMode       string
+	// LibrarySeriesLayout is season_folders|flat: the path shape inside the series
+	// root. It says nothing about movies, which have one shape.
+	LibrarySeriesLayout string
+	ImportMode          string
 
 	// Automation (the scheduled search sweep). Strings, like every other value
 	// here, because the settings layer overlays persisted overrides on top and
@@ -98,6 +101,7 @@ func Load() (*Config, error) {
 
 	c.LibraryDir = os.Getenv("TRANSPONDARR_LIBRARY_DIR")
 	c.LibraryMoviesDir = os.Getenv("TRANSPONDARR_LIBRARY_MOVIES_DIR")
+	c.LibrarySeriesLayout = os.Getenv("TRANSPONDARR_LIBRARY_SERIES_LAYOUT")
 	c.ImportMode = getenv("TRANSPONDARR_IMPORT_MODE", "auto")
 
 	c.AutomationEnabled = getenv("TRANSPONDARR_AUTOMATION_ENABLED", "false")

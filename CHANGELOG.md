@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **Episodes can be filed without season folders.** **Settings → Library** now
+  takes a **Series layout**: keep the default season folders, or choose flat and
+  have episodes land in `Placeholder Saga/Placeholder Saga - S01E05.mkv` for the
+  scanner configurations that prefer it. Films are unaffected, and so are
+  single-episode OVAs and specials, which stay series-shaped as before.
 - **Films import into their own library directory.** Plex and Jellyfin both want
   a Movies library separate from Shows, so **Settings → Library** now takes a
   movies directory alongside the existing one, and a film places into it as
@@ -120,6 +125,13 @@ All notable changes to this project are documented here. The format is based on
 
 ### Upgrade notes
 
+- **The new series layout setting defaults to season folders, so nothing moves
+  on upgrade.** If you switch it later, it applies to future imports only:
+  episodes already in your library stay where they are, and an upgrade of one of
+  them lands in the new shape and leaves the old file behind, which the log
+  warns about. API clients that write library settings must now send
+  `series_layout` with the rest of the body: omitting it is refused rather than
+  quietly resetting the layout to season folders. The web UI needs nothing.
 - **API clients using `X-Api-Key` need one search-and-replace; the web UI needs
   nothing.** The UI ships inside the binary and is already updated, so only
   machine clients notice. Every route under `/api/v1/series` moved to

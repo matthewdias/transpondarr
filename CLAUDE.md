@@ -589,8 +589,35 @@ Behaviour changes are test-driven. Work red → green → refactor:
   plus one import-stuck notification, and the next scan imports it once the root
   is set — where a file already hardlinked into the wrong library would need
   hand cleanup. Root (destination) and layout (shape within a root) stay
-  different axes: the movie shape is hard-wired in `destination`, which is the
-  one branch point #129 parameterizes later.
+  different axes: #198 owns the root, #129 the shape.
+- **Layout parameterizes the shape inside a branch, never the branch itself
+  (#129).** `library.series_layout` (`season_folders` default, `flat`) is read
+  only by `destination`'s series arm, so format stays the sole discriminator and
+  a one-item OVA loses its season folder along with every other series — the
+  movie shape is identical under either layout. It is a string enum rather than
+  a bool for two reasons: `libraryInput` is `omitempty` throughout, where a bool
+  cannot distinguish "false" from "absent" (the trap `automationInput` documents),
+  and #168's per-format routing will need a value it can carry per format. The
+  default is the *current* behaviour, which is what lets an install that predates
+  the key keep the layout its files are already in — `ParseLayout` maps both
+  empty and unrecognized to `season_folders`, and the settings layer normalizes
+  through it so what is stored, displayed and joined into a path agree.
+  **Switching layouts moves nothing already placed**, so an upgrade writes the
+  new shape beside the old file. That is the same orphan class as a refreshed
+  title or year and is repaired the same way (#213's placed-path memory), never
+  by deleting from a computed path; but switched *to* flat the series folder
+  still exists, so the missing-directory warning cannot fire and `heldElsewhere`
+  is the only evidence. The two warnings are **independent `if`s, not a chain** —
+  they answer different questions, and one silencing the other is worse than
+  either alone. `heldElsewhere` therefore matches a *video* at the exact stem
+  rather than any stem-mate, or an interrupted copy's `.partial` would report a
+  layout switch that never happened and suppress the real warning.
+- **`removeStemMates`' trailing dot is load-bearing and only a two- against
+  three-digit pair tests it.** `seasonNumber` is hardcoded to 1, so every episode
+  of an entry already shares a directory and the flat layout adds no neighbours
+  to the one it scans — the blast radius is unchanged either way. But E03/E30
+  diverge at the first digit and pass with the guard removed; E10/E100 is the
+  pair that catches it.
 - **A year is read the same way whichever form names it, and both are decided
   against the variants (#209).** anitogo fills `AnimeYear` only from a
   *bracket-isolated* token, so `[Grp] Film (2019)` yields a year while the scene

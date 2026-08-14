@@ -34,10 +34,11 @@ type indexerSettingsDTO struct {
 }
 
 type librarySettingsDTO struct {
-	Configured bool   `json:"configured"`
-	Dir        string `json:"dir"`
-	MoviesDir  string `json:"movies_dir" doc:"Root movies are placed into; empty = movies do not import"`
-	Mode       string `json:"mode"`
+	Configured   bool   `json:"configured"`
+	Dir          string `json:"dir"`
+	MoviesDir    string `json:"movies_dir" doc:"Root movies are placed into; empty = movies do not import"`
+	SeriesLayout string `json:"series_layout" doc:"Path shape inside the series root; movies are unaffected"`
+	Mode         string `json:"mode"`
 }
 
 type automationSettingsDTO struct {
@@ -122,10 +123,11 @@ func indexerDTO(c settings.IndexerConfig) indexerSettingsDTO {
 // Either root counts as configured: a films-only library imports films.
 func libraryDTO(c settings.LibraryConfig) librarySettingsDTO {
 	return librarySettingsDTO{
-		Configured: c.Dir != "" || c.MoviesDir != "",
-		Dir:        c.Dir,
-		MoviesDir:  c.MoviesDir,
-		Mode:       c.Mode,
+		Configured:   c.Dir != "" || c.MoviesDir != "",
+		Dir:          c.Dir,
+		MoviesDir:    c.MoviesDir,
+		SeriesLayout: c.SeriesLayout,
+		Mode:         c.Mode,
 	}
 }
 
@@ -210,7 +212,10 @@ type libraryInput struct {
 	Body struct {
 		Dir       string `json:"dir,omitempty"`
 		MoviesDir string `json:"movies_dir,omitempty" doc:"Root movies are placed into; empty = movies do not import"`
-		Mode      string `json:"mode,omitempty" enum:"auto,hardlink,copy"`
+		// Required, by automationInput's rule below: with omitempty, "leave the
+		// layout alone" and "set it to season_folders" are the same request.
+		SeriesLayout string `json:"series_layout" enum:"season_folders,flat" doc:"Path shape inside the series root; movies are unaffected"`
+		Mode         string `json:"mode,omitempty" enum:"auto,hardlink,copy"`
 	}
 }
 
@@ -482,10 +487,14 @@ func (h *settingsHandler) updateLibrary(ctx context.Context, in *libraryInput) (
 	if in.Body.Mode != "" && !settings.ValidImportMode(in.Body.Mode) {
 		return nil, huma.Error422UnprocessableEntity("invalid import mode (want auto, hardlink or copy)")
 	}
+	if !settings.ValidSeriesLayout(in.Body.SeriesLayout) {
+		return nil, huma.Error422UnprocessableEntity("invalid series layout (want season_folders or flat)")
+	}
 	if err := h.settings.UpdateLibrary(ctx, settings.LibraryConfig{
-		Dir:       in.Body.Dir,
-		MoviesDir: in.Body.MoviesDir,
-		Mode:      in.Body.Mode,
+		Dir:          in.Body.Dir,
+		MoviesDir:    in.Body.MoviesDir,
+		SeriesLayout: in.Body.SeriesLayout,
+		Mode:         in.Body.Mode,
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to save library settings", err)
 	}

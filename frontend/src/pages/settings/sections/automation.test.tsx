@@ -37,7 +37,13 @@ function settings(automation: Settings["automation"]): Settings {
       apikey_set: false,
       categories: "",
     },
-    library: { configured: false, dir: "", movies_dir: "", mode: "" },
+    library: {
+      configured: false,
+      dir: "",
+      movies_dir: "",
+      series_layout: "season_folders",
+      mode: "",
+    },
     automation,
     notifications: {
       discord: { configured: false, url: "", ...notifyEvents },

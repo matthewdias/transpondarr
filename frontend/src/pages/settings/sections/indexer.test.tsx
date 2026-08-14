@@ -31,7 +31,13 @@ function settings(indexer: Settings["indexer"]): Settings {
       category: "",
     },
     indexer,
-    library: { configured: false, dir: "", movies_dir: "", mode: "" },
+    library: {
+      configured: false,
+      dir: "",
+      movies_dir: "",
+      series_layout: "season_folders",
+      mode: "",
+    },
     automation: { mode: "off", pin_delay_hours: 0 },
     notifications: {
       discord: { configured: false, url: "", ...notifyEvents },

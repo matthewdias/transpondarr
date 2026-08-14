@@ -81,6 +81,7 @@ describe("LibrarySection", () => {
       configured: true,
       dir: "/media/Anime",
       movies_dir: "/media/Anime Films",
+      series_layout: "season_folders",
       mode: "auto",
     };
     server.use(
@@ -94,6 +95,7 @@ describe("LibrarySection", () => {
       configured: true,
       dir: "/media/Anime",
       movies_dir: "",
+      series_layout: "season_folders",
       mode: "auto",
     });
 
@@ -111,5 +113,41 @@ describe("LibrarySection", () => {
       movies_dir: "/media/Anime Films",
       mode: "auto",
     });
+  });
+
+  // #129: the layout is edited here, and a save that does not touch it must
+  // carry the season folders an existing library is already in.
+  it("seeds the stored layout and saves a switch to flat", async () => {
+    let body: unknown;
+    server.use(
+      http.put("/api/v1/settings/library", async ({ request }) => {
+        body = await request.json();
+        return HttpResponse.json(
+          settings({
+            configured: true,
+            dir: "/media/Anime",
+            movies_dir: "",
+            series_layout: "flat",
+            mode: "auto",
+          }),
+        );
+      }),
+    );
+    const user = userEvent.setup();
+    renderSection({
+      configured: true,
+      dir: "/media/Anime",
+      movies_dir: "",
+      series_layout: "season_folders",
+      mode: "auto",
+    });
+
+    const layout = screen.getByLabelText(/^series layout/i);
+    expect(layout).toHaveValue("season_folders");
+
+    await user.selectOptions(layout, "flat");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(body).toMatchObject({ dir: "/media/Anime", series_layout: "flat" });
   });
 });
