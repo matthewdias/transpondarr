@@ -81,8 +81,8 @@ internal/server        chi + Huma API, API-key auth, embedded SPA
 internal/store         SQLite: goose migrations + sqlc layer (internal/store/db)
 internal/core/domain   content-agnostic model (Title / WantedItem)
 internal/core/indexer  Indexer iface + torznab adapter
-internal/core/download  DownloadClient iface + qbittorrent adapter
-internal/core/library  LibraryTarget iface + mediaserver adapter
+internal/core/download  download.Client iface + qbittorrent adapter
+internal/core/library  library.Target iface + mediaserver adapter
 web/                   embeds web/dist; frontend/ is the Vite source
 ```
 
@@ -93,7 +93,7 @@ web/                   embeds web/dist; frontend/ is the Vite source
   `Episode`. An episode is one item; a movie (a later `Format`) is a `Title` with a
   single item — so movies are additive, not a rewrite.
 - **Pluggable interfaces**: `Indexer` (Torznab for breadth + native integrations
-  later), `DownloadClient` (qBittorrent first), `LibraryTarget`
+  later), `download.Client` (qBittorrent first), `library.Target`
   (media-server layout now; a drop-folder later). Add new sources/clients/
   targets behind these interfaces.
 - **Optional provider capabilities are type assertions, not wider interfaces.**
@@ -690,7 +690,7 @@ deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest
   Multi-route resources that share deps/helpers (titles, settings) hang handlers
   off a per-resource receiver struct (`titleHandler`) built via
   `new<Resource>Handler(deps)`, with shared logic as methods (e.g. `requireTitle`,
-  `matchReleases`); single-route groups (system, download, metadata, indexer) keep
+  `respond`); single-route groups (system, download, metadata, indexer) keep
   inline closures. The receiver earns its keep around 3+ routes or shared
   helpers/state. Handlers stay thin — push business logic into `internal/core`.
   Auth endpoints are plain-chi, not Huma.
