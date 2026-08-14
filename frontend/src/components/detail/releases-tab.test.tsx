@@ -226,10 +226,34 @@ const focusResults = [
   }),
 ];
 
+// Neither release covers item 1, so a film focused on it takes the focused
+// empty state's branch -- the one the guard has to make unreachable.
+const filmResults = [
+  release({
+    title: "[GroupA] Placeholder Film (2019) (1080p)",
+    download_url: "magnet:?xt=urn:btih:0f01",
+    matched: false,
+    reason: "no year on the release",
+    items: undefined,
+  }),
+  release({
+    title: "[GroupC] Placeholder Film Chronicles - 03 (1080p)",
+    download_url: "magnet:?xt=urn:btih:0f02",
+    matched: false,
+    reason: "release is for a different title",
+    items: undefined,
+  }),
+];
+
 // A gated handler holds the search in flight so the loading header can be
 // asserted, then lets it land in the same test rather than leaving a dangling
 // request for teardown to reset.
-function renderReleases(focusItem: number | null, gated = false) {
+function renderReleases(
+  focusItem: number | null,
+  gated = false,
+  format = "TV",
+  results = focusResults,
+) {
   let land = () => {};
   const inFlight = new Promise<void>((resolve) => {
     land = resolve;
@@ -239,7 +263,7 @@ function renderReleases(focusItem: number | null, gated = false) {
       if (gated) await inFlight;
       return HttpResponse.json({
         title: "Example Show",
-        results: focusResults,
+        results,
       });
     }),
   );
@@ -252,7 +276,7 @@ function renderReleases(focusItem: number | null, gated = false) {
     <QueryClientProvider client={client}>
       <ReleasesTab
         titleId={7}
-        format="TV"
+        format={format}
         active
         focusItem={focusItem}
         onClearFocus={onClearFocus}
@@ -352,6 +376,51 @@ describe("ReleasesTab episode focus", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/covering e/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/of 4 results/)).not.toBeInTheDocument();
+  });
+
+  // #231: a film has one item, so filtering to it selects every release. The
+  // render has to equal the unfocused one above, not a reworded version of it.
+  it("ignores a focused item for a film", async () => {
+    renderReleases(1, false, "MOVIE");
+
+    expect(
+      await screen.findByText("[GroupA] Example Show - 05 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("[GroupC] Other Show - 03 (1080p)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/covering e/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/of 4 results/)).not.toBeInTheDocument();
+  });
+
+  it("never offers a film the focused empty state", async () => {
+    renderReleases(1, false, "MOVIE", filmResults);
+
+    expect(
+      await screen.findByText("[GroupA] Placeholder Film (2019) (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("[GroupC] Placeholder Film Chronicles - 03 (1080p)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/no releases cover/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/covering e/i)).not.toBeInTheDocument();
+  });
+
+  // Format alone (#208): this component is never told the item count, so an OVA
+  // keeps the filter whether it ships one episode or twelve.
+  it("keeps the focus for an OVA", async () => {
+    renderReleases(3, false, "OVA");
+
+    expect(
+      await screen.findByText("[GroupA] Example Show - 03 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("[GroupA] Example Show - 05 (1080p)"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /covering e3.*clear filter/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2 of 4 results")).toBeInTheDocument();
   });
 });
 

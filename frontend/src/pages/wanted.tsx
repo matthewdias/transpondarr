@@ -54,6 +54,13 @@ type WantedTab = "missing" | "cutoff";
 // Format alone (#208), never item count: a one-episode OVA is a series here.
 const isFilm = (format: string) => format === "MOVIE";
 
+// The two parameters are independent (#231): ?tab picks the tab, ?item focuses
+// an item. A film's single item is not a choice, so its link names no item.
+const releasesLink = (titleId: number, format: string, number: number) =>
+  isFilm(format)
+    ? `/titles/${titleId}?tab=releases`
+    : `/titles/${titleId}?tab=releases&item=${number}`;
+
 // The reason tiers' vocabulary (#150): the page says what blocks everything,
 // a group header says where its series stands in the sweep queue, and a row
 // speaks only when it has its own story. Tone separates "you have to do
@@ -450,9 +457,9 @@ function MissingRow({
       </span>
       <ItemReasonBadge item={item} film={film} />
       <Button variant="outline" size="sm" asChild>
-        {/* #105's episode-targeted search: the Releases tab opens filtered to
-            this episode, where the unchanged manual grab lives. */}
-        <Link to={`/titles/${titleId}?item=${item.number}`}>
+        {/* #105's episode-targeted search: the Releases tab, where the
+            unchanged manual grab lives, opens filtered to this episode. */}
+        <Link to={releasesLink(titleId, format, item.number)}>
           <Search className="size-4" /> Search
         </Link>
       </Button>
@@ -622,6 +629,7 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
         <CutoffRow
           key={item.id}
           titleId={group.title_id}
+          format={group.format}
           cutoff={group.cutoff_score}
           item={item}
           shared={shared}
@@ -639,11 +647,13 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
 
 function CutoffRow({
   titleId,
+  format,
   cutoff,
   item,
   shared,
 }: {
   titleId: number;
+  format: string;
   cutoff: number;
   item: CutoffItem;
   shared: { label: string; points: number }[];
@@ -683,7 +693,7 @@ function CutoffRow({
       </span>
       <ItemStatusBadge status={item.status} />
       <Button variant="outline" size="sm" asChild>
-        <Link to={`/titles/${titleId}?item=${item.number}`}>
+        <Link to={releasesLink(titleId, format, item.number)}>
           <Search className="size-4" /> Search
         </Link>
       </Button>
