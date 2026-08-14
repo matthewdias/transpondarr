@@ -1,7 +1,9 @@
 package mediaserver
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +13,11 @@ import (
 // sweepAge is the threshold every sweep test passes. Stale files are backdated
 // well past it and fresh ones keep their real mtime, so nothing here sleeps.
 const sweepAge = time.Hour
+
+// alwaysStale makes the age clause inert, so a test can isolate a clause age
+// would otherwise mask — and a hardlink's inherited mtime makes that the real
+// case, not a contrived one.
+const alwaysStale = -time.Second
 
 // seedAged writes a file of a chosen age under dir, creating dir if needed.
 func seedAged(t *testing.T, dir, name string, age time.Duration) string {
@@ -164,23 +171,200 @@ func TestSweepTempCoversBothRoots(t *testing.T) {
 		stale := seedAged(t, seasonDir(root), "Placeholder Saga - S01E01.mkv.partial", 48*time.Hour)
 
 		if removed := sweep(t, New(Roots{Series: root, Movies: root}, LayoutSeasonFolders, "copy", nil)); removed != 1 {
-			t.Errorf("removed = %d, want 1 (the same file counted twice?)", removed)
+			t.Errorf("removed = %d, want 1", removed)
 		}
 		assertGone(t, stale, "a stale temp under a root that is both")
 	})
 
-	// The series walk already covers a movies root nested inside it, so the file is
-	// found twice; the second removal must not be reported as a failure.
+	// A nested root is enumerated by both walks and de-duping the roots cannot
+	// catch it, so the second sighting reaches the removal already gone. Counting
+	// it or reporting it would both be wrong, and the quiet log is the only
+	// evidence of the second: the count alone cannot tell the two apart.
 	t.Run("movies root nested in the series root", func(t *testing.T) {
 		series := t.TempDir()
 		movies := filepath.Join(series, "Movies")
 		stale := seedAged(t, filepath.Join(movies, "Placeholder Film (2019)"),
 			"Placeholder Film (2019).mkv.partial", 48*time.Hour)
 
-		if removed := sweep(t, New(Roots{Series: series, Movies: movies}, LayoutSeasonFolders, "copy", nil)); removed != 1 {
-			t.Errorf("removed = %d, want 1", removed)
+		var buf bytes.Buffer
+		log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
+		if removed := sweep(t, New(Roots{Series: series, Movies: movies}, LayoutSeasonFolders, "copy", log)); removed != 1 {
+			t.Errorf("removed = %d, want 1 (the same file counted twice?)", removed)
 		}
 		assertGone(t, stale, "a stale temp under a nested movies root")
+		if buf.Len() > 0 {
+			t.Errorf("a second sighting of an already-removed path warned: %q", buf.String())
+		}
+	})
+}
+
+// A symlinked root is an ordinary NAS shape, and WalkDir will not descend one:
+// unresolved, the sweep reports a healthy (0, nil) forever.
+func TestSweepTempResolvesASymlinkedRoot(t *testing.T) {
+	real := t.TempDir()
+	stale := seedAged(t, seasonDir(real), "Placeholder Saga - S01E01.mkv.partial", 48*time.Hour)
+	link := filepath.Join(t.TempDir(), "media")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	if removed := sweep(t, New(Roots{Series: link}, LayoutSeasonFolders, "copy", nil)); removed != 1 {
+		t.Errorf("removed = %d, want 1", removed)
+	}
+	assertGone(t, stale, "a stale temp under a symlinked root")
+}
+
+// The other side of resolving the root: WalkDir does not follow links inside the
+// tree, so a link planted in the library cannot aim the sweep outside it.
+func TestSweepTempDoesNotEscapeARootThroughASymlink(t *testing.T) {
+	root, outside := t.TempDir(), t.TempDir()
+	stale := seedAged(t, outside, "Placeholder Saga - S01E01.mkv.partial", 48*time.Hour)
+	if err := os.Symlink(outside, filepath.Join(root, "elsewhere")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	if removed := sweep(t, New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil)); removed != 0 {
+		t.Errorf("removed = %d, want 0", removed)
+	}
+	assertKept(t, stale, "outside every configured root")
+}
+
+// os.Remove on a symlink drops the link, so a link named like a temp file is a
+// file of someone else's the sweep must decline. Age cannot make this call — a
+// fresh link would pass a real threshold too — so the threshold is made inert.
+func TestSweepTempDeclinesASymlink(t *testing.T) {
+	root := t.TempDir()
+	dir := seasonDir(root)
+	target := seedAged(t, dir, "elsewhere.mkv", 0)
+	link := filepath.Join(dir, "Placeholder Saga - S01E01.mkv.partial")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	removed, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).
+		SweepTemp(context.Background(), alwaysStale)
+	if err != nil {
+		t.Fatalf("SweepTemp: %v", err)
+	}
+	if removed != 0 {
+		t.Errorf("removed = %d, want 0", removed)
+	}
+	assertKept(t, link, "a symlink is not a staging file this package wrote")
+}
+
+// The registry is what protects a live transfer, because a staging hardlink
+// inherits the payload's mtime and can read as days old the instant it exists.
+func TestSweepTempSkipsAStagingFileInFlight(t *testing.T) {
+	root := t.TempDir()
+	dir := seasonDir(root)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	dest := filepath.Join(dir, "Placeholder Saga - S01E01.mkv")
+	target := New(Roots{Series: root}, LayoutSeasonFolders, "hardlink", nil)
+
+	var tmp string
+	err := target.staged(dest, upgradeSuffix, func(staging string) error {
+		tmp = staging
+		if err := os.WriteFile(tmp, []byte("x"), 0o644); err != nil {
+			return err
+		}
+		backdate(t, tmp, 48*time.Hour)
+		if removed := sweep(t, target); removed != 0 {
+			t.Errorf("removed = %d while the transfer was in flight, want 0", removed)
+		}
+		assertKept(t, tmp, "a staging file this process is writing")
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("staged: %v", err)
+	}
+
+	// Released: the same file is now an orphan and nothing protects it.
+	if removed := sweep(t, target); removed != 1 {
+		t.Errorf("removed = %d after the transfer finished, want 1", removed)
+	}
+	assertGone(t, tmp, "an unregistered staging file past the threshold")
+}
+
+// End to end over the real copy path: a sweep running throughout must not break
+// the import, with the threshold inert so only the registry can save it.
+func TestSweepTempSparesACopyInFlight(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "raw.mkv")
+	if err := os.WriteFile(src, make([]byte, 8<<20), 0o644); err != nil {
+		t.Fatalf("write source: %v", err)
+	}
+	root := t.TempDir()
+	target := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := target.Place(context.Background(), req(src, "Placeholder Saga", 1))
+		done <- err
+	}()
+	for {
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("Place during a sweep: %v", err)
+			}
+			dest := filepath.Join(seasonDir(root), "Placeholder Saga - S01E01.mkv")
+			if info, err := os.Stat(dest); err != nil || info.Size() != 8<<20 {
+				t.Fatalf("dest = %v (size %v), want the whole source", err, info)
+			}
+			return
+		default:
+			if removed, err := target.SweepTemp(context.Background(), alwaysStale); err != nil || removed != 0 {
+				t.Fatalf("sweep during a copy removed %d (err %v), want 0", removed, err)
+			}
+		}
+	}
+}
+
+// A registration outliving its transfer would make the file permanently
+// unsweepable, so both the settled and the aborted path must let go.
+func TestPlaceLeavesNoStagingRegistration(t *testing.T) {
+	staged := func(t *testing.T, target *Target) int {
+		t.Helper()
+		target.stagingMu.Lock()
+		defer target.stagingMu.Unlock()
+		return len(target.staging)
+	}
+
+	t.Run("a completed copy", func(t *testing.T) {
+		target := New(Roots{Series: t.TempDir()}, LayoutSeasonFolders, "copy", nil)
+		if _, err := target.Place(context.Background(), req(writeSource(t, "raw.mkv"), "Placeholder Saga", 1)); err != nil {
+			t.Fatalf("Place: %v", err)
+		}
+		if n := staged(t, target); n != 0 {
+			t.Errorf("%d staging paths still registered, want 0", n)
+		}
+	})
+
+	t.Run("an aborted copy", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		target := New(Roots{Series: t.TempDir()}, LayoutSeasonFolders, "copy", nil)
+		if _, err := target.Place(ctx, req(writeSource(t, "raw.mkv"), "Placeholder Saga", 1)); err == nil {
+			t.Fatal("Place on a cancelled context should fail")
+		}
+		if n := staged(t, target); n != 0 {
+			t.Errorf("%d staging paths still registered, want 0", n)
+		}
+	})
+
+	t.Run("a completed hardlink upgrade", func(t *testing.T) {
+		root := t.TempDir()
+		seedLibraryFile(t, root, "Placeholder Saga - S01E03.mkv", 4096)
+		target := New(Roots{Series: root}, LayoutSeasonFolders, "hardlink", nil)
+		r := req(writeSized(t, "upgrade.mkv", 128), "Placeholder Saga", 3)
+		r.Replace = true
+		if _, err := target.Place(context.Background(), r); err != nil {
+			t.Fatalf("Place: %v", err)
+		}
+		if n := staged(t, target); n != 0 {
+			t.Errorf("%d staging paths still registered, want 0", n)
+		}
 	})
 }
 

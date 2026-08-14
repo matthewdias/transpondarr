@@ -12,9 +12,10 @@ All notable changes to this project are documented here. The format is based on
   library forever.** Transpondarr writes to a temporary file beside the
   destination and renames it on completion, so a crash or a restart never leaves
   a half-written episode under the real name — but the temporary file itself
-  stayed. A new **Library tidy** job removes them once they are a day old, and
-  only ever the temporary files Transpondarr writes: anything else in the library
-  is left alone. This matters most for copy-mode imports, where the leftover is a
+  stayed. A new **Library tidy** job removes them once they are a day old,
+  matching only the temporary names an import writes and never an import still
+  running; your episodes, films and everything filed alongside them are left
+  alone. This matters most for copy-mode imports, where the leftover is a
   full-sized file, and for upgrades, where it kept the download's disk space
   claimed even after the torrent was removed.
 

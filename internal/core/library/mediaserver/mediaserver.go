@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/matthewdias/transpondarr/internal/core/domain"
@@ -121,6 +122,11 @@ type Target struct {
 	layout Layout
 	mode   Mode
 	log    *slog.Logger
+
+	// staging holds the temp paths this process is writing right now, which is
+	// what tells the sweep a live transfer from an orphan (see staged).
+	stagingMu sync.Mutex
+	staging   map[string]bool
 }
 
 // New constructs a media-server layout target over roots. layout shapes the
@@ -134,7 +140,13 @@ func New(roots Roots, layout Layout, mode string, log *slog.Logger) *Target {
 	}
 	roots.Series = strings.TrimSpace(roots.Series)
 	roots.Movies = strings.TrimSpace(roots.Movies)
-	return &Target{roots: roots, layout: ParseLayout(string(layout)), mode: ParseMode(mode), log: log}
+	return &Target{
+		roots:   roots,
+		layout:  ParseLayout(string(layout)),
+		mode:    ParseMode(mode),
+		log:     log,
+		staging: make(map[string]bool),
+	}
 }
 
 func (t *Target) Name() string { return "mediaserver" }
@@ -289,25 +301,26 @@ func movieName(name string, year int) string {
 // is the crash-safe order: the worst case is two files, never none.
 func (t *Target) replace(ctx context.Context, src, dest string) error {
 	if t.mode == ModeCopy {
-		return copyFile(ctx, src, dest)
+		return t.copyFile(ctx, src, dest)
 	}
-	tmp := dest + upgradeSuffix
-	_ = os.Remove(tmp) // a previous attempt's staging link
-	if err := os.Link(src, tmp); err != nil {
-		if t.mode == ModeAuto && isUnsupportedLink(err) {
-			return copyFile(ctx, src, dest)
+	return t.staged(dest, upgradeSuffix, func(tmp string) error {
+		_ = os.Remove(tmp) // a previous attempt's staging link
+		if err := os.Link(src, tmp); err != nil {
+			if t.mode == ModeAuto && isUnsupportedLink(err) {
+				return t.copyFile(ctx, src, dest)
+			}
+			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
-		return fmt.Errorf("mediaserver: hardlink: %w", err)
-	}
-	if err := syncLinked(tmp); err != nil {
-		return err
-	}
-	if err := os.Rename(tmp, dest); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("mediaserver: rename upgrade over dest: %w", err)
-	}
-	syncDir(filepath.Dir(dest))
-	return nil
+		if err := syncLinked(tmp); err != nil {
+			return err
+		}
+		if err := os.Rename(tmp, dest); err != nil {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("mediaserver: rename upgrade over dest: %w", err)
+		}
+		syncDir(filepath.Dir(dest))
+		return nil
+	})
 }
 
 // removeStemMates drops what the superseded release left under this episode's
@@ -339,7 +352,7 @@ func (t *Target) removeStemMates(dir, stem, keep string) {
 func (t *Target) transfer(ctx context.Context, src, dest string) error {
 	switch t.mode {
 	case ModeCopy:
-		return copyFile(ctx, src, dest)
+		return t.copyFile(ctx, src, dest)
 	case ModeHardlink:
 		if err := os.Link(src, dest); err != nil {
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
@@ -348,7 +361,7 @@ func (t *Target) transfer(ctx context.Context, src, dest string) error {
 	default: // ModeAuto
 		if err := os.Link(src, dest); err != nil {
 			if isUnsupportedLink(err) {
-				return copyFile(ctx, src, dest)
+				return t.copyFile(ctx, src, dest)
 			}
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
@@ -390,40 +403,41 @@ func isUnsupportedLink(err error) bool {
 
 // copyFile copies src to dest via a deterministic temp file + rename: a failed copy
 // never leaves a partial at the destination, and the next attempt reclaims the temp.
-func copyFile(ctx context.Context, src, dest string) error {
+func (t *Target) copyFile(ctx context.Context, src, dest string) error {
 	in, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("mediaserver: open source: %w", err)
 	}
 	defer func() { _ = in.Close() }()
 
-	tmp := dest + partialSuffix
-	out, err := os.Create(tmp)
-	if err != nil {
-		return fmt.Errorf("mediaserver: create temp: %w", err)
-	}
-	if _, err := io.Copy(out, ctxReader{ctx, in}); err != nil {
-		_ = out.Close()
-		_ = os.Remove(tmp)
-		return fmt.Errorf("mediaserver: copy: %w", err)
-	}
-	// Durability ordering: flush the bytes before the rename, the directory after —
-	// otherwise a crash can leave the final name pointing at unwritten blocks.
-	if err := out.Sync(); err != nil {
-		_ = out.Close()
-		_ = os.Remove(tmp)
-		return fmt.Errorf("mediaserver: sync temp: %w", err)
-	}
-	if err := out.Close(); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("mediaserver: close temp: %w", err)
-	}
-	if err := os.Rename(tmp, dest); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("mediaserver: rename: %w", err)
-	}
-	syncDir(filepath.Dir(dest))
-	return nil
+	return t.staged(dest, partialSuffix, func(tmp string) error {
+		out, err := os.Create(tmp)
+		if err != nil {
+			return fmt.Errorf("mediaserver: create temp: %w", err)
+		}
+		if _, err := io.Copy(out, ctxReader{ctx, in}); err != nil {
+			_ = out.Close()
+			_ = os.Remove(tmp)
+			return fmt.Errorf("mediaserver: copy: %w", err)
+		}
+		// Durability ordering: flush the bytes before the rename, the directory after —
+		// otherwise a crash can leave the final name pointing at unwritten blocks.
+		if err := out.Sync(); err != nil {
+			_ = out.Close()
+			_ = os.Remove(tmp)
+			return fmt.Errorf("mediaserver: sync temp: %w", err)
+		}
+		if err := out.Close(); err != nil {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("mediaserver: close temp: %w", err)
+		}
+		if err := os.Rename(tmp, dest); err != nil {
+			_ = os.Remove(tmp)
+			return fmt.Errorf("mediaserver: rename: %w", err)
+		}
+		syncDir(filepath.Dir(dest))
+		return nil
+	})
 }
 
 // ctxReader checks ctx between chunks so shutdown can abort a multi-GB copy —
