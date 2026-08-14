@@ -129,7 +129,9 @@ All notable changes to this project are documented here. The format is based on
   on upgrade.** If you switch it later, it applies to future imports only:
   episodes already in your library stay where they are, and an upgrade of one of
   them lands in the new shape and leaves the old file behind, which the log
-  warns about.
+  warns about. API clients that write library settings must now send
+  `series_layout` with the rest of the body: omitting it is refused rather than
+  quietly resetting the layout to season folders. The web UI needs nothing.
 - **API clients using `X-Api-Key` need one search-and-replace; the web UI needs
   nothing.** The UI ships inside the binary and is already updated, so only
   machine clients notice. Every route under `/api/v1/series` moved to
