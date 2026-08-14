@@ -57,6 +57,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # Docker's 10s default is exactly the app's own drain budget, so a shutdown
+    # that uses all of it would be killed at the moment it finished.
+    stop_grace_period: 30s
     restart: unless-stopped
 
     # If your stack uses an external network, join it so the qBit/indexer service
