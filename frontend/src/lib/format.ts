@@ -78,6 +78,22 @@ export function nextEpisodeLabel(
   return rel ? `${ep} ${rel}` : `${ep} on ${absoluteDate(at, locale)}`;
 }
 
+/**
+ * A film's release line, tensed on the date and never counted down: the stored
+ * instant may be a date-only release held at noon UTC to name a day, so an
+ * "in 4h" would state precision the provider never published.
+ */
+export function premiereLabel(
+  airsAt: string | undefined,
+  locale?: string,
+): string | null {
+  if (!airsAt) return null;
+  const at = parseTimestamp(airsAt);
+  if (Number.isNaN(at)) return null;
+  const verb = at > Date.now() ? "Premieres" : "Released";
+  return `${verb} ${absoluteDate(at, locale)}`;
+}
+
 /** Compact relative time from an ISO/SQLite timestamp, e.g. "2h ago". */
 export function timeAgo(input: string): string {
   const then = parseTimestamp(input);

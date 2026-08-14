@@ -1,6 +1,6 @@
 import { Search } from "lucide-react";
 import type { WantedItem } from "@/lib/api";
-import { airDate } from "@/lib/format";
+import { premiereLabel } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
 import { MonitorToggle } from "@/components/monitor-toggle";
@@ -33,7 +33,7 @@ export function MovieStatusCard({
             )}
             {item.airs_at && (
               <span className="text-[13px] text-muted-foreground">
-                Released {airDate(item.airs_at)}
+                {premiereLabel(item.airs_at)}
               </span>
             )}
           </div>

@@ -23,7 +23,7 @@ import {
 } from "@/lib/chart";
 import { browseSeasonQuery, seriesQuery } from "@/lib/queries";
 import { cn } from "@/lib/utils";
-import { nextEpisodeLabel } from "@/lib/format";
+import { nextEpisodeLabel, premiereLabel } from "@/lib/format";
 import {
   currentSeason,
   seasonLabel,
@@ -332,7 +332,12 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
     entry.studio,
   ].filter(Boolean) as string[];
 
-  const airing = nextEpisodeLabel(entry.next_episode, entry.next_airs_at);
+  // A film has no next episode: its date is a premiere, and may be the date-only
+  // placeholder, so it is stated as a date and never counted down.
+  const airing =
+    entry.format === "MOVIE"
+      ? premiereLabel(entry.next_airs_at)
+      : nextEpisodeLabel(entry.next_episode, entry.next_airs_at);
 
   // One definition, rendered on both the card and the detail view.
   const actions = (

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -230,6 +231,39 @@ func TestCalendarPlacesADatedFilmAndFootnotesAYearOnlyOne(t *testing.T) {
 	}
 	if len(out.Unscheduled) != 1 || out.Unscheduled[0].TitleID != yearOnly {
 		t.Fatalf("unscheduled = %+v, want only the year-only film", out.Unscheduled)
+	}
+}
+
+// Dating a film makes it ungrabbable until its premiere, which is right — but
+// the library list must still count it as something being pursued, or the title
+// reads "Nothing aired yet" from the day it gains a date.
+func TestAnnouncedFilmStaysTracked(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	movieID := seedMovie(t, h.store, "Announced Film", 2027)
+	setAirsAt(t, h.store, movieID, 1, store.FormatTimestamp(time.Now().Add(90*24*time.Hour)))
+	showID := seedSeries(t, h.store, "Airing Show", 2)
+	setAirsAt(t, h.store, showID, 2, store.FormatTimestamp(time.Now().Add(48*time.Hour)))
+
+	var list struct {
+		Titles []struct {
+			ID      int64 `json:"id"`
+			Tracked int   `json:"tracked"`
+			Total   int   `json:"total"`
+		} `json:"titles"`
+	}
+	if code := h.get(t, "/api/v1/titles", &list); code != http.StatusOK {
+		t.Fatalf("GET titles = %d, want 200", code)
+	}
+	got := map[int64]int{}
+	for _, ti := range list.Titles {
+		got[ti.ID] = ti.Tracked
+	}
+	if got[movieID] != 1 {
+		t.Errorf("film tracked = %d, want 1: an announced film is still being waited on", got[movieID])
+	}
+	// The episodic cut is untouched: episode 2 has not aired, so it is not pursued.
+	if got[showID] != 1 {
+		t.Errorf("series tracked = %d, want 1 (only the aired episode)", got[showID])
 	}
 }
 

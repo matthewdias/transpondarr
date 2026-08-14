@@ -29,7 +29,10 @@ All notable changes to this project are documented here. The format is based on
   Releases tab, or unattended: a monitored film joins the scheduled search queue
   and the recent-feed poll alongside your series, and backs off the same way
   when nothing turns up. A release naming a different year is listed with that
-  mismatch as its reason instead of matching.
+  mismatch as its reason instead of matching. A film announced for a future date
+  is left alone by automation until that date, since nothing exists to find
+  before it — it stays listed as wanted in the meantime, and searching or
+  grabbing it by hand still works.
   A film whose year is not yet on record still matches and is still grabbable by
   hand, but is marked ineligible so automation leaves it alone until a metadata
   refresh fills the year in. A batch or season pack is held back the same way and
