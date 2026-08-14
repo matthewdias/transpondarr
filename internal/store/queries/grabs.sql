@@ -12,7 +12,7 @@ ON CONFLICT (wanted_item_id) DO UPDATE SET
     last_error    = NULL
 RETURNING *;
 
--- name: ListGrabsBySeries :many
+-- name: ListGrabsByTitle :many
 SELECT g.*
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
@@ -30,10 +30,10 @@ SELECT
     w.number AS item_number,
     w.kind   AS item_kind,
     w.in_library AS item_in_library,
-    s.id     AS series_id,
-    s.title  AS series_title,
-    s.format AS series_format,
-    s.year   AS series_year
+    s.id     AS title_id,
+    s.title  AS title_name,
+    s.format AS title_format,
+    s.year   AS title_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -47,10 +47,10 @@ SELECT
     w.number AS item_number,
     w.kind   AS item_kind,
     w.in_library AS item_in_library,
-    s.id     AS series_id,
-    s.title  AS series_title,
-    s.format AS series_format,
-    s.year   AS series_year
+    s.id     AS title_id,
+    s.title  AS title_name,
+    s.format AS title_format,
+    s.year   AS title_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -63,10 +63,10 @@ SELECT
     w.number AS item_number,
     w.kind   AS item_kind,
     w.in_library AS item_in_library,
-    s.id     AS series_id,
-    s.title  AS series_title,
-    s.format AS series_format,
-    s.year   AS series_year
+    s.id     AS title_id,
+    s.title  AS title_name,
+    s.format AS title_format,
+    s.year   AS title_year
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -80,8 +80,9 @@ SELECT
     g.missing_since, g.last_error, g.created_at,
     w.number AS item_number,
     w.kind   AS item_kind,
-    s.id     AS series_id,
-    s.title  AS series_title
+    s.id     AS title_id,
+    s.title  AS title_name,
+    s.format AS title_format
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id

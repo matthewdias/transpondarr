@@ -21,6 +21,7 @@ type queueItemDTO struct {
 	ID           int64    `json:"id"`
 	TitleID      int64    `json:"title_id"`
 	Title        string   `json:"title"`
+	Format       string   `json:"format" doc:"Title format; the sole discriminator between movie and series wording"`
 	ItemNumber   int      `json:"item_number"`
 	ReleaseTitle string   `json:"release_title"`
 	InfoHash     string   `json:"infohash"`
@@ -250,8 +251,9 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 			}, true)
 			item := queueItemDTO{
 				ID:           g.ID,
-				TitleID:      g.SeriesID,
-				Title:        g.SeriesTitle,
+				TitleID:      g.TitleID,
+				Title:        g.TitleName,
+				Format:       g.TitleFormat,
 				ItemNumber:   int(g.ItemNumber.Int64),
 				ReleaseTitle: g.ReleaseTitle,
 				InfoHash:     g.InfoHash,
@@ -314,7 +316,7 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 			out.Body.Events = append(out.Body.Events, activityEventDTO{
 				ID:           r.ID,
 				TitleID:      r.SeriesID,
-				Title:        r.SeriesTitle,
+				Title:        r.TitleName,
 				ItemNumber:   int(r.ItemNumber),
 				ReleaseTitle: r.ReleaseTitle,
 				InfoHash:     r.InfoHash,

@@ -28,7 +28,7 @@ FROM release_blocklist
 WHERE series_id = ? AND (blocked_until IS NULL OR blocked_until > ?)
 ORDER BY updated_at DESC;
 
--- name: ListBlocklistBySeries :many
+-- name: ListBlocklistByTitle :many
 SELECT *
 FROM release_blocklist
 WHERE series_id = ?
@@ -39,12 +39,12 @@ ORDER BY updated_at DESC;
 DELETE FROM release_blocklist
 WHERE id = ? AND series_id = ?;
 
--- name: DeleteBlocklistBySeries :execrows
+-- name: DeleteBlocklistByTitle :execrows
 -- Bulk unblock for one series. Scoped like the single-entry delete.
 DELETE FROM release_blocklist
 WHERE series_id = ?;
 
--- name: DeleteExpiredBlocklistBySeries :execrows
+-- name: DeleteExpiredBlocklistByTitle :execrows
 -- A permanent entry (NULL blocked_until) is never expired, so it survives this.
 DELETE FROM release_blocklist
 WHERE series_id = ? AND blocked_until IS NOT NULL AND blocked_until <= ?;

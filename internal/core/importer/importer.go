@@ -63,7 +63,7 @@ type ClientSource interface {
 // (#118). Narrow on purpose; false means its breaker refused to blame the
 // release (#120).
 type Recorder interface {
-	Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
+	Record(ctx context.Context, titleID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }
 
 // ItemClaims is the in-flight claim registry (satisfied by *acquire.Service).
@@ -180,18 +180,18 @@ type grabGroup struct {
 }
 
 // groupByHash buckets the already-fetched rows, preserving first-seen order so a
-// scan's work is still deterministic. Series is part of the key because a group
+// scan's work is still deterministic. Title is part of the key because a group
 // is the unit of numbering and attribution both, and one torrent can back grabs
-// for two series — a manual grab answers to no eligibility rule.
+// for two titles — a manual grab answers to no eligibility rule.
 func groupByHash(grabs []db.ListGrabsByStatusRow) []grabGroup {
 	type key struct {
-		series int64
-		hash   string
+		title int64
+		hash  string
 	}
 	at := make(map[key]int, len(grabs))
 	out := make([]grabGroup, 0, len(grabs))
 	for _, g := range grabs {
-		k := key{g.SeriesID, strings.ToLower(g.InfoHash)}
+		k := key{g.TitleID, strings.ToLower(g.InfoHash)}
 		i, seen := at[k]
 		if !seen {
 			i = len(out)
@@ -226,8 +226,8 @@ func (im *Importer) notify(ctx context.Context, ev notify.Event) {
 // failedGrab is one row this scan settled as failed, held until the scan can
 // group them by the release they came from.
 type failedGrab struct {
-	seriesID     int64
-	seriesTitle  string
+	titleID      int64
+	titleName    string
 	itemID       int64
 	itemNumber   int
 	itemKind     string
@@ -247,8 +247,8 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 	// Keyed like the blocklist: the hash we derived at grab time, or the title
 	// when an indexer omitted one.
 	type release struct {
-		seriesID int64
-		ident    string
+		titleID int64
+		ident   string
 	}
 	order := make([]release, 0, len(failed))
 	byRelease := make(map[release][]failedGrab, len(failed))
@@ -257,7 +257,7 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 		if ident == "" {
 			ident = f.releaseTitle
 		}
-		key := release{seriesID: f.seriesID, ident: ident}
+		key := release{titleID: f.titleID, ident: ident}
 		if _, seen := byRelease[key]; !seen {
 			order = append(order, key)
 		}
@@ -272,7 +272,7 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 		}
 		im.notify(ctx, notify.Event{
 			Kind:         notify.KindGrabFailed,
-			Title:        rows[0].seriesTitle,
+			Title:        rows[0].titleName,
 			ItemNumber:   item,
 			ItemKind:     domain.WantedKind(rows[0].itemKind),
 			ReleaseTitle: rows[0].releaseTitle,
@@ -290,22 +290,22 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 }
 
 // record writes one release's failure memory and, unless the breaker refused it,
-// puts the series back at the front of the search queue.
+// puts the title back at the front of the search queue.
 func (im *Importer) record(ctx context.Context, f failedGrab, itemIDs []int64) {
-	recorded, err := im.blocklist.Record(ctx, f.seriesID, itemIDs, f.infoHash, f.releaseTitle, f.reason)
+	recorded, err := im.blocklist.Record(ctx, f.titleID, itemIDs, f.infoHash, f.releaseTitle, f.reason)
 	if err != nil {
 		im.log.Error("importer: record blocklist entry", "release", f.releaseTitle, "err", err)
 		return
 	}
 	// A suppressed record means the breaker blamed the environment, and
-	// re-fronting the series would only tighten a loop around the same fault.
+	// re-fronting the title would only tighten a loop around the same fault.
 	if !recorded {
 		return
 	}
-	// A failure is new information, so the series is searched again promptly with
+	// A failure is new information, so the title is searched again promptly with
 	// the next-best release rather than sitting behind accumulated backoff.
-	if err := im.store.Q.ResetSeriesSearchState(ctx, f.seriesID); err != nil {
-		im.log.Error("importer: reset series search state", "series", f.seriesID, "err", err)
+	if err := im.store.Q.ResetTitleSearchState(ctx, f.titleID); err != nil {
+		im.log.Error("importer: reset series search state", "series", f.titleID, "err", err)
 	}
 }
 
@@ -355,8 +355,8 @@ func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatus
 func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, reason string) failedGrab {
 	im.settle(ctx, g, statusFailed, reason)
 	return failedGrab{
-		seriesID:     g.SeriesID,
-		seriesTitle:  g.SeriesTitle,
+		titleID:      g.TitleID,
+		titleName:    g.TitleName,
 		itemID:       g.WantedItemID,
 		itemNumber:   int(g.ItemNumber.Int64),
 		itemKind:     g.ItemKind,
@@ -407,7 +407,7 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 	for _, g := range active {
 		covers[int(g.ItemNumber.Int64)] = true
 	}
-	res := mapFiles(p.files, covers, overrides, domain.Format(active[0].SeriesFormat))
+	res := mapFiles(p.files, covers, overrides, domain.Format(active[0].TitleFormat))
 
 	imported := make(map[int]string, len(active))
 	touched := make(map[int64]bool, len(active))
@@ -497,7 +497,7 @@ func numberLabel(kind string, number int) string {
 func (im *Importer) place(ctx context.Context, target library.Target, source string, g db.ListGrabsByStatusRow) (string, error) {
 	final, err := target.Place(ctx, library.ImportRequest{
 		SourcePath: source,
-		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat), Year: int(g.SeriesYear)},
+		Title:      domain.Title{Name: g.TitleName, Format: domain.Format(g.TitleFormat), Year: int(g.TitleYear)},
 		Item: domain.WantedItem{
 			ID:     g.WantedItemID,
 			Kind:   domain.WantedKind(g.ItemKind),
@@ -582,7 +582,7 @@ func (im *Importer) placeUnclaimed(ctx context.Context, target library.Target, g
 // to take: not had, and carrying no unsettled grab of its own.
 func (im *Importer) unclaimedItem(ctx context.Context, g db.ListGrabsByStatusRow, number int) (db.GetWantedItemByNumberRow, bool, error) {
 	item, err := im.store.Q.GetWantedItemByNumber(ctx, db.GetWantedItemByNumberParams{
-		SeriesID: g.SeriesID,
+		SeriesID: g.TitleID,
 		Kind:     g.ItemKind,
 		Number:   sql.NullInt64{Int64: int64(number), Valid: true},
 	})
@@ -600,7 +600,7 @@ func (im *Importer) unclaimedItem(ctx context.Context, g db.ListGrabsByStatusRow
 func (im *Importer) placeUnclaimedFile(ctx context.Context, target library.Target, g db.ListGrabsByStatusRow, item db.GetWantedItemByNumberRow, lo fileClaim) (string, error) {
 	final, err := target.Place(ctx, library.ImportRequest{
 		SourcePath: lo.file.path,
-		Title:      domain.Title{Name: g.SeriesTitle, Format: domain.Format(g.SeriesFormat), Year: int(g.SeriesYear)},
+		Title:      domain.Title{Name: g.TitleName, Format: domain.Format(g.TitleFormat), Year: int(g.TitleYear)},
 		Item:       domain.WantedItem{ID: item.ID, Kind: domain.WantedKind(item.Kind), Number: lo.number},
 		Replace:    item.InLibrary == 1,
 	})
@@ -645,7 +645,7 @@ func (im *Importer) notifyImported(ctx context.Context, g db.ListGrabsByStatusRo
 	sort.Ints(nums)
 	ev := notify.Event{
 		Kind:         notify.KindImported,
-		Title:        g.SeriesTitle,
+		Title:        g.TitleName,
 		ItemKind:     domain.WantedKind(g.ItemKind),
 		ReleaseTitle: g.ReleaseTitle,
 	}
@@ -694,7 +694,7 @@ func (im *Importer) setLastError(ctx context.Context, g db.ListGrabsByStatusRow,
 	}
 	im.notify(ctx, notify.Event{
 		Kind:         notify.KindImportStuck,
-		Title:        g.SeriesTitle,
+		Title:        g.TitleName,
 		ItemNumber:   int(g.ItemNumber.Int64),
 		ItemKind:     domain.WantedKind(g.ItemKind),
 		ReleaseTitle: g.ReleaseTitle,
@@ -715,7 +715,7 @@ func (im *Importer) settle(ctx context.Context, g db.ListGrabsByStatusRow, statu
 // separately because a payload file can land on an item the release never claimed.
 func (im *Importer) appendEvent(ctx context.Context, g db.ListGrabsByStatusRow, itemID int64, number int, kind, event, detail string) {
 	if err := im.store.Q.AppendGrabEvent(ctx, db.AppendGrabEventParams{
-		SeriesID:     g.SeriesID,
+		SeriesID:     g.TitleID,
 		WantedItemID: itemID,
 		ItemNumber:   int64(number),
 		ItemKind:     kind,

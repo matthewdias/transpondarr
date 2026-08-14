@@ -8,7 +8,7 @@ import (
 )
 
 // Why an item is still missing, split by scope (#150): one global answer for
-// the page, one per series group, one per item. The tiers render together
+// the page, one per title group, one per item. The tiers render together
 // rather than competing for one slot, which is what let a failed grab and its
 // blocklist entry both be visible.
 //
@@ -50,18 +50,18 @@ func globalReason(indexerReady bool, mode settings.AutomationMode) string {
 	return ""
 }
 
-// seriesFacts is one series' standing in the sweep queue, the scope a group
+// titleFacts is one title's standing in the sweep queue, the scope a group
 // header answers for.
-type seriesFacts struct {
+type titleFacts struct {
 	Monitored       bool
 	BlockedReleases int
-	LastSearchedAt  time.Time // zero when the series has never been searched
-	NextSearchAt    time.Time // zero when the series is due now
+	LastSearchedAt  time.Time // zero when the title has never been searched
+	NextSearchAt    time.Time // zero when the title is due now
 }
 
-// seriesReason picks the fact that most explains the group, widest-first: what
-// stops the series being a target, then its failure memory, then its queue slot.
-func seriesReason(f seriesFacts, now time.Time) string {
+// titleReason picks the fact that most explains the group, widest-first: what
+// stops the title being a target, then its failure memory, then its queue slot.
+func titleReason(f titleFacts, now time.Time) string {
 	switch {
 	case !f.Monitored:
 		return reasonUnmonitored

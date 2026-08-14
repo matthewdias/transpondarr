@@ -9,7 +9,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-func TestDefaultProfileSeededAndAssignedToNewSeries(t *testing.T) {
+func TestDefaultProfileSeededAndAssignedToNewTitles(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 
@@ -21,12 +21,12 @@ func TestDefaultProfileSeededAndAssignedToNewSeries(t *testing.T) {
 		t.Errorf("default profile = %q (is_default=%d), want seeded Default", def.Name, def.IsDefault)
 	}
 
-	series, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: "X", Format: "TV", Monitored: 1})
+	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
-	if series.QualityProfileID != def.ID {
-		t.Errorf("new series profile = %d, want default %d", series.QualityProfileID, def.ID)
+	if title.QualityProfileID != def.ID {
+		t.Errorf("new series profile = %d, want default %d", title.QualityProfileID, def.ID)
 	}
 }
 
@@ -69,14 +69,14 @@ func TestReassignThenDeleteProfileCascadesGroups(t *testing.T) {
 		t.Fatalf("add group: %v", err)
 	}
 
-	series, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: "X", Format: "TV", Monitored: 1})
+	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
-	if _, err := st.Q.SetSeriesProfile(ctx, db.SetSeriesProfileParams{QualityProfileID: prof.ID, ID: series.ID, ID_2: prof.ID}); err != nil {
+	if _, err := st.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{QualityProfileID: prof.ID, ID: title.ID, ID_2: prof.ID}); err != nil {
 		t.Fatalf("set series profile: %v", err)
 	}
-	n, err := st.Q.CountSeriesByProfile(ctx, prof.ID)
+	n, err := st.Q.CountTitlesByProfile(ctx, prof.ID)
 	if err != nil || n != 1 {
 		t.Fatalf("count by profile = %d (%v), want 1", n, err)
 	}
@@ -86,8 +86,8 @@ func TestReassignThenDeleteProfileCascadesGroups(t *testing.T) {
 		t.Fatalf("get default profile: %v", err)
 	}
 
-	// The prompt-to-migrate delete flow: move the series, then delete.
-	if err := st.Q.ReassignSeriesProfile(ctx, db.ReassignSeriesProfileParams{
+	// The prompt-to-migrate delete flow: move the title, then delete.
+	if err := st.Q.ReassignTitleProfile(ctx, db.ReassignTitleProfileParams{
 		QualityProfileID: def.ID, QualityProfileID_2: prof.ID,
 	}); err != nil {
 		t.Fatalf("reassign: %v", err)
@@ -106,7 +106,7 @@ func TestReassignThenDeleteProfileCascadesGroups(t *testing.T) {
 	if len(groups) != 0 {
 		t.Errorf("groups after profile delete = %d rows, want 0 (cascade)", len(groups))
 	}
-	got, err := st.Q.GetSeries(ctx, series.ID)
+	got, err := st.Q.GetTitle(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("get series: %v", err)
 	}
@@ -125,11 +125,11 @@ func TestDeleteQualityProfileRefusesWhileInUse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create profile: %v", err)
 	}
-	series, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: "X", Format: "TV", Monitored: 1})
+	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
-	if _, err := st.Q.SetSeriesProfile(ctx, db.SetSeriesProfileParams{QualityProfileID: prof.ID, ID: series.ID, ID_2: prof.ID}); err != nil {
+	if _, err := st.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{QualityProfileID: prof.ID, ID: title.ID, ID_2: prof.ID}); err != nil {
 		t.Fatalf("set series profile: %v", err)
 	}
 
@@ -145,22 +145,22 @@ func TestDeleteQualityProfileRefusesWhileInUse(t *testing.T) {
 	}
 }
 
-func TestSetSeriesProfileRejectsMissingProfile(t *testing.T) {
+func TestSetTitleProfileRejectsMissingProfile(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 
-	series, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: "X", Format: "TV", Monitored: 1})
+	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
-	rows, err := st.Q.SetSeriesProfile(ctx, db.SetSeriesProfileParams{QualityProfileID: 999, ID: series.ID, ID_2: 999})
+	rows, err := st.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{QualityProfileID: 999, ID: title.ID, ID_2: 999})
 	if err != nil {
 		t.Fatalf("set series profile: %v", err)
 	}
 	if rows != 0 {
 		t.Errorf("set to missing profile reported %d rows, want 0 (refused)", rows)
 	}
-	got, err := st.Q.GetSeries(ctx, series.ID)
+	got, err := st.Q.GetTitle(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("get series: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestGetQualityProfileByNameFoldsCase(t *testing.T) {
 }
 
 // Each partition must be ranked as ListProfileGroups returns it, and a profile
-// no series uses must be absent from the counts rather than reported as zero.
+// no title uses must be absent from the counts rather than reported as zero.
 func TestBatchProfileReadsPartitionByProfile(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
@@ -330,24 +330,24 @@ func TestBatchProfileReadsPartitionByProfile(t *testing.T) {
 	}
 
 	for _, title := range []string{"A", "B"} {
-		s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: title, Format: "TV", Monitored: 1})
+		s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: 1})
 		if err != nil {
 			t.Fatalf("create series %s: %v", title, err)
 		}
-		if _, err := st.Q.SetSeriesProfile(ctx, db.SetSeriesProfileParams{
+		if _, err := st.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{
 			QualityProfileID: other.ID, ID: s.ID, ID_2: other.ID,
 		}); err != nil {
 			t.Fatalf("assign profile to %s: %v", title, err)
 		}
 	}
 
-	countRows, err := st.Q.CountSeriesPerProfile(ctx)
+	countRows, err := st.Q.CountTitlesPerProfile(ctx)
 	if err != nil {
 		t.Fatalf("count series per profile: %v", err)
 	}
 	counts := map[int64]int64{}
 	for _, c := range countRows {
-		counts[c.QualityProfileID] = c.SeriesCount
+		counts[c.QualityProfileID] = c.TitleCount
 	}
 	if counts[other.ID] != 2 {
 		t.Errorf("Strict series_count = %d, want 2", counts[other.ID])

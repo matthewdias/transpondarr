@@ -242,7 +242,7 @@ func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 		}
 	}
 	var allInLibrary = true
-	items, _ := st.Q.ListWantedItems(ctx, rows[0].SeriesID)
+	items, _ := st.Q.ListWantedItems(ctx, rows[0].TitleID)
 	for _, it := range items {
 		if it.InLibrary != 1 {
 			allInLibrary = false
@@ -333,7 +333,7 @@ func TestRetryImportLeavesGrabbedRowsAlone(t *testing.T) {
 
 	// A third item joins the release after the fact, still downloading.
 	rows, _ := st.Q.ListGrabsByInfoHash(ctx, "abc")
-	third := addItem(t, st, rows[0].SeriesID, 3)
+	third := addItem(t, st, rows[0].TitleID, 3)
 	if _, err := st.Q.UpsertGrab(ctx, db.UpsertGrabParams{
 		WantedItemID: third, InfoHash: "abc", ReleaseTitle: rows[0].ReleaseTitle, Status: "grabbed",
 	}); err != nil {

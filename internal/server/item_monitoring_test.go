@@ -40,21 +40,21 @@ func itemMonitored(t *testing.T, st *store.Store, id int64) int64 {
 	return got
 }
 
-func searchEpoch(t *testing.T, st *store.Store, seriesID int64) int64 {
+func searchEpoch(t *testing.T, st *store.Store, titleID int64) int64 {
 	t.Helper()
 	var got int64
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT search_epoch FROM series WHERE id = ?`, seriesID).Scan(&got); err != nil {
-		t.Fatalf("read search_epoch for series %d: %v", seriesID, err)
+		`SELECT search_epoch FROM series WHERE id = ?`, titleID).Scan(&got); err != nil {
+		t.Fatalf("read search_epoch for series %d: %v", titleID, err)
 	}
 	return got
 }
 
 func TestSetItemsMonitoredUnmonitorsWithoutTouchingTheSearchQueue(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	first := itemID(t, h.store, seriesID, 1)
-	before := searchEpoch(t, h.store, seriesID)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	first := itemID(t, h.store, titleID, 1)
+	before := searchEpoch(t, h.store, titleID)
 
 	var out setItemsMonitoredResponse
 	code := do(t, h, http.MethodPatch, "/api/v1/wanted/items",
@@ -68,7 +68,7 @@ func TestSetItemsMonitoredUnmonitorsWithoutTouchingTheSearchQueue(t *testing.T) 
 	if itemMonitored(t, h.store, first) != 0 {
 		t.Error("item 1 is still monitored")
 	}
-	if got := searchEpoch(t, h.store, seriesID); got != before {
+	if got := searchEpoch(t, h.store, titleID); got != before {
 		t.Errorf("search_epoch = %d, want %d -- unmonitoring queues nothing", got, before)
 	}
 	if out.TitlesQueued != 0 {
@@ -76,12 +76,12 @@ func TestSetItemsMonitoredUnmonitorsWithoutTouchingTheSearchQueue(t *testing.T) 
 	}
 }
 
-// Re-monitoring resets the sweep cadence once per distinct series: the feed's
+// Re-monitoring resets the sweep cadence once per distinct title: the feed's
 // dedupe is one-shot, so only a fresh search finds a release that already exists.
-func TestSetItemsMonitoredResetsEachSeriesOnce(t *testing.T) {
+func TestSetItemsMonitoredResetsEachTitleOnce(t *testing.T) {
 	h := wantedHarness(t)
-	first := seedSeries(t, h.store, "Placeholder Saga", 3)
-	second := seedSeries(t, h.store, "Another Show", 2)
+	first := seedTitle(t, h.store, "Placeholder Saga", 3)
+	second := seedTitle(t, h.store, "Another Show", 2)
 	ids := []int64{
 		itemID(t, h.store, first, 1),
 		itemID(t, h.store, first, 2),
@@ -112,9 +112,9 @@ func TestSetItemsMonitoredResetsEachSeriesOnce(t *testing.T) {
 
 func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	ids := []int64{itemID(t, h.store, seriesID, 1), itemID(t, h.store, seriesID, 2)}
-	before := searchEpoch(t, h.store, seriesID)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	ids := []int64{itemID(t, h.store, titleID, 1), itemID(t, h.store, titleID, 2)}
+	before := searchEpoch(t, h.store, titleID)
 
 	var out setItemsMonitoredResponse
 	code := do(t, h, http.MethodPatch, "/api/v1/wanted/items",
@@ -122,7 +122,7 @@ func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("PATCH items = %d, want 200", code)
 	}
-	if got := searchEpoch(t, h.store, seriesID); got != before {
+	if got := searchEpoch(t, h.store, titleID); got != before {
 		t.Errorf("search_epoch = %d, want %d -- nothing moved, so nothing is queued", got, before)
 	}
 	if out.TitlesQueued != 0 {
@@ -134,14 +134,14 @@ func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
 // that actually moved.
 func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	stillOn := itemID(t, h.store, seriesID, 1)
-	turnedOff := itemID(t, h.store, seriesID, 2)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	stillOn := itemID(t, h.store, titleID, 1)
+	turnedOff := itemID(t, h.store, titleID, 2)
 	if _, err := h.store.Q.SetWantedItemsMonitored(context.Background(),
 		setMonitoredParams(0, []int64{turnedOff})); err != nil {
 		t.Fatalf("seed an unmonitored item: %v", err)
 	}
-	before := searchEpoch(t, h.store, seriesID)
+	before := searchEpoch(t, h.store, titleID)
 
 	var out setItemsMonitoredResponse
 	code := do(t, h, http.MethodPatch, "/api/v1/wanted/items",
@@ -149,7 +149,7 @@ func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("PATCH items = %d, want 200", code)
 	}
-	if got := searchEpoch(t, h.store, seriesID); got != before+1 {
+	if got := searchEpoch(t, h.store, titleID); got != before+1 {
 		t.Errorf("search_epoch = %d, want %d -- exactly one reset", got, before+1)
 	}
 	if out.TitlesQueued != 1 {
@@ -157,13 +157,13 @@ func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 	}
 }
 
-// A hand-built selection must survive a series deleted in another tab: for a
+// A hand-built selection must survive a title deleted in another tab: for a
 // state-setter a missing id is vacuous -- the item is gone, so "stop wanting it"
 // is already true -- which is why this diverges from resetSelected's 404.
 func TestSetItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 2)
-	known := itemID(t, h.store, seriesID, 1)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 2)
+	known := itemID(t, h.store, titleID, 1)
 
 	var out setItemsMonitoredResponse
 	code := do(t, h, http.MethodPatch, "/api/v1/wanted/items",
@@ -183,9 +183,9 @@ func TestSetItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 // the row has to stay reachable, or the click that hid it cannot be undone.
 func TestMissingHidesUnmonitoredItemsBehindTheToggle(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
 	if _, err := h.store.Q.SetWantedItemsMonitored(context.Background(),
-		setMonitoredParams(0, []int64{itemID(t, h.store, seriesID, 1)})); err != nil {
+		setMonitoredParams(0, []int64{itemID(t, h.store, titleID, 1)})); err != nil {
 		t.Fatalf("unmonitor item 1: %v", err)
 	}
 
@@ -225,10 +225,10 @@ func TestMissingHidesUnmonitoredItemsBehindTheToggle(t *testing.T) {
 // never revisited, so the row must not keep showing it.
 func TestUnmonitoredSuppressesAStoredPassAnswer(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 1)
-	recordPassOutcome(t, h.store, seriesID, 1, declinedOutcome())
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 1)
+	recordPassOutcome(t, h.store, titleID, 1, declinedOutcome())
 	if _, err := h.store.Q.SetWantedItemsMonitored(context.Background(),
-		setMonitoredParams(0, []int64{itemID(t, h.store, seriesID, 1)})); err != nil {
+		setMonitoredParams(0, []int64{itemID(t, h.store, titleID, 1)})); err != nil {
 		t.Fatalf("unmonitor item 1: %v", err)
 	}
 

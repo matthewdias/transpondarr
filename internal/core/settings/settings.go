@@ -130,7 +130,7 @@ const (
 )
 
 // AutomationConfig is the global automation policy: the mode every unattended
-// job reads, and the pinned-group wait for series not overriding it.
+// job reads, and the pinned-group wait for titles not overriding it.
 type AutomationConfig struct {
 	Mode          AutomationMode
 	PinDelayHours int
@@ -357,8 +357,8 @@ func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationMode 
 // never grab (#116).
 func (s *Service) NotifyOnly() bool { return s.cur.Load().automationMode == AutomationNotifyOnly }
 
-// PinDelayDefault is how long the sweep waits for a series' pinned group before
-// taking another group's release, for series that do not override it.
+// PinDelayDefault is how long the sweep waits for a title's pinned group before
+// taking another group's release, for titles that do not override it.
 func (s *Service) PinDelayDefault() time.Duration {
 	return domain.PinDelay(int64(s.cur.Load().pinDelayHours))
 }
@@ -551,7 +551,7 @@ func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) err
 		if !resume {
 			return nil
 		}
-		if err := q.ResetAllSeriesSearchState(ctx); err != nil {
+		if err := q.ResetAllTitlesSearchState(ctx); err != nil {
 			return fmt.Errorf("reset search cadence on resuming automation: %w", err)
 		}
 		return nil

@@ -26,19 +26,19 @@ func seedUpgradeProfile(t *testing.T, st *Store, name string) int64 {
 	return p.ID
 }
 
-func setSeriesProfile(t *testing.T, st *Store, seriesID, profileID int64) {
+func setTitleProfile(t *testing.T, st *Store, titleID, profileID int64) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET quality_profile_id = ? WHERE id = ?`, profileID, seriesID); err != nil {
-		t.Fatalf("assign profile %d to series %d: %v", profileID, seriesID, err)
+		`UPDATE series SET quality_profile_id = ? WHERE id = ?`, profileID, titleID); err != nil {
+		t.Fatalf("assign profile %d to series %d: %v", profileID, titleID, err)
 	}
 }
 
 // seedHeldItem inserts an item already in the library, with the release that
 // holds it and the grab status that release settled at.
-func seedHeldItem(t *testing.T, st *Store, seriesID int64, number int, heldTitle, grabStatus string) int64 {
+func seedHeldItem(t *testing.T, st *Store, titleID int64, number int, heldTitle, grabStatus string) int64 {
 	t.Helper()
-	id := seedSearchItem(t, st, seriesID, number, 1, nil)
+	id := seedSearchItem(t, st, titleID, number, 1, nil)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE wanted_items SET held_release_title = ? WHERE id = ?`, heldTitle, id); err != nil {
 		t.Fatalf("set held_release_title on item %d: %v", number, err)
@@ -51,7 +51,7 @@ func seedHeldItem(t *testing.T, st *Store, seriesID int64, number int, heldTitle
 
 func feedTitles(t *testing.T, st *Store, now time.Time) []string {
 	t.Helper()
-	rows, err := st.Q.ListSeriesWithWantedItems(context.Background(),
+	rows, err := st.Q.ListTitlesWithWantedItems(context.Background(),
 		sql.NullString{String: FormatTimestamp(now), Valid: true})
 	if err != nil {
 		t.Fatalf("list series with wanted items: %v", err)
@@ -64,54 +64,54 @@ func feedTitles(t *testing.T, st *Store, now time.Time) []string {
 }
 
 // The feed's due predicate is the only one that widens for upgrades (#97): a
-// complete series re-enters it when its profile opts in and it holds a release
+// complete title re-enters it when its profile opts in and it holds a release
 // worth beating. The sweep's predicate deliberately does not move.
-func TestListSeriesWithWantedItemsIncludesUpgradePool(t *testing.T) {
+func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 	st := tempStore(t)
 	now := time.Now()
 	past := now.Add(-24 * time.Hour)
 	profile := seedUpgradeProfile(t, st, "upgrades")
 
 	// Included: the ordinary wanted item, on a profile with upgrades off.
-	seedSearchItem(t, st, seedSearchSeries(t, st, "wanted", 1), 1, 0, &past)
+	seedSearchItem(t, st, seedSearchTitle(t, st, "wanted", 1), 1, 0, &past)
 
 	// Included: complete, but holding a release the profile may beat.
-	held := seedSearchSeries(t, st, "held-imported", 1)
-	setSeriesProfile(t, st, held, profile)
+	held := seedSearchTitle(t, st, "held-imported", 1)
+	setTitleProfile(t, st, held, profile)
 	seedHeldItem(t, st, held, 1, "[ExampleSubs] Some Show - 01 (480p)", "imported")
 
 	// Included: a failed upgrade grab leaves the item held and back in the pool.
-	failedUpgrade := seedSearchSeries(t, st, "held-failed-upgrade", 1)
-	setSeriesProfile(t, st, failedUpgrade, profile)
+	failedUpgrade := seedSearchTitle(t, st, "held-failed-upgrade", 1)
+	setTitleProfile(t, st, failedUpgrade, profile)
 	seedHeldItem(t, st, failedUpgrade, 1, "[ExampleSubs] Some Show - 01 (480p)", "failed")
 
 	// Excluded: the same shape on a profile that never opted in.
-	off := seedSearchSeries(t, st, "upgrades-off", 1)
+	off := seedSearchTitle(t, st, "upgrades-off", 1)
 	seedHeldItem(t, st, off, 1, "[ExampleSubs] Some Show - 01 (480p)", "imported")
 
 	// Excluded: nothing identifies what is held, so nothing can be compared to it.
-	blank := seedSearchSeries(t, st, "no-held-title", 1)
-	setSeriesProfile(t, st, blank, profile)
+	blank := seedSearchTitle(t, st, "no-held-title", 1)
+	setTitleProfile(t, st, blank, profile)
 	seedHeldItem(t, st, blank, 1, "", "imported")
 
 	// Excluded: an upgrade is already in flight.
-	inFlight := seedSearchSeries(t, st, "upgrade-in-flight", 1)
-	setSeriesProfile(t, st, inFlight, profile)
+	inFlight := seedSearchTitle(t, st, "upgrade-in-flight", 1)
+	setTitleProfile(t, st, inFlight, profile)
 	seedHeldItem(t, st, inFlight, 1, "[ExampleSubs] Some Show - 01 (480p)", "grabbed")
 
 	// Excluded: a deferred grab is settled but its payload is a human's to fix.
-	deferred := seedSearchSeries(t, st, "upgrade-deferred", 1)
-	setSeriesProfile(t, st, deferred, profile)
+	deferred := seedSearchTitle(t, st, "upgrade-deferred", 1)
+	setTitleProfile(t, st, deferred, profile)
 	seedHeldItem(t, st, deferred, 1, "[ExampleSubs] Some Show - 01 (480p)", "import_deferred")
 
 	// Excluded: unmonitored (#188). Both halves need the clause -- without it on
-	// the upgrade half, a narrowed held item makes its series feed-due every poll.
-	narrowedUpgrade := seedSearchSeries(t, st, "unmonitored-upgrade", 1)
-	setSeriesProfile(t, st, narrowedUpgrade, profile)
+	// the upgrade half, a narrowed held item makes its title feed-due every poll.
+	narrowedUpgrade := seedSearchTitle(t, st, "unmonitored-upgrade", 1)
+	setTitleProfile(t, st, narrowedUpgrade, profile)
 	unmonitorItem(t, st,
 		seedHeldItem(t, st, narrowedUpgrade, 1, "[ExampleSubs] Some Show - 01 (480p)", "imported"))
 	// Excluded: the wanted half, narrowed.
-	unmonitorItem(t, st, seedSearchItem(t, st, seedSearchSeries(t, st, "unmonitored-wanted", 1), 1, 0, &past))
+	unmonitorItem(t, st, seedSearchItem(t, st, seedSearchTitle(t, st, "unmonitored-wanted", 1), 1, 0, &past))
 
 	got := feedTitles(t, st, now)
 	for _, want := range []string{"wanted", "held-imported", "held-failed-upgrade"} {
@@ -131,7 +131,7 @@ func TestListSeriesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 		t.Errorf("feed set = %v, want exactly the wanted series plus the two upgradable ones", got)
 	}
 
-	// The sweep spends a search per series, so upgrades ride the flat-cost feed
+	// The sweep spends a search per title, so upgrades ride the flat-cost feed
 	// alone: its predicate must be unchanged.
 	if due := dueTitles(t, st, now, 100); len(due) != 1 || due[0] != "wanted" {
 		t.Errorf("due set = %v, want only the series with something still wanted", due)
@@ -144,17 +144,17 @@ func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 
-	seriesID := seedSearchSeries(t, st, "backfilled", 1)
+	titleID := seedSearchTitle(t, st, "backfilled", 1)
 	if err := goose.DownTo(st.DB, "migrations", 16); err != nil {
 		t.Fatalf("roll back to the pre-upgrades schema: %v", err)
 	}
 
 	// Two held items: one whose grab still records the release that landed it, one
 	// whose row was overwritten by a later failed grab.
-	imported := seedPreUpgradeItem(t, st, seriesID, 1, 1, "[ExampleSubs] Some Show - 01 (1080p)", "imported")
-	overwritten := seedPreUpgradeItem(t, st, seriesID, 2, 1, "[OtherSubs] Some Show - 02 (1080p)", "failed")
+	imported := seedPreUpgradeItem(t, st, titleID, 1, 1, "[ExampleSubs] Some Show - 01 (1080p)", "imported")
+	overwritten := seedPreUpgradeItem(t, st, titleID, 2, 1, "[OtherSubs] Some Show - 02 (1080p)", "failed")
 	// Not held at all: nothing to remember.
-	wanted := seedPreUpgradeItem(t, st, seriesID, 3, 0, "[ExampleSubs] Some Show - 03 (1080p)", "grabbed")
+	wanted := seedPreUpgradeItem(t, st, titleID, 3, 0, "[ExampleSubs] Some Show - 03 (1080p)", "grabbed")
 
 	if err := goose.Up(st.DB, "migrations"); err != nil {
 		t.Fatalf("re-apply the upgrades migration: %v", err)
@@ -183,12 +183,12 @@ func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 // seedPreUpgradeItem inserts an item and its grab with raw SQL, so it works on
 // the rolled-back schema the migration test drives — where the library flag is
 // still named have, as 00019 renames it only later.
-func seedPreUpgradeItem(t *testing.T, st *Store, seriesID int64, number int, have int, releaseTitle, status string) int64 {
+func seedPreUpgradeItem(t *testing.T, st *Store, titleID int64, number int, have int, releaseTitle, status string) int64 {
 	t.Helper()
 	ctx := context.Background()
 	res, err := st.DB.ExecContext(ctx,
 		`INSERT INTO wanted_items (series_id, kind, number, have) VALUES (?, 'episode', ?, ?)`,
-		seriesID, number, have)
+		titleID, number, have)
 	if err != nil {
 		t.Fatalf("insert item %d: %v", number, err)
 	}

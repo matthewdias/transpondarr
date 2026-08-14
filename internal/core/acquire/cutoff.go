@@ -25,15 +25,15 @@ type QueueCursor struct {
 // zero cursor and it does not start here.
 func QueueCursorTop() QueueCursor { return QueueCursor{Key: "~", ID: 0} }
 
-// scanBatches bounds how far one request reads past series whose held releases
+// scanBatches bounds how far one request reads past title whose held releases
 // all meet their cutoff. Membership is decided in Go, so a page is filled by
 // scanning; without a cap a library where nearly everything is at cutoff would
 // turn one request into a full-table walk. Hitting it returns a short page with
 // a cursor, which is correct, just not full.
 //
 // It bounds the response, not the work: a batch parses and scores every held
-// item of the series it read, so one request can cost scanBatches x Limit
-// series' worth of parsing whatever it returns. The worst case is the healthy
+// item of the title it read, so one request can cost scanBatches x Limit
+// title's worth of parsing whatever it returns. The worst case is the healthy
 // steady state (everything already at cutoff), not an exotic one -- tracked
 // separately rather than papered over here, since scoring is what decides
 // membership and cannot be pushed into SQL.
@@ -50,7 +50,7 @@ const ItemsPerGroup = 50
 // rows. A page always ships at least one group, however large its cap.
 const PageItemBudget = 200
 
-// CutoffUnmetParams selects a page of series groups holding sub-cutoff releases.
+// CutoffUnmetParams selects a page of title groups holding sub-cutoff releases.
 type CutoffUnmetParams struct {
 	Limit              int
 	Cursor             QueueCursor
@@ -74,15 +74,16 @@ type CutoffUnmetItem struct {
 	HasGrab    bool
 }
 
-// CutoffGroup is one series' sub-cutoff items; the cutoff itself lives here
+// CutoffGroup is one title's sub-cutoff items; the cutoff itself lives here
 // because it is the profile's, not any one item's.
 type CutoffGroup struct {
-	SeriesID    int64
-	SeriesTitle string
+	TitleID     int64
+	TitleName   string
+	Format      string
 	Monitored   bool
 	ProfileName string
 	CutoffScore int
-	Below       int // items below the cutoff in the whole series; Items is capped
+	Below       int // items below the cutoff in the whole title; Items is capped
 	Items       []CutoffUnmetItem
 }
 
@@ -93,8 +94,8 @@ type CutoffUnmetPage struct {
 }
 
 // CutoffUnmet lists held items whose release scores below the cutoff of the
-// profile their series is on (#97's semantics, #150's second tab), grouped by
-// series so the pagination unit is the group and a series never splits across
+// profile their title is on (#97's semantics, #150's second tab), grouped by
+// title so the pagination unit is the group and a title never splits across
 // pages. Membership is re-derived from the stored release name under the
 // current profile rather than recorded, so editing a profile moves the list
 // without a write anywhere.
@@ -112,7 +113,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 	out := CutoffUnmetPage{Groups: make([]CutoffGroup, 0, p.Limit)}
 	itemSum := 0
 	for range scanBatches {
-		series, err := s.store.Q.ListCutoffSeriesPage(ctx, db.ListCutoffSeriesPageParams{
+		titles, err := s.store.Q.ListCutoffTitlesPage(ctx, db.ListCutoffTitlesPageParams{
 			Column1: unmonitored,
 			Column2: unmonitored,
 			Title:   cursor.Key,
@@ -123,30 +124,30 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 		if err != nil {
 			return CutoffUnmetPage{}, fmt.Errorf("list cutoff-unmet series: %w", err)
 		}
-		if len(series) == 0 {
+		if len(titles) == 0 {
 			return out, nil
 		}
-		ids := make([]int64, 0, len(series))
-		for _, sr := range series {
+		ids := make([]int64, 0, len(titles))
+		for _, sr := range titles {
 			ids = append(ids, sr.ID)
 		}
-		items, err := s.store.Q.ListCutoffItemsBySeries(ctx, db.ListCutoffItemsBySeriesParams{
-			SeriesIds: ids,
-			Column2:   unmonitored,
+		items, err := s.store.Q.ListCutoffItemsByTitle(ctx, db.ListCutoffItemsByTitleParams{
+			TitleIds: ids,
+			Column2:  unmonitored,
 		})
 		if err != nil {
 			return CutoffUnmetPage{}, fmt.Errorf("list held items for cutoff page: %w", err)
 		}
-		bySeries := map[int64][]db.ListCutoffItemsBySeriesRow{}
+		byTitle := map[int64][]db.ListCutoffItemsByTitleRow{}
 		for _, r := range items {
-			bySeries[r.SeriesID] = append(bySeries[r.SeriesID], r)
+			byTitle[r.SeriesID] = append(byTitle[r.SeriesID], r)
 		}
 
-		for _, sr := range series {
-			// The cursor advances per series examined, not per group kept, so a
-			// resume never re-scores a series whose releases all met the cutoff.
+		for _, sr := range titles {
+			// The cursor advances per title examined, not per group kept, so a
+			// resume never re-scores a title whose releases all met the cutoff.
 			// prev survives one iteration for the budget close below, which must
-			// resume AT this series rather than after it.
+			// resume AT this title rather than after it.
 			prev := cursor
 			cursor = QueueCursor{Key: sr.Title, ID: sr.ID}
 			profile, ok := profiles[sr.ProfileID]
@@ -157,13 +158,14 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 				profiles[sr.ProfileID] = profile
 			}
 			group := CutoffGroup{
-				SeriesID:    sr.ID,
-				SeriesTitle: sr.Title,
+				TitleID:     sr.ID,
+				TitleName:   sr.Title,
+				Format:      sr.Format,
 				Monitored:   sr.Monitored == 1,
 				ProfileName: sr.ProfileName,
 				CutoffScore: profile.CutoffScore,
 			}
-			for _, r := range bySeries[sr.ID] {
+			for _, r := range byTitle[sr.ID] {
 				parsed := parser.Parse(r.HeldReleaseTitle)
 				score, _ := decide.Score(parsed, indexer.Release{}, profile)
 				if score >= profile.CutoffScore {
@@ -207,7 +209,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 				return out, nil
 			}
 		}
-		if len(series) < p.Limit {
+		if len(titles) < p.Limit {
 			return out, nil
 		}
 	}
@@ -217,7 +219,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 
 // profileByID loads a profile in the domain form decide scores against. The
 // listing carries the profile id so a page loads each one once, however many
-// series share it.
+// title share it.
 func (s *Service) profileByID(ctx context.Context, id int64) (domain.QualityProfile, error) {
 	row, err := s.store.Q.GetQualityProfile(ctx, id)
 	if err != nil {

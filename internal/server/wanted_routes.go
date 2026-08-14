@@ -33,7 +33,7 @@ type lastPassDTO struct {
 // missingItemDTO is one item still worth acquiring. It carries no derived status
 // because the listing's predicate admits only wanted ones -- an in-flight grab
 // is Activity's row, not this page's. Its reason covers only what varies row to
-// row; the series' story lives on the group and the page's on global_reason.
+// row; the title's story lives on the group and the page's on global_reason.
 type missingItemDTO struct {
 	ID           int64        `json:"id"`
 	Number       int          `json:"number"`
@@ -45,11 +45,12 @@ type missingItemDTO struct {
 	LastPass     *lastPassDTO `json:"last_pass,omitempty" doc:"Present only when the reason is the last pass's answer, which is dated because it can go stale"`
 }
 
-// missingGroupDTO is one series' missing items. Grouping is the page's shape
-// because the bulk action is per series: a search queues a series, never a row.
+// missingGroupDTO is one title's missing items. Grouping is the page's shape
+// because the bulk action is per title: a search queues a title, never a row.
 type missingGroupDTO struct {
 	TitleID         int64            `json:"title_id"`
 	Title           string           `json:"title"`
+	Format          string           `json:"format" doc:"Title format; the sole discriminator between movie and series wording, so a film is never called an episode"`
 	Monitored       bool             `json:"monitored"`
 	Reason          string           `json:"reason" enum:"unmonitored,blocklisted,never_searched,search_backoff,search_due" doc:"The title's standing in the sweep queue, derived from stored state at request time"`
 	BlockedReleases int              `json:"blocked_releases,omitempty" doc:"Releases this title is currently refusing (reason blocklisted)"`
@@ -76,10 +77,11 @@ type cutoffItemDTO struct {
 	UnmetGoals  []scorePartDTO `json:"unmet_goals,omitempty" doc:"Profile axes the held release scores below its best on, each with the points still available"`
 }
 
-// cutoffGroupDTO is one series' sub-cutoff items, the listing's pagination unit.
+// cutoffGroupDTO is one title's sub-cutoff items, the listing's pagination unit.
 type cutoffGroupDTO struct {
 	TitleID     int64           `json:"title_id"`
 	Title       string          `json:"title"`
+	Format      string          `json:"format" doc:"Title format; the sole discriminator between movie and series wording"`
 	Monitored   bool            `json:"monitored"`
 	ProfileName string          `json:"profile_name"`
 	CutoffScore int             `json:"cutoff_score"`
@@ -139,7 +141,7 @@ type setItemsMonitoredOutput struct {
 	}
 }
 
-// wantedHandler groups the cross-series wanted queue: the two listings and the
+// wantedHandler groups the cross-title wanted queue: the two listings and the
 // cadence reset behind their bulk actions.
 type wantedHandler struct {
 	deps routeDeps
@@ -201,7 +203,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		h.deps.settings.Snapshot().Automation.Mode)
 
 	// One past the page, to learn whether a next page exists.
-	seriesRows, err := h.deps.store.Q.ListMissingSeriesPage(ctx, db.ListMissingSeriesPageParams{
+	titleRows, err := h.deps.store.Q.ListMissingTitlesPage(ctx, db.ListMissingTitlesPageParams{
 		Column1:  boolParam(in.Unmonitored),
 		Column2:  boolParam(in.Unaired),
 		AirsAt:   nowStored,
@@ -213,49 +215,49 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list missing series", err)
 	}
-	hasMore := len(seriesRows) > in.Limit
+	hasMore := len(titleRows) > in.Limit
 	if hasMore {
-		seriesRows = seriesRows[:in.Limit]
+		titleRows = titleRows[:in.Limit]
 	}
 	// The page's weight is rows, not groups, so it also closes on an item
 	// budget. The aggregate already says what each group will list, so the
 	// budget is applied before any items are fetched; the first group always
 	// ships, however large its cap.
 	itemSum := 0
-	for i, s := range seriesRows {
+	for i, s := range titleRows {
 		shown := min(int(s.Missing), acquire.ItemsPerGroup)
 		if i > 0 && itemSum+shown > acquire.PageItemBudget {
-			seriesRows = seriesRows[:i]
+			titleRows = titleRows[:i]
 			hasMore = true
 			break
 		}
 		itemSum += shown
 	}
 	if hasMore {
-		last := seriesRows[len(seriesRows)-1]
+		last := titleRows[len(titleRows)-1]
 		out.Body.NextCursor = keysetCursor(aggregateString(last.LatestMissingAir), last.ID)
 	}
-	out.Body.Groups = make([]missingGroupDTO, 0, len(seriesRows))
-	if len(seriesRows) == 0 {
+	out.Body.Groups = make([]missingGroupDTO, 0, len(titleRows))
+	if len(titleRows) == 0 {
 		return out, nil
 	}
 
-	ids := make([]int64, 0, len(seriesRows))
-	for _, s := range seriesRows {
+	ids := make([]int64, 0, len(titleRows))
+	for _, s := range titleRows {
 		ids = append(ids, s.ID)
 	}
-	itemRows, err := h.deps.store.Q.ListMissingItemsBySeries(ctx, db.ListMissingItemsBySeriesParams{
-		SeriesIds: ids,
-		Column2:   boolParam(in.Unmonitored),
-		Column3:   boolParam(in.Unaired),
-		AirsAt:    nowStored,
+	itemRows, err := h.deps.store.Q.ListMissingItemsByTitle(ctx, db.ListMissingItemsByTitleParams{
+		TitleIds: ids,
+		Column2:  boolParam(in.Unmonitored),
+		Column3:  boolParam(in.Unaired),
+		AirsAt:   nowStored,
 	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list missing items", err)
 	}
-	itemsBySeries := make(map[int64][]missingItemDTO, len(seriesRows))
+	itemsByTitle := make(map[int64][]missingItemDTO, len(titleRows))
 	for _, r := range itemRows {
-		if len(itemsBySeries[r.SeriesID]) == acquire.ItemsPerGroup {
+		if len(itemsByTitle[r.SeriesID]) == acquire.ItemsPerGroup {
 			continue
 		}
 		facts := itemFacts{
@@ -292,21 +294,21 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		case reason == reasonGrabFailed:
 			item.ReasonDetail = r.GrabLastError.String
 		}
-		itemsBySeries[r.SeriesID] = append(itemsBySeries[r.SeriesID], item)
+		itemsByTitle[r.SeriesID] = append(itemsByTitle[r.SeriesID], item)
 	}
 
 	blocked, err := h.blockedCounts(ctx, ids, nowStored)
 	if err != nil {
 		return nil, err
 	}
-	for _, s := range seriesRows {
-		items := itemsBySeries[s.ID]
+	for _, s := range titleRows {
+		items := itemsByTitle[s.ID]
 		if len(items) == 0 {
 			// The two queries are not one transaction; a grab settling between
 			// them empties a group, and an empty group is a lie about a count.
 			continue
 		}
-		facts := seriesFacts{
+		facts := titleFacts{
 			Monitored:       s.Monitored == 1,
 			BlockedReleases: int(blocked[s.ID]),
 			LastSearchedAt:  storedTime(s.LastSearchedAt),
@@ -315,8 +317,9 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		group := missingGroupDTO{
 			TitleID:   s.ID,
 			Title:     s.Title,
+			Format:    s.Format,
 			Monitored: facts.Monitored,
-			Reason:    seriesReason(facts, now),
+			Reason:    titleReason(facts, now),
 			Missing:   int(s.Missing),
 			Items:     items,
 		}
@@ -371,8 +374,9 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 	out.Body.Groups = make([]cutoffGroupDTO, 0, len(page.Groups))
 	for _, g := range page.Groups {
 		group := cutoffGroupDTO{
-			TitleID:     g.SeriesID,
-			Title:       g.SeriesTitle,
+			TitleID:     g.TitleID,
+			Title:       g.TitleName,
+			Format:      g.Format,
 			Monitored:   g.Monitored,
 			ProfileName: g.ProfileName,
 			CutoffScore: g.CutoffScore,
@@ -402,14 +406,14 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 }
 
 // queueSearch resets the sweep cadence and triggers a run. It never issues an
-// indexer request itself: seriesPerPass is the budget the whole search design
+// indexer request itself: titlesPerPass is the budget the whole search design
 // protects, so "search all" on a large library is a queue, not a burst.
 func (h *wantedHandler) queueSearch(ctx context.Context, in *queueSearchInput) (*queueSearchOutput, error) {
 	out := &queueSearchOutput{}
 	out.Body.Automation = string(h.deps.settings.Snapshot().Automation.Mode)
 
 	if len(in.Body.TitleIDs) == 0 {
-		if err := h.deps.store.Q.ResetAllSeriesSearchState(ctx); err != nil {
+		if err := h.deps.store.Q.ResetAllTitlesSearchState(ctx); err != nil {
 			return nil, huma.Error500InternalServerError("failed to reset the search queue", err)
 		}
 		out.Body.TitlesQueued = -1
@@ -446,10 +450,10 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	qtx := h.deps.store.Q.WithTx(tx)
 
 	// Only where something will actually move: the update reports a row count,
-	// not which series it touched.
-	var seriesIDs []int64
+	// not which title it touched.
+	var titleIDs []int64
 	if in.Body.Monitored {
-		seriesIDs, err = qtx.ListSeriesIDsForUnmonitoredItems(ctx, in.Body.ItemIDs)
+		titleIDs, err = qtx.ListTitleIDsForUnmonitoredItems(ctx, in.Body.ItemIDs)
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to load the items", err)
 		}
@@ -461,8 +465,8 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
 	}
-	for _, id := range seriesIDs {
-		if err := qtx.ResetSeriesSearchState(ctx, id); err != nil {
+	for _, id := range titleIDs {
+		if err := qtx.ResetTitleSearchState(ctx, id); err != nil {
 			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
 		}
 	}
@@ -471,15 +475,15 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	}
 	// Both counts describe committed work, so neither is reported before it is.
 	out.Body.Updated = int(updated)
-	out.Body.TitlesQueued = len(seriesIDs)
+	out.Body.TitlesQueued = len(titleIDs)
 	return out, nil
 }
 
-// resetSelected puts the named series back at the front of the sweep queue in
+// resetSelected puts the named title back at the front of the sweep queue in
 // one transaction: a partial reset would leave half the selection queued behind
 // a 500, with nothing telling the caller which half.
 func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
-	found, err := h.deps.store.Q.CountSeriesByIDs(ctx, ids)
+	found, err := h.deps.store.Q.CountTitlesByIDs(ctx, ids)
 	if err != nil {
 		return huma.Error500InternalServerError("failed to load series", err)
 	}
@@ -493,7 +497,7 @@ func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.deps.store.Q.WithTx(tx)
 	for _, id := range ids {
-		if err := qtx.ResetSeriesSearchState(ctx, id); err != nil {
+		if err := qtx.ResetTitleSearchState(ctx, id); err != nil {
 			return huma.Error500InternalServerError("failed to reset the search queue", err)
 		}
 	}
@@ -503,11 +507,11 @@ func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
 	return nil
 }
 
-// blockedCounts is how many releases each series currently refuses, keyed for
-// the per-row lookup the reason column does. Scoped to the page's series.
+// blockedCounts is how many releases each title currently refuses, keyed for
+// the per-row lookup the reason column does. Scoped to the page's title.
 func (h *wantedHandler) blockedCounts(ctx context.Context, ids []int64, now sql.NullString) (map[int64]int64, error) {
 	rows, err := h.deps.store.Q.ListActiveBlocklistCounts(ctx, db.ListActiveBlocklistCountsParams{
-		SeriesIds: ids, BlockedUntil: now,
+		TitleIds: ids, BlockedUntil: now,
 	})
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to load blocklist counts", err)

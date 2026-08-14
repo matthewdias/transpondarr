@@ -7,32 +7,32 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-func seedEventSeries(t *testing.T, st *Store, title string) int64 {
+func seedEventTitle(t *testing.T, st *Store, name string) int64 {
 	t.Helper()
-	series, err := st.Q.CreateSeries(context.Background(), db.CreateSeriesParams{Title: title, Format: "TV", Monitored: 1})
+	title, err := st.Q.CreateTitle(context.Background(), db.CreateTitleParams{Title: name, Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
-	return series.ID
+	return title.ID
 }
 
-func appendEvent(t *testing.T, st *Store, seriesID int64, number int64, event, createdAt string) {
+func appendEvent(t *testing.T, st *Store, titleID int64, number int64, event, createdAt string) {
 	t.Helper()
 	// Direct SQL so the test controls created_at, which datetime('now') would not allow.
 	if _, err := st.DB.Exec(
 		`INSERT INTO grab_events (series_id, wanted_item_id, item_number, item_kind, info_hash, release_title, event, created_at)
 		 VALUES (?, ?, ?, 'episode', 'hash', 'rel', ?, ?)`,
-		seriesID, number, number, event, createdAt,
+		titleID, number, number, event, createdAt,
 	); err != nil {
 		t.Fatalf("insert event: %v", err)
 	}
 }
 
-func TestListGrabEventsPageNewestFirstWithSeriesTitle(t *testing.T) {
+func TestListGrabEventsPageNewestFirstWithTitleName(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	a := seedEventSeries(t, st, "Alpha")
-	b := seedEventSeries(t, st, "Beta")
+	a := seedEventTitle(t, st, "Alpha")
+	b := seedEventTitle(t, st, "Beta")
 
 	appendEvent(t, st, a, 1, "grabbed", "2026-01-01 10:00:00")
 	appendEvent(t, st, b, 2, "imported", "2026-01-02 10:00:00")
@@ -45,11 +45,11 @@ func TestListGrabEventsPageNewestFirstWithSeriesTitle(t *testing.T) {
 	if len(rows) != 3 {
 		t.Fatalf("expected 3 events, got %d", len(rows))
 	}
-	if rows[0].Event != "failed" || rows[0].SeriesTitle != "Alpha" {
-		t.Errorf("rows[0] = %s/%s, want failed/Alpha", rows[0].Event, rows[0].SeriesTitle)
+	if rows[0].Event != "failed" || rows[0].TitleName != "Alpha" {
+		t.Errorf("rows[0] = %s/%s, want failed/Alpha", rows[0].Event, rows[0].TitleName)
 	}
-	if rows[1].Event != "imported" || rows[1].SeriesTitle != "Beta" {
-		t.Errorf("rows[1] = %s/%s, want imported/Beta", rows[1].Event, rows[1].SeriesTitle)
+	if rows[1].Event != "imported" || rows[1].TitleName != "Beta" {
+		t.Errorf("rows[1] = %s/%s, want imported/Beta", rows[1].Event, rows[1].TitleName)
 	}
 	if rows[2].Event != "grabbed" {
 		t.Errorf("rows[2].Event = %s, want grabbed", rows[2].Event)
@@ -61,7 +61,7 @@ func TestListGrabEventsPageNewestFirstWithSeriesTitle(t *testing.T) {
 func TestListGrabEventsPageBeforeTieBreaksOnID(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	s := seedEventSeries(t, st, "Alpha")
+	s := seedEventTitle(t, st, "Alpha")
 
 	const stamp = "2026-01-05 12:00:00"
 	for n := int64(1); n <= 4; n++ {
@@ -100,17 +100,17 @@ func TestListGrabEventsPageBeforeTieBreaksOnID(t *testing.T) {
 	}
 }
 
-func TestListSeriesGrabEventsScopesToSeries(t *testing.T) {
+func TestListTitleGrabEventsScopesToTitle(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	a := seedEventSeries(t, st, "Alpha")
-	b := seedEventSeries(t, st, "Beta")
+	a := seedEventTitle(t, st, "Alpha")
+	b := seedEventTitle(t, st, "Beta")
 
 	appendEvent(t, st, a, 1, "grabbed", "2026-01-01 10:00:00")
 	appendEvent(t, st, a, 1, "imported", "2026-01-02 10:00:00")
 	appendEvent(t, st, b, 5, "grabbed", "2026-01-03 10:00:00")
 
-	events, err := st.Q.ListSeriesGrabEvents(ctx, a)
+	events, err := st.Q.ListTitleGrabEvents(ctx, a)
 	if err != nil {
 		t.Fatalf("list series events: %v", err)
 	}

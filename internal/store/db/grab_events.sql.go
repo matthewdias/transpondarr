@@ -43,7 +43,7 @@ func (q *Queries) AppendGrabEvent(ctx context.Context, arg AppendGrabEventParams
 }
 
 const listGrabEventsPage = `-- name: ListGrabEventsPage :many
-SELECT e.id, e.series_id, e.wanted_item_id, e.item_number, e.item_kind, e.info_hash, e.release_title, e.event, e.detail, e.created_at, s.title AS series_title
+SELECT e.id, e.series_id, e.wanted_item_id, e.item_number, e.item_kind, e.info_hash, e.release_title, e.event, e.detail, e.created_at, s.title AS title_name
 FROM grab_events e
 JOIN series s ON s.id = e.series_id
 ORDER BY e.created_at DESC, e.id DESC
@@ -61,7 +61,7 @@ type ListGrabEventsPageRow struct {
 	Event        string `json:"event"`
 	Detail       string `json:"detail"`
 	CreatedAt    string `json:"created_at"`
-	SeriesTitle  string `json:"series_title"`
+	TitleName    string `json:"title_name"`
 }
 
 func (q *Queries) ListGrabEventsPage(ctx context.Context, limit int64) ([]ListGrabEventsPageRow, error) {
@@ -84,7 +84,7 @@ func (q *Queries) ListGrabEventsPage(ctx context.Context, limit int64) ([]ListGr
 			&i.Event,
 			&i.Detail,
 			&i.CreatedAt,
-			&i.SeriesTitle,
+			&i.TitleName,
 		); err != nil {
 			return nil, err
 		}
@@ -100,7 +100,7 @@ func (q *Queries) ListGrabEventsPage(ctx context.Context, limit int64) ([]ListGr
 }
 
 const listGrabEventsPageBefore = `-- name: ListGrabEventsPageBefore :many
-SELECT e.id, e.series_id, e.wanted_item_id, e.item_number, e.item_kind, e.info_hash, e.release_title, e.event, e.detail, e.created_at, s.title AS series_title
+SELECT e.id, e.series_id, e.wanted_item_id, e.item_number, e.item_kind, e.info_hash, e.release_title, e.event, e.detail, e.created_at, s.title AS title_name
 FROM grab_events e
 JOIN series s ON s.id = e.series_id
 WHERE e.created_at < ? OR (e.created_at = ? AND e.id < ?)
@@ -126,7 +126,7 @@ type ListGrabEventsPageBeforeRow struct {
 	Event        string `json:"event"`
 	Detail       string `json:"detail"`
 	CreatedAt    string `json:"created_at"`
-	SeriesTitle  string `json:"series_title"`
+	TitleName    string `json:"title_name"`
 }
 
 // Keyset cursor on (created_at, id); the timestamp is passed twice because this
@@ -156,7 +156,7 @@ func (q *Queries) ListGrabEventsPageBefore(ctx context.Context, arg ListGrabEven
 			&i.Event,
 			&i.Detail,
 			&i.CreatedAt,
-			&i.SeriesTitle,
+			&i.TitleName,
 		); err != nil {
 			return nil, err
 		}
@@ -171,15 +171,15 @@ func (q *Queries) ListGrabEventsPageBefore(ctx context.Context, arg ListGrabEven
 	return items, nil
 }
 
-const listSeriesGrabEvents = `-- name: ListSeriesGrabEvents :many
+const listTitleGrabEvents = `-- name: ListTitleGrabEvents :many
 SELECT id, series_id, wanted_item_id, item_number, item_kind, info_hash, release_title, event, detail, created_at
 FROM grab_events
 WHERE series_id = ?
 ORDER BY created_at DESC, id DESC
 `
 
-func (q *Queries) ListSeriesGrabEvents(ctx context.Context, seriesID int64) ([]GrabEvent, error) {
-	rows, err := q.db.QueryContext(ctx, listSeriesGrabEvents, seriesID)
+func (q *Queries) ListTitleGrabEvents(ctx context.Context, seriesID int64) ([]GrabEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listTitleGrabEvents, seriesID)
 	if err != nil {
 		return nil, err
 	}

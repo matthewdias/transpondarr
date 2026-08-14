@@ -13,7 +13,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// The search endpoint must rank by the series' assigned profile, not seeders —
+// The search endpoint must rank by the title's assigned profile, not seeders —
 // this exercises the whole store -> domain -> decide wiring over HTTP.
 func TestSearchRanksByAssignedProfile(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
@@ -21,7 +21,7 @@ func TestSearchRanksByAssignedProfile(t *testing.T) {
 		{Title: "[TrustedCorp] Placeholder Saga S1E03 [720p]", DownloadURL: "magnet:?xt=urn:btih:bbbb", Seeders: 3},
 	}}
 	h := newHarness(t, idx, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	ctx := context.Background()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
@@ -37,7 +37,7 @@ func TestSearchRanksByAssignedProfile(t *testing.T) {
 	var out struct {
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(out.Results) != 2 {
@@ -56,7 +56,7 @@ func TestSearchDemotesBlockedGroup(t *testing.T) {
 		{Title: "[FineSubs] Placeholder Saga S1E03 [1080p]", DownloadURL: "magnet:?xt=urn:btih:dddd", Seeders: 1},
 	}}
 	h := newHarness(t, idx, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	ctx := context.Background()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
@@ -72,7 +72,7 @@ func TestSearchDemotesBlockedGroup(t *testing.T) {
 	var out struct {
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(out.Results) != 2 {
@@ -83,7 +83,7 @@ func TestSearchDemotesBlockedGroup(t *testing.T) {
 	}
 }
 
-// #61: a series' pinned group is an absolute tier above profile score — the
+// #61: a title's pinned group is an absolute tier above profile score — the
 // pinned unlisted group outranks the profile's rank-1 group over HTTP.
 func TestSearchRanksPinnedGroupFirst(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
@@ -91,7 +91,7 @@ func TestSearchRanksPinnedGroupFirst(t *testing.T) {
 		{Title: "[RandomRip] Placeholder Saga S1E03 [720p]", DownloadURL: "magnet:?xt=urn:btih:ffff", Seeders: 1},
 	}}
 	h := newHarness(t, idx, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	ctx := context.Background()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
@@ -103,7 +103,7 @@ func TestSearchRanksPinnedGroupFirst(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("add group: %v", err)
 	}
-	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/pinned-group", seriesID),
+	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/pinned-group", titleID),
 		map[string]any{"group": "RandomRip"}, nil); code != http.StatusOK {
 		t.Fatalf("pin status = %d, want 200", code)
 	}
@@ -111,7 +111,7 @@ func TestSearchRanksPinnedGroupFirst(t *testing.T) {
 	var out struct {
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(out.Results) != 2 {
@@ -133,7 +133,7 @@ func TestSearchPinnedIneligibleStaysRankedBelow(t *testing.T) {
 		{Title: "[FineSubs] Placeholder Saga S1E03 [1080p]", DownloadURL: "magnet:?xt=urn:btih:cdcd", Seeders: 1},
 	}}
 	h := newHarness(t, idx, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	ctx := context.Background()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
@@ -145,7 +145,7 @@ func TestSearchPinnedIneligibleStaysRankedBelow(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("add blocked group: %v", err)
 	}
-	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/pinned-group", seriesID),
+	if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/pinned-group", titleID),
 		map[string]any{"group": "BadRipCo"}, nil); code != http.StatusOK {
 		t.Fatalf("pin status = %d, want 200", code)
 	}
@@ -153,7 +153,7 @@ func TestSearchPinnedIneligibleStaysRankedBelow(t *testing.T) {
 	var out struct {
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &out); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if out.Results[0].Title != "[FineSubs] Placeholder Saga S1E03 [1080p]" {
@@ -173,7 +173,7 @@ func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashX", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	ctx := context.Background()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
@@ -190,7 +190,7 @@ func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 		InfoHash         string `json:"infohash"`
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, &out)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — the profile informs, it does not gate", code)
@@ -214,13 +214,13 @@ func TestGrabEligibleReleaseUnchanged(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hashY", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	var out struct {
 		InfoHash         string `json:"infohash"`
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, &out)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)

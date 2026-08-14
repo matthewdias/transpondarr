@@ -55,7 +55,7 @@ func (s *Service) ProviderName() string { return s.provider.Name() }
 
 // TitleVariants returns the accepted display-name variants (romaji/english/
 // native) for a title, used by the decide layer to filter releases that use a
-// different one of a series' names. It is cache-backed via the provider.
+// different one of a title's names. It is cache-backed via the provider.
 func (s *Service) TitleVariants(ctx context.Context, providerID int64) ([]string, error) {
 	meta, _, err := s.provider.GetTitle(ctx, providerID)
 	if err != nil {
@@ -91,22 +91,22 @@ func dedupeNonEmpty(vals ...string) []string {
 	return out
 }
 
-// AddSeries fetches a title's metadata by provider identity and persists it
+// AddTitle fetches a title's metadata by provider identity and persists it
 // together with its expanded WantedItems in a single transaction. It is
 // idempotent-ish: a title already tracked returns ErrAlreadyExists rather than a
 // duplicate. Deduping is per id space — the same title known to two providers is
 // two rows until the cross-reference layer (#189) can relate them. A zero
 // profileID leaves the column default, which is the seeded is-default profile.
-func (s *Service) AddSeries(ctx context.Context, provider string, providerID int64, monitored bool, mode MonitorMode, profileID int64) (domain.Title, error) {
+func (s *Service) AddTitle(ctx context.Context, provider string, providerID int64, monitored bool, mode MonitorMode, profileID int64) (domain.Title, error) {
 	if provider != s.provider.Name() {
 		return domain.Title{}, fmt.Errorf("%w: %q", ErrUnknownProvider, provider)
 	}
 
-	identity := db.GetSeriesByProviderIDParams{
+	identity := db.GetTitleByProviderIDParams{
 		Provider:   sql.NullString{String: provider, Valid: true},
 		ProviderID: sql.NullInt64{Int64: providerID, Valid: true},
 	}
-	if _, err := s.store.Q.GetSeriesByProviderID(ctx, identity); err == nil {
+	if _, err := s.store.Q.GetTitleByProviderID(ctx, identity); err == nil {
 		return domain.Title{}, ErrAlreadyExists
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		return domain.Title{}, fmt.Errorf("check existing series: %w", err)
@@ -132,7 +132,7 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 	defer tx.Rollback() //nolint:errcheck // no-op after a successful Commit
 	q := s.store.Q.WithTx(tx)
 
-	srow, err := q.CreateSeries(ctx, db.CreateSeriesParams{
+	srow, err := q.CreateTitle(ctx, db.CreateTitleParams{
 		Provider:   identity.Provider,
 		ProviderID: identity.ProviderID,
 		Title:      name,
@@ -144,16 +144,16 @@ func (s *Service) AddSeries(ctx context.Context, provider string, providerID int
 		return domain.Title{}, fmt.Errorf("create series: %w", err)
 	}
 
-	if err := q.SetSeriesMonitorNewFrom(ctx, db.SetSeriesMonitorNewFromParams{
+	if err := q.SetTitleMonitorNewFrom(ctx, db.SetTitleMonitorNewFromParams{
 		MonitorNewFrom: cut, ID: srow.ID,
 	}); err != nil {
 		return domain.Title{}, fmt.Errorf("set the item monitor cut: %w", err)
 	}
 
 	if profileID != 0 {
-		// Inside the tx: a profile that does not exist takes the series with it,
+		// Inside the tx: a profile that does not exist takes the title with it,
 		// rather than leaving one on a profile the caller never asked for.
-		rows, err := q.SetSeriesProfile(ctx, db.SetSeriesProfileParams{
+		rows, err := q.SetTitleProfile(ctx, db.SetTitleProfileParams{
 			QualityProfileID: profileID, ID: srow.ID, ID_2: profileID,
 		})
 		if err != nil {

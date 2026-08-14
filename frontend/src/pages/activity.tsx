@@ -178,10 +178,16 @@ function QueueRow({ item }: { item: QueueItem }) {
       </ItemMedia>
       <ItemContent className="min-w-0 gap-0.5">
         <div className="text-sm font-medium">
-          Episode {item.item_number}
-          {" · "}
+          {/* A film's number says nothing its title has not, and calling it an
+              episode is a plain false statement. Format alone decides (#208). */}
+          {item.format !== "MOVIE" && (
+            <>
+              Episode {item.item_number}
+              {" · "}
+            </>
+          )}
           <Link
-            to={`/series/${item.title_id}`}
+            to={`/titles/${item.title_id}`}
             className="font-normal text-muted-foreground hover:text-foreground hover:underline"
           >
             {item.title}
@@ -344,7 +350,7 @@ function HistorySection() {
               <GrabEventRow
                 key={e.id}
                 event={e}
-                series={{ id: e.title_id, title: e.title }}
+                title={{ id: e.title_id, name: e.title }}
               />
             ))}
           </ItemGroup>

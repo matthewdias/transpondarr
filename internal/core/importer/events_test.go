@@ -15,10 +15,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// seriesEvents returns the grab events recorded for a series, newest first.
-func seriesEvents(t *testing.T, st *store.Store, seriesID int64) []db.GrabEvent {
+// titleEvents returns the grab events recorded for a title, newest first.
+func titleEvents(t *testing.T, st *store.Store, titleID int64) []db.GrabEvent {
 	t.Helper()
-	events, err := st.Q.ListSeriesGrabEvents(context.Background(), seriesID)
+	events, err := st.Q.ListTitleGrabEvents(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}
@@ -27,7 +27,7 @@ func seriesEvents(t *testing.T, st *store.Store, seriesID int64) []db.GrabEvent 
 
 func TestImportAppendsImportedEvent(t *testing.T) {
 	st := coretest.NewStore(t)
-	itemID, seriesID := seedGrab(t, st, "abc")
+	itemID, titleID := seedGrab(t, st, "abc")
 	src := filepath.Join(t.TempDir(), "raw.mkv")
 	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestImportAppendsImportedEvent(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	events := seriesEvents(t, st, seriesID)
+	events := titleEvents(t, st, titleID)
 	if len(events) != 1 {
 		t.Fatalf("recorded %d events, want 1", len(events))
 	}
@@ -56,7 +56,7 @@ func TestImportAppendsImportedEvent(t *testing.T) {
 // event carries the reason a human needs to fix it from the Activity queue.
 func TestDeferAppendsDeferredEventWithDetail(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	// Nothing claims episode 5, and files are left over: fixable by hand.
 	dir := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
@@ -69,7 +69,7 @@ func TestDeferAppendsDeferredEventWithDetail(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	events := seriesEvents(t, st, seriesID)
+	events := titleEvents(t, st, titleID)
 	if len(events) != 1 || events[0].Event != "import_deferred" {
 		t.Fatalf("events = %+v, want one import_deferred", events)
 	}
@@ -82,7 +82,7 @@ func TestDeferAppendsDeferredEventWithDetail(t *testing.T) {
 // what to do with it -- otherwise the row is a dead end.
 func TestDefersAnArchivePayloadNamingTheArchive(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	dir := writeTree(t,
 		"placeholder.saga.s01e05.1080p.web.h264-example.rar",
 		"placeholder.saga.s01e05.1080p.web.h264-example.r00",
@@ -96,7 +96,7 @@ func TestDefersAnArchivePayloadNamingTheArchive(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	events := seriesEvents(t, st, seriesID)
+	events := titleEvents(t, st, titleID)
 	if len(events) != 1 || events[0].Event != "import_deferred" {
 		t.Fatalf("events = %+v, want one import_deferred", events)
 	}
@@ -145,7 +145,7 @@ func TestDefersTheItemAnArchiveCoversBesideALooseFile(t *testing.T) {
 // extract, so telling a human to extract it would be a wrong instruction.
 func TestDefersAPayloadWithNeitherVideoNorArchive(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	dir := writeTree(t,
 		"placeholder.saga.s01e05.1080p.web.h264-example.nfo",
 		"placeholder.saga.s01e05.1080p.web.h264-example.sfv",
@@ -157,7 +157,7 @@ func TestDefersAPayloadWithNeitherVideoNorArchive(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	events := seriesEvents(t, st, seriesID)
+	events := titleEvents(t, st, titleID)
 	if len(events) != 1 || events[0].Detail != "the payload holds no video file" {
 		t.Fatalf("events = %+v, want the plain no-video deferral", events)
 	}
@@ -165,7 +165,7 @@ func TestDefersAPayloadWithNeitherVideoNorArchive(t *testing.T) {
 
 func TestClientErrorAppendsFailedEventWithDetail(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
@@ -173,7 +173,7 @@ func TestClientErrorAppendsFailedEventWithDetail(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	events := seriesEvents(t, st, seriesID)
+	events := titleEvents(t, st, titleID)
 	if len(events) != 1 {
 		t.Fatalf("recorded %d events, want 1", len(events))
 	}
@@ -184,14 +184,14 @@ func TestClientErrorAppendsFailedEventWithDetail(t *testing.T) {
 
 func TestVanishedGrabAppendsFailedEventWithDetail(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	backdateMissingSince(t, st, "abc", time.Hour)
 	dl := &coretest.FakeDownload{} // client reports nothing at all
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
-	events := seriesEvents(t, st, seriesID)
+	events := titleEvents(t, st, titleID)
 	if len(events) != 1 {
 		t.Fatalf("recorded %d events, want 1", len(events))
 	}
@@ -204,7 +204,7 @@ func TestVanishedGrabAppendsFailedEventWithDetail(t *testing.T) {
 // retries, so history would only accumulate noise for a path-mapping gap.
 func TestPlaceFailureAppendsNoEvent(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	src := filepath.Join(t.TempDir(), "raw.mkv")
 	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
@@ -217,7 +217,7 @@ func TestPlaceFailureAppendsNoEvent(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	if events := seriesEvents(t, st, seriesID); len(events) != 0 {
+	if events := titleEvents(t, st, titleID); len(events) != 0 {
 		t.Errorf("events = %+v, want none for a Place failure", events)
 	}
 }

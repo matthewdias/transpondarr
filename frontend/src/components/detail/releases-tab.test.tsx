@@ -251,7 +251,7 @@ function renderReleases(focusItem: number | null, gated = false) {
   render(
     <QueryClientProvider client={client}>
       <ReleasesTab
-        seriesId={7}
+        titleId={7}
         active
         focusItem={focusItem}
         onClearFocus={onClearFocus}

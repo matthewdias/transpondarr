@@ -23,12 +23,12 @@ func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 
-	series, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: "X", Format: "TV", Monitored: 1})
+	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
 	item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
-		SeriesID:  series.ID,
+		SeriesID:  title.ID,
 		Kind:      "episode",
 		Number:    sql.NullInt64{Int64: 1, Valid: true},
 		InLibrary: 0,
@@ -65,16 +65,16 @@ func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 		t.Errorf("grab row = %+v, want item %d / rel2", cur[0], item.ID)
 	}
 
-	bySeries, err := st.Q.ListGrabsBySeries(ctx, series.ID)
+	byTitle, err := st.Q.ListGrabsByTitle(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("list by series: %v", err)
 	}
-	if len(bySeries) != 1 {
-		t.Errorf("expected 1 grab for the series, got %d", len(bySeries))
+	if len(byTitle) != 1 {
+		t.Errorf("expected 1 grab for the series, got %d", len(byTitle))
 	}
 
 	// A grab must not mark the item as had — that is import's job.
-	items, err := st.Q.ListWantedItems(ctx, series.ID)
+	items, err := st.Q.ListWantedItems(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("list wanted items: %v", err)
 	}
@@ -88,13 +88,13 @@ func TestUpsertGrabBatchSharesInfoHash(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
 
-	series, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: "X", Format: "TV", Monitored: 1})
+	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
 	for n := 1; n <= 3; n++ {
 		item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
-			SeriesID: series.ID, Kind: "episode",
+			SeriesID: title.ID, Kind: "episode",
 			Number:    sql.NullInt64{Int64: int64(n), Valid: true},
 			Monitored: 1,
 		})

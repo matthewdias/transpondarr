@@ -10,13 +10,13 @@ import (
 // Air dates must reach the episodes table, and reach it as an unambiguous
 // timestamp: the stored form is SQLite's zone-less UTC, which a browser would
 // otherwise read as local time and shift the row by hours.
-func TestSeriesDetailSurfacesAirDates(t *testing.T) {
+func TestTitleDetailSurfacesAirDates(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 2)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 2)
 
 	if _, err := h.store.DB.ExecContext(context.Background(),
 		`UPDATE wanted_items SET airs_at = '2026-01-04 15:30:00' WHERE series_id = ? AND number = 1`,
-		seriesID); err != nil {
+		titleID); err != nil {
 		t.Fatalf("seed air date: %v", err)
 	}
 
@@ -26,7 +26,7 @@ func TestSeriesDetailSurfacesAirDates(t *testing.T) {
 			AirsAt string `json:"airs_at"`
 		} `json:"items"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", seriesID), &out); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
 		t.Fatalf("GET series detail = %d, want 200", code)
 	}
 	if len(out.Items) != 2 {

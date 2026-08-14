@@ -111,7 +111,7 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
 // stubProvider stands in for AniList. Every method but Name errors: these tests
-// seed series with no provider id precisely so the provider is never reached,
+// seed title with no provider id precisely so the provider is never reached,
 // and a loud failure is what proves that still holds. Name is real, because it
 // is the id space the handlers pair a provider id with.
 type stubProvider struct{}
@@ -128,12 +128,12 @@ func (stubProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, []meta
 	return metadata.TitleMeta{}, nil, errors.New("stub provider: unexpected metadata call")
 }
 
-// seedSeries inserts a series (no AniList id, so the handler never calls out to
+// seedTitle inserts a title (no AniList id, so the handler never calls out to
 // the real metadata provider) with episodes 1..count as wanted items.
-func seedSeries(t *testing.T, st *store.Store, title string, count int) int64 {
+func seedTitle(t *testing.T, st *store.Store, title string, count int) int64 {
 	t.Helper()
 	ctx := context.Background()
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: title, Format: "TV", Monitored: 1})
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
@@ -198,7 +198,7 @@ type candidateDTO struct {
 func TestSearchAndGrabPipeline(t *testing.T) {
 	const matchURL = "magnet:?xt=urn:btih:0000000000000000000000000000000000000003"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
-		// Matches episode 3 of the series.
+		// Matches episode 3 of the title.
 		{Title: "[ExampleSubs] Placeholder Saga S1E03 [1080p]", DownloadURL: matchURL, Seeders: 100},
 		// A different show — must be filtered out by the decider.
 		{Title: "[Group] Completely Different Show S1E01 [1080p]", DownloadURL: "magnet:?xt=urn:btih:ffff", Seeders: 999},
@@ -206,7 +206,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hash3", Outcome: download.AddSuccess}}
 
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	// --- search: the matched release is surfaced against item 3 ---------------
 	var searchOut struct {
@@ -214,7 +214,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 		Term    string         `json:"term"`
 		Results []candidateDTO `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &searchOut); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &searchOut); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 
@@ -244,7 +244,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 		Release  string `json:"release"`
 		Items    []int  `json:"items"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": matchURL}, &grabOut)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
@@ -269,7 +269,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 	}
 
 	// --- persistence: one grab recorded against item 3, status "grabbed" ------
-	grabs, err := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	grabs, err := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 		t.Errorf("grab row = infohash %q status %q, want hash3/grabbed", g.InfoHash, g.Status)
 	}
 	// The grab must point at the item whose episode number is 3.
-	items, _ := h.store.Q.ListWantedItems(context.Background(), seriesID)
+	items, _ := h.store.Q.ListWantedItems(context.Background(), titleID)
 	var item3ID int64
 	for _, it := range items {
 		if int(it.Number.Int64) == 3 {
@@ -302,9 +302,9 @@ func TestGrabUnknownReleaseIsRejected(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "x", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": "magnet:?xt=urn:btih:doesnotexist"}, nil)
 	if code != http.StatusNotFound {
 		t.Fatalf("grab status = %d, want 404", code)
@@ -312,7 +312,7 @@ func TestGrabUnknownReleaseIsRejected(t *testing.T) {
 	if len(dl.Adds) != 0 {
 		t.Errorf("download Add called for an unknown release")
 	}
-	grabs, _ := h.store.Q.ListGrabsBySeries(context.Background(), seriesID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
 	if len(grabs) != 0 {
 		t.Errorf("recorded %d grabs for a rejected grab, want 0", len(grabs))
 	}

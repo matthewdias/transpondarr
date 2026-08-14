@@ -80,7 +80,7 @@ type passIndex struct {
 // coverage buys grab efficiency (#126) and says nothing about which release came
 // closest for one episode, so inheriting it would blame a wide low-scoring pack
 // over a high-scoring single covering exactly the episode asked about. Pinned
-// stays on top -- a pin is per-series knowledge about which group is definitive.
+// stays on top -- a pin is per-title knowledge about which group is definitive.
 func indexCandidates(cands []decide.Candidate) passIndex {
 	idx := passIndex{closest: map[int]decide.Candidate{}, eligible: map[int]bool{}}
 	for _, c := range cands {

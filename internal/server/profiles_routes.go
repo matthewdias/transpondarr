@@ -94,8 +94,8 @@ type assignTitleProfileOutput struct {
 	}
 }
 
-// profilesHandler owns the quality-profile CRUD plus the per-series assignment
-// (registered here rather than with the series routes because its only logic is
+// profilesHandler owns the quality-profile CRUD plus the per-title assignment
+// (registered here rather than with the title routes because its only logic is
 // profile validity).
 type profilesHandler struct {
 	store *store.Store
@@ -144,7 +144,7 @@ func registerProfileRoutes(api huma.API, deps routeDeps) {
 		Path:        "/api/v1/titles/{id}/profile",
 		Summary:     "Assign a quality profile to a title",
 		Tags:        []string{"titles"},
-	}, h.assignSeries)
+	}, h.assignTitle)
 }
 
 var (
@@ -193,7 +193,7 @@ func jsonArray(vals []string) string {
 	return string(b)
 }
 
-func profileDTO(p db.QualityProfile, groups []db.QualityProfileGroup, seriesCount int64) (qualityProfileDTO, error) {
+func profileDTO(p db.QualityProfile, groups []db.QualityProfileGroup, titleCount int64) (qualityProfileDTO, error) {
 	out := qualityProfileDTO{
 		ID:              p.ID,
 		Name:            p.Name,
@@ -204,7 +204,7 @@ func profileDTO(p db.QualityProfile, groups []db.QualityProfileGroup, seriesCoun
 		CodecPref:       p.CodecPref,
 		MinScore:        p.MinScore,
 		Groups:          make([]profileGroupDTO, 0, len(groups)),
-		TitleCount:      seriesCount,
+		TitleCount:      titleCount,
 
 		UpgradesEnabled:      p.UpgradesEnabled == 1,
 		CutoffScore:          p.CutoffScore,
@@ -229,7 +229,7 @@ func (h *profilesHandler) loadDTO(ctx context.Context, p db.QualityProfile) (qua
 	if err != nil {
 		return qualityProfileDTO{}, err
 	}
-	count, err := h.store.Q.CountSeriesByProfile(ctx, p.ID)
+	count, err := h.store.Q.CountTitlesByProfile(ctx, p.ID)
 	if err != nil {
 		return qualityProfileDTO{}, err
 	}
@@ -288,7 +288,7 @@ func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesO
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list profile groups", err)
 	}
-	countRows, err := h.store.Q.CountSeriesPerProfile(ctx)
+	countRows, err := h.store.Q.CountTitlesPerProfile(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to count series", err)
 	}
@@ -301,7 +301,7 @@ func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesO
 	}
 	counts := make(map[int64]int64, len(countRows))
 	for _, c := range countRows {
-		counts[c.QualityProfileID] = c.SeriesCount
+		counts[c.QualityProfileID] = c.TitleCount
 	}
 
 	out := &listProfilesOutput{}
@@ -444,7 +444,7 @@ func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*
 		return nil, huma.Error422UnprocessableEntity("the default profile cannot be deleted")
 	}
 
-	count, err := h.store.Q.CountSeriesByProfile(ctx, in.ID)
+	count, err := h.store.Q.CountTitlesByProfile(ctx, in.ID)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to count series", err)
 	}
@@ -469,7 +469,7 @@ func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*
 		} else if terr != nil {
 			return nil, huma.Error500InternalServerError("failed to load target profile", terr)
 		}
-		if rerr := qtx.ReassignSeriesProfile(ctx, db.ReassignSeriesProfileParams{
+		if rerr := qtx.ReassignTitleProfile(ctx, db.ReassignTitleProfileParams{
 			QualityProfileID: in.ReassignTo, QualityProfileID_2: in.ID,
 		}); rerr != nil {
 			return nil, huma.Error500InternalServerError("failed to reassign series", rerr)
@@ -488,13 +488,13 @@ func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*
 	return nil, nil
 }
 
-func (h *profilesHandler) assignSeries(ctx context.Context, in *assignTitleProfileInput) (*assignTitleProfileOutput, error) {
-	if _, err := h.store.Q.GetSeries(ctx, in.ID); errors.Is(err, sql.ErrNoRows) {
+func (h *profilesHandler) assignTitle(ctx context.Context, in *assignTitleProfileInput) (*assignTitleProfileOutput, error) {
+	if _, err := h.store.Q.GetTitle(ctx, in.ID); errors.Is(err, sql.ErrNoRows) {
 		return nil, huma.Error404NotFound("series not found")
 	} else if err != nil {
 		return nil, huma.Error500InternalServerError("failed to load series", err)
 	}
-	rows, err := h.store.Q.SetSeriesProfile(ctx, db.SetSeriesProfileParams{
+	rows, err := h.store.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{
 		QualityProfileID: in.Body.ProfileID,
 		ID:               in.ID,
 		ID_2:             in.Body.ProfileID,

@@ -30,7 +30,7 @@ WHERE w.series_id = ? AND w.kind = ? AND w.number = ?;
 -- matched, which is what lets a concurrent series delete cost only those ids.
 UPDATE wanted_items SET monitored = ? WHERE id IN (sqlc.slice('ids'));
 
--- name: ListSeriesIDsForUnmonitoredItems :many
+-- name: ListTitleIDsForUnmonitoredItems :many
 -- The series a re-monitor will actually change, so the cadence reset lands once
 -- per series and only where something moved. Read before the update, in the
 -- same transaction, since the update reports only a row count.
@@ -50,9 +50,9 @@ UPDATE wanted_items SET in_library = ?, held_release_title = ? WHERE id = ?;
 -- Stored timestamps are UTC in one fixed layout, so lexicographic range
 -- compare is chronological. One grab per item (UNIQUE) keeps the join 1:1.
 SELECT w.*,
-       s.title         AS series_title,
-       s.format        AS series_format,
-       s.monitored     AS series_monitored,
+       s.title         AS title_name,
+       s.format        AS title_format,
+       s.monitored     AS title_monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
        g.last_error    AS grab_last_error
@@ -62,7 +62,7 @@ LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.airs_at IS NOT NULL AND w.airs_at >= ? AND w.airs_at < ?
 ORDER BY w.airs_at, s.title, w.number;
 
--- name: ListUnscheduledSeries :many
+-- name: ListUnscheduledTitles :many
 -- Monitored series still missing an episode the provider gives no air date
 -- for, so the calendar can surface them instead of silently omitting them.
 SELECT DISTINCT s.id, s.title

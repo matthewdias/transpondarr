@@ -139,13 +139,13 @@ func (f *fakeCachedTitles) CachedTitleVariants(_ context.Context, id int64) ([]s
 	return v, ok, nil
 }
 
-// setSeriesProviderID gives a seeded series a provider identity, which is what
+// setTitleProviderID gives a seeded title a provider identity, which is what
 // makes the variant lookup reachable at all.
-func setSeriesProviderID(t *testing.T, st *store.Store, seriesID, providerID int64) {
+func setTitleProviderID(t *testing.T, st *store.Store, titleID, providerID int64) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET provider = 'anilist', provider_id = ? WHERE id = ?`, providerID, seriesID); err != nil {
-		t.Fatalf("set provider identity on series %d: %v", seriesID, err)
+		`UPDATE series SET provider = 'anilist', provider_id = ? WHERE id = ?`, providerID, titleID); err != nil {
+		t.Fatalf("set provider identity on series %d: %v", titleID, err)
 	}
 }
 
@@ -159,7 +159,7 @@ func TestFeedPollMatchesOnCachedVariantWithoutFetching(t *testing.T) {
 		feedEntry(english, 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{}, titles)
 	id := seedSweep(t, h.st, "Sora no Fixture", true, sweepItem{number: 3, airsAt: &past})
-	setSeriesProviderID(t, h.st, id, 42)
+	setTitleProviderID(t, h.st, id, 42)
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -183,7 +183,7 @@ func TestFeedPollCacheMissStillMatchesStoredTitle(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{}, titles)
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
-	setSeriesProviderID(t, h.st, id, 42)
+	setTitleProviderID(t, h.st, id, 42)
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -205,7 +205,7 @@ func TestFeedPollCacheErrorStillMatchesStoredTitle(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{}, titles)
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
-	setSeriesProviderID(t, h.st, id, 42)
+	setTitleProviderID(t, h.st, id, 42)
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -230,7 +230,7 @@ func TestFeedPollWithoutCacheCapabilityUsesStoredTitleOnly(t *testing.T) {
 		feedEntry(english, 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{}, fakeTitles{variants: map[int64][]string{42: {english}}})
 	id := seedSweep(t, h.st, "Sora no Fixture", true, sweepItem{number: 3, airsAt: &past})
-	setSeriesProviderID(t, h.st, id, 42)
+	setTitleProviderID(t, h.st, id, 42)
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
@@ -241,7 +241,7 @@ func TestFeedPollWithoutCacheCapabilityUsesStoredTitleOnly(t *testing.T) {
 }
 
 // The headline behaviour of #101: a release for an aired, wanted item is grabbed
-// on the poll, and no per-series search is issued to find it.
+// on the poll, and no per-title search is issued to find it.
 func TestFeedPollGrabsAnAiredWantedItemWithoutSearching(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -357,7 +357,7 @@ func TestFeedPollGrabsASeasonPack(t *testing.T) {
 	}
 }
 
-// The high-water mark's whole purpose. Seeding the series only *after* the first
+// The high-water mark's whole purpose. Seeding the title only *after* the first
 // poll is what makes the dedupe observable: had the entry been re-processed, it
 // would grab on the second poll. A grab row would otherwise absorb the evidence,
 // since a grabbed item stops being a candidate anyway.
@@ -558,7 +558,7 @@ func TestFeedPollWarnsWhenTheMarkScrolledOff(t *testing.T) {
 	}
 }
 
-// seedGapCadence backs a series off to a long wait, which is what a gap recovery
+// seedGapCadence backs a title off to a long wait, which is what a gap recovery
 // has to undo — and what makes a reset observable at all.
 func seedGapCadence(t *testing.T, st *store.Store, id int64, backoff int, next time.Time) {
 	t.Helper()
@@ -582,8 +582,8 @@ func pollThenGap(t *testing.T, h *feedHarness, since time.Time) {
 
 // The acceptance criterion of #140: a release that fell through a feed gap is
 // searched materially sooner than the backoff cap, because the poll resets the
-// sweep for the series whose broadcast happened inside the gap.
-func TestFeedPollGapResetsASeriesThatAiredInsideIt(t *testing.T) {
+// sweep for the title whose broadcast happened inside the gap.
+func TestFeedPollGapResetsATitleThatAiredInsideIt(t *testing.T) {
 	now := time.Now()
 	h := newFeedPoll(t, nil, fakeConfig{})
 	pollThenGap(t, h, now.Add(-2*time.Hour))
@@ -606,9 +606,9 @@ func TestFeedPollGapResetsASeriesThatAiredInsideIt(t *testing.T) {
 }
 
 // The other half of #140's acceptance: a routine gap on a high-volume indexer
-// must not become a library-wide reset, so a series whose broadcast is nowhere
+// must not become a library-wide reset, so a title whose broadcast is nowhere
 // near the gap keeps its place on the ladder.
-func TestFeedPollGapLeavesSeriesOutsideTheWindowAlone(t *testing.T) {
+func TestFeedPollGapLeavesTitlesOutsideTheWindowAlone(t *testing.T) {
 	now := time.Now()
 	h := newFeedPoll(t, nil, fakeConfig{})
 	pollThenGap(t, h, now.Add(-2*time.Hour))
@@ -674,7 +674,7 @@ func TestFeedPollGapResetIsBoundedToOnePass(t *testing.T) {
 			reset++
 			continue
 		}
-		// The two nearest-due series are the ones the ladder makes wait least.
+		// The two nearest-due titles are the ones the ladder makes wait least.
 		if i > 1 {
 			t.Errorf("series %d was left postponed; the furthest-postponed series come first", i)
 		}
@@ -722,7 +722,7 @@ func TestFeedPollDoesNotRewindOnAnOlderPage(t *testing.T) {
 
 	h := newFeedPoll(t, []indexer.FeedEntry{newer}, fakeConfig{})
 	ctx := context.Background()
-	if err := h.svc.PollFeedOnce(ctx); err != nil { // sees the newer page, no series yet
+	if err := h.svc.PollFeedOnce(ctx); err != nil { // sees the newer page, no title yet
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
 
@@ -731,7 +731,7 @@ func TestFeedPollDoesNotRewindOnAnOlderPage(t *testing.T) {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 
-	// Now the series exists and the indexer serves the original page again. The
+	// Now the title exists and the indexer serves the original page again. The
 	// newer entry was already seen, so it must not be taken a second time.
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, airsAt: &past}, sweepItem{number: 4, airsAt: &past})

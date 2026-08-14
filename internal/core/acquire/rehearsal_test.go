@@ -99,7 +99,7 @@ func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 
 	// The search cadence advances — a rehearsal must not re-decide the same item
 	// every tick. The grab-driven reset is what it cannot rehearse: a real grab
-	// would have made this series due next tick, a would-grab backs it off.
+	// would have made this title due next tick, a would-grab backs it off.
 	state := readSearchState(t, h.st, id)
 	if !state.lastSearched.Valid {
 		t.Error("last_searched_at not advanced by a rehearsed pass")
@@ -110,7 +110,7 @@ func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 	}
 }
 
-// The negative half: a series whose only coverage is ineligible reports what it
+// The negative half: a title whose only coverage is ineligible reports what it
 // refused and why, because that is exactly the misconfiguration a rehearsal
 // exists to surface.
 func TestNotifyOnlySweepReportsNothingEligible(t *testing.T) {
@@ -165,7 +165,7 @@ func TestNotifyOnlySweepReportsPinHold(t *testing.T) {
 	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)},
 		fakeConfig{notifyOnly: true, pinDelay: 6 * time.Hour})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
-	pinSeries(t, h.st, id, "OtherSubs", -1)
+	pinTitle(t, h.st, id, "OtherSubs", -1)
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -216,8 +216,8 @@ func TestNotifyOnlyFeedReportsInsteadOfGrabbing(t *testing.T) {
 	}
 }
 
-// The feed page mostly holds other series' releases, so a poll that would take
-// nothing for a series stays silent — the searched sweep owns "here's why not".
+// The feed page mostly holds other titles' releases, so a poll that would take
+// nothing for a title stays silent — the searched sweep owns "here's why not".
 func TestNotifyOnlyFeedStaysSilentWhenNothingWouldBeTaken(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	st := coretest.NewStore(t)
@@ -283,7 +283,7 @@ func TestNotifyOnlySweepReportsUncoveredItemsBesideAHold(t *testing.T) {
 		sweepItem{number: 1, airsAt: &aired},
 		sweepItem{number: 2, airsAt: &aired},
 		sweepItem{number: 3, airsAt: &aired})
-	pinSeries(t, h.st, id, "OtherSubs", -1)
+	pinTitle(t, h.st, id, "OtherSubs", -1)
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -350,9 +350,9 @@ func TestNotifyOnlyFlipsToOnAndOffLive(t *testing.T) {
 		t.Fatalf("notify-only added %d torrents", len(dl.Adds))
 	}
 
-	// No help from the test: a rehearsed pass leaves the series backed off, and
+	// No help from the test: a rehearsed pass leaves the title backed off, and
 	// flipping to on is what has to clear that (#116) — a user has no way to
-	// reach in and make the series due.
+	// reach in and make the title due.
 	if state := readSearchState(t, st, id); state.backoff == 0 {
 		t.Fatal("precondition: the rehearsed pass did not back the series off")
 	}
@@ -369,8 +369,8 @@ func TestNotifyOnlyFlipsToOnAndOffLive(t *testing.T) {
 	if err := cfg.UpdateAutomation(ctx, settings.AutomationConfig{Mode: settings.AutomationOff}); err != nil {
 		t.Fatalf("flip to off: %v", err)
 	}
-	// Due again, so "off" is proven to stop a series that would otherwise search.
-	makeSeriesDue(t, st, id)
+	// Due again, so "off" is proven to stop a title that would otherwise search.
+	makeTitleDue(t, st, id)
 	drainEvents(fn)
 	searches := len(idx.Queries)
 	if err := svc.SweepOnce(ctx); err != nil {
@@ -386,7 +386,7 @@ func TestNotifyOnlyFlipsToOnAndOffLive(t *testing.T) {
 	}
 }
 
-func makeSeriesDue(t *testing.T, st *store.Store, id int64) {
+func makeTitleDue(t *testing.T, st *store.Store, id int64) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE series SET next_search_at = NULL WHERE id = ?`, id); err != nil {

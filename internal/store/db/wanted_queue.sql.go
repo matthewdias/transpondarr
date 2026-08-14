@@ -11,14 +11,14 @@ import (
 	"strings"
 )
 
-const countSeriesByIDs = `-- name: CountSeriesByIDs :one
+const countTitlesByIDs = `-- name: CountTitlesByIDs :one
 SELECT COUNT(*) FROM series WHERE id IN (/*SLICE:ids*/?)
 `
 
 // How many of these ids are real series, so a bulk action can reject an unknown
 // one in a single round trip rather than a lookup per id.
-func (q *Queries) CountSeriesByIDs(ctx context.Context, ids []int64) (int64, error) {
-	query := countSeriesByIDs
+func (q *Queries) CountTitlesByIDs(ctx context.Context, ids []int64) (int64, error) {
+	query := countTitlesByIDs
 	var queryParams []interface{}
 	if len(ids) > 0 {
 		for _, v := range ids {
@@ -37,13 +37,13 @@ func (q *Queries) CountSeriesByIDs(ctx context.Context, ids []int64) (int64, err
 const listActiveBlocklistCounts = `-- name: ListActiveBlocklistCounts :many
 SELECT series_id, COUNT(*) AS entries
 FROM release_blocklist
-WHERE series_id IN (/*SLICE:series_ids*/?)
+WHERE series_id IN (/*SLICE:title_ids*/?)
   AND (blocked_until IS NULL OR blocked_until > ?)
 GROUP BY series_id
 `
 
 type ListActiveBlocklistCountsParams struct {
-	SeriesIds    []int64        `json:"series_ids"`
+	TitleIds     []int64        `json:"title_ids"`
 	BlockedUntil sql.NullString `json:"blocked_until"`
 }
 
@@ -60,13 +60,13 @@ type ListActiveBlocklistCountsRow struct {
 func (q *Queries) ListActiveBlocklistCounts(ctx context.Context, arg ListActiveBlocklistCountsParams) ([]ListActiveBlocklistCountsRow, error) {
 	query := listActiveBlocklistCounts
 	var queryParams []interface{}
-	if len(arg.SeriesIds) > 0 {
-		for _, v := range arg.SeriesIds {
+	if len(arg.TitleIds) > 0 {
+		for _, v := range arg.TitleIds {
 			queryParams = append(queryParams, v)
 		}
-		query = strings.Replace(query, "/*SLICE:series_ids*/?", strings.Repeat(",?", len(arg.SeriesIds))[1:], 1)
+		query = strings.Replace(query, "/*SLICE:title_ids*/?", strings.Repeat(",?", len(arg.TitleIds))[1:], 1)
 	} else {
-		query = strings.Replace(query, "/*SLICE:series_ids*/?", "NULL", 1)
+		query = strings.Replace(query, "/*SLICE:title_ids*/?", "NULL", 1)
 	}
 	queryParams = append(queryParams, arg.BlockedUntil)
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
@@ -91,14 +91,14 @@ func (q *Queries) ListActiveBlocklistCounts(ctx context.Context, arg ListActiveB
 	return items, nil
 }
 
-const listCutoffItemsBySeries = `-- name: ListCutoffItemsBySeries :many
+const listCutoffItemsByTitle = `-- name: ListCutoffItemsByTitle :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
        g.last_error    AS grab_last_error
 FROM wanted_items w
 JOIN grabs g ON g.wanted_item_id = w.id
-WHERE w.series_id IN (/*SLICE:series_ids*/?)
+WHERE w.series_id IN (/*SLICE:title_ids*/?)
   AND w.in_library = 1
   AND (? = 1 OR w.monitored = 1)
   AND w.held_release_title != ''
@@ -106,12 +106,12 @@ WHERE w.series_id IN (/*SLICE:series_ids*/?)
 ORDER BY w.series_id, w.number
 `
 
-type ListCutoffItemsBySeriesParams struct {
-	SeriesIds []int64     `json:"series_ids"`
-	Column2   interface{} `json:"column_2"`
+type ListCutoffItemsByTitleParams struct {
+	TitleIds []int64     `json:"title_ids"`
+	Column2  interface{} `json:"column_2"`
 }
 
-type ListCutoffItemsBySeriesRow struct {
+type ListCutoffItemsByTitleRow struct {
 	ID               int64          `json:"id"`
 	SeriesID         int64          `json:"series_id"`
 	Kind             string         `json:"kind"`
@@ -130,16 +130,16 @@ type ListCutoffItemsBySeriesRow struct {
 // cutoff test happen in Go under the one profile snapshot per series. The grab
 // join is inner and its status set matches the series page's, so a group's
 // items are exactly what made its series a candidate.
-func (q *Queries) ListCutoffItemsBySeries(ctx context.Context, arg ListCutoffItemsBySeriesParams) ([]ListCutoffItemsBySeriesRow, error) {
-	query := listCutoffItemsBySeries
+func (q *Queries) ListCutoffItemsByTitle(ctx context.Context, arg ListCutoffItemsByTitleParams) ([]ListCutoffItemsByTitleRow, error) {
+	query := listCutoffItemsByTitle
 	var queryParams []interface{}
-	if len(arg.SeriesIds) > 0 {
-		for _, v := range arg.SeriesIds {
+	if len(arg.TitleIds) > 0 {
+		for _, v := range arg.TitleIds {
 			queryParams = append(queryParams, v)
 		}
-		query = strings.Replace(query, "/*SLICE:series_ids*/?", strings.Repeat(",?", len(arg.SeriesIds))[1:], 1)
+		query = strings.Replace(query, "/*SLICE:title_ids*/?", strings.Repeat(",?", len(arg.TitleIds))[1:], 1)
 	} else {
-		query = strings.Replace(query, "/*SLICE:series_ids*/?", "NULL", 1)
+		query = strings.Replace(query, "/*SLICE:title_ids*/?", "NULL", 1)
 	}
 	queryParams = append(queryParams, arg.Column2)
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
@@ -147,9 +147,9 @@ func (q *Queries) ListCutoffItemsBySeries(ctx context.Context, arg ListCutoffIte
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListCutoffItemsBySeriesRow{}
+	items := []ListCutoffItemsByTitleRow{}
 	for rows.Next() {
-		var i ListCutoffItemsBySeriesRow
+		var i ListCutoffItemsByTitleRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.SeriesID,
@@ -177,8 +177,8 @@ func (q *Queries) ListCutoffItemsBySeries(ctx context.Context, arg ListCutoffIte
 	return items, nil
 }
 
-const listCutoffSeriesPage = `-- name: ListCutoffSeriesPage :many
-SELECT s.id, s.title, s.monitored,
+const listCutoffTitlesPage = `-- name: ListCutoffTitlesPage :many
+SELECT s.id, s.title, s.format, s.monitored,
        qp.id           AS profile_id,
        qp.name         AS profile_name,
        qp.cutoff_score AS profile_cutoff_score
@@ -201,7 +201,7 @@ ORDER BY s.title, s.id
 LIMIT ?
 `
 
-type ListCutoffSeriesPageParams struct {
+type ListCutoffTitlesPageParams struct {
 	Column1 interface{} `json:"column_1"`
 	Column2 interface{} `json:"column_2"`
 	Title   string      `json:"title"`
@@ -210,9 +210,10 @@ type ListCutoffSeriesPageParams struct {
 	Limit   int64       `json:"limit"`
 }
 
-type ListCutoffSeriesPageRow struct {
+type ListCutoffTitlesPageRow struct {
 	ID                 int64  `json:"id"`
 	Title              string `json:"title"`
+	Format             string `json:"format"`
 	Monitored          int64  `json:"monitored"`
 	ProfileID          int64  `json:"profile_id"`
 	ProfileName        string `json:"profile_name"`
@@ -229,8 +230,8 @@ type ListCutoffSeriesPageRow struct {
 // series here may contribute no group and the caller scans on. Ordered by title
 // -- this listing is an inventory, not a queue, so alphabetical reads best --
 // with the id tie-break ascending and a zero cursor as the natural top.
-func (q *Queries) ListCutoffSeriesPage(ctx context.Context, arg ListCutoffSeriesPageParams) ([]ListCutoffSeriesPageRow, error) {
-	rows, err := q.db.QueryContext(ctx, listCutoffSeriesPage,
+func (q *Queries) ListCutoffTitlesPage(ctx context.Context, arg ListCutoffTitlesPageParams) ([]ListCutoffTitlesPageRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCutoffTitlesPage,
 		arg.Column1,
 		arg.Column2,
 		arg.Title,
@@ -242,12 +243,13 @@ func (q *Queries) ListCutoffSeriesPage(ctx context.Context, arg ListCutoffSeries
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListCutoffSeriesPageRow{}
+	items := []ListCutoffTitlesPageRow{}
 	for rows.Next() {
-		var i ListCutoffSeriesPageRow
+		var i ListCutoffTitlesPageRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
+			&i.Format,
 			&i.Monitored,
 			&i.ProfileID,
 			&i.ProfileName,
@@ -266,7 +268,7 @@ func (q *Queries) ListCutoffSeriesPage(ctx context.Context, arg ListCutoffSeries
 	return items, nil
 }
 
-const listMissingItemsBySeries = `-- name: ListMissingItemsBySeries :many
+const listMissingItemsByTitle = `-- name: ListMissingItemsByTitle :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
@@ -281,7 +283,7 @@ SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.
 FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 LEFT JOIN pass_outcomes p ON p.wanted_item_id = w.id
-WHERE w.series_id IN (/*SLICE:series_ids*/?)
+WHERE w.series_id IN (/*SLICE:title_ids*/?)
   AND w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR w.monitored = 1)
@@ -289,14 +291,14 @@ WHERE w.series_id IN (/*SLICE:series_ids*/?)
 ORDER BY w.series_id, w.number
 `
 
-type ListMissingItemsBySeriesParams struct {
-	SeriesIds []int64        `json:"series_ids"`
-	Column2   interface{}    `json:"column_2"`
-	Column3   interface{}    `json:"column_3"`
-	AirsAt    sql.NullString `json:"airs_at"`
+type ListMissingItemsByTitleParams struct {
+	TitleIds []int64        `json:"title_ids"`
+	Column2  interface{}    `json:"column_2"`
+	Column3  interface{}    `json:"column_3"`
+	AirsAt   sql.NullString `json:"airs_at"`
 }
 
-type ListMissingItemsBySeriesRow struct {
+type ListMissingItemsByTitleRow struct {
 	ID               int64          `json:"id"`
 	SeriesID         int64          `json:"series_id"`
 	Kind             string         `json:"kind"`
@@ -326,16 +328,16 @@ type ListMissingItemsBySeriesRow struct {
 // Both joins are 1:1, so neither multiplies rows. The grab's created_at rides
 // along because the reason column ranks a stored pass outcome against it: an
 // answer older than the grab is one the grab has already superseded.
-func (q *Queries) ListMissingItemsBySeries(ctx context.Context, arg ListMissingItemsBySeriesParams) ([]ListMissingItemsBySeriesRow, error) {
-	query := listMissingItemsBySeries
+func (q *Queries) ListMissingItemsByTitle(ctx context.Context, arg ListMissingItemsByTitleParams) ([]ListMissingItemsByTitleRow, error) {
+	query := listMissingItemsByTitle
 	var queryParams []interface{}
-	if len(arg.SeriesIds) > 0 {
-		for _, v := range arg.SeriesIds {
+	if len(arg.TitleIds) > 0 {
+		for _, v := range arg.TitleIds {
 			queryParams = append(queryParams, v)
 		}
-		query = strings.Replace(query, "/*SLICE:series_ids*/?", strings.Repeat(",?", len(arg.SeriesIds))[1:], 1)
+		query = strings.Replace(query, "/*SLICE:title_ids*/?", strings.Repeat(",?", len(arg.TitleIds))[1:], 1)
 	} else {
-		query = strings.Replace(query, "/*SLICE:series_ids*/?", "NULL", 1)
+		query = strings.Replace(query, "/*SLICE:title_ids*/?", "NULL", 1)
 	}
 	queryParams = append(queryParams, arg.Column2)
 	queryParams = append(queryParams, arg.Column3)
@@ -345,9 +347,9 @@ func (q *Queries) ListMissingItemsBySeries(ctx context.Context, arg ListMissingI
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListMissingItemsBySeriesRow{}
+	items := []ListMissingItemsByTitleRow{}
 	for rows.Next() {
-		var i ListMissingItemsBySeriesRow
+		var i ListMissingItemsByTitleRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.SeriesID,
@@ -382,9 +384,9 @@ func (q *Queries) ListMissingItemsBySeries(ctx context.Context, arg ListMissingI
 	return items, nil
 }
 
-const listMissingSeriesPage = `-- name: ListMissingSeriesPage :many
+const listMissingTitlesPage = `-- name: ListMissingTitlesPage :many
 
-SELECT s.id, s.title, s.monitored, s.last_searched_at, s.next_search_at,
+SELECT s.id, s.title, s.format, s.monitored, s.last_searched_at, s.next_search_at,
        MAX(COALESCE(w.airs_at, '')) AS latest_missing_air,
        COUNT(*)                     AS missing
 FROM wanted_items w
@@ -400,7 +402,7 @@ ORDER BY MAX(COALESCE(w.airs_at, '')) DESC, s.id
 LIMIT ?
 `
 
-type ListMissingSeriesPageParams struct {
+type ListMissingTitlesPageParams struct {
 	Column1  interface{}    `json:"column_1"`
 	Column2  interface{}    `json:"column_2"`
 	AirsAt   sql.NullString `json:"airs_at"`
@@ -410,9 +412,10 @@ type ListMissingSeriesPageParams struct {
 	Limit    int64          `json:"limit"`
 }
 
-type ListMissingSeriesPageRow struct {
+type ListMissingTitlesPageRow struct {
 	ID               int64          `json:"id"`
 	Title            string         `json:"title"`
+	Format           string         `json:"format"`
 	Monitored        int64          `json:"monitored"`
 	LastSearchedAt   sql.NullString `json:"last_searched_at"`
 	NextSearchAt     sql.NullString `json:"next_search_at"`
@@ -428,7 +431,7 @@ type ListMissingSeriesPageRow struct {
 // character. See CLAUDE.md.
 // The Missing tab's pagination unit is the series, so a group can never split
 // across a page boundary. The wanted half is the sweep's predicate character
-// for character (the EXISTS body of ListSeriesDueWantedSearch), which is what
+// for character (the EXISTS body of ListTitlesDueWantedSearch), which is what
 // keeps this page honest about what automation will go after; an in-flight
 // grab is absent by construction, being Activity's to show. Monitoring and the
 // unaired cut are display filters, not exclusions: a row has to stay visible
@@ -444,8 +447,8 @@ type ListMissingSeriesPageRow struct {
 // on the aggregate; a first page passes a sentinel above every stored value so
 // one query serves every page. The count is the whole group even when the
 // handler caps the items it returns for one.
-func (q *Queries) ListMissingSeriesPage(ctx context.Context, arg ListMissingSeriesPageParams) ([]ListMissingSeriesPageRow, error) {
-	rows, err := q.db.QueryContext(ctx, listMissingSeriesPage,
+func (q *Queries) ListMissingTitlesPage(ctx context.Context, arg ListMissingTitlesPageParams) ([]ListMissingTitlesPageRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMissingTitlesPage,
 		arg.Column1,
 		arg.Column2,
 		arg.AirsAt,
@@ -458,12 +461,13 @@ func (q *Queries) ListMissingSeriesPage(ctx context.Context, arg ListMissingSeri
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListMissingSeriesPageRow{}
+	items := []ListMissingTitlesPageRow{}
 	for rows.Next() {
-		var i ListMissingSeriesPageRow
+		var i ListMissingTitlesPageRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
+			&i.Format,
 			&i.Monitored,
 			&i.LastSearchedAt,
 			&i.NextSearchAt,

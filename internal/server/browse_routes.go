@@ -94,7 +94,7 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 				Studio:       e.Studio,
 				CoverURL:     e.CoverURL,
 				Tracked:      e.Tracked,
-				TitleID:      e.SeriesID,
+				TitleID:      e.TitleID,
 			}
 			if e.NextAiring != nil {
 				dto.NextEpisode = e.NextAiring.Number

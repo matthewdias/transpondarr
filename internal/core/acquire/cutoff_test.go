@@ -12,7 +12,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// All fixtures use invented series/group names; only the naming structure under
+// All fixtures use invented title/group names; only the naming structure under
 // test is real. The profile ranks TopSubs above MidSubs at 1080p/720p, so a held
 // release scores predictably: group 2000/1900, resolution 400/300.
 func upgradingProfile(t *testing.T, st *store.Store, name string, cutoff int64) int64 {
@@ -39,12 +39,12 @@ func upgradingProfile(t *testing.T, st *store.Store, name string, cutoff int64) 
 	return p.ID
 }
 
-// putOnProfile moves a seeded series onto a profile, which is what decides
+// putOnProfile moves a seeded title onto a profile, which is what decides
 // whether its held items are candidates at all.
-func putOnProfile(t *testing.T, st *store.Store, seriesID, profileID int64) {
+func putOnProfile(t *testing.T, st *store.Store, titleID, profileID int64) {
 	t.Helper()
-	rows, err := st.Q.SetSeriesProfile(context.Background(), db.SetSeriesProfileParams{
-		QualityProfileID: profileID, ID: seriesID, ID_2: profileID,
+	rows, err := st.Q.SetTitleProfile(context.Background(), db.SetTitleProfileParams{
+		QualityProfileID: profileID, ID: titleID, ID_2: profileID,
 	})
 	if err != nil || rows != 1 {
 		t.Fatalf("set series profile: %v (%d rows)", err, rows)
@@ -52,12 +52,12 @@ func putOnProfile(t *testing.T, st *store.Store, seriesID, profileID int64) {
 }
 
 // hold marks an item as held by a release, which is what the cutoff scores.
-func hold(t *testing.T, st *store.Store, seriesID int64, number int, releaseTitle string) {
+func hold(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string) {
 	t.Helper()
 	ctx := context.Background()
 	var id int64
 	if err := st.DB.QueryRowContext(ctx,
-		`SELECT id FROM wanted_items WHERE series_id = ? AND number = ?`, seriesID, number).Scan(&id); err != nil {
+		`SELECT id FROM wanted_items WHERE series_id = ? AND number = ?`, titleID, number).Scan(&id); err != nil {
 		t.Fatalf("look up item %d: %v", number, err)
 	}
 	if err := st.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
@@ -78,17 +78,17 @@ func cutoffService(t *testing.T, st *store.Store) *acquire.Service {
 }
 
 // Membership is exact: a held release scoring below its profile's cutoff is in,
-// one at or above it is out, and a series on a non-upgrading profile never
+// one at or above it is out, and a title on a non-upgrading profile never
 // appears at all. The cutoff and profile name live on the group, being the
 // profile's rather than any one item's.
 func TestCutoffUnmetMembership(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
-	seriesID := seedSeries(t, st, "Placeholder Saga", 3)
-	putOnProfile(t, st, seriesID, upgradingProfile(t, st, "Upgrading", 2300))
-	hold(t, st, seriesID, 1, "[TopSubs] Placeholder Saga - 01 [720p]")  // 2300: met
-	hold(t, st, seriesID, 2, "[MidSubs] Placeholder Saga - 02 [720p]")  // 2200: unmet
-	hold(t, st, seriesID, 3, "[TopSubs] Placeholder Saga - 03 [1080p]") // 2400: met
+	titleID := seedTitle(t, st, "Placeholder Saga", 3)
+	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
+	hold(t, st, titleID, 1, "[TopSubs] Placeholder Saga - 01 [720p]")  // 2300: met
+	hold(t, st, titleID, 2, "[MidSubs] Placeholder Saga - 02 [720p]")  // 2200: unmet
+	hold(t, st, titleID, 3, "[TopSubs] Placeholder Saga - 03 [1080p]") // 2400: met
 
 	static, err := st.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
 		Name: "Static", ResolutionOrder: `["1080p","720p"]`, HardExcludes: `[]`, CutoffScore: 9000,
@@ -96,7 +96,7 @@ func TestCutoffUnmetMembership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create static profile: %v", err)
 	}
-	other := seedSeries(t, st, "Static Show", 1)
+	other := seedTitle(t, st, "Static Show", 1)
 	putOnProfile(t, st, other, static.ID)
 	hold(t, st, other, 1, "[MidSubs] Static Show - 01 [720p]")
 
@@ -108,7 +108,7 @@ func TestCutoffUnmetMembership(t *testing.T) {
 		t.Fatalf("groups = %+v, want only the upgrading series", page.Groups)
 	}
 	g := page.Groups[0]
-	if g.SeriesID != seriesID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
+	if g.TitleID != titleID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
 		t.Errorf("group = %+v, want Placeholder Saga on Upgrading at 2300 with 1 below", g)
 	}
 	if len(g.Items) != 1 || g.Items[0].Number != 2 {
@@ -125,13 +125,13 @@ func TestCutoffUnmetMembership(t *testing.T) {
 
 // holdWithStatus is hold with the grab left in a chosen state, which is what
 // decides whether the upgrade pool can act on the item at all.
-func holdWithStatus(t *testing.T, st *store.Store, seriesID int64, number int, releaseTitle, status string) {
+func holdWithStatus(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle, status string) {
 	t.Helper()
-	hold(t, st, seriesID, number, releaseTitle)
+	hold(t, st, titleID, number, releaseTitle)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE grabs SET status = ? WHERE wanted_item_id =
 		     (SELECT id FROM wanted_items WHERE series_id = ? AND number = ?)`,
-		status, seriesID, number); err != nil {
+		status, titleID, number); err != nil {
 		t.Fatalf("set grab status for item %d: %v", number, err)
 	}
 }
@@ -142,14 +142,14 @@ func holdWithStatus(t *testing.T, st *store.Store, seriesID int64, number int, r
 // orphan the payload the episode is sitting in.
 func TestCutoffUnmetMembershipMatchesTheUpgradePool(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, "Placeholder Saga", 4)
-	putOnProfile(t, st, seriesID, upgradingProfile(t, st, "Upgrading", 2300))
+	titleID := seedTitle(t, st, "Placeholder Saga", 4)
+	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
 	// All four hold the same sub-cutoff release; only the grab state differs.
 	const held = "[MidSubs] Placeholder Saga - %s [720p]"
-	holdWithStatus(t, st, seriesID, 1, fmt.Sprintf(held, "01"), "imported")
-	holdWithStatus(t, st, seriesID, 2, fmt.Sprintf(held, "02"), "failed")
-	holdWithStatus(t, st, seriesID, 3, fmt.Sprintf(held, "03"), "grabbed")
-	holdWithStatus(t, st, seriesID, 4, fmt.Sprintf(held, "04"), "import_deferred")
+	holdWithStatus(t, st, titleID, 1, fmt.Sprintf(held, "01"), "imported")
+	holdWithStatus(t, st, titleID, 2, fmt.Sprintf(held, "02"), "failed")
+	holdWithStatus(t, st, titleID, 3, fmt.Sprintf(held, "03"), "grabbed")
+	holdWithStatus(t, st, titleID, 4, fmt.Sprintf(held, "04"), "import_deferred")
 
 	page, err := cutoffService(t, st).CutoffUnmet(context.Background(), acquire.CutoffUnmetParams{Limit: 20})
 	if err != nil {
@@ -173,22 +173,22 @@ func TestCutoffUnmetMembershipMatchesTheUpgradePool(t *testing.T) {
 	}
 }
 
-// A page of groups is filled by scanning past series whose held releases all
-// meet their cutoff, and a series never splits across pages.
-func TestCutoffUnmetPagesGroupsPastMetSeries(t *testing.T) {
+// A page of groups is filled by scanning past title whose held releases all
+// meet their cutoff, and a title never splits across pages.
+func TestCutoffUnmetPagesGroupsPastMetTitles(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
 	profileID := upgradingProfile(t, st, "Upgrading", 2300)
 	// Titles sort A..F; the even ones hold sub-cutoff releases, the odd ones are
 	// fully met and must be scanned over without becoming groups.
 	titles := []string{"Alpha Saga", "Bravo Saga", "Charlie Saga", "Delta Saga", "Echo Saga", "Foxtrot Saga"}
-	wantSeries := map[string]bool{"Bravo Saga": true, "Delta Saga": true, "Foxtrot Saga": true}
+	wantTitles := map[string]bool{"Bravo Saga": true, "Delta Saga": true, "Foxtrot Saga": true}
 	for i, title := range titles {
-		id := seedSeries(t, st, title, 2)
+		id := seedTitle(t, st, title, 2)
 		putOnProfile(t, st, id, profileID)
 		for n := 1; n <= 2; n++ {
 			res, group := "1080p", "TopSubs"
-			if wantSeries[title] {
+			if wantTitles[title] {
 				res, group = "720p", "MidSubs"
 			}
 			hold(t, st, id, n, "["+group+"] "+title+" - "+strconv.Itoa(n)+" ["+res+"]")
@@ -205,9 +205,9 @@ func TestCutoffUnmetPagesGroupsPastMetSeries(t *testing.T) {
 			t.Fatalf("CutoffUnmet: %v", err)
 		}
 		for _, g := range page.Groups {
-			seen[g.SeriesTitle] += len(g.Items)
+			seen[g.TitleName] += len(g.Items)
 			if len(g.Items) != 2 || g.Below != 2 {
-				t.Fatalf("group %s arrived split: %+v", g.SeriesTitle, g)
+				t.Fatalf("group %s arrived split: %+v", g.TitleName, g)
 			}
 		}
 		pages++
@@ -222,22 +222,22 @@ func TestCutoffUnmetPagesGroupsPastMetSeries(t *testing.T) {
 	if len(seen) != 3 {
 		t.Fatalf("saw %v, want exactly the three sub-cutoff series", seen)
 	}
-	for title := range wantSeries {
+	for title := range wantTitles {
 		if seen[title] != 2 {
 			t.Errorf("series %s items = %d, want its whole 2", title, seen[title])
 		}
 	}
 }
 
-// Unmonitored series are withheld unless asked for: the toggle mirrors the
+// Unmonitored title are withheld unless asked for: the toggle mirrors the
 // calendar's rather than inventing a second meaning.
 func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
-	seriesID := seedSeries(t, st, "Quiet Show", 1)
-	putOnProfile(t, st, seriesID, upgradingProfile(t, st, "Upgrading", 2300))
-	hold(t, st, seriesID, 1, "[MidSubs] Quiet Show - 01 [720p]")
-	if _, err := st.DB.ExecContext(ctx, `UPDATE series SET monitored = 0 WHERE id = ?`, seriesID); err != nil {
+	titleID := seedTitle(t, st, "Quiet Show", 1)
+	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
+	hold(t, st, titleID, 1, "[MidSubs] Quiet Show - 01 [720p]")
+	if _, err := st.DB.ExecContext(ctx, `UPDATE series SET monitored = 0 WHERE id = ?`, titleID); err != nil {
 		t.Fatalf("unmonitor: %v", err)
 	}
 
@@ -259,15 +259,15 @@ func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 }
 
 // A page also closes on the item budget: groups of capped size stop stacking
-// at about 200 items, and the cursor resumes at the excluded series rather
+// at about 200 items, and the cursor resumes at the excluded title rather
 // than after it, so nothing is skipped.
 func TestCutoffUnmetPageClosesOnTheItemBudget(t *testing.T) {
 	st := coretest.NewStore(t)
 	profileID := upgradingProfile(t, st, "Upgrading", 2300)
-	// Five series of 50 sub-cutoff holds each: the budget admits four (200).
+	// Five title of 50 sub-cutoff holds each: the budget admits four (200).
 	titles := []string{"Bulk A", "Bulk B", "Bulk C", "Bulk D", "Bulk E"}
 	for _, title := range titles {
-		id := seedSeries(t, st, title, 50)
+		id := seedTitle(t, st, title, 50)
 		putOnProfile(t, st, id, profileID)
 		for n := 1; n <= 50; n++ {
 			hold(t, st, id, n, "[MidSubs] "+title+" - "+strconv.Itoa(n)+" [720p]")
@@ -291,7 +291,7 @@ func TestCutoffUnmetPageClosesOnTheItemBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CutoffUnmet page 2: %v", err)
 	}
-	if len(rest.Groups) != 1 || rest.Groups[0].SeriesTitle != "Bulk E" {
+	if len(rest.Groups) != 1 || rest.Groups[0].TitleName != "Bulk E" {
 		t.Fatalf("page 2 groups = %+v, want exactly the excluded Bulk E", rest.Groups)
 	}
 	if rest.NextCursor != (acquire.QueueCursor{}) {
@@ -303,10 +303,10 @@ func TestCutoffUnmetPageClosesOnTheItemBudget(t *testing.T) {
 // is the front of the run.
 func TestCutoffUnmetCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedSeries(t, st, "Very Held Saga", 60)
-	putOnProfile(t, st, seriesID, upgradingProfile(t, st, "Upgrading", 2300))
+	titleID := seedTitle(t, st, "Very Held Saga", 60)
+	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
 	for n := 1; n <= 60; n++ {
-		hold(t, st, seriesID, n, "[MidSubs] Very Held Saga - "+strconv.Itoa(n)+" [720p]")
+		hold(t, st, titleID, n, "[MidSubs] Very Held Saga - "+strconv.Itoa(n)+" [720p]")
 	}
 
 	page, err := cutoffService(t, st).CutoffUnmet(context.Background(), acquire.CutoffUnmetParams{Limit: 5})

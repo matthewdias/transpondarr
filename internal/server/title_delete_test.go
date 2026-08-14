@@ -13,10 +13,10 @@ import (
 )
 
 // seedGrab records a grab in the given status against the item numbered number.
-func seedGrab(t *testing.T, st *store.Store, seriesID int64, number int, hash, status string) {
+func seedGrab(t *testing.T, st *store.Store, titleID int64, number int, hash, status string) {
 	t.Helper()
 	ctx := context.Background()
-	items, err := st.Q.ListWantedItems(ctx, seriesID)
+	items, err := st.Q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}
@@ -43,16 +43,16 @@ func countRows(t *testing.T, st *store.Store, query string, args ...any) int {
 	return n
 }
 
-// Deleting a series removes it and everything hanging off it — wanted items,
+// Deleting a title removes it and everything hanging off it — wanted items,
 // grabs, blocklist memory — and, without the flag, never touches the download
 // client.
-func TestDeleteSeriesRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
+func TestDeleteTitleRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 	dl := &coretest.FakeDownload{}
 	h := newHarness(t, nil, dl)
-	id := seedSeries(t, h.store, "Placeholder Saga", 3)
-	// A second series the delete must leave alone, so the list assertion below
+	id := seedTitle(t, h.store, "Placeholder Saga", 3)
+	// A second title the delete must leave alone, so the list assertion below
 	// has something to find rather than passing on an empty page.
-	survivor := seedSeries(t, h.store, "Second Saga", 2)
+	survivor := seedTitle(t, h.store, "Second Saga", 2)
 	seedGrab(t, h.store, id, 1, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "grabbed")
 	if _, err := h.store.DB.ExecContext(context.Background(),
 		`INSERT INTO release_blocklist (series_id, info_hash, release_title, normalized_title, reason)
@@ -102,7 +102,7 @@ func TestDeleteSeriesRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 	}
 }
 
-func TestDeleteSeriesUnknownIDIs404(t *testing.T) {
+func TestDeleteTitleUnknownIDIs404(t *testing.T) {
 	h := newHarness(t, nil, &coretest.FakeDownload{})
 	if code := do(t, h, http.MethodDelete, "/api/v1/titles/404", nil, nil); code != http.StatusNotFound {
 		t.Fatalf("delete status = %d, want 404", code)
@@ -112,10 +112,10 @@ func TestDeleteSeriesUnknownIDIs404(t *testing.T) {
 // remove_downloads collects every grab's hash except failed ones (failed means
 // errored or already gone from the client), deduped — a batch writes one grab
 // row per covered item sharing a hash — and lowercased, with the payload data.
-func TestDeleteSeriesRemoveDownloadsCollectsHashes(t *testing.T) {
+func TestDeleteTitleRemoveDownloadsCollectsHashes(t *testing.T) {
 	dl := &coretest.FakeDownload{}
 	h := newHarness(t, nil, dl)
-	id := seedSeries(t, h.store, "Placeholder Saga", 5)
+	id := seedTitle(t, h.store, "Placeholder Saga", 5)
 	seedGrab(t, h.store, id, 1, "AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111", "grabbed")
 	seedGrab(t, h.store, id, 2, "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222", "imported")
 	seedGrab(t, h.store, id, 3, "cccc3333cccc3333cccc3333cccc3333cccc3333", "import_deferred")
@@ -153,13 +153,13 @@ func TestDeleteSeriesRemoveDownloadsCollectsHashes(t *testing.T) {
 	}
 }
 
-// The flag with no configured client is a 503 and the series survives — but only
+// The flag with no configured client is a 503 and the title survives — but only
 // when there is actually something to remove; with no in-client grabs the client
 // is never needed.
-func TestDeleteSeriesRemoveDownloadsWithoutClient(t *testing.T) {
+func TestDeleteTitleRemoveDownloadsWithoutClient(t *testing.T) {
 	t.Run("grabs in the client", func(t *testing.T) {
 		h := newHarness(t, nil, nil)
-		id := seedSeries(t, h.store, "Placeholder Saga", 1)
+		id := seedTitle(t, h.store, "Placeholder Saga", 1)
 		seedGrab(t, h.store, id, 1, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "grabbed")
 
 		code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/titles/%d?remove_downloads=true", id), nil, nil)
@@ -172,7 +172,7 @@ func TestDeleteSeriesRemoveDownloadsWithoutClient(t *testing.T) {
 	})
 	t.Run("nothing to remove", func(t *testing.T) {
 		h := newHarness(t, nil, nil)
-		id := seedSeries(t, h.store, "Placeholder Saga", 1)
+		id := seedTitle(t, h.store, "Placeholder Saga", 1)
 		seedGrab(t, h.store, id, 1, "dddd4444dddd4444dddd4444dddd4444dddd4444", "failed")
 
 		code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/titles/%d?remove_downloads=true", id), nil, nil)
@@ -182,12 +182,12 @@ func TestDeleteSeriesRemoveDownloadsWithoutClient(t *testing.T) {
 	})
 }
 
-// Remove-first ordering: a client that refuses the removal leaves the series
+// Remove-first ordering: a client that refuses the removal leaves the title
 // intact and the whole delete retryable, rather than orphaning its torrents.
-func TestDeleteSeriesClientFailureLeavesTheSeriesIntact(t *testing.T) {
+func TestDeleteTitleClientFailureLeavesTheTitleIntact(t *testing.T) {
 	dl := &coretest.FakeDownload{RemoveErr: errors.New("qbit: refused")}
 	h := newHarness(t, nil, dl)
-	id := seedSeries(t, h.store, "Placeholder Saga", 1)
+	id := seedTitle(t, h.store, "Placeholder Saga", 1)
 	seedGrab(t, h.store, id, 1, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "grabbed")
 
 	code := do(t, h, http.MethodDelete, fmt.Sprintf("/api/v1/titles/%d?remove_downloads=true", id), nil, nil)

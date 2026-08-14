@@ -6,14 +6,14 @@
 // (#101) owns releases published while we are watching: one request lists an
 // indexer's newest releases, so it is flat in library size and cheap enough to
 // run on a short tick. The sweep (#100) owns what already existed before we
-// looked — back-catalog, anything that scrolled off the feed page, a series
+// looked — back-catalog, anything that scrolled off the feed page, a title
 // added after an entry was seen — and owns everything when no feed is
-// configured, at one search per series.
+// configured, at one search per title.
 //
 // Cadence follows that division: with a feed configured the sweep stands down
 // from the airing window and sleeps on its backoff. Grab scope deliberately does
 // not. A sweep search that turns up a current release still takes it, because
-// the feed's dedupe is one-shot — an entry seen before its series or item
+// the feed's dedupe is one-shot — an entry seen before its title or item
 // existed never comes around again, and the sweep is the only thing that rescues
 // it.
 //
@@ -53,7 +53,7 @@ import (
 var (
 	ErrNoIndexer        = errors.New("acquire: no indexer configured")
 	ErrNoDownloadClient = errors.New("acquire: no download client configured")
-	ErrSeriesNotFound   = errors.New("acquire: series not found")
+	ErrTitleNotFound    = errors.New("acquire: series not found")
 	ErrIndexerSearch    = errors.New("acquire: indexer search failed")
 	ErrDownloadAdd      = errors.New("acquire: download client add failed")
 )
@@ -69,7 +69,7 @@ type ClientSource interface {
 
 // TitleSource supplies a title's accepted name variants (satisfied by
 // *catalog.Service). ProviderName names the id space TitleVariants reads: the
-// sweep and feed both serve series regardless of provider, so it is the caller's
+// sweep and feed both serve title regardless of provider, so it is the caller's
 // job not to hand over an id numbered somewhere else.
 type TitleSource interface {
 	ProviderName() string
@@ -87,7 +87,7 @@ type CachedTitleSource interface {
 // first next pass. Satisfied by *blocklist.Service, which must be the instance
 // the importer holds: false means its breaker refused to blame the release.
 type Recorder interface {
-	Record(ctx context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
+	Record(ctx context.Context, titleID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }
 
 // Config is the runtime configuration acquire reads (satisfied by
@@ -102,10 +102,10 @@ type Config interface {
 	PinDelayDefault() time.Duration
 }
 
-// Match is one series' search result: the ranked candidates plus the inputs a
+// Match is one title's search result: the ranked candidates plus the inputs a
 // caller needs to act on them.
 type Match struct {
-	Series     db.Series
+	Title      db.Series
 	Term       string
 	Items      []domain.WantedItem
 	Candidates []decide.Candidate
@@ -162,33 +162,33 @@ func New(st *store.Store, clients ClientSource, titles TitleSource, cfg Config, 
 		blocklist: blocklist, claims: newClaims()}
 }
 
-// MatchSeries loads a series with every wanted item and matches indexer releases
+// MatchTitle loads a title with every wanted item and matches indexer releases
 // against it.
-func (s *Service) MatchSeries(ctx context.Context, id int64) (Match, error) {
+func (s *Service) MatchTitle(ctx context.Context, id int64) (Match, error) {
 	idx := s.clients.Indexer()
 	if idx == nil {
 		return Match{}, ErrNoIndexer
 	}
-	series, items, err := s.loadItems(ctx, id)
+	title, items, err := s.loadItems(ctx, id)
 	if err != nil {
 		return Match{}, err
 	}
-	return s.match(ctx, idx, series, items)
+	return s.match(ctx, idx, title, items)
 }
 
-// loadItems reads a series and every wanted item belonging to it. Nothing
+// loadItems reads a title and every wanted item belonging to it. Nothing
 // withholds an item from a manual pass: an item we hold is offered as an
 // upgrade, since profiles inform manual actions and gate only automation
 // (PR #57). A held item with no recorded release matches as a plain one.
 func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passItem, error) {
-	series, err := s.store.Q.GetSeries(ctx, id)
+	title, err := s.store.Q.GetTitle(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.Series{}, nil, ErrSeriesNotFound
+		return db.Series{}, nil, ErrTitleNotFound
 	}
 	if err != nil {
 		return db.Series{}, nil, fmt.Errorf("load series %d: %w", id, err)
 	}
-	rows, err := s.store.Q.ListWantedItems(ctx, series.ID)
+	rows, err := s.store.Q.ListWantedItems(ctx, title.ID)
 	if err != nil {
 		return db.Series{}, nil, fmt.Errorf("load wanted items for series %d: %w", id, err)
 	}
@@ -208,54 +208,54 @@ func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passIte
 		}
 		items = append(items, it)
 	}
-	return series, items, nil
+	return title, items, nil
 }
 
 // match takes the item list explicitly so a caller can scope what is worth
 // grabbing — the sweep marks in-flight and unaired items non-candidates — while
 // reusing one matcher.
-func (s *Service) match(ctx context.Context, idx indexer.Indexer, series db.Series, items []passItem) (Match, error) {
-	variants := s.variants(ctx, series)
+func (s *Service) match(ctx context.Context, idx indexer.Indexer, title db.Series, items []passItem) (Match, error) {
+	variants := s.variants(ctx, title)
 	releases, term, err := s.search(ctx, idx, variants)
 	if err != nil {
 		return Match{}, err
 	}
-	return s.evaluate(ctx, series, items, variants, term, releases)
+	return s.evaluate(ctx, title, items, variants, term, releases)
 }
 
-// variants are the names the matcher will accept for a series (romaji/english/
+// variants are the names the matcher will accept for a title (romaji/english/
 // native), so a release using a different one of them still matches.
 // Best-effort: fall back to the stored title if the metadata lookup fails.
-func (s *Service) variants(ctx context.Context, series db.Series) []string {
-	variants := []string{series.Title}
-	if s.readsProvider(series) {
-		if v, err := s.titles.TitleVariants(ctx, series.ProviderID.Int64); err == nil {
+func (s *Service) variants(ctx context.Context, title db.Series) []string {
+	variants := []string{title.Title}
+	if s.readsProvider(title) {
+		if v, err := s.titles.TitleVariants(ctx, title.ProviderID.Int64); err == nil {
 			variants = append(variants, v...)
 		}
 	}
 	return variants
 }
 
-// readsProvider reports whether series is keyed on the id space the title source
-// reads. Untracked series and any keyed elsewhere match on their stored title.
-func (s *Service) readsProvider(series db.Series) bool {
-	return series.ProviderID.Valid && series.Provider.String == s.titles.ProviderName()
+// readsProvider reports whether title is keyed on the id space the title source
+// reads. Untracked title and any keyed elsewhere match on their stored title.
+func (s *Service) readsProvider(title db.Series) bool {
+	return title.ProviderID.Valid && title.Provider.String == s.titles.ProviderName()
 }
 
 // cachedVariants is variants for the unbounded feed path (#139). A missing
 // capability or snapshot degrades to the stored title — never to the fetching
 // path, which would silently reintroduce the unbounded provider spend.
-func (s *Service) cachedVariants(ctx context.Context, series db.Series) []string {
-	variants := []string{series.Title}
-	if !s.readsProvider(series) {
+func (s *Service) cachedVariants(ctx context.Context, title db.Series) []string {
+	variants := []string{title.Title}
+	if !s.readsProvider(title) {
 		return variants
 	}
 	if src, ok := s.titles.(CachedTitleSource); ok {
-		v, hit, err := src.CachedTitleVariants(ctx, series.ProviderID.Int64)
+		v, hit, err := src.CachedTitleVariants(ctx, title.ProviderID.Int64)
 		switch {
 		case err != nil:
 			s.log.Debug("cached title variants unreadable; matching on the stored title alone",
-				"series", series.ID, "err", err)
+				"series", title.ID, "err", err)
 		case hit:
 			variants = append(variants, v...)
 		}
@@ -263,7 +263,7 @@ func (s *Service) cachedVariants(ctx context.Context, series db.Series) []string
 	return variants
 }
 
-// search asks the indexer for one series, reporting the term that answered.
+// search asks the indexer for one title, reporting the term that answered.
 // Sanitized title first, then each variant as a zero-result fallback (#107): a
 // romaji term can be unsearchable even sanitized, and one extra request is cheap
 // next to reporting nothing.
@@ -287,42 +287,42 @@ func (s *Service) search(ctx context.Context, idx indexer.Indexer, variants []st
 	return releases, term, nil
 }
 
-// evaluate ranks already-fetched releases against a series. It is split from the
+// evaluate ranks already-fetched releases against a title. It is split from the
 // search so the feed poll (#101) drives exactly this decision layer — profile,
-// blocklist, eligibility — over one page it fetched once for every series.
-func (s *Service) evaluate(ctx context.Context, series db.Series, items []passItem, variants []string, term string, releases []indexer.Release) (Match, error) {
-	profile, err := s.profile(ctx, series)
+// blocklist, eligibility — over one page it fetched once for every title.
+func (s *Service) evaluate(ctx context.Context, title db.Series, items []passItem, variants []string, term string, releases []indexer.Release) (Match, error) {
+	profile, err := s.profile(ctx, title)
 	if err != nil {
 		return Match{}, err
 	}
-	blocked, err := s.blocked(ctx, series.ID)
+	blocked, err := s.blocked(ctx, title.ID)
 	if err != nil {
 		return Match{}, err
 	}
 
 	return Match{
-		Series: series,
-		Term:   term,
-		Items:  wantedItems(items),
+		Title: title,
+		Term:  term,
+		Items: wantedItems(items),
 		Candidates: decide.Match(matchItems(items), variants, releases, profile,
 			decide.MatchOpts{
-				PinnedGroup: series.PinnedGroup.String,
+				PinnedGroup: title.PinnedGroup.String,
 				Blocked:     blocked,
-				Format:      domain.Format(series.Format),
-				Year:        int(series.Year),
+				Format:      domain.Format(title.Format),
+				Year:        int(title.Year),
 			}),
 	}, nil
 }
 
-// blocked loads the series' active release blocklist. Read off the store rather
+// blocked loads the title's active release blocklist. Read off the store rather
 // than blocklist.Service so acquire need not depend on the package that writes it.
-func (s *Service) blocked(ctx context.Context, seriesID int64) (decide.BlockedSet, error) {
+func (s *Service) blocked(ctx context.Context, titleID int64) (decide.BlockedSet, error) {
 	rows, err := s.store.Q.ListActiveBlocklist(ctx, db.ListActiveBlocklistParams{
-		SeriesID:     seriesID,
+		SeriesID:     titleID,
 		BlockedUntil: sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true},
 	})
 	if err != nil {
-		return decide.BlockedSet{}, fmt.Errorf("load blocklist for series %d: %w", seriesID, err)
+		return decide.BlockedSet{}, fmt.Errorf("load blocklist for series %d: %w", titleID, err)
 	}
 	if len(rows) == 0 {
 		return decide.BlockedSet{}, nil
@@ -341,11 +341,11 @@ func (s *Service) blocked(ctx context.Context, seriesID int64) (decide.BlockedSe
 	return set, nil
 }
 
-// profile loads the series' quality profile in the domain form decide scores against.
-func (s *Service) profile(ctx context.Context, series db.Series) (domain.QualityProfile, error) {
-	row, err := s.store.Q.GetQualityProfile(ctx, series.QualityProfileID)
+// profile loads the title's quality profile in the domain form decide scores against.
+func (s *Service) profile(ctx context.Context, title db.Series) (domain.QualityProfile, error) {
+	row, err := s.store.Q.GetQualityProfile(ctx, title.QualityProfileID)
 	if err != nil {
-		return domain.QualityProfile{}, fmt.Errorf("load quality profile %d: %w", series.QualityProfileID, err)
+		return domain.QualityProfile{}, fmt.Errorf("load quality profile %d: %w", title.QualityProfileID, err)
 	}
 	groups, err := s.store.Q.ListProfileGroups(ctx, row.ID)
 	if err != nil {

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/item";
 
 // The fields the row reads, shared by the per-series GrabEventDTO and the
-// global ActivityEventDTO (which differs only in carrying series fields).
+// global ActivityEventDTO (which differs only in carrying title fields).
 // Picked from the generated type so a new status cannot silently drift.
 export type PresentableGrabEvent = Pick<
   GrabEvent,
@@ -45,10 +45,10 @@ function presentGrabEvent(event: PresentableGrabEvent) {
 
 export function GrabEventRow({
   event,
-  series,
+  title,
 }: {
   event: PresentableGrabEvent;
-  series?: { id: number; title: string };
+  title?: { id: number; name: string };
 }) {
   const { verb, icon: Icon, tone } = presentGrabEvent(event);
   return (
@@ -61,14 +61,14 @@ export function GrabEventRow({
       <ItemContent className="min-w-0 gap-0.5">
         <div className="text-sm font-medium">
           {verb} · Episode {event.item_number}
-          {series && (
+          {title && (
             <>
               {" · "}
               <Link
-                to={`/series/${series.id}`}
+                to={`/titles/${title.id}`}
                 className="font-normal text-muted-foreground hover:text-foreground hover:underline"
               >
-                {series.title}
+                {title.name}
               </Link>
             </>
           )}

@@ -44,14 +44,14 @@ func (q *Queries) DeleteAllBlocklist(ctx context.Context) (int64, error) {
 	return result.RowsAffected()
 }
 
-const deleteBlocklistBySeries = `-- name: DeleteBlocklistBySeries :execrows
+const deleteBlocklistByTitle = `-- name: DeleteBlocklistByTitle :execrows
 DELETE FROM release_blocklist
 WHERE series_id = ?
 `
 
 // Bulk unblock for one series. Scoped like the single-entry delete.
-func (q *Queries) DeleteBlocklistBySeries(ctx context.Context, seriesID int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteBlocklistBySeries, seriesID)
+func (q *Queries) DeleteBlocklistByTitle(ctx context.Context, seriesID int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteBlocklistByTitle, seriesID)
 	if err != nil {
 		return 0, err
 	}
@@ -77,19 +77,19 @@ func (q *Queries) DeleteBlocklistEntry(ctx context.Context, arg DeleteBlocklistE
 	return result.RowsAffected()
 }
 
-const deleteExpiredBlocklistBySeries = `-- name: DeleteExpiredBlocklistBySeries :execrows
+const deleteExpiredBlocklistByTitle = `-- name: DeleteExpiredBlocklistByTitle :execrows
 DELETE FROM release_blocklist
 WHERE series_id = ? AND blocked_until IS NOT NULL AND blocked_until <= ?
 `
 
-type DeleteExpiredBlocklistBySeriesParams struct {
+type DeleteExpiredBlocklistByTitleParams struct {
 	SeriesID     int64          `json:"series_id"`
 	BlockedUntil sql.NullString `json:"blocked_until"`
 }
 
 // A permanent entry (NULL blocked_until) is never expired, so it survives this.
-func (q *Queries) DeleteExpiredBlocklistBySeries(ctx context.Context, arg DeleteExpiredBlocklistBySeriesParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteExpiredBlocklistBySeries, arg.SeriesID, arg.BlockedUntil)
+func (q *Queries) DeleteExpiredBlocklistByTitle(ctx context.Context, arg DeleteExpiredBlocklistByTitleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteExpiredBlocklistByTitle, arg.SeriesID, arg.BlockedUntil)
 	if err != nil {
 		return 0, err
 	}
@@ -143,15 +143,15 @@ func (q *Queries) ListActiveBlocklist(ctx context.Context, arg ListActiveBlockli
 	return items, nil
 }
 
-const listBlocklistBySeries = `-- name: ListBlocklistBySeries :many
+const listBlocklistByTitle = `-- name: ListBlocklistByTitle :many
 SELECT id, series_id, info_hash, release_title, normalized_title, reason, failures, blocked_until, created_at, updated_at
 FROM release_blocklist
 WHERE series_id = ?
 ORDER BY updated_at DESC
 `
 
-func (q *Queries) ListBlocklistBySeries(ctx context.Context, seriesID int64) ([]ReleaseBlocklist, error) {
-	rows, err := q.db.QueryContext(ctx, listBlocklistBySeries, seriesID)
+func (q *Queries) ListBlocklistByTitle(ctx context.Context, seriesID int64) ([]ReleaseBlocklist, error) {
+	rows, err := q.db.QueryContext(ctx, listBlocklistByTitle, seriesID)
 	if err != nil {
 		return nil, err
 	}

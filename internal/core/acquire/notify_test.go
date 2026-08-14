@@ -26,7 +26,7 @@ func withNotifier(reg *clients.Registry) *coretest.FakeNotifier {
 }
 
 // An automatic grab is what unattended operation most wants visibility into:
-// the sweep's grabPass dispatches a grabbed event with the series and release.
+// the sweep's grabPass dispatches a grabbed event with the title and release.
 func TestSweepGrabDispatchesGrabbedEvent(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 5})
@@ -55,7 +55,7 @@ func TestSweepGrabDispatchesGrabbedEvent(t *testing.T) {
 			t.Errorf("item = %d, want the single covered episode", ev.ItemNumber)
 		}
 		// The kind is what keeps an adapter from labelling a movie "Episode 1"; a
-		// series must still carry the episode kind that earns the label.
+		// title must still carry the episode kind that earns the label.
 		if ev.ItemKind != domain.KindEpisode {
 			t.Errorf("item kind = %q, want episode", ev.ItemKind)
 		}
@@ -72,7 +72,7 @@ func TestManualGrabDoesNotDispatch(t *testing.T) {
 	reg := newRegistry(idx, dl)
 	fn := withNotifier(reg)
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
-	id := seedSeries(t, st, "Placeholder Saga", 12)
+	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
 	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); err != nil {

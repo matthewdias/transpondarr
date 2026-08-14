@@ -59,6 +59,21 @@ export function airDate(input: string | undefined, locale?: string): string {
 }
 
 /**
+ * A film's date where a column has room for the date alone. Never counted down
+ * and never clocked: the stored instant may be a date-only release held at noon
+ * UTC to name a day (#224), so anything finer would be invented precision.
+ */
+export function premiereDate(
+  input: string | undefined,
+  locale?: string,
+): string {
+  if (!input) return "—";
+  const at = parseTimestamp(input);
+  if (Number.isNaN(at)) return "—";
+  return absoluteDate(at, locale);
+}
+
+/**
  * Next-episode line for a discovery card. The season cache can lag a broadcast
  * by hours, so a non-positive countdown clamps to "aired" instead of counting
  * negative time.

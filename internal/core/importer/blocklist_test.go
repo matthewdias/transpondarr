@@ -17,7 +17,7 @@ import (
 
 // recorded is one call the importer made to the blocklist.
 type recorded struct {
-	seriesID     int64
+	titleID      int64
 	itemIDs      []int64
 	infoHash     string
 	releaseTitle string
@@ -38,40 +38,40 @@ type fakeRecorder struct {
 	suppress bool
 }
 
-func (f *fakeRecorder) Record(_ context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
-	f.calls = append(f.calls, recorded{seriesID, itemIDs, infoHash, releaseTitle, reason})
+func (f *fakeRecorder) Record(_ context.Context, titleID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
+	f.calls = append(f.calls, recorded{titleID, itemIDs, infoHash, releaseTitle, reason})
 	return !f.suppress, f.err
 }
 
-// backdateSearchState puts a series behind an accumulated backoff, so a test can
+// backdateSearchState puts a title behind an accumulated backoff, so a test can
 // see the reset a failure is supposed to trigger.
-func backdateSearchState(t *testing.T, st *store.Store, seriesID int64) {
+func backdateSearchState(t *testing.T, st *store.Store, titleID int64) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE series SET search_backoff = 4, next_search_at = ? WHERE id = ?`,
-		store.FormatTimestamp(time.Now().Add(24*time.Hour)), seriesID,
+		store.FormatTimestamp(time.Now().Add(24*time.Hour)), titleID,
 	); err != nil {
 		t.Fatalf("backdate search state: %v", err)
 	}
 }
 
-func readSearchBackoff(t *testing.T, st *store.Store, seriesID int64) (int64, bool) {
+func readSearchBackoff(t *testing.T, st *store.Store, titleID int64) (int64, bool) {
 	t.Helper()
 	var backoff int64
 	var next *string
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, seriesID).Scan(&backoff, &next); err != nil {
+		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, titleID).Scan(&backoff, &next); err != nil {
 		t.Fatalf("read search state: %v", err)
 	}
 	return backoff, next != nil
 }
 
 // A download the client reports as errored is the release's failure, so it is
-// remembered and the series is put back at the front of the search queue.
+// remembered and the title is put back at the front of the search queue.
 func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
-	backdateSearchState(t, st, seriesID)
+	_, titleID := seedGrab(t, st, "abc")
+	backdateSearchState(t, st, titleID)
 	rec := &fakeRecorder{}
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
@@ -86,7 +86,7 @@ func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 		t.Fatalf("blocklist records = %d, want 1", len(rec.calls))
 	}
 	got := rec.calls[0]
-	if got.seriesID != seriesID || got.infoHash != "abc" || got.releaseTitle != "rel" {
+	if got.titleID != titleID || got.infoHash != "abc" || got.releaseTitle != "rel" {
 		t.Errorf("recorded %+v, want the failed grab's series, hash and release title", got)
 	}
 	if got.reason == "" {
@@ -96,7 +96,7 @@ func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 		t.Error("grab not failed")
 	}
 	// A failure is new information: retry promptly with the next-best release.
-	if backoff, hasNext := readSearchBackoff(t, st, seriesID); backoff != 0 || hasNext {
+	if backoff, hasNext := readSearchBackoff(t, st, titleID); backoff != 0 || hasNext {
 		t.Errorf("search state = backoff %d, next set %v; want the series reset", backoff, hasNext)
 	}
 }
@@ -107,8 +107,8 @@ func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 // the item must still be freed, or a fault would strand every grab it touched.
 func TestSuppressedRecordLeavesTheSearchQueueAlone(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
-	backdateSearchState(t, st, seriesID)
+	_, titleID := seedGrab(t, st, "abc")
+	backdateSearchState(t, st, titleID)
 	rec := &fakeRecorder{suppress: true}
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
@@ -122,7 +122,7 @@ func TestSuppressedRecordLeavesTheSearchQueueAlone(t *testing.T) {
 	if grabByHash(t, st, "abc").Status != "failed" {
 		t.Error("grab not failed: the breaker suppresses the memory, not the lifecycle")
 	}
-	backoff, hasNext := readSearchBackoff(t, st, seriesID)
+	backoff, hasNext := readSearchBackoff(t, st, titleID)
 	if backoff == 0 || !hasNext {
 		t.Errorf("search state = backoff %d, next set %v; want the backdated cadence left as it was",
 			backoff, hasNext)
@@ -131,10 +131,10 @@ func TestSuppressedRecordLeavesTheSearchQueueAlone(t *testing.T) {
 
 // seedBatchGrab grabs one release across items, the shape a season batch takes:
 // one grab row per covered episode, all sharing an info hash and a title.
-func seedBatchGrab(t *testing.T, st *store.Store, hash string, items int) (seriesID int64, itemIDs []int64) {
+func seedBatchGrab(t *testing.T, st *store.Store, hash string, items int) (titleID int64, itemIDs []int64) {
 	t.Helper()
 	ctx := context.Background()
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: "Placeholder Saga", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
@@ -165,7 +165,7 @@ func seedBatchGrab(t *testing.T, st *store.Store, hash string, items int) (serie
 // blocklisted a healthy 3-episode release forever (#124).
 func TestBatchFailingOnceEscalatesOneStep(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID, _ := seedBatchGrab(t, st, "abc", 3)
+	titleID, _ := seedBatchGrab(t, st, "abc", 3)
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
@@ -175,7 +175,7 @@ func TestBatchFailingOnceEscalatesOneStep(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	entries, err := st.Q.ListBlocklistBySeries(context.Background(), seriesID)
+	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -209,7 +209,7 @@ func regrabBatch(t *testing.T, st *store.Store, itemIDs []int64, hash string) {
 func TestBatchReachesPermanentOverSeparateIncidents(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
-	seriesID, itemIDs := seedBatchGrab(t, st, "abc", 3)
+	titleID, itemIDs := seedBatchGrab(t, st, "abc", 3)
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
@@ -223,7 +223,7 @@ func TestBatchReachesPermanentOverSeparateIncidents(t *testing.T) {
 		if err := im.ScanOnce(ctx); err != nil {
 			t.Fatalf("scan %d: %v", incident, err)
 		}
-		entries, err := st.Q.ListBlocklistBySeries(ctx, seriesID)
+		entries, err := st.Q.ListBlocklistByTitle(ctx, titleID)
 		if err != nil {
 			t.Fatalf("list blocklist: %v", err)
 		}
@@ -246,7 +246,7 @@ func TestBatchReachesPermanentOverSeparateIncidents(t *testing.T) {
 func TestDistinctReleasesFailingAcrossItemsStillTripTheBreaker(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: "Placeholder Saga", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
@@ -282,7 +282,7 @@ func TestDistinctReleasesFailingAcrossItemsStillTripTheBreaker(t *testing.T) {
 	if !svc.BreakerState().Open {
 		t.Fatal("six unrelated releases failing at once left the breaker closed")
 	}
-	entries, err := st.Q.ListBlocklistBySeries(ctx, s.ID)
+	entries, err := st.Q.ListBlocklistByTitle(ctx, s.ID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestDistinctReleasesFailingAcrossItemsStillTripTheBreaker(t *testing.T) {
 // meaning one release.
 func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID, _ := seedBatchGrab(t, st, "abc", 8)
+	titleID, _ := seedBatchGrab(t, st, "abc", 8)
 	svc := blocklist.New(st, nil)
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
@@ -308,7 +308,7 @@ func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	entries, err := st.Q.ListBlocklistBySeries(context.Background(), seriesID)
+	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -323,7 +323,7 @@ func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 // The grace-period path fails a grab for the same reason and must remember it too.
 func TestGrabGoneFromClientRecordsBlocklistEntry(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	backdateMissingSince(t, st, "abc", time.Hour)
 	rec := &fakeRecorder{}
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
@@ -335,8 +335,8 @@ func TestGrabGoneFromClientRecordsBlocklistEntry(t *testing.T) {
 		t.Fatalf("scan: %v", err)
 	}
 
-	if len(rec.calls) != 1 || rec.calls[0].seriesID != seriesID {
-		t.Fatalf("blocklist records = %+v, want one for series %d", rec.calls, seriesID)
+	if len(rec.calls) != 1 || rec.calls[0].titleID != titleID {
+		t.Fatalf("blocklist records = %+v, want one for series %d", rec.calls, titleID)
 	}
 	if grabByHash(t, st, "abc").Status != "failed" {
 		t.Error("grab not failed")

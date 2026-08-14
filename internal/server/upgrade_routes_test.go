@@ -21,11 +21,11 @@ type upgradeProfileJSON struct {
 }
 
 // hold marks an item as held by a named release, the state an upgrade acts on.
-func hold(t *testing.T, h *harness, seriesID int64, number int, release string) {
+func hold(t *testing.T, h *harness, titleID int64, number int, release string) {
 	t.Helper()
 	if _, err := h.store.DB.ExecContext(context.Background(),
 		`UPDATE wanted_items SET in_library = 1, held_release_title = ? WHERE series_id = ? AND number = ?`,
-		release, seriesID, number); err != nil {
+		release, titleID, number); err != nil {
 		t.Fatalf("hold item %d: %v", number, err)
 	}
 }
@@ -94,8 +94,8 @@ func TestGrabOfAHeldOnlyReleaseSucceeds(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hash3", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	hold(t, h, seriesID, 3, "[ExampleSubs] Placeholder Saga - 03 [480p]")
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	hold(t, h, titleID, 3, "[ExampleSubs] Placeholder Saga - 03 [480p]")
 
 	var searchOut struct {
 		Results []struct {
@@ -108,7 +108,7 @@ func TestGrabOfAHeldOnlyReleaseSucceeds(t *testing.T) {
 			} `json:"upgrade_blocked"`
 		} `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &searchOut); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &searchOut); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(searchOut.Results) != 1 || !searchOut.Results[0].Matched {
@@ -130,7 +130,7 @@ func TestGrabOfAHeldOnlyReleaseSucceeds(t *testing.T) {
 	var grabOut struct {
 		Items []int `json:"items"`
 	}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": matchURL}, &grabOut); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)
 	}
@@ -149,17 +149,17 @@ func TestHeldItemWithAnOpenGrabReadsAsDownloading(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "hash3", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 3)
-	hold(t, h, seriesID, 3, "[ExampleSubs] Placeholder Saga - 03 [480p]")
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
+	hold(t, h, titleID, 3, "[ExampleSubs] Placeholder Saga - 03 [480p]")
 
-	if got := itemStatus(t, h, seriesID, 3); got != "in_library" {
+	if got := itemStatus(t, h, titleID, 3); got != "in_library" {
 		t.Fatalf("held item status = %q, want in_library before the upgrade", got)
 	}
-	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": matchURL}, nil); code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
-	if got := itemStatus(t, h, seriesID, 3); got != "downloading" {
+	if got := itemStatus(t, h, titleID, 3); got != "downloading" {
 		t.Errorf("held item status = %q, want downloading while the upgrade is in flight", got)
 	}
 }

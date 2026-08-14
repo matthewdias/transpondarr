@@ -33,7 +33,7 @@ func seedMovieGrab(t *testing.T, st *store.Store, title, hash string, year int64
 func seedOneItemGrab(t *testing.T, st *store.Store, title, hash string, format domain.Format, year int64) int64 {
 	t.Helper()
 	ctx := context.Background()
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: title, Format: string(format), Year: year, Monitored: 1,
 	})
 	if err != nil {
@@ -71,9 +71,9 @@ func completedPayload(hash, path string) *coretest.FakeDownload {
 }
 
 // heldByTitle reports whether the library flag was set on a title's only item.
-func heldByTitle(t *testing.T, st *store.Store, seriesID int64) bool {
+func heldByTitle(t *testing.T, st *store.Store, titleID int64) bool {
 	t.Helper()
-	items, err := st.Q.ListWantedItems(context.Background(), seriesID)
+	items, err := st.Q.ListWantedItems(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("list wanted items: %v", err)
 	}
@@ -118,9 +118,9 @@ func firstLine(body []byte) string {
 
 // deferralDetail is the reason the latest deferral settled by. A settled row's
 // last_error is cleared, so history is where the Activity queue reads it from.
-func deferralDetail(t *testing.T, st *store.Store, seriesID int64) string {
+func deferralDetail(t *testing.T, st *store.Store, titleID int64) string {
 	t.Helper()
-	events, err := st.Q.ListSeriesGrabEvents(context.Background(), seriesID)
+	events, err := st.Q.ListTitleGrabEvents(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("list grab events: %v", err)
 	}
@@ -192,11 +192,11 @@ func TestImportPassesFormatAndYearToTheLibrary(t *testing.T) {
 }
 
 // The missing-root decision, end to end: a movie grabbed with no movies root
-// configured holds with a legible error instead of landing in the series root,
+// configured holds with a legible error instead of landing in the title root,
 // and imports on the next scan once the root is set.
 func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	ctx := context.Background()
 
 	series, movies := t.TempDir(), t.TempDir()
@@ -214,7 +214,7 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 	if !strings.Contains(g.LastError.String, "movies library directory") {
 		t.Errorf("last_error = %q, want it to name the unconfigured movies directory", g.LastError.String)
 	}
-	if items, _ := st.Q.ListWantedItems(ctx, seriesID); items[0].InLibrary != 0 {
+	if items, _ := st.Q.ListWantedItems(ctx, titleID); items[0].InLibrary != 0 {
 		t.Error("the item must not read as held when nothing was placed")
 	}
 	if entries, _ := os.ReadDir(series); len(entries) != 0 {
@@ -223,10 +223,10 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 
 	// The cause is a path-mapping gap, not a bad release: nothing may be
 	// remembered against the release or spent from the failure ladder.
-	if blocked, _ := st.Q.ListBlocklistBySeries(ctx, seriesID); len(blocked) != 0 {
+	if blocked, _ := st.Q.ListBlocklistByTitle(ctx, titleID); len(blocked) != 0 {
 		t.Errorf("blocklisted %d release(s); an unconfigured root says nothing about the release", len(blocked))
 	}
-	if events, _ := st.Q.ListSeriesGrabEvents(ctx, seriesID); len(events) != 0 {
+	if events, _ := st.Q.ListTitleGrabEvents(ctx, titleID); len(events) != 0 {
 		t.Errorf("wrote %d history event(s); the grab has not settled, so it has no step to record", len(events))
 	}
 
@@ -238,7 +238,7 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 	if again := grabByHash(t, st, "abc"); again.Status != statusGrabbed || again.LastError != g.LastError {
 		t.Errorf("second pass changed the grab (%q/%q); a held movie must not churn", again.Status, again.LastError.String)
 	}
-	if blocked, _ := st.Q.ListBlocklistBySeries(ctx, seriesID); len(blocked) != 0 {
+	if blocked, _ := st.Q.ListBlocklistByTitle(ctx, titleID); len(blocked) != 0 {
 		t.Errorf("second pass blocklisted %d release(s)", len(blocked))
 	}
 
@@ -262,7 +262,7 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 // this one item. It lands in the movie layout, with no season folder anywhere.
 func TestMovieSingleVideoPlacesByTheLoneFileRule(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	target, series, movies := movieLibrary(t)
 
 	dir := writeTree(t,
@@ -280,7 +280,7 @@ func TestMovieSingleVideoPlacesByTheLoneFileRule(t *testing.T) {
 	if g := grabByHash(t, st, "abc"); g.Status != statusImported {
 		t.Errorf("status = %q, want imported", g.Status)
 	}
-	if !heldByTitle(t, st, seriesID) {
+	if !heldByTitle(t, st, titleID) {
 		t.Error("the item must read as held once its file is in the library")
 	}
 }
@@ -320,7 +320,7 @@ func TestMoviePayloadPicksTheFeatureOverSamplesAndExtras(t *testing.T) {
 // yields nothing and the grab settles as a deferral a human can look at.
 func TestMovieSampleIsNeverTheFeature(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	target := &coretest.FakeLibrary{}
 	rec := &fakeRecorder{}
 
@@ -340,7 +340,7 @@ func TestMovieSampleIsNeverTheFeature(t *testing.T) {
 	if g.Status != statusDeferred {
 		t.Errorf("status = %q, want it deferred for a human", g.Status)
 	}
-	if heldByTitle(t, st, seriesID) {
+	if heldByTitle(t, st, titleID) {
 		t.Error("nothing was placed, so the item must not read as held")
 	}
 	if len(rec.calls) != 0 {
@@ -372,7 +372,7 @@ func TestMovieSoleVideoWithAnExtrasTokenIsStillTheFeature(t *testing.T) {
 // because the film is sitting inside it.
 func TestMovieArchivePayloadDefersWithTheExtractionAdvice(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	target := &coretest.FakeLibrary{}
 	rec := &fakeRecorder{}
 
@@ -389,14 +389,14 @@ func TestMovieArchivePayloadDefersWithTheExtractionAdvice(t *testing.T) {
 	if g.Status != statusDeferred {
 		t.Fatalf("status = %q, want import_deferred", g.Status)
 	}
-	detail := deferralDetail(t, st, seriesID)
+	detail := deferralDetail(t, st, titleID)
 	if !strings.Contains(detail, archive) || !strings.Contains(detail, "extract it into the download folder") {
 		t.Errorf("deferral detail = %q, want it to name the archive and what to do with it", detail)
 	}
 	if len(target.Placed) != 0 {
 		t.Errorf("placed %+v; an archive is unassignable by construction", target.Placed)
 	}
-	if heldByTitle(t, st, seriesID) {
+	if heldByTitle(t, st, titleID) {
 		t.Error("nothing was placed, so the item must not read as held")
 	}
 	if len(rec.calls) != 0 {
@@ -409,7 +409,7 @@ func TestMovieArchivePayloadDefersWithTheExtractionAdvice(t *testing.T) {
 // imports with no new code.
 func TestMovieArchiveRetryStaysDeferredUntilItIsExtracted(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	target, _, movies := movieLibrary(t)
 
 	dir := writeTree(t, "Placeholder.Film.2019.1080p-SynthGroup.rar")
@@ -456,7 +456,7 @@ func TestMovieArchiveRetryStaysDeferredUntilItIsExtracted(t *testing.T) {
 		t.Fatalf("retry results = %+v, want it imported", results)
 	}
 	wantFiles(t, movies, "Placeholder Film (2019)/Placeholder Film (2019).mkv")
-	if !heldByTitle(t, st, seriesID) {
+	if !heldByTitle(t, st, titleID) {
 		t.Error("the item must read as held once the extracted film is in the library")
 	}
 }
@@ -468,7 +468,7 @@ func TestMovieArchiveRetryStaysDeferredUntilItIsExtracted(t *testing.T) {
 // not get a say.
 func TestMovieTakesTheLargestVideoAsTheFeature(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	target, _, movies := movieLibrary(t)
 
 	const feature = "Placeholder.Film.2019.1080p.BluRay.x264-SynthGroup.mkv"
@@ -493,7 +493,7 @@ func TestMovieTakesTheLargestVideoAsTheFeature(t *testing.T) {
 	if g := grabByHash(t, st, "abc"); g.Status != statusImported {
 		t.Errorf("status = %q, want imported", g.Status)
 	}
-	if !heldByTitle(t, st, seriesID) {
+	if !heldByTitle(t, st, titleID) {
 		t.Error("the item must read as held once the feature is in the library")
 	}
 }
@@ -504,7 +504,7 @@ func TestMovieTakesTheLargestVideoAsTheFeature(t *testing.T) {
 // from Activity by naming the file — an override still overrules every rule.
 func TestMovieSizeTieDefersAndIsFixableByNamingTheFile(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	target, _, movies := movieLibrary(t)
 
 	const feature = "Placeholder.Film.2019.1080p.BluRay.x264-SynthGroup.mkv"
@@ -524,7 +524,7 @@ func TestMovieSizeTieDefersAndIsFixableByNamingTheFile(t *testing.T) {
 		t.Fatalf("status = %q, want it deferred rather than guessed at", g.Status)
 	}
 	wantFiles(t, movies)
-	if heldByTitle(t, st, seriesID) {
+	if heldByTitle(t, st, titleID) {
 		t.Error("nothing was placed, so the item must not read as held")
 	}
 
@@ -545,7 +545,7 @@ func TestMovieSizeTieDefersAndIsFixableByNamingTheFile(t *testing.T) {
 	}
 	wantFiles(t, movies, "Placeholder Film (2019)/Placeholder Film (2019).mkv")
 	wantPlacedFrom(t, filepath.Join(movies, "Placeholder Film (2019)", "Placeholder Film (2019).mkv"), feature)
-	if !heldByTitle(t, st, seriesID) {
+	if !heldByTitle(t, st, titleID) {
 		t.Error("the item must read as held after a successful fix")
 	}
 }
@@ -554,7 +554,7 @@ func TestMovieSizeTieDefersAndIsFixableByNamingTheFile(t *testing.T) {
 // to wanted and the release is remembered, so the sweep does not re-derive it.
 func TestMovieGrabFailureRevertsTheItemAndRemembersTheRelease(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	target := &coretest.FakeLibrary{}
 	rec := &fakeRecorder{}
 
@@ -569,13 +569,13 @@ func TestMovieGrabFailureRevertsTheItemAndRemembersTheRelease(t *testing.T) {
 	if g := grabByHash(t, st, "abc"); g.Status != statusFailed {
 		t.Errorf("status = %q, want failed", g.Status)
 	}
-	if heldByTitle(t, st, seriesID) {
+	if heldByTitle(t, st, titleID) {
 		t.Error("a failed grab must leave the item wanted, not held")
 	}
 	if len(rec.calls) != 1 {
 		t.Fatalf("recorded %d blocklist entries, want one for the release", len(rec.calls))
 	}
-	if rec.calls[0].seriesID != seriesID || rec.calls[0].infoHash != "abc" {
+	if rec.calls[0].titleID != titleID || rec.calls[0].infoHash != "abc" {
 		t.Errorf("recorded %+v, want it keyed on this movie's release", rec.calls[0])
 	}
 }
@@ -606,7 +606,7 @@ func TestSingleItemOVAKeepsTheEpisodicImportPath(t *testing.T) {
 // that and the archive advice below are the two reasons to get right.
 func TestMovieConflictReasonNamesTheMovieRatherThanAnEpisode(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
+	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	dir := writeTree(t,
 		"[SynthSubs] Placeholder Film [1080p].mkv",
 		"[OtherGroup] Placeholder Film [720p].mkv",
@@ -617,7 +617,7 @@ func TestMovieConflictReasonNamesTheMovieRatherThanAnEpisode(t *testing.T) {
 	}
 
 	const want = "2 files claim this movie and nothing tells them apart"
-	if got := deferralDetail(t, st, seriesID); got != want {
+	if got := deferralDetail(t, st, titleID); got != want {
 		t.Errorf("deferral detail = %q, want %q", got, want)
 	}
 }

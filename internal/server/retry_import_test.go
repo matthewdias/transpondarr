@@ -42,11 +42,11 @@ type retryJSON struct {
 // deferredRelease grabs one release across two items, completes it with a
 // payload whose second file is unreadable, and scans — leaving episode 2
 // deferred, which is the state the fix dialog exists for.
-func deferredRelease(t *testing.T, h *harness) (seriesID, deferredGrabID, importedGrabID int64) {
+func deferredRelease(t *testing.T, h *harness) (titleID, deferredGrabID, importedGrabID int64) {
 	t.Helper()
-	seriesID = seedSeries(t, h.store, "Placeholder Saga", 6)
-	seedOpenGrab(t, h.store, seriesID, 1, "packhash", "[SynthSubs] Placeholder Saga - 01-02 [Batch]", "grabbed")
-	seedOpenGrab(t, h.store, seriesID, 2, "packhash", "[SynthSubs] Placeholder Saga - 01-02 [Batch]", "grabbed")
+	titleID = seedTitle(t, h.store, "Placeholder Saga", 6)
+	seedOpenGrab(t, h.store, titleID, 1, "packhash", "[SynthSubs] Placeholder Saga - 01-02 [Batch]", "grabbed")
+	seedOpenGrab(t, h.store, titleID, 2, "packhash", "[SynthSubs] Placeholder Saga - 01-02 [Batch]", "grabbed")
 
 	dir := t.TempDir()
 	for _, name := range []string{
@@ -79,15 +79,15 @@ func deferredRelease(t *testing.T, h *harness) (seriesID, deferredGrabID, import
 	if deferredGrabID == 0 || importedGrabID == 0 {
 		t.Fatalf("grabs = %+v, want one imported and one deferred", rows)
 	}
-	return seriesID, deferredGrabID, importedGrabID
+	return titleID, deferredGrabID, importedGrabID
 }
 
 // deferredArchiveRelease is the same state over a payload nothing can read: a
 // RAR set, which the dialog has to render or it is a dead end.
 func deferredArchiveRelease(t *testing.T, h *harness) (deferredGrabID int64) {
 	t.Helper()
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 6)
-	seedOpenGrab(t, h.store, seriesID, 1, "rarhash", "placeholder.saga.s01e01.1080p.web.h264-synth", "grabbed")
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 6)
+	seedOpenGrab(t, h.store, titleID, 1, "rarhash", "placeholder.saga.s01e01.1080p.web.h264-synth", "grabbed")
 
 	dir := t.TempDir()
 	for _, name := range []string{
@@ -191,7 +191,7 @@ func TestQueueItemPayloadReportsAVanishedTorrent(t *testing.T) {
 // and records the history the Activity feed renders.
 func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 	h := newHarness(t, nil, &coretest.FakeDownload{})
-	seriesID, deferredID, _ := deferredRelease(t, h)
+	titleID, deferredID, _ := deferredRelease(t, h)
 
 	var out retryJSON
 	code := h.postJSON(t, fmt.Sprintf("/api/v1/activity/queue/%d/retry-import", deferredID),
@@ -204,10 +204,10 @@ func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 	if len(out.Results) != 1 || out.Results[0].ItemNumber != 2 || out.Results[0].Outcome != "imported" {
 		t.Fatalf("results = %+v, want episode 2 imported", out.Results)
 	}
-	if got := itemStatus(t, h, seriesID, 2); got != "in_library" {
+	if got := itemStatus(t, h, titleID, 2); got != "in_library" {
 		t.Errorf("episode 2 status = %q, want in_library", got)
 	}
-	events, err := h.store.Q.ListSeriesGrabEvents(context.Background(), seriesID)
+	events, err := h.store.Q.ListTitleGrabEvents(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}

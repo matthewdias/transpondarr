@@ -15,8 +15,8 @@ import { filterCovering } from "@/lib/release-focus";
 import {
   grabsQuery,
   releasesQuery,
-  seriesDetailQuery,
-  seriesQuery,
+  titleDetailQuery,
+  titlesQuery,
 } from "@/lib/queries";
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -163,12 +163,12 @@ function MatchCell({ r }: { r: CandidateRelease }) {
 }
 
 export function ReleasesTab({
-  seriesId,
+  titleId,
   active,
   focusItem,
   onClearFocus,
 }: {
-  seriesId: number;
+  titleId: number;
   active: boolean;
   focusItem: number | null;
   onClearFocus: () => void;
@@ -182,24 +182,24 @@ export function ReleasesTab({
   const [grabbed, setGrabbed] = useState<Set<string>>(new Set());
 
   const search = useQuery({
-    ...releasesQuery(seriesId),
+    ...releasesQuery(titleId),
     enabled: active,
   });
 
   const grab = useMutation({
     mutationFn: (r: CandidateRelease) =>
-      api.grabRelease(seriesId, r.download_url),
+      api.grabRelease(titleId, r.download_url),
     onSuccess: (res, r) => {
       setGrabbed((prev) => new Set(prev).add(r.download_url));
       const t = grabToast(res);
       toast[t.level](t.title, { description: t.description });
       queryClient.invalidateQueries({
-        queryKey: seriesDetailQuery(seriesId).queryKey,
+        queryKey: titleDetailQuery(titleId).queryKey,
       });
       queryClient.invalidateQueries({
-        queryKey: grabsQuery(seriesId).queryKey,
+        queryKey: grabsQuery(titleId).queryKey,
       });
-      queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
+      queryClient.invalidateQueries({ queryKey: titlesQuery().queryKey });
       setSelected(null);
     },
     onError: (err) => {

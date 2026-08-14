@@ -14,7 +14,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 )
 
-// The series page shows cover art from the cached snapshot, so GetTitle must
+// The title page shows cover art from the cached snapshot, so GetTitle must
 // request and map it.
 func TestGetTitleMapsCover(t *testing.T) {
 	var query string
@@ -370,7 +370,7 @@ func TestGetTitleMovieIgnoresEpisodeCount(t *testing.T) {
 	}
 }
 
-// The clamp keys on format, so a one-episode OVA stays series-shaped.
+// The clamp keys on format, so a one-episode OVA stays title-shaped.
 func TestGetTitleOVAWithOneEpisodeUnchanged(t *testing.T) {
 	url := serveOnce(t, mediaResponse("OVA", "1", "2014", "2014"), nil)
 

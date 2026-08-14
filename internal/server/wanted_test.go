@@ -34,6 +34,7 @@ type missingItem struct {
 type missingGroup struct {
 	TitleID         int64         `json:"title_id"`
 	Title           string        `json:"title"`
+	Format          string        `json:"format"`
 	Monitored       bool          `json:"monitored"`
 	Reason          string        `json:"reason"`
 	BlockedReleases int           `json:"blocked_releases"`
@@ -61,6 +62,7 @@ type cutoffResponse struct {
 	Groups []struct {
 		TitleID     int64  `json:"title_id"`
 		Title       string `json:"title"`
+		Format      string `json:"format"`
 		ProfileName string `json:"profile_name"`
 		CutoffScore int    `json:"cutoff_score"`
 		Below       int    `json:"below"`
@@ -98,11 +100,11 @@ func wantedHarness(t *testing.T) *harness {
 	return h
 }
 
-func searchedAt(t *testing.T, st *store.Store, seriesID int64, last, next string) {
+func searchedAt(t *testing.T, st *store.Store, titleID int64, last, next string) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE series SET last_searched_at = ?, next_search_at = ? WHERE id = ?`,
-		nullable(last), nullable(next), seriesID); err != nil {
+		nullable(last), nullable(next), titleID); err != nil {
 		t.Fatalf("set search cadence: %v", err)
 	}
 }
@@ -119,15 +121,15 @@ func nullable(s string) any {
 func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 	h := wantedHarness(t)
 	ctx := context.Background()
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 4)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 4)
 	// 1 is held, 2 is downloading, 3 failed and is wanted again, 4 untouched.
 	if err := h.store.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
-		InLibrary: 1, HeldReleaseTitle: "[ExampleSubs] Placeholder Saga - 01 [1080p]", ID: itemID(t, h.store, seriesID, 1),
+		InLibrary: 1, HeldReleaseTitle: "[ExampleSubs] Placeholder Saga - 01 [1080p]", ID: itemID(t, h.store, titleID, 1),
 	}); err != nil {
 		t.Fatalf("hold item 1: %v", err)
 	}
-	grabItem(t, h.store, seriesID, 2, "grabbed", "")
-	grabItem(t, h.store, seriesID, 3, "failed", "torrent vanished from the client")
+	grabItem(t, h.store, titleID, 2, "grabbed", "")
+	grabItem(t, h.store, titleID, 3, "failed", "torrent vanished from the client")
 
 	var out missingResponse
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
@@ -137,7 +139,7 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 		t.Fatalf("groups = %+v, want one for the series", out.Groups)
 	}
 	g := out.Groups[0]
-	if g.TitleID != seriesID || g.Title != "Placeholder Saga" || !g.Monitored || g.Missing != 2 {
+	if g.TitleID != titleID || g.Title != "Placeholder Saga" || !g.Monitored || g.Missing != 2 {
 		t.Errorf("group = %+v, want Placeholder Saga with 2 missing", g)
 	}
 	got := map[int]missingItem{}
@@ -163,9 +165,9 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 // shows, matching how the sweep reads a null air date.
 func TestMissingUnairedToggle(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Airing Show", 3)
-	setAirsAt(t, h.store, seriesID, 1, store.FormatTimestamp(time.Now().Add(-48*time.Hour)))
-	setAirsAt(t, h.store, seriesID, 2, store.FormatTimestamp(time.Now().Add(48*time.Hour)))
+	titleID := seedTitle(t, h.store, "Airing Show", 3)
+	setAirsAt(t, h.store, titleID, 1, store.FormatTimestamp(time.Now().Add(-48*time.Hour)))
+	setAirsAt(t, h.store, titleID, 2, store.FormatTimestamp(time.Now().Add(48*time.Hour)))
 	// episode 3 has no air date
 
 	var out missingResponse
@@ -204,7 +206,7 @@ func TestMissingUnairedToggle(t *testing.T) {
 // then is complete information. A film's is only the earliest it could be: the
 // date AniList publishes is the theatrical premiere, months ahead of anything
 // grabbable. Hiding it there would delete the whole title from the page a user
-// tracks it on, where hiding one episode still leaves its series listed.
+// tracks it on, where hiding one episode still leaves its title listed.
 func TestMissingKeepsAnAnnouncedFilmVisible(t *testing.T) {
 	h := wantedHarness(t)
 	movieID := seedMovie(t, h.store, "Announced Film", 2027)
@@ -222,9 +224,9 @@ func TestMissingKeepsAnAnnouncedFilmVisible(t *testing.T) {
 	}
 }
 
-func recordPassOutcome(t *testing.T, st *store.Store, seriesID int64, number int, p db.UpsertPassOutcomeParams) {
+func recordPassOutcome(t *testing.T, st *store.Store, titleID int64, number int, p db.UpsertPassOutcomeParams) {
 	t.Helper()
-	p.WantedItemID = itemID(t, st, seriesID, number)
+	p.WantedItemID = itemID(t, st, titleID, number)
 	if err := st.Q.UpsertPassOutcome(context.Background(), p); err != nil {
 		t.Fatalf("record pass outcome for item %d: %v", number, err)
 	}
@@ -236,23 +238,23 @@ func recordPassOutcome(t *testing.T, st *store.Store, seriesID int64, number int
 func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 	h := wantedHarness(t)
 	now := time.Now()
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 4)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 4)
 	for n := 1; n <= 4; n++ {
-		setAirsAt(t, h.store, seriesID, n, store.FormatTimestamp(now.Add(-48*time.Hour)))
+		setAirsAt(t, h.store, titleID, n, store.FormatTimestamp(now.Add(-48*time.Hour)))
 	}
-	setAirsAt(t, h.store, seriesID, 2, store.FormatTimestamp(now.Add(48*time.Hour)))
+	setAirsAt(t, h.store, titleID, 2, store.FormatTimestamp(now.Add(48*time.Hour)))
 
-	recordPassOutcome(t, h.store, seriesID, 1, db.UpsertPassOutcomeParams{
+	recordPassOutcome(t, h.store, titleID, 1, db.UpsertPassOutcomeParams{
 		Outcome: "declined", Source: "sweep",
 		ReleaseTitle: "[SynthSubs] Placeholder Saga - 01 [720p]",
 		Detail:       "below the profile floor",
 		RecordedAt:   store.FormatTimestamp(now.Add(-2 * time.Hour)),
 	})
-	recordPassOutcome(t, h.store, seriesID, 2, db.UpsertPassOutcomeParams{
+	recordPassOutcome(t, h.store, titleID, 2, db.UpsertPassOutcomeParams{
 		Outcome: "no_match", Source: "sweep",
 		RecordedAt: store.FormatTimestamp(now.Add(-2 * time.Hour)),
 	})
-	recordPassOutcome(t, h.store, seriesID, 3, db.UpsertPassOutcomeParams{
+	recordPassOutcome(t, h.store, titleID, 3, db.UpsertPassOutcomeParams{
 		Outcome: "pin_held", Source: "feed",
 		ReleaseTitle: "[OtherSubs] Placeholder Saga - 03 [1080p]",
 		Detail:       `waiting for the pinned group "PinnedSubs"`,
@@ -260,13 +262,13 @@ func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 		RecordedAt:   store.FormatTimestamp(now.Add(-30 * time.Minute)),
 	})
 	// The refusal predates the grab that has since failed, so the grab wins.
-	recordPassOutcome(t, h.store, seriesID, 4, db.UpsertPassOutcomeParams{
+	recordPassOutcome(t, h.store, titleID, 4, db.UpsertPassOutcomeParams{
 		Outcome: "declined", Source: "sweep",
 		ReleaseTitle: "[SynthSubs] Placeholder Saga - 04 [720p]",
 		Detail:       "below the profile floor",
 		RecordedAt:   store.FormatTimestamp(now.Add(-6 * time.Hour)),
 	})
-	grabItem(t, h.store, seriesID, 4, "failed", "torrent vanished from the client")
+	grabItem(t, h.store, titleID, 4, "failed", "torrent vanished from the client")
 
 	var out missingResponse
 	if code := h.get(t, "/api/v1/wanted/missing?unaired=true", &out); code != http.StatusOK {
@@ -320,9 +322,9 @@ func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 
 func TestMissingUnmonitoredToggle(t *testing.T) {
 	h := wantedHarness(t)
-	seriesID := seedSeries(t, h.store, "Quiet Show", 1)
+	titleID := seedTitle(t, h.store, "Quiet Show", 1)
 	if _, err := h.store.DB.ExecContext(context.Background(),
-		`UPDATE series SET monitored = 0 WHERE id = ?`, seriesID); err != nil {
+		`UPDATE series SET monitored = 0 WHERE id = ?`, titleID); err != nil {
 		t.Fatalf("unmonitor: %v", err)
 	}
 
@@ -346,13 +348,13 @@ func TestMissingUnmonitoredToggle(t *testing.T) {
 func TestMissingReasonReadsStoredState(t *testing.T) {
 	h := wantedHarness(t)
 	ctx := context.Background()
-	never := seedSeries(t, h.store, "Never Searched", 1)
-	backoff := seedSeries(t, h.store, "Backing Off", 1)
+	never := seedTitle(t, h.store, "Never Searched", 1)
+	backoff := seedTitle(t, h.store, "Backing Off", 1)
 	searchedAt(t, h.store, backoff, store.FormatTimestamp(time.Now().Add(-2*time.Hour)),
 		store.FormatTimestamp(time.Now().Add(4*time.Hour)))
-	due := seedSeries(t, h.store, "Due Now", 1)
+	due := seedTitle(t, h.store, "Due Now", 1)
 	searchedAt(t, h.store, due, store.FormatTimestamp(time.Now().Add(-2*time.Hour)), "")
-	blocked := seedSeries(t, h.store, "Blocklisted", 1)
+	blocked := seedTitle(t, h.store, "Blocklisted", 1)
 	searchedAt(t, h.store, blocked, store.FormatTimestamp(time.Now().Add(-2*time.Hour)), "")
 	if _, err := h.store.Q.UpsertBlocklistEntry(ctx, db.UpsertBlocklistEntryParams{
 		SeriesID: blocked, InfoHash: "deadbeef", ReleaseTitle: "[ExampleSubs] Blocklisted - 01 [1080p]",
@@ -366,9 +368,9 @@ func TestMissingReasonReadsStoredState(t *testing.T) {
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
-	bySeries := map[int64]missingGroup{}
+	byTitle := map[int64]missingGroup{}
 	for _, g := range out.Groups {
-		bySeries[g.TitleID] = g
+		byTitle[g.TitleID] = g
 	}
 	for _, tc := range []struct {
 		id   int64
@@ -379,27 +381,27 @@ func TestMissingReasonReadsStoredState(t *testing.T) {
 		{due, "search_due"},
 		{blocked, "blocklisted"},
 	} {
-		if bySeries[tc.id].Reason != tc.want {
-			t.Errorf("series %d reason = %q, want %q", tc.id, bySeries[tc.id].Reason, tc.want)
+		if byTitle[tc.id].Reason != tc.want {
+			t.Errorf("series %d reason = %q, want %q", tc.id, byTitle[tc.id].Reason, tc.want)
 		}
 	}
-	if bySeries[blocked].BlockedReleases != 1 {
-		t.Errorf("blocked_releases = %d, want 1", bySeries[blocked].BlockedReleases)
+	if byTitle[blocked].BlockedReleases != 1 {
+		t.Errorf("blocked_releases = %d, want 1", byTitle[blocked].BlockedReleases)
 	}
-	if bySeries[backoff].NextSearchAt == "" {
+	if byTitle[backoff].NextSearchAt == "" {
 		t.Error("want next_search_at on a backed-off group")
 	}
 }
 
-// Groups order by their newest missing broadcast, an all-undated series last;
+// Groups order by their newest missing broadcast, an all-undated title last;
 // inside a group episodes enumerate forwards regardless of their dates, since
 // that is how a run reads and how a back catalogue drains.
 func TestMissingOrdersRecentGroupsFirstAndEpisodesForwards(t *testing.T) {
 	h := wantedHarness(t)
-	older := seedSeries(t, h.store, "Older Gap", 1)
+	older := seedTitle(t, h.store, "Older Gap", 1)
 	setAirsAt(t, h.store, older, 1, store.FormatTimestamp(time.Now().Add(-72*time.Hour)))
-	undated := seedSeries(t, h.store, "Back Catalogue", 3)
-	current := seedSeries(t, h.store, "Long Runner", 4)
+	undated := seedTitle(t, h.store, "Back Catalogue", 3)
+	current := seedTitle(t, h.store, "Long Runner", 4)
 	setAirsAt(t, h.store, current, 3, store.FormatTimestamp(time.Now().Add(-24*time.Hour)))
 	setAirsAt(t, h.store, current, 4, store.FormatTimestamp(time.Now().Add(-2*time.Hour)))
 	// Long Runner's episodes 1 and 2 have no air date
@@ -428,7 +430,7 @@ func TestMissingOrdersRecentGroupsFirstAndEpisodesForwards(t *testing.T) {
 // back-catalog progress display, the listed rows are just the front of the run.
 func TestMissingCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	h := wantedHarness(t)
-	seedSeries(t, h.store, "Very Long Runner", 60)
+	seedTitle(t, h.store, "Very Long Runner", 60)
 
 	var out missingResponse
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
@@ -451,10 +453,10 @@ func TestMissingCapsItemsPerGroupButNotTheCount(t *testing.T) {
 // into one giant paint. The cursor resumes without a skip or an overlap.
 func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
 	h := wantedHarness(t)
-	// Six series of 50 missing items each: the budget admits four (200 shown),
+	// Six title of 50 missing items each: the budget admits four (200 shown),
 	// well under the 50-group limit.
 	for _, title := range []string{"Bulk A", "Bulk B", "Bulk C", "Bulk D", "Bulk E", "Bulk F"} {
-		seedSeries(t, h.store, title, 50)
+		seedTitle(t, h.store, title, 50)
 	}
 
 	seen := map[int64]bool{}
@@ -497,7 +499,7 @@ func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
 // stamped on every row.
 func TestMissingReportsTheGlobalReason(t *testing.T) {
 	h := wantedHarness(t) // automation on, indexer set
-	seedSeries(t, h.store, "Quiet Library", 1)
+	seedTitle(t, h.store, "Quiet Library", 1)
 
 	var out missingResponse
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
@@ -520,7 +522,7 @@ func TestMissingReportsTheGlobalReason(t *testing.T) {
 	}
 
 	bare := newHarness(t, nil, nil) // no indexer at all
-	seedSeries(t, bare.store, "Unsearchable", 1)
+	seedTitle(t, bare.store, "Unsearchable", 1)
 	if code := bare.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
@@ -529,13 +531,13 @@ func TestMissingReportsTheGlobalReason(t *testing.T) {
 	}
 }
 
-// The pagination unit is the group, so a series never splits across a page
+// The pagination unit is the group, so a title never splits across a page
 // boundary: every group appears exactly once, whole, and the last page carries
 // no cursor.
 func TestMissingPaginatesByGroup(t *testing.T) {
 	h := wantedHarness(t)
 	for i, title := range []string{"Alpha", "Beta", "Gamma", "Delta", "Epsilon"} {
-		id := seedSeries(t, h.store, title, 2)
+		id := seedTitle(t, h.store, title, 2)
 		// Distinct latest broadcasts keep the group order deterministic.
 		setAirsAt(t, h.store, id, 2, store.FormatTimestamp(time.Now().Add(-time.Duration(i+1)*24*time.Hour)))
 	}
@@ -583,7 +585,7 @@ func TestMissingPaginatesByGroup(t *testing.T) {
 }
 
 // Cutoff Unmet is queried from stored state: the held release is re-scored under
-// the series' current profile, so the row carries the numbers behind the claim.
+// the title's current profile, so the row carries the numbers behind the claim.
 func TestCutoffUnmetRoute(t *testing.T) {
 	h := wantedHarness(t)
 	ctx := context.Background()
@@ -601,14 +603,14 @@ func TestCutoffUnmetRoute(t *testing.T) {
 			t.Fatalf("add group: %v", err)
 		}
 	}
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 2)
-	if _, err := h.store.Q.SetSeriesProfile(ctx, db.SetSeriesProfileParams{
-		QualityProfileID: profile.ID, ID: seriesID, ID_2: profile.ID,
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 2)
+	if _, err := h.store.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{
+		QualityProfileID: profile.ID, ID: titleID, ID_2: profile.ID,
 	}); err != nil {
 		t.Fatalf("set series profile: %v", err)
 	}
-	holdItem(t, h.store, seriesID, 1, "[MidSubs] Placeholder Saga - 01 [720p]")  // below 2300
-	holdItem(t, h.store, seriesID, 2, "[TopSubs] Placeholder Saga - 02 [1080p]") // above
+	holdItem(t, h.store, titleID, 1, "[MidSubs] Placeholder Saga - 01 [720p]")  // below 2300
+	holdItem(t, h.store, titleID, 2, "[TopSubs] Placeholder Saga - 02 [1080p]") // above
 
 	var out cutoffResponse
 	if code := h.get(t, "/api/v1/wanted/cutoff-unmet", &out); code != http.StatusOK {
@@ -618,8 +620,14 @@ func TestCutoffUnmetRoute(t *testing.T) {
 		t.Fatalf("groups = %+v, want one for the series", out.Groups)
 	}
 	g := out.Groups[0]
-	if g.TitleID != seriesID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
+	if g.TitleID != titleID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
 		t.Errorf("group = %+v, want the profile and cutoff hoisted to the header", g)
+	}
+	// Format rides the group so the page can word a film's row without calling
+	// it an episode (#215); it travels through acquire.CutoffGroup, not the
+	// row's own struct, which is the join this asserts.
+	if g.Format != "TV" {
+		t.Errorf("group format = %q, want TV", g.Format)
 	}
 	if len(g.Items) != 1 {
 		t.Fatalf("items = %+v, want only the sub-cutoff item", g.Items)
@@ -646,7 +654,7 @@ func TestCutoffUnmetRoute(t *testing.T) {
 }
 
 // Search is expressed as a cadence reset plus a triggered run, never as N
-// synchronous indexer requests: seriesPerPass is the budget that bounds it.
+// synchronous indexer requests: titlesPerPass is the budget that bounds it.
 func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	h := wantedHarness(t)
 	ctx := context.Background()
@@ -654,8 +662,8 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	// trigger has nothing to reach until the test supplies it.
 	h.jobs.Add(jobs.Job{Name: "wanted-search", Interval: time.Hour,
 		Run: func(context.Context) error { return nil }})
-	one := seedSeries(t, h.store, "One", 1)
-	two := seedSeries(t, h.store, "Two", 1)
+	one := seedTitle(t, h.store, "One", 1)
+	two := seedTitle(t, h.store, "Two", 1)
 	future := store.FormatTimestamp(time.Now().Add(6 * time.Hour))
 	searchedAt(t, h.store, one, store.FormatTimestamp(time.Now()), future)
 	searchedAt(t, h.store, two, store.FormatTimestamp(time.Now()), future)
@@ -682,7 +690,7 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 
 	// An explicit empty array means the whole library, which is what "Search
 	// all" sends. Omitting the field entirely is rejected instead, so a
-	// mis-serialized request cannot discard every series' backoff by accident.
+	// mis-serialized request cannot discard every title's backoff by accident.
 	if code := h.postJSON(t, "/api/v1/wanted/search", struct{}{}, &out); code != http.StatusUnprocessableEntity {
 		t.Fatalf("POST wanted/search with no series_ids = %d, want 422", code)
 	}
@@ -697,7 +705,7 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	if got := nextSearchAt(t, h.store, two); got != "" {
 		t.Errorf("series two next_search_at = %q, want cleared by the library-wide reset", got)
 	}
-	if _, err := h.store.Q.GetSeries(ctx, one); err != nil {
+	if _, err := h.store.Q.GetTitle(ctx, one); err != nil {
 		t.Fatalf("series one vanished: %v", err)
 	}
 
@@ -724,7 +732,7 @@ func TestQueueSearchReportsNotifyOnly(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("set notify-only: %v", err)
 	}
-	seedSeries(t, h.store, "Rehearsed", 1)
+	seedTitle(t, h.store, "Rehearsed", 1)
 
 	var out queueSearchResponse
 	if code := h.postJSON(t, "/api/v1/wanted/search", struct {
@@ -737,20 +745,20 @@ func TestQueueSearchReportsNotifyOnly(t *testing.T) {
 	}
 }
 
-func nextSearchAt(t *testing.T, st *store.Store, seriesID int64) string {
+func nextSearchAt(t *testing.T, st *store.Store, titleID int64) string {
 	t.Helper()
 	var next sql.NullString
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT next_search_at FROM series WHERE id = ?`, seriesID).Scan(&next); err != nil {
+		`SELECT next_search_at FROM series WHERE id = ?`, titleID).Scan(&next); err != nil {
 		t.Fatalf("read next_search_at: %v", err)
 	}
 	return next.String
 }
 
-func holdItem(t *testing.T, st *store.Store, seriesID int64, number int, releaseTitle string) {
+func holdItem(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string) {
 	t.Helper()
 	ctx := context.Background()
-	id := itemID(t, st, seriesID, number)
+	id := itemID(t, st, titleID, number)
 	if err := st.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
 		InLibrary: 1, HeldReleaseTitle: releaseTitle, ID: id,
 	}); err != nil {
@@ -763,10 +771,10 @@ func holdItem(t *testing.T, st *store.Store, seriesID int64, number int, release
 	}
 }
 
-func grabItem(t *testing.T, st *store.Store, seriesID int64, number int, status, lastError string) {
+func grabItem(t *testing.T, st *store.Store, titleID int64, number int, status, lastError string) {
 	t.Helper()
 	ctx := context.Background()
-	id := itemID(t, st, seriesID, number)
+	id := itemID(t, st, titleID, number)
 	g, err := st.Q.UpsertGrab(ctx, db.UpsertGrabParams{
 		WantedItemID: id, InfoHash: "hash", ReleaseTitle: "[ExampleSubs] release", Status: status,
 	})

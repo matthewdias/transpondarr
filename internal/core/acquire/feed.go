@@ -39,14 +39,14 @@ type feedMark struct {
 func feedMarkKey(indexerName string) string { return "feed.seen." + indexerName }
 
 // PollFeedOnce takes the indexer's newest releases and grabs what any monitored
-// series wants, and is what the job runner calls. It is only a cheaper trigger
+// title wants, and is what the job runner calls. It is only a cheaper trigger
 // than the sweep: eligibility is the sweep's, because both drive grabPass over a
 // Match built the same way. The clients and the kill switch are read per run, so
 // a Settings edit takes effect on the next tick — except on a hand-triggered run,
 // which passes the kill switch as explicit intent (#122).
 //
 // An indexer with no recent feed is a supported configuration, not a failure:
-// the scheduled sweep already covers those series, just less promptly.
+// the scheduled sweep already covers those titles, just less promptly.
 func (s *Service) PollFeedOnce(ctx context.Context) error {
 	// Gated jobs are mirrored in the UI's AUTOMATION_GATED list (jobs.tsx).
 	if !s.cfg.AutomationEnabled() && !jobs.ManualRun(ctx) {
@@ -95,12 +95,12 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 	}
 	// Recovery runs after the page is processed, so anything this poll just
 	// grabbed has settled its item and drops out of the reset set.
-	polled := s.pollSeries(ctx, releases)
+	polled := s.pollTitle(ctx, releases)
 	var recovered error
 	if gap {
 		recovered = s.recoverFeedGap(ctx, idx.Name(), mark.Latest, len(entries))
 	}
-	// The mark advances even when a series failed: those entries were seen, and
+	// The mark advances even when a title failed: those entries were seen, and
 	// re-processing the page would not fix whatever broke.
 	return errors.Join(
 		polled, recovered,
@@ -108,20 +108,20 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 	)
 }
 
-// recoverFeedGap puts the sweep back on the series whose broadcast happened
+// recoverFeedGap puts the sweep back on the titles whose broadcast happened
 // while the feed was scrolling past us. The set is bounded to one sweep pass'
-// worth of series and ordered furthest-postponed first: the gap fires routinely
+// worth of titles and ordered furthest-postponed first: the gap fires routinely
 // on a busy aggregating indexer, so resetting everything would queue more
 // searches than the sweep can spend. A failed reset still lets the mark advance
 // — the sweep's ladder remains the fallback it already was.
 func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since time.Time, page int) error {
 	now := time.Now()
-	stale, err := s.store.Q.ListBackedOffSeriesWantedInWindow(ctx,
-		db.ListBackedOffSeriesWantedInWindowParams{
+	stale, err := s.store.Q.ListBackedOffTitlesWantedInWindow(ctx,
+		db.ListBackedOffTitlesWantedInWindowParams{
 			NextSearchAt: sql.NullString{String: store.FormatTimestamp(now), Valid: true},
 			AirsAt:       sql.NullString{String: store.FormatTimestamp(since.Add(-feedGapAiredSlack)), Valid: true},
 			AirsAt_2:     sql.NullString{String: store.FormatTimestamp(now), Valid: true},
-			Limit:        seriesPerPass,
+			Limit:        titlesPerPass,
 		})
 	if err != nil {
 		return fmt.Errorf("list series that aired inside a feed gap: %w", err)
@@ -129,12 +129,12 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 
 	var errs []error
 	reset := 0
-	for _, series := range stale {
+	for _, title := range stale {
 		if ctx.Err() != nil {
 			break
 		}
-		if err := s.store.Q.ResetSeriesSearchState(ctx, series.ID); err != nil {
-			errs = append(errs, fmt.Errorf("reset series %d after a feed gap: %w", series.ID, err))
+		if err := s.store.Q.ResetTitleSearchState(ctx, title.ID); err != nil {
+			errs = append(errs, fmt.Errorf("reset series %d after a feed gap: %w", title.ID, err))
 			continue
 		}
 		reset++
@@ -149,44 +149,44 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 	return errors.Join(errs...)
 }
 
-// pollSeries matches one already-fetched page against every series with
-// something wanted. This is the inverse of the sweep's lookup, so it is series ×
-// entry rather than one search per series — deliberately unoptimised, because a
-// page is ~100 entries and the due query already drops any series with nothing
-// left to grab. One series' failure never costs the rest their pass.
-func (s *Service) pollSeries(ctx context.Context, releases []indexer.Release) error {
+// pollTitle matches one already-fetched page against every title with
+// something wanted. This is the inverse of the sweep's lookup, so it is title ×
+// entry rather than one search per title — deliberately unoptimised, because a
+// page is ~100 entries and the due query already drops any title with nothing
+// left to grab. One title's failure never costs the rest their pass.
+func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) error {
 	now := time.Now()
-	due, err := s.store.Q.ListSeriesWithWantedItems(ctx,
+	due, err := s.store.Q.ListTitlesWithWantedItems(ctx,
 		sql.NullString{String: store.FormatTimestamp(now), Valid: true})
 	if err != nil {
 		return fmt.Errorf("list series with wanted items: %w", err)
 	}
 
 	var errs []error
-	for _, series := range due {
+	for _, title := range due {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := s.pollOneSeries(ctx, series, releases, now); err != nil {
-			errs = append(errs, fmt.Errorf("series %d: %w", series.ID, err))
+		if err := s.pollOneTitle(ctx, title, releases, now); err != nil {
+			errs = append(errs, fmt.Errorf("series %d: %w", title.ID, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// pollOneSeries runs the shared decision path over the feed page. It writes no
+// pollOneTitle runs the shared decision path over the feed page. It writes no
 // search cadence: nothing was searched, and a grab settles its item, so the
-// sweep's due query drops the series on its own.
-func (s *Service) pollOneSeries(ctx context.Context, series db.Series, releases []indexer.Release, now time.Time) error {
-	sweep, err := s.loadSweepItems(ctx, series.ID, now)
+// sweep's due query drops the title on its own.
+func (s *Service) pollOneTitle(ctx context.Context, title db.Series, releases []indexer.Release, now time.Time) error {
+	sweep, err := s.loadSweepItems(ctx, title.ID, now)
 	if err != nil {
 		return err
 	}
-	m, err := s.evaluate(ctx, series, passItems(sweep), s.cachedVariants(ctx, series), "", releases)
+	m, err := s.evaluate(ctx, title, passItems(sweep), s.cachedVariants(ctx, title), "", releases)
 	if err != nil {
 		return err
 	}
-	_, _, err = s.grabPass(ctx, series, m, sweep, now, sourceFeed)
+	_, _, err = s.grabPass(ctx, title, m, sweep, now, sourceFeed)
 	return err
 }
 

@@ -10,24 +10,22 @@ import {
   jobsQuery,
   metadataSearchQuery,
   releasesQuery,
-  seriesDetailQuery,
-  seriesQuery,
+  titleDetailQuery,
+  titlesQuery,
   settingsQuery,
 } from "@/lib/queries";
 
 describe("query key factories", () => {
   it("produce identical keys for identical arguments", () => {
-    expect(seriesDetailQuery(7).queryKey).toEqual(
-      seriesDetailQuery(7).queryKey,
-    );
+    expect(titleDetailQuery(7).queryKey).toEqual(titleDetailQuery(7).queryKey);
     expect(metadataSearchQuery("example").queryKey).toEqual(
       metadataSearchQuery("example").queryKey,
     );
   });
 
   it("scope parameterized keys by their argument", () => {
-    expect(seriesDetailQuery(1).queryKey).not.toEqual(
-      seriesDetailQuery(2).queryKey,
+    expect(titleDetailQuery(1).queryKey).not.toEqual(
+      titleDetailQuery(2).queryKey,
     );
     expect(
       browseSeasonQuery({ season: "summer", year: 2026 }).queryKey,
@@ -40,14 +38,14 @@ describe("query key factories", () => {
   });
 
   it("keeps the series list key a prefix of the detail key, so one invalidation covers both", () => {
-    const list = seriesQuery().queryKey;
-    const detail = seriesDetailQuery(42).queryKey;
+    const list = titlesQuery().queryKey;
+    const detail = titleDetailQuery(42).queryKey;
     expect(detail.slice(0, list.length)).toEqual([...list]);
   });
 
   it("gives every resource a distinct key root", () => {
     const roots = [
-      seriesQuery(),
+      titlesQuery(),
       authStatusQuery(),
       metadataSearchQuery("x"),
       releasesQuery(1),

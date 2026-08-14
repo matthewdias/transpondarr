@@ -14,9 +14,9 @@ import {
 } from "vitest";
 import { MemoryRouter } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import type { SeriesDetail, WantedItem } from "@/lib/api";
-import { seriesDetailQuery } from "@/lib/queries";
-import { DeleteSeriesDialog } from "@/components/detail/delete-series-dialog";
+import type { TitleDetail, WantedItem } from "@/lib/api";
+import { titleDetailQuery, titlesQuery } from "@/lib/queries";
+import { DeleteTitleDialog } from "@/components/detail/delete-title-dialog";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -31,7 +31,7 @@ const item = (number: number, status: WantedItem["status"]): WantedItem => ({
   status,
 });
 
-const detail: SeriesDetail = {
+const detail: TitleDetail = {
   id: 7,
   title: "Placeholder Saga",
   format: "TV",
@@ -54,14 +54,14 @@ function renderDialog(onDeleted = vi.fn()) {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <DeleteSeriesDialog detail={detail} onDeleted={onDeleted} />
+        <DeleteTitleDialog detail={detail} onDeleted={onDeleted} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
   return onDeleted;
 }
 
-describe("DeleteSeriesDialog", () => {
+describe("DeleteTitleDialog", () => {
   it("says what goes and what stays, in counts", async () => {
     const user = userEvent.setup();
     renderDialog();
@@ -131,10 +131,10 @@ describe("DeleteSeriesDialog", () => {
       ),
     );
     // The dialog lives on the detail page, so its query is active when the
-    // series-prefix invalidation lands.
+    // title-prefix invalidation lands.
     function Page() {
-      useQuery(seriesDetailQuery(7));
-      return <DeleteSeriesDialog detail={detail} onDeleted={() => {}} />;
+      useQuery(titleDetailQuery(7));
+      return <DeleteTitleDialog detail={detail} onDeleted={() => {}} />;
     }
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -156,6 +156,46 @@ describe("DeleteSeriesDialog", () => {
     );
 
     expect(detailGets).toBe(1);
+  });
+
+  // The invalidation goes through titlesQuery() rather than a bare ["titles"]
+  // literal, and a literal is what this guards: renaming the factory while a
+  // raw key stayed behind still compiles and still passes every other test
+  // here, and the only symptom is a list that never drops the deleted title.
+  it("refetches the title list after a delete", async () => {
+    let listGets = 0;
+    server.use(
+      http.get("/api/v1/titles", () => {
+        listGets++;
+        return HttpResponse.json({ titles: [] });
+      }),
+      http.delete(
+        "/api/v1/titles/7",
+        () => new HttpResponse(null, { status: 204 }),
+      ),
+    );
+    // An active observer, because invalidation only refetches what is mounted.
+    function Page() {
+      useQuery(titlesQuery());
+      return <DeleteTitleDialog detail={detail} onDeleted={() => {}} />;
+    }
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Page />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(listGets).toBe(1));
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /delete/i }));
+    await user.click(screen.getByRole("button", { name: /delete series/i }));
+
+    await waitFor(() => expect(listGets).toBe(2));
   });
 
   it("keeps the dialog open and reports a failed delete", async () => {

@@ -84,11 +84,11 @@ func (racingClaims) ReleaseClaims([]int64) {}
 
 // --- helpers ----------------------------------------------------------------
 
-// seedSeriesGrab creates a named series with one grabbed item on the given hash.
-func seedSeriesGrab(t *testing.T, st *store.Store, title, hash string, number int) int64 {
+// seedTitleGrab creates a named title with one grabbed item on the given hash.
+func seedTitleGrab(t *testing.T, st *store.Store, title, hash string, number int) int64 {
 	t.Helper()
 	ctx := context.Background()
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: title, Format: "TV", Monitored: 1})
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
@@ -108,11 +108,11 @@ func seedSeriesGrab(t *testing.T, st *store.Store, title, hash string, number in
 	return s.ID
 }
 
-// seedGrab creates a series + one wanted item + a grab.
-func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, seriesID int64) {
+// seedGrab creates a title + one wanted item + a grab.
+func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, titleID int64) {
 	t.Helper()
 	ctx := context.Background()
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
@@ -131,11 +131,11 @@ func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, seriesID int6
 	return item.ID, s.ID
 }
 
-// addItem adds one more wanted item to a series, with no grab of its own.
-func addItem(t *testing.T, st *store.Store, seriesID int64, number int) int64 {
+// addItem adds one more wanted item to a title, with no grab of its own.
+func addItem(t *testing.T, st *store.Store, titleID int64, number int) int64 {
 	t.Helper()
 	item, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
-		SeriesID: seriesID, Kind: "episode", Number: sql.NullInt64{Int64: int64(number), Valid: true},
+		SeriesID: titleID, Kind: "episode", Number: sql.NullInt64{Int64: int64(number), Valid: true},
 		Monitored: 1,
 	})
 	if err != nil {
@@ -197,7 +197,7 @@ func backdateMissingSince(t *testing.T, st *store.Store, hash string, ago time.D
 
 func TestImportsCompletedGrab(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 
 	// A real completed file for the importer to stat and place.
 	srcDir := t.TempDir()
@@ -228,7 +228,7 @@ func TestImportsCompletedGrab(t *testing.T) {
 	if len(rows) != 1 || rows[0].Status != "imported" {
 		t.Errorf("grab status = %v, want imported", rows)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
 	if items[0].InLibrary != 1 {
 		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
@@ -238,7 +238,7 @@ func TestImportsCompletedGrab(t *testing.T) {
 // the status writes must not leave a placed file still marked grabbed.
 func TestFinishesInFlightImportAfterCancel(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	src := filepath.Join(t.TempDir(), "raw.mkv")
 	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
@@ -256,7 +256,7 @@ func TestFinishesInFlightImportAfterCancel(t *testing.T) {
 	if g := grabByHash(t, st, "abc"); g.Status != "imported" {
 		t.Errorf("status = %q, want imported: the file was already placed when the cancel arrived", g.Status)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
 	if items[0].InLibrary != 1 {
 		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
@@ -379,7 +379,7 @@ func TestSkipsIncompleteGrab(t *testing.T) {
 // TestImportsFolderWrappedEpisode: a directory payload is not automatically a batch.
 func TestImportsFolderWrappedEpisode(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	dir := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].nfo",
@@ -404,7 +404,7 @@ func TestImportsFolderWrappedEpisode(t *testing.T) {
 	if grabByHash(t, st, "abc").Status != "imported" {
 		t.Errorf("status = %q, want imported", grabByHash(t, st, "abc").Status)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
 	if items[0].InLibrary != 1 {
 		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
@@ -412,10 +412,10 @@ func TestImportsFolderWrappedEpisode(t *testing.T) {
 
 // The inverse of the old defer-the-whole-thing rule (#126): a multi-episode
 // payload is walked file by file, so the grabbed item gets its own episode. The
-// other files belong to items this series does not track, so they are left alone.
+// other files belong to items this title does not track, so they are left alone.
 func TestImportsItsOwnEpisodeFromAMultiEpisodeDirectory(t *testing.T) {
 	st := coretest.NewStore(t)
-	_, seriesID := seedGrab(t, st, "abc")
+	_, titleID := seedGrab(t, st, "abc")
 	dir := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 04 [1080p].mkv",
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
@@ -439,7 +439,7 @@ func TestImportsItsOwnEpisodeFromAMultiEpisodeDirectory(t *testing.T) {
 	if g := grabByHash(t, st, "abc"); g.Status != "imported" {
 		t.Errorf("status = %q, want imported", g.Status)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
 	if items[0].InLibrary != 1 {
 		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
@@ -448,7 +448,7 @@ func TestImportsItsOwnEpisodeFromAMultiEpisodeDirectory(t *testing.T) {
 // The whole point of #126: one grab per covered episode, one payload, N imports.
 func TestImportsEveryEpisodeOfASeasonPack(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID, _ := seedBatchGrab(t, st, "abc", 3)
+	titleID, _ := seedBatchGrab(t, st, "abc", 3)
 	dir := writeTree(t,
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"[SynthSubs] Placeholder Saga - 02 [1080p].mkv",
@@ -480,7 +480,7 @@ func TestImportsEveryEpisodeOfASeasonPack(t *testing.T) {
 			t.Errorf("grab for item %d = %q, want imported", g.ItemNumber.Int64, g.Status)
 		}
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
 	for _, it := range items {
 		if it.InLibrary != 1 {
 			t.Errorf("item %d in_library = %d, want 1", it.Number.Int64, it.InLibrary)
@@ -496,7 +496,7 @@ func TestImportsEveryEpisodeOfASeasonPack(t *testing.T) {
 // files still loose in the payload, defers with the detail a human acts on.
 func TestDefersWhenAFileIsMissingButOthersAreLoose(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID, _ := seedBatchGrab(t, st, "abc", 3)
+	titleID, _ := seedBatchGrab(t, st, "abc", 3)
 	// Episode 2 ships under a name nothing can read.
 	dir := writeTree(t,
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
@@ -528,7 +528,7 @@ func TestDefersWhenAFileIsMissingButOthersAreLoose(t *testing.T) {
 	if len(rec.calls) != 0 {
 		t.Errorf("blocklist records = %+v, want none for a deferral", rec.calls)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
 	for _, it := range items {
 		if want := int64(0); it.Number.Int64 == 2 && it.InLibrary != want {
 			t.Errorf("item 2 in_library = %d, want %d", it.InLibrary, want)
@@ -541,7 +541,7 @@ func TestDefersWhenAFileIsMissingButOthersAreLoose(t *testing.T) {
 // however many rows it covered.
 func TestFailsAndBlocklistsWhenThePayloadHasNothingLeft(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID, _ := seedBatchGrab(t, st, "abc", 3)
+	titleID, _ := seedBatchGrab(t, st, "abc", 3)
 	// Only episode 1 is in the payload; 2 and 3 have nothing to fall back on.
 	dir := writeTree(t, "[SynthSubs] Placeholder Saga - 01 [1080p].mkv")
 
@@ -570,8 +570,8 @@ func TestFailsAndBlocklistsWhenThePayloadHasNothingLeft(t *testing.T) {
 	if got := len(rec.calls[0].itemIDs); got != 2 {
 		t.Errorf("recorded %d items, want the 2 that failed", got)
 	}
-	if rec.calls[0].seriesID != seriesID {
-		t.Errorf("recorded series %d, want %d", rec.calls[0].seriesID, seriesID)
+	if rec.calls[0].titleID != titleID {
+		t.Errorf("recorded series %d, want %d", rec.calls[0].titleID, titleID)
 	}
 }
 
@@ -580,8 +580,8 @@ func TestFailsAndBlocklistsWhenThePayloadHasNothingLeft(t *testing.T) {
 func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
-	seriesID, _ := seedBatchGrab(t, st, "abc", 1)
-	extra := addItem(t, st, seriesID, 2)
+	titleID, _ := seedBatchGrab(t, st, "abc", 1)
+	extra := addItem(t, st, titleID, 2)
 	dir := writeTree(t,
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"[SynthSubs] Placeholder Saga - 02 [1080p].mkv",
@@ -598,7 +598,7 @@ func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 	if len(target.Placed) != 2 {
 		t.Fatalf("Place called %d times, want the claimed episode and the extra", len(target.Placed))
 	}
-	items, _ := st.Q.ListWantedItems(ctx, seriesID)
+	items, _ := st.Q.ListWantedItems(ctx, titleID)
 	for _, it := range items {
 		if it.InLibrary != 1 {
 			t.Errorf("item %d in_library = %d, want 1", it.Number.Int64, it.InLibrary)
@@ -613,7 +613,7 @@ func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 			t.Errorf("item %d = %q, want imported", g.ItemNumber.Int64, g.Status)
 		}
 	}
-	events := seriesEvents(t, st, seriesID)
+	events := titleEvents(t, st, titleID)
 	var recovered bool
 	for _, e := range events {
 		if e.WantedItemID == extra && e.Event == "grabbed" && e.Detail != "" {
@@ -633,8 +633,8 @@ func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 func TestImportsAFileForAnUnmonitoredItemAnyway(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
-	seriesID, _ := seedBatchGrab(t, st, "abc", 1)
-	extra := addItem(t, st, seriesID, 2)
+	titleID, _ := seedBatchGrab(t, st, "abc", 1)
+	extra := addItem(t, st, titleID, 2)
 	if _, err := st.DB.ExecContext(ctx,
 		`UPDATE wanted_items SET monitored = 0 WHERE id = ?`, extra); err != nil {
 		t.Fatalf("unmonitor the extra item: %v", err)
@@ -655,7 +655,7 @@ func TestImportsAFileForAnUnmonitoredItemAnyway(t *testing.T) {
 	if len(target.Placed) != 2 {
 		t.Fatalf("Place called %d times, want the claimed episode and the unmonitored extra", len(target.Placed))
 	}
-	items, _ := st.Q.ListWantedItems(ctx, seriesID)
+	items, _ := st.Q.ListWantedItems(ctx, titleID)
 	for _, it := range items {
 		if it.InLibrary != 1 {
 			t.Errorf("item %d in_library = %d, want 1", it.Number.Int64, it.InLibrary)
@@ -664,20 +664,20 @@ func TestImportsAFileForAnUnmonitoredItemAnyway(t *testing.T) {
 }
 
 // Each guard on that placement, one payload at a time: a had item, an item with
-// a grab of its own in flight, and an item this series does not track.
+// a grab of its own in flight, and an item this title does not track.
 func TestLeavesAnUnclaimedFileAloneWhenTheGuardRefuses(t *testing.T) {
 	tests := []struct {
 		name  string
-		setup func(t *testing.T, st *store.Store, seriesID int64)
+		setup func(t *testing.T, st *store.Store, titleID int64)
 	}{
-		{"item is already had", func(t *testing.T, st *store.Store, seriesID int64) {
-			id := addItem(t, st, seriesID, 2)
+		{"item is already had", func(t *testing.T, st *store.Store, titleID int64) {
+			id := addItem(t, st, titleID, 2)
 			if err := st.Q.SetWantedItemInLibrary(context.Background(), db.SetWantedItemInLibraryParams{InLibrary: 1, ID: id}); err != nil {
 				t.Fatal(err)
 			}
 		}},
-		{"item has a grab of its own", func(t *testing.T, st *store.Store, seriesID int64) {
-			id := addItem(t, st, seriesID, 2)
+		{"item has a grab of its own", func(t *testing.T, st *store.Store, titleID int64) {
+			id := addItem(t, st, titleID, 2)
 			if _, err := st.Q.UpsertGrab(context.Background(), db.UpsertGrabParams{
 				WantedItemID: id, InfoHash: "other", ReleaseTitle: "other release", Status: "grabbed",
 			}); err != nil {
@@ -689,8 +689,8 @@ func TestLeavesAnUnclaimedFileAloneWhenTheGuardRefuses(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			st := coretest.NewStore(t)
-			seriesID, _ := seedBatchGrab(t, st, "abc", 1)
-			tc.setup(t, st, seriesID)
+			titleID, _ := seedBatchGrab(t, st, "abc", 1)
+			tc.setup(t, st, titleID)
 			dir := writeTree(t,
 				"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 				"[SynthSubs] Placeholder Saga - 02 [1080p].mkv",
@@ -716,8 +716,8 @@ func TestLeavesAnUnclaimedFileAloneWhenTheGuardRefuses(t *testing.T) {
 // copy-mode Place runs for minutes: yield rather than race it.
 func TestLeavesAnUnclaimedFileAloneWhileItsItemIsClaimed(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID, _ := seedBatchGrab(t, st, "abc", 1)
-	addItem(t, st, seriesID, 2)
+	titleID, _ := seedBatchGrab(t, st, "abc", 1)
+	addItem(t, st, titleID, 2)
 	dir := writeTree(t,
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"[SynthSubs] Placeholder Saga - 02 [1080p].mkv",
@@ -742,8 +742,8 @@ func TestLeavesAnUnclaimedFileAloneWhileItsItemIsClaimed(t *testing.T) {
 // the after-the-fact grab row would overwrite an in-flight one.
 func TestLeavesAnUnclaimedFileAloneWhenItsItemIsGrabbedUnderTheClaim(t *testing.T) {
 	st := coretest.NewStore(t)
-	seriesID, _ := seedBatchGrab(t, st, "abc", 1)
-	extra := addItem(t, st, seriesID, 2)
+	titleID, _ := seedBatchGrab(t, st, "abc", 1)
+	extra := addItem(t, st, titleID, 2)
 	dir := writeTree(t,
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"[SynthSubs] Placeholder Saga - 02 [1080p].mkv",
@@ -761,7 +761,7 @@ func TestLeavesAnUnclaimedFileAloneWhenItsItemIsGrabbedUnderTheClaim(t *testing.
 	if len(target.Placed) != 1 {
 		t.Errorf("Place called %d times, want only the claimed episode", len(target.Placed))
 	}
-	grabs, err := st.Q.ListGrabsBySeries(context.Background(), seriesID)
+	grabs, err := st.Q.ListGrabsByTitle(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -775,13 +775,13 @@ func TestLeavesAnUnclaimedFileAloneWhenItsItemIsGrabbedUnderTheClaim(t *testing.
 	}
 }
 
-// One torrent can back grabs for two series (a manual grab bypasses eligibility),
-// and a group is the unit of both mapping and attribution — so it is per series,
-// not per hash, or one series' rows borrow the other's numbering and title.
-func TestKeepsTwoSeriesSharingAnInfoHashApart(t *testing.T) {
+// One torrent can back grabs for two titles (a manual grab bypasses eligibility),
+// and a group is the unit of both mapping and attribution — so it is per title,
+// not per hash, or one title's rows borrow the other's numbering and title.
+func TestKeepsTwoTitlesSharingAnInfoHashApart(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedBatchGrab(t, st, "abc", 1)
-	seedSeriesGrab(t, st, "Second Saga", "abc", 2)
+	seedTitleGrab(t, st, "Second Saga", "abc", 2)
 	dir := writeTree(t,
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"[SynthSubs] Second Saga - 02 [1080p].mkv",
@@ -1020,7 +1020,7 @@ func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 // stops being reported, and "failed" is what reads as wanted again in the API.
 func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	st := coretest.NewStore(t)
-	itemID, seriesID := seedGrab(t, st, "abc")
+	itemID, titleID := seedGrab(t, st, "abc")
 	backdateMissingSince(t, st, "abc", time.Hour)
 
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
@@ -1038,7 +1038,7 @@ func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	if g.Status != "failed" {
 		t.Errorf("status = %q, want failed once the absence outlived the grace period", g.Status)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), seriesID)
+	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
 	for _, it := range items {
 		if it.ID == itemID && it.InLibrary != 0 {
 			t.Errorf("in_library = %d, want 0 for a failed grab", it.InLibrary)

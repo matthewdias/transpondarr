@@ -23,6 +23,7 @@ const queueItem = (over: Partial<QueueItem>): QueueItem => ({
   id: 1,
   title_id: 7,
   title: "Signal Anomaly",
+  format: "TV",
   item_number: 4,
   release_title: "[FakeGroup] Signal Anomaly - 04 (1080p) [ABCD1234].mkv",
   infohash: "aaaa",
@@ -119,13 +120,13 @@ describe("ActivityPage", () => {
     expect(await screen.findByText("Paused")).toBeInTheDocument();
     expect(screen.getByText(/42%/)).toBeInTheDocument();
     const links = screen.getAllByRole("link", { name: "Signal Anomaly" });
-    expect(links[0]).toHaveAttribute("href", "/series/7");
+    expect(links[0]).toHaveAttribute("href", "/titles/7");
 
     // Queue: the stuck row names its import error.
     expect(screen.getByText("import failed: disk full")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dusty Archive" })).toHaveAttribute(
       "href",
-      "/series/9",
+      "/titles/9",
     );
 
     // History: past-tense verbs, failure detail carried through.
@@ -237,6 +238,29 @@ describe("unmatched downloads", () => {
   };
 
   // A rare state: an always-present empty section would be noise on every visit.
+  // #215's DTO half: the queue is movie-reachable, and format is the only thing
+  // that can tell a film from an episode -- item count cannot (#208). The film
+  // is still identified, by the title it already carries.
+  it("does not call a downloading film an episode", async () => {
+    useHandlers(
+      {
+        items: [
+          queueItem({
+            title: "Placeholder Film",
+            format: "MOVIE",
+            item_number: 1,
+          }),
+        ],
+        client_ok: true,
+      },
+      {},
+    );
+    renderPage();
+
+    expect(await screen.findByText("Placeholder Film")).toBeInTheDocument();
+    expect(screen.queryByText(/episode 1/i)).not.toBeInTheDocument();
+  });
+
   it("stays out of the way when nothing is unmatched", async () => {
     useHandlers({ client_ok: true, items: [] }, { "": { events: [] } });
 

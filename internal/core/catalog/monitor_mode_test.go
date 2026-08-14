@@ -27,10 +27,10 @@ func longRunner(next int) *fakeProvider {
 	}
 }
 
-func monitoredNumbers(t *testing.T, st *store.Store, seriesID int64) []int {
+func monitoredNumbers(t *testing.T, st *store.Store, titleID int64) []int {
 	t.Helper()
 	rows, err := st.DB.QueryContext(context.Background(),
-		`SELECT number FROM wanted_items WHERE series_id = ? AND monitored = 1 ORDER BY number`, seriesID)
+		`SELECT number FROM wanted_items WHERE series_id = ? AND monitored = 1 ORDER BY number`, titleID)
 	if err != nil {
 		t.Fatalf("read monitored items: %v", err)
 	}
@@ -46,11 +46,11 @@ func monitoredNumbers(t *testing.T, st *store.Store, seriesID int64) []int {
 	return out
 }
 
-func storedCut(t *testing.T, st *store.Store, seriesID int64) sql.NullInt64 {
+func storedCut(t *testing.T, st *store.Store, titleID int64) sql.NullInt64 {
 	t.Helper()
 	var cut sql.NullInt64
 	if err := st.DB.QueryRowContext(context.Background(),
-		`SELECT monitor_new_from FROM series WHERE id = ?`, seriesID).Scan(&cut); err != nil {
+		`SELECT monitor_new_from FROM series WHERE id = ?`, titleID).Scan(&cut); err != nil {
 		t.Fatalf("read monitor_new_from: %v", err)
 	}
 	return cut
@@ -59,7 +59,7 @@ func storedCut(t *testing.T, st *store.Store, seriesID int64) sql.NullInt64 {
 // The add-time choice is what makes #160 tractable: a long-runner must be
 // narrowed before the first sweep tick, not by clicking a thousand checkboxes
 // against a 15-minute clock.
-func TestAddSeriesAppliesTheMonitorMode(t *testing.T) {
+func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		mode      MonitorMode
@@ -100,7 +100,7 @@ func TestAddSeriesAppliesTheMonitorMode(t *testing.T) {
 			prov := longRunner(tc.next)
 			svc := NewService(st, prov)
 
-			title, err := svc.AddSeries(context.Background(), prov.Name(), 42, true, tc.mode, 0)
+			title, err := svc.AddTitle(context.Background(), prov.Name(), 42, true, tc.mode, 0)
 			if err != nil {
 				t.Fatalf("AddSeries: %v", err)
 			}
@@ -122,13 +122,13 @@ func TestAddSeriesAppliesTheMonitorMode(t *testing.T) {
 
 // The zero value must not read as a choice: coercing it to "all" would have a
 // caller that forgot the argument silently chase a back catalogue.
-func TestAddSeriesRejectsAModeItDoesNotKnow(t *testing.T) {
+func TestAddTitleRejectsAModeItDoesNotKnow(t *testing.T) {
 	for _, mode := range []MonitorMode{"", "none", "nonsense"} {
 		st := coretest.NewStore(t)
 		prov := longRunner(7)
 		svc := NewService(st, prov)
 
-		_, err := svc.AddSeries(context.Background(), prov.Name(), 42, true, mode, 0)
+		_, err := svc.AddTitle(context.Background(), prov.Name(), 42, true, mode, 0)
 		if !errors.Is(err, ErrUnknownMonitorMode) {
 			t.Errorf("AddSeries(%q) = %v, want ErrUnknownMonitorMode", mode, err)
 		}

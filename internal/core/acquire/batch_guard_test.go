@@ -8,7 +8,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 )
 
-// packRelease builds a synthetic season pack covering a whole series.
+// packRelease builds a synthetic season pack covering a whole title.
 func packRelease(title string) indexer.Release {
 	return indexer.Release{
 		Title:       "[Batchers] " + title + " S1 (01-06) [1080p][Batch]",
@@ -18,7 +18,7 @@ func packRelease(title string) indexer.Release {
 }
 
 // The inversion #126 buys, and #125's case read the other way round: a
-// back-catalog series whose results carry both singles and a pack takes the
+// back-catalog title whose results carry both singles and a pack takes the
 // pack, because the importer now places it file by file. One grab, six items.
 func TestSweepPrefersASeasonPackOverSingles(t *testing.T) {
 	h := newSweep(t, []indexer.Release{

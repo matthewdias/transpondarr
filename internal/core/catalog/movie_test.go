@@ -26,7 +26,7 @@ func TestAddMovieCreatesOneItemOfKindMovie(t *testing.T) {
 	svc := NewService(st, movieProvider(2020, 0))
 	ctx := context.Background()
 
-	title, err := svc.AddSeries(ctx, "fake", 4321, true, MonitorAll, 0)
+	title, err := svc.AddTitle(ctx, "fake", 4321, true, MonitorAll, 0)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestAddMovieWithMonitorFutureLeavesItsItemUnmonitored(t *testing.T) {
 	svc := NewService(st, movieProvider(0, 0))
 	ctx := context.Background()
 
-	title, err := svc.AddSeries(ctx, "fake", 4321, true, MonitorFuture, 0)
+	title, err := svc.AddTitle(ctx, "fake", 4321, true, MonitorFuture, 0)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestAddMovieWithMonitorFutureAndAPremiereMonitorsIt(t *testing.T) {
 	svc := NewService(st, movieProvider(2027, 1))
 	ctx := context.Background()
 
-	title, err := svc.AddSeries(ctx, "fake", 4321, true, MonitorFuture, 0)
+	title, err := svc.AddTitle(ctx, "fake", 4321, true, MonitorFuture, 0)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestAddOneEpisodeOVAKeepsEpisodeKind(t *testing.T) {
 	svc := NewService(st, prov)
 	ctx := context.Background()
 
-	title, err := svc.AddSeries(ctx, "fake", 77, true, MonitorAll, 0)
+	title, err := svc.AddTitle(ctx, "fake", 77, true, MonitorAll, 0)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}

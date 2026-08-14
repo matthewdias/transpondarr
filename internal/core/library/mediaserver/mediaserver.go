@@ -1,8 +1,8 @@
 // Package mediaserver implements the library.Target interface by placing files
 // into a Jellyfin/Plex-friendly layout, one root per format:
 //
-//	<series root>/<Series Name>/Season 01/<Series Name> - S01EMM<ext>
-//	<series root>/<Series Name>/<Series Name> - S01EMM<ext>          (Layout flat)
+//	<series root>/<Title Name>/Season 01/<Title Name> - S01EMM<ext>
+//	<series root>/<Title Name>/<Title Name> - S01EMM<ext>          (Layout flat)
 //	<movies root>/<Movie Name> (<Year>)/<Movie Name> (<Year>)<ext>
 //
 // The format is the discriminator and the item count never is, so a
@@ -444,7 +444,7 @@ func syncDir(dir string) {
 }
 
 // reservedNames are Windows device names that can't be a path component, even
-// with an extension ("CON.txt" is still reserved). A series literally named one
+// with an extension ("CON.txt" is still reserved). A title literally named one
 // of these would break on a Windows/SMB share, so sanitize prefixes an underscore.
 var reservedNames = map[string]bool{
 	"con": true, "prn": true, "aux": true, "nul": true,
@@ -455,7 +455,7 @@ var reservedNames = map[string]bool{
 }
 
 // sanitize strips characters that are illegal or awkward in file paths so the
-// series name is usable as a directory/file component. It also drops control
+// title name is usable as a directory/file component. It also drops control
 // characters and dodges Windows reserved device names, so the layout survives an
 // SMB/CIFS share mounted from Windows.
 func sanitize(name string) string {

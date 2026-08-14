@@ -13,10 +13,10 @@ import (
 )
 
 // blockRelease seeds an active blocklist entry for a release title.
-func blockRelease(t *testing.T, st *store.Store, seriesID int64, hash, title string, until time.Time) {
+func blockRelease(t *testing.T, st *store.Store, titleID int64, hash, title string, until time.Time) {
 	t.Helper()
 	p := db.UpsertBlocklistEntryParams{
-		SeriesID:        seriesID,
+		SeriesID:        titleID,
 		InfoHash:        hash,
 		ReleaseTitle:    title,
 		NormalizedTitle: decide.NormalizeReleaseTitle(title),
@@ -30,9 +30,9 @@ func blockRelease(t *testing.T, st *store.Store, seriesID int64, hash, title str
 	}
 }
 
-func grabbedReleaseTitles(t *testing.T, st *store.Store, seriesID int64) []string {
+func grabbedReleaseTitles(t *testing.T, st *store.Store, titleID int64) []string {
 	t.Helper()
-	grabs, err := st.Q.ListGrabsBySeries(context.Background(), seriesID)
+	grabs, err := st.Q.ListGrabsByTitle(context.Background(), titleID)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -119,8 +119,8 @@ func TestSweepGrabsNothingWhenEveryReleaseIsBlocklisted(t *testing.T) {
 	}
 }
 
-// Scope is per-series: another series' entry must not suppress this one.
-func TestSweepIgnoresAnotherSeriesBlocklistEntry(t *testing.T) {
+// Scope is per-title: another title's entry must not suppress this one.
+func TestSweepIgnoresAnotherTitlesBlocklistEntry(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	rel := indexer.Release{
 		Title:       "[TopSubs] Placeholder Saga - 03 [1080p]",

@@ -95,7 +95,7 @@ func (im *Importer) ListPayload(ctx context.Context, grabID int64) (PayloadInfo,
 	}
 	// Suggestions come from the same mapper the retry will run, so the dialog
 	// preselects what an automatic re-map would do rather than a second opinion.
-	res := mapFiles(p.files, covers, nil, domain.Format(group[0].SeriesFormat))
+	res := mapFiles(p.files, covers, nil, domain.Format(group[0].TitleFormat))
 	suggested := make(map[string]int, len(res.assigned))
 	for n, c := range res.assigned {
 		suggested[c.rel] = n
@@ -276,7 +276,7 @@ func (im *Importer) validateAssignments(ctx context.Context, deferred []db.ListG
 // rather than silently doing nothing.
 func (im *Importer) assignableOutsideRelease(ctx context.Context, g db.ListGrabsByStatusRow, number int) error {
 	item, err := im.store.Q.GetWantedItemByNumber(ctx, db.GetWantedItemByNumberParams{
-		SeriesID: g.SeriesID,
+		SeriesID: g.TitleID,
 		Kind:     g.ItemKind,
 		Number:   sql.NullInt64{Int64: int64(number), Valid: true},
 	})

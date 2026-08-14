@@ -7,7 +7,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/parser"
 )
 
-// All fixtures use invented series/group names; only the naming structure under
+// All fixtures use invented title/group names; only the naming structure under
 // test is real.
 
 func unmetProfile() domain.QualityProfile {

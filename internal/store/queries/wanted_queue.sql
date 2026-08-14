@@ -5,10 +5,10 @@
 -- byte vs. rune offsets and silently truncates the emitted SQL on a multi-byte
 -- character. See CLAUDE.md.
 
--- name: ListMissingSeriesPage :many
+-- name: ListMissingTitlesPage :many
 -- The Missing tab's pagination unit is the series, so a group can never split
 -- across a page boundary. The wanted half is the sweep's predicate character
--- for character (the EXISTS body of ListSeriesDueWantedSearch), which is what
+-- for character (the EXISTS body of ListTitlesDueWantedSearch), which is what
 -- keeps this page honest about what automation will go after; an in-flight
 -- grab is absent by construction, being Activity's to show. Monitoring and the
 -- unaired cut are display filters, not exclusions: a row has to stay visible
@@ -24,7 +24,7 @@
 -- on the aggregate; a first page passes a sentinel above every stored value so
 -- one query serves every page. The count is the whole group even when the
 -- handler caps the items it returns for one.
-SELECT s.id, s.title, s.monitored, s.last_searched_at, s.next_search_at,
+SELECT s.id, s.title, s.format, s.monitored, s.last_searched_at, s.next_search_at,
        MAX(COALESCE(w.airs_at, '')) AS latest_missing_air,
        COUNT(*)                     AS missing
 FROM wanted_items w
@@ -39,7 +39,7 @@ HAVING MAX(COALESCE(w.airs_at, '')) < ? OR (MAX(COALESCE(w.airs_at, '')) = ? AND
 ORDER BY MAX(COALESCE(w.airs_at, '')) DESC, s.id
 LIMIT ?;
 
--- name: ListMissingItemsBySeries :many
+-- name: ListMissingItemsByTitle :many
 -- The items behind one page of groups. Same predicates as the series page, so a
 -- group and its items are computed from one reading of the world; the series
 -- half of the monitoring filter is the series page's business, since every id
@@ -62,14 +62,14 @@ SELECT w.*,
 FROM wanted_items w
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 LEFT JOIN pass_outcomes p ON p.wanted_item_id = w.id
-WHERE w.series_id IN (sqlc.slice('series_ids'))
+WHERE w.series_id IN (sqlc.slice('title_ids'))
   AND w.in_library = 0
   AND (g.wanted_item_id IS NULL OR g.status = 'failed')
   AND (? = 1 OR w.monitored = 1)
   AND (? = 1 OR w.kind = 'movie' OR w.airs_at IS NULL OR w.airs_at <= ?)
 ORDER BY w.series_id, w.number;
 
--- name: ListCutoffSeriesPage :many
+-- name: ListCutoffTitlesPage :many
 -- Candidate groups for Cutoff Unmet: series on an upgrading profile holding
 -- anything the upgrade pool could act on. The status set is the sweep's pool
 -- (imported, failed -- see loadSweepItems) plus grabbed, which is an upgrade
@@ -80,7 +80,7 @@ ORDER BY w.series_id, w.number;
 -- series here may contribute no group and the caller scans on. Ordered by title
 -- -- this listing is an inventory, not a queue, so alphabetical reads best --
 -- with the id tie-break ascending and a zero cursor as the natural top.
-SELECT s.id, s.title, s.monitored,
+SELECT s.id, s.title, s.format, s.monitored,
        qp.id           AS profile_id,
        qp.name         AS profile_name,
        qp.cutoff_score AS profile_cutoff_score
@@ -102,7 +102,7 @@ WHERE qp.upgrades_enabled = 1
 ORDER BY s.title, s.id
 LIMIT ?;
 
--- name: ListCutoffItemsBySeries :many
+-- name: ListCutoffItemsByTitle :many
 -- Every rateable held item behind one page of candidate groups; scoring and the
 -- cutoff test happen in Go under the one profile snapshot per series. The grab
 -- join is inner and its status set matches the series page's, so a group's
@@ -113,7 +113,7 @@ SELECT w.*,
        g.last_error    AS grab_last_error
 FROM wanted_items w
 JOIN grabs g ON g.wanted_item_id = w.id
-WHERE w.series_id IN (sqlc.slice('series_ids'))
+WHERE w.series_id IN (sqlc.slice('title_ids'))
   AND w.in_library = 1
   AND (? = 1 OR w.monitored = 1)
   AND w.held_release_title != ''
@@ -128,11 +128,11 @@ ORDER BY w.series_id, w.number;
 -- permanent.
 SELECT series_id, COUNT(*) AS entries
 FROM release_blocklist
-WHERE series_id IN (sqlc.slice('series_ids'))
+WHERE series_id IN (sqlc.slice('title_ids'))
   AND (blocked_until IS NULL OR blocked_until > ?)
 GROUP BY series_id;
 
--- name: CountSeriesByIDs :one
+-- name: CountTitlesByIDs :one
 -- How many of these ids are real series, so a bulk action can reject an unknown
 -- one in a single round trip rather than a lookup per id.
 SELECT COUNT(*) FROM series WHERE id IN (sqlc.slice('ids'));

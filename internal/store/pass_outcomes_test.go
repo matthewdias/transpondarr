@@ -8,10 +8,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-func outcomeItem(t *testing.T, st *Store, seriesID int64, number int64) int64 {
+func outcomeItem(t *testing.T, st *Store, titleID int64, number int64) int64 {
 	t.Helper()
 	row, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
-		SeriesID: seriesID, Kind: "episode",
+		SeriesID: titleID, Kind: "episode",
 		Number:    sql.NullInt64{Int64: number, Valid: true},
 		Monitored: 1,
 	})
@@ -29,8 +29,8 @@ func outcomeItem(t *testing.T, st *Store, seriesID int64, number int64) int64 {
 func TestUpsertPassOutcomeReplacesInPlace(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	series := blocklistSeries(t, st, "Pass Outcome Upsert")
-	item := outcomeItem(t, st, series.ID, 1)
+	title := blocklistTitle(t, st, "Pass Outcome Upsert")
+	item := outcomeItem(t, st, title.ID, 1)
 
 	if err := st.Q.UpsertPassOutcome(ctx, db.UpsertPassOutcomeParams{
 		WantedItemID: item,
@@ -80,14 +80,14 @@ func TestUpsertPassOutcomeReplacesInPlace(t *testing.T) {
 	}
 }
 
-// Nothing else deletes these rows, so the series cascade is the only thing that
-// bounds the table. It has to reach them, or a removed series leaves orphans no
+// Nothing else deletes these rows, so the title cascade is the only thing that
+// bounds the table. It has to reach them, or a removed title leaves orphans no
 // query can ever read.
-func TestPassOutcomeCascadesWithItsSeries(t *testing.T) {
+func TestPassOutcomeCascadesWithItsTitle(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
-	series := blocklistSeries(t, st, "Pass Outcome Cascade")
-	item := outcomeItem(t, st, series.ID, 1)
+	title := blocklistTitle(t, st, "Pass Outcome Cascade")
+	item := outcomeItem(t, st, title.ID, 1)
 
 	if err := st.Q.UpsertPassOutcome(ctx, db.UpsertPassOutcomeParams{
 		WantedItemID: item, Outcome: "no_match", Source: "sweep",
@@ -95,7 +95,7 @@ func TestPassOutcomeCascadesWithItsSeries(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert: %v", err)
 	}
-	if _, err := st.Q.DeleteSeries(ctx, series.ID); err != nil {
+	if _, err := st.Q.DeleteTitle(ctx, title.ID); err != nil {
 		t.Fatalf("delete series: %v", err)
 	}
 

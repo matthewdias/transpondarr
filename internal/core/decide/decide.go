@@ -5,7 +5,7 @@
 // wanted-item numbers — surfacing a human-readable reason for every decision so
 // the matching can be eyeballed before it drives an automatic grab. Matched
 // candidates are then ranked by a pure, profile-driven score (group first — see
-// the weights), below an absolute tier for a series' pinned group; an explicit
+// the weights), below an absolute tier for a title's pinned group; an explicit
 // floor lets the answer be "nothing yet".
 //
 // v1 is deliberately transparent rather than clever: reconciling absolute vs
@@ -36,7 +36,7 @@ type Candidate struct {
 	ScoreParts       []ScorePart
 	Eligible         bool
 	IneligibleReason string // non-empty exactly when !Eligible
-	Pinned           bool   // release group equals the series' pinned group
+	Pinned           bool   // release group equals the title's pinned group
 
 	UpgradeItems   []int          // covered items we hold that this release may replace
 	UpgradeBlocked map[int]string // covered held items the upgrade policy refused, by reason
@@ -84,7 +84,7 @@ type MatchOpts struct {
 	Year int
 }
 
-// BlockedSet is the series' active release blocklist as plain data, so decide
+// BlockedSet is the title's active release blocklist as plain data, so decide
 // stays pure. A release matches on either axis: Torznab often omits the infohash.
 type BlockedSet struct {
 	Hashes map[string]string // lowercased info hash -> reason
@@ -94,7 +94,7 @@ type BlockedSet struct {
 // reason reports why this release is blocked, if it is.
 func (b BlockedSet) reason(rel indexer.Release) string {
 	if len(b.Hashes) == 0 && len(b.Titles) == 0 {
-		return "" // the common path: no per-release normalizing for an unblocked series
+		return "" // the common path: no per-release normalizing for an unblocked title
 	}
 	if h := strings.ToLower(strings.TrimSpace(rel.InfoHash)); h != "" {
 		if r, ok := b.Hashes[h]; ok {
@@ -140,7 +140,7 @@ type heldRelease struct {
 
 // Match evaluates releases against a title. titleVariants are the accepted names
 // for the title (e.g. romaji/english/native) used to filter out releases for
-// other series. Results are ranked matched-first, then eligible-first, then
+// other titles. Results are ranked matched-first, then eligible-first, then
 // pinned-first, then by how many still-wanted items they cover, then by profile
 // score; seeders are only the tie-break between equal scores. A pin is an
 // absolute tier, never a score: it wins only among eligible releases, so it can
@@ -202,7 +202,7 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 		// Wider coverage first is "one grab instead of N" (#126), counted on what
 		// automation may take so a pack whose held coverage is all cutoff-blocked
 		// cannot outrank a single covering a genuinely wanted item. Below the pin
-		// deliberately: a pin is per-series knowledge, so coverage only decides
+		// deliberately: a pin is per-title knowledge, so coverage only decides
 		// among equally pinned candidates. Weekly singles tie at 1 and fall
 		// through to score.
 		if out[a].takeCount() != out[b].takeCount() {
@@ -345,7 +345,7 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 		return fmt.Sprintf("score %d is below the profile minimum %d", score, profile.MinScore)
 	}
 	// A numberless pack names no episode and carries no year, so both of movie
-	// mode's numeric gates are blind to it and the parent series' pack would be
+	// mode's numeric gates are blind to it and the parent title's pack would be
 	// placed as the film. Eligibility rather than matching, because a multi-part
 	// film release is indistinguishable from one: only automation is held back.
 	if o.Format == domain.FormatMovie && p.Batch {
@@ -533,7 +533,7 @@ func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {
 	return out
 }
 
-// titleBelongs reports whether a parsed release title matches one of the series'
+// titleBelongs reports whether a parsed release title matches one of the title's
 // accepted names, comparing on a punctuation- and space-stripped form so
 // "Frieren: Beyond Journey's End" and "Frieren Beyond Journeys End" compare equal.
 func titleBelongs(parsedTitle string, variants []string) bool {
@@ -557,7 +557,7 @@ func matchesVariant(got string, variants []string) bool {
 		// enough to be meaningful. Without a floor, short or prefix names — "K",
 		// "Air", "Fate" — match unrelated shows ("Fairy Tail", "Fate/Zero") whose
 		// normalized title happens to contain them. Exact matches above still cover
-		// legitimately short-titled series against their own releases.
+		// legitimately short-titled title against their own releases.
 		shorter := got
 		if len(v) < len(shorter) {
 			shorter = v

@@ -75,13 +75,13 @@ type grabTitleOutput struct {
 	}
 }
 
-// registerSeriesAcquisitionRoutes wires the series acquisition endpoints: the
+// registerTitleAcquisitionRoutes wires the title acquisition endpoints: the
 // read-only release search (match against wanted items) and the grab that hands
 // a chosen release to the download client and records it. The handlers are
-// methods on seriesHandler (defined in series_routes.go), so they share one
+// methods on titleHandler (defined in titles_routes.go), so they share one
 // acquire.Service with the scheduled sweep.
-func registerSeriesAcquisitionRoutes(api huma.API, deps routeDeps) {
-	h := newSeriesHandler(deps)
+func registerTitleAcquisitionRoutes(api huma.API, deps routeDeps) {
+	h := newTitleHandler(deps)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "search-title-releases",
@@ -101,13 +101,13 @@ func registerSeriesAcquisitionRoutes(api huma.API, deps routeDeps) {
 	}, h.grabRelease)
 }
 
-func (h *seriesHandler) searchReleases(ctx context.Context, in *searchTitleInput) (*searchTitleOutput, error) {
-	m, err := h.acquire.MatchSeries(ctx, in.ID)
+func (h *titleHandler) searchReleases(ctx context.Context, in *searchTitleInput) (*searchTitleOutput, error) {
+	m, err := h.acquire.MatchTitle(ctx, in.ID)
 	if err != nil {
 		return nil, acquireHTTPError(err)
 	}
 	out := &searchTitleOutput{}
-	out.Body.Title = m.Series.Title
+	out.Body.Title = m.Title.Title
 	out.Body.Term = m.Term
 	out.Body.Results = make([]candidateReleaseDTO, 0, len(m.Candidates))
 	for _, c := range m.Candidates {
@@ -152,12 +152,12 @@ func upgradeBlockedDTOs(blocked map[int]string) []upgradeBlockedDTO {
 	return out
 }
 
-func (h *seriesHandler) grabRelease(ctx context.Context, in *grabTitleInput) (*grabTitleOutput, error) {
+func (h *titleHandler) grabRelease(ctx context.Context, in *grabTitleInput) (*grabTitleOutput, error) {
 	if h.clients.Download() == nil {
 		return nil, acquireHTTPError(acquire.ErrNoDownloadClient)
 	}
 
-	m, err := h.acquire.MatchSeries(ctx, in.ID)
+	m, err := h.acquire.MatchTitle(ctx, in.ID)
 	if err != nil {
 		return nil, acquireHTTPError(err)
 	}

@@ -93,7 +93,7 @@ func TestBestRefusalIgnoresTheCoverageTier(t *testing.T) {
 	}
 }
 
-// Pinned still outranks score: a pin is per-series knowledge about which group
+// Pinned still outranks score: a pin is per-title knowledge about which group
 // is definitive, so its near miss is the one worth reporting.
 func TestBestRefusalPrefersThePinnedGroup(t *testing.T) {
 	loud := refused("[LoudSubs] Sample Show - 07", 900, 50, false, 7)

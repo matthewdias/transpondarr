@@ -65,10 +65,10 @@ func TestCoveredAgreesWithTheSettlingOutcomes(t *testing.T) {
 		},
 	}
 	m.Candidates[0].Pinned = true
-	series := db.Series{ID: 1, Title: "Placeholder Saga",
+	title := db.Series{ID: 1, Title: "Placeholder Saga",
 		PinnedGroup: sql.NullString{String: "PinnedSubs", Valid: true}}
 
-	res, err := s.walkCandidates(context.Background(), series, m, sweep, time.Now(), sourceSweep)
+	res, err := s.walkCandidates(context.Background(), title, m, sweep, time.Now(), sourceSweep)
 	if err != nil {
 		t.Fatalf("walkCandidates: %v", err)
 	}

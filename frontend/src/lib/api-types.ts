@@ -1080,6 +1080,8 @@ export interface components {
             below: number;
             /** Format: int64 */
             cutoff_score: number;
+            /** @description Title format; the sole discriminator between movie and series wording */
+            format: string;
             items: components["schemas"]["CutoffItemDTO"][];
             monitored: boolean;
             profile_name: string;
@@ -1386,6 +1388,8 @@ export interface components {
              * @description Releases this title is currently refusing (reason blocklisted)
              */
             blocked_releases?: number;
+            /** @description Title format; the sole discriminator between movie and series wording, so a film is never called an episode */
+            format: string;
             items: components["schemas"]["MissingItemDTO"][];
             /**
              * Format: int64
@@ -1614,6 +1618,8 @@ export interface components {
              */
             client_state?: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "unknown";
             created_at: string;
+            /** @description Title format; the sole discriminator between movie and series wording */
+            format: string;
             /** Format: int64 */
             id: number;
             /** @description Why the completed download cannot import (stuck rows) */

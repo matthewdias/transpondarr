@@ -15,7 +15,7 @@ import (
 // candidate plus the loaded items, so a Grab test starts from a real match.
 func grabMatch(t *testing.T, svc *acquire.Service, id int64) acquire.Match {
 	t.Helper()
-	m, err := svc.MatchSeries(context.Background(), id)
+	m, err := svc.MatchTitle(context.Background(), id)
 	if err != nil {
 		t.Fatalf("MatchSeries: %v", err)
 	}
@@ -35,7 +35,7 @@ func TestGrabRecordsOneGrabPerCoveredItem(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc, reg := newService(t, st, idx, fakeTitles{})
 	reg.SetDownload(dl)
-	id := seedSeries(t, st, "Placeholder Saga", 12)
+	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
 	res, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false)
@@ -49,7 +49,7 @@ func TestGrabRecordsOneGrabPerCoveredItem(t *testing.T) {
 		t.Errorf("grabbed items = %v, want [4]", res.Items)
 	}
 
-	grabs, err := st.Q.ListGrabsBySeries(context.Background(), id)
+	grabs, err := st.Q.ListGrabsByTitle(context.Background(), id)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -69,14 +69,14 @@ func TestGrabAppendsOneEventPerCoveredItem(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc, reg := newService(t, st, idx, fakeTitles{})
 	reg.SetDownload(dl)
-	id := seedSeries(t, st, "Placeholder Saga", 12)
+	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
 	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); err != nil {
 		t.Fatalf("Grab: %v", err)
 	}
 
-	events, err := st.Q.ListSeriesGrabEvents(context.Background(), id)
+	events, err := st.Q.ListTitleGrabEvents(context.Background(), id)
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestGrabAddsWithConfiguredCategory(t *testing.T) {
 	st := coretest.NewStore(t)
 	reg := newRegistry(idx, dl)
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{category: "anime"}, discardLogger(), nil)
-	id := seedSeries(t, st, "Placeholder Saga", 12)
+	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
 	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, true); err != nil {
@@ -139,13 +139,13 @@ func TestGrabDownloadAddFailureRecordsNothing(t *testing.T) {
 	st := coretest.NewStore(t)
 	reg := newRegistry(idx, dl)
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
-	id := seedSeries(t, st, "Placeholder Saga", 12)
+	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
 	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrDownloadAdd) {
 		t.Fatalf("Grab error = %v, want ErrDownloadAdd", err)
 	}
-	grabs, _ := st.Q.ListGrabsBySeries(context.Background(), id)
+	grabs, _ := st.Q.ListGrabsByTitle(context.Background(), id)
 	if len(grabs) != 0 {
 		t.Errorf("recorded %d grabs after a failed add, want 0", len(grabs))
 	}
@@ -159,7 +159,7 @@ func TestGrabWithoutDownloadClient(t *testing.T) {
 	}}
 	st := coretest.NewStore(t)
 	svc, _ := newService(t, st, idx, fakeTitles{})
-	id := seedSeries(t, st, "Placeholder Saga", 12)
+	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
 	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrNoDownloadClient) {

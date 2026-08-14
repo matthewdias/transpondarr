@@ -21,7 +21,7 @@ import {
   plainDescription,
   statusLabel,
 } from "@/lib/chart";
-import { browseSeasonQuery, seriesQuery } from "@/lib/queries";
+import { browseSeasonQuery, titlesQuery } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { nextEpisodeLabel, premiereLabel } from "@/lib/format";
 import {
@@ -320,7 +320,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
   const title = entryTitle(entry);
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: seriesQuery().queryKey });
+    queryClient.invalidateQueries({ queryKey: titlesQuery().queryKey });
     queryClient.invalidateQueries({ queryKey: ["browse-season"] });
   };
 
@@ -350,7 +350,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
           className="flex-1"
           title="Already in your library"
         >
-          <Link to={`/series/${entry.title_id}`}>
+          <Link to={`/titles/${entry.title_id}`}>
             <Check className="size-3.5" /> In library
           </Link>
         </Button>

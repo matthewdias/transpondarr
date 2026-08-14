@@ -29,38 +29,38 @@ type calendarResponse struct {
 	} `json:"unscheduled"`
 }
 
-func setAirsAt(t *testing.T, st *store.Store, seriesID int64, number int, airsAt string) {
+func setAirsAt(t *testing.T, st *store.Store, titleID int64, number int, airsAt string) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE wanted_items SET airs_at = ? WHERE series_id = ? AND number = ?`,
-		airsAt, seriesID, number); err != nil {
+		airsAt, titleID, number); err != nil {
 		t.Fatalf("set airs_at: %v", err)
 	}
 }
 
-func itemID(t *testing.T, st *store.Store, seriesID int64, number int) int64 {
+func itemID(t *testing.T, st *store.Store, titleID int64, number int) int64 {
 	t.Helper()
 	var id int64
 	if err := st.DB.QueryRowContext(context.Background(),
 		`SELECT id FROM wanted_items WHERE series_id = ? AND number = ?`,
-		seriesID, number).Scan(&id); err != nil {
+		titleID, number).Scan(&id); err != nil {
 		t.Fatalf("look up item: %v", err)
 	}
 	return id
 }
 
 // The calendar returns only items whose air time falls in [start, end), and
-// only for monitored series unless unmonitored is requested.
+// only for monitored title unless unmonitored is requested.
 func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Airing Show", 5)
-	setAirsAt(t, h.store, seriesID, 1, "2026-06-30 15:00:00") // before range
-	setAirsAt(t, h.store, seriesID, 2, "2026-07-07 15:00:00") // in range
+	titleID := seedTitle(t, h.store, "Airing Show", 5)
+	setAirsAt(t, h.store, titleID, 1, "2026-06-30 15:00:00") // before range
+	setAirsAt(t, h.store, titleID, 2, "2026-07-07 15:00:00") // in range
 	// episode 3 has no air date: absent from the calendar, not an error
-	setAirsAt(t, h.store, seriesID, 4, "2026-07-01 00:00:00") // exactly at start: included
-	setAirsAt(t, h.store, seriesID, 5, "2026-08-01 00:00:00") // exactly at end: excluded
+	setAirsAt(t, h.store, titleID, 4, "2026-07-01 00:00:00") // exactly at start: included
+	setAirsAt(t, h.store, titleID, 5, "2026-08-01 00:00:00") // exactly at end: excluded
 
-	otherID := seedSeries(t, h.store, "Unmonitored Show", 1)
+	otherID := seedTitle(t, h.store, "Unmonitored Show", 1)
 	setAirsAt(t, h.store, otherID, 1, "2026-07-08 15:00:00")
 	if _, err := h.store.DB.ExecContext(context.Background(),
 		`UPDATE series SET monitored = 0 WHERE id = ?`, otherID); err != nil {
@@ -76,7 +76,7 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 		t.Fatalf("items = %+v, want eps 4 and 2 (inclusive start, exclusive end)", out.Items)
 	}
 	got := out.Items[1]
-	if got.TitleID != seriesID || got.Title != "Airing Show" {
+	if got.TitleID != titleID || got.Title != "Airing Show" {
 		t.Errorf("item = %+v, want Airing Show ep 2", got)
 	}
 	if got.AirsAt != "2026-07-07T15:00:00Z" {
@@ -100,23 +100,23 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 	}
 }
 
-// Calendar items carry the same derived status vocabulary as series detail.
+// Calendar items carry the same derived status vocabulary as title detail.
 func TestCalendarDerivesItemStatus(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	ctx := context.Background()
-	seriesID := seedSeries(t, h.store, "Status Show", 5)
+	titleID := seedTitle(t, h.store, "Status Show", 5)
 	for n := 1; n <= 5; n++ {
-		setAirsAt(t, h.store, seriesID, n, "2026-07-10 15:00:00")
+		setAirsAt(t, h.store, titleID, n, "2026-07-10 15:00:00")
 	}
 
 	if err := h.store.Q.SetWantedItemInLibrary(ctx, db.SetWantedItemInLibraryParams{
-		InLibrary: 1, ID: itemID(t, h.store, seriesID, 1),
+		InLibrary: 1, ID: itemID(t, h.store, titleID, 1),
 	}); err != nil {
 		t.Fatalf("set in_library: %v", err)
 	}
 	grab := func(number int, status string) db.Grab {
 		g, err := h.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
-			WantedItemID: itemID(t, h.store, seriesID, number),
+			WantedItemID: itemID(t, h.store, titleID, number),
 			InfoHash:     "hash", ReleaseTitle: "Release", Status: status,
 		})
 		if err != nil {
@@ -152,22 +152,22 @@ func TestCalendarDerivesItemStatus(t *testing.T) {
 	}
 }
 
-// A monitored series still missing episodes with no schedule data is surfaced
+// A monitored title still missing episodes with no schedule data is surfaced
 // in `unscheduled` rather than silently absent from the calendar.
-func TestCalendarSurfacesUnscheduledSeries(t *testing.T) {
+func TestCalendarSurfacesUnscheduledTitles(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	ctx := context.Background()
 
-	noSchedule := seedSeries(t, h.store, "No Schedule Show", 2)
+	noSchedule := seedTitle(t, h.store, "No Schedule Show", 2)
 
-	complete := seedSeries(t, h.store, "Complete Show", 1)
+	complete := seedTitle(t, h.store, "Complete Show", 1)
 	if err := h.store.Q.SetWantedItemInLibrary(ctx, db.SetWantedItemInLibraryParams{
 		InLibrary: 1, ID: itemID(t, h.store, complete, 1),
 	}); err != nil {
 		t.Fatalf("set in_library: %v", err)
 	}
 
-	unmonitored := seedSeries(t, h.store, "Unmonitored NoSched", 1)
+	unmonitored := seedTitle(t, h.store, "Unmonitored NoSched", 1)
 	if _, err := h.store.DB.ExecContext(ctx,
 		`UPDATE series SET monitored = 0 WHERE id = ?`, unmonitored); err != nil {
 		t.Fatalf("unmonitor series: %v", err)
@@ -189,8 +189,8 @@ func TestCalendarSurfacesUnscheduledSeries(t *testing.T) {
 // premiere reaches the calendar today: without it the entry renders as "Ep 01".
 func TestCalendarCarriesFormat(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	seriesID := seedSeries(t, h.store, "Airing Show", 1)
-	setAirsAt(t, h.store, seriesID, 1, "2026-07-07 15:00:00")
+	titleID := seedTitle(t, h.store, "Airing Show", 1)
+	setAirsAt(t, h.store, titleID, 1, "2026-07-07 15:00:00")
 	movieID := seedMovie(t, h.store, "Sample Film", 2026)
 	setAirsAt(t, h.store, movieID, 1, "2026-07-08 15:00:00")
 
@@ -205,8 +205,8 @@ func TestCalendarCarriesFormat(t *testing.T) {
 	for _, it := range out.Items {
 		got[it.TitleID] = it.Format
 	}
-	if got[seriesID] != "TV" {
-		t.Errorf("series format = %q, want TV", got[seriesID])
+	if got[titleID] != "TV" {
+		t.Errorf("series format = %q, want TV", got[titleID])
 	}
 	if got[movieID] != "MOVIE" {
 		t.Errorf("film format = %q, want MOVIE", got[movieID])
@@ -241,7 +241,7 @@ func TestAnnouncedFilmStaysTracked(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	movieID := seedMovie(t, h.store, "Announced Film", 2027)
 	setAirsAt(t, h.store, movieID, 1, store.FormatTimestamp(time.Now().Add(90*24*time.Hour)))
-	showID := seedSeries(t, h.store, "Airing Show", 2)
+	showID := seedTitle(t, h.store, "Airing Show", 2)
 	setAirsAt(t, h.store, showID, 2, store.FormatTimestamp(time.Now().Add(48*time.Hour)))
 
 	var list struct {

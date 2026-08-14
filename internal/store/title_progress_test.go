@@ -9,11 +9,11 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-func progressOf(t *testing.T, st *Store, now time.Time, title string) db.ListSeriesWithProgressRow {
+func progressOf(t *testing.T, st *Store, now time.Time, title string) db.ListTitlesWithProgressRow {
 	t.Helper()
 	stamp := sql.NullString{String: FormatTimestamp(now), Valid: true}
-	rows, err := st.Q.ListSeriesWithProgress(context.Background(),
-		db.ListSeriesWithProgressParams{AirsAt: stamp, AirsAt_2: stamp})
+	rows, err := st.Q.ListTitlesWithProgress(context.Background(),
+		db.ListTitlesWithProgressParams{AirsAt: stamp, AirsAt_2: stamp})
 	if err != nil {
 		t.Fatalf("list series with progress: %v", err)
 	}
@@ -23,18 +23,18 @@ func progressOf(t *testing.T, st *Store, now time.Time, title string) db.ListSer
 		}
 	}
 	t.Fatalf("series %q missing from the progress listing", title)
-	return db.ListSeriesWithProgressRow{}
+	return db.ListTitlesWithProgressRow{}
 }
 
-// The denominator is what the series is pursuing, not what it will ever have.
+// The denominator is what the title is pursuing, not what it will ever have.
 // The raw total rides along untouched so an API client that read it still can.
-func TestListSeriesWithProgressCountsMonitoredAndAired(t *testing.T) {
+func TestListTitlesWithProgressCountsMonitoredAndAired(t *testing.T) {
 	st := tempStore(t)
 	now := time.Now()
 	past := now.Add(-24 * time.Hour)
 	future := now.Add(24 * time.Hour)
 
-	id := seedSearchSeries(t, st, "narrowed-long-runner", 1)
+	id := seedSearchTitle(t, st, "narrowed-long-runner", 1)
 	// Tracked and held.
 	seedSearchItem(t, st, id, 1, 1, &past)
 	// Tracked, still missing.
@@ -68,11 +68,11 @@ func TestListSeriesWithProgressCountsMonitoredAndAired(t *testing.T) {
 	}
 }
 
-// A series with no items at all must read 0 / 0 rather than tripping the
+// A title with no items at all must read 0 / 0 rather than tripping the
 // LEFT JOIN's NULL row into a phantom count.
-func TestListSeriesWithProgressHandlesAnEmptySeries(t *testing.T) {
+func TestListTitlesWithProgressHandlesAnEmptyTitle(t *testing.T) {
 	st := tempStore(t)
-	seedSearchSeries(t, st, "empty", 1)
+	seedSearchTitle(t, st, "empty", 1)
 
 	got := progressOf(t, st, time.Now(), "empty")
 	if got.TotalItems != 0 || got.TrackedItems != 0 || got.MonitoredItems != 0 || got.InLibraryItems != 0 {

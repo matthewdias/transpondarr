@@ -108,7 +108,7 @@ func TestSweepLeavesAnInFlightGrabOnAnUnmonitoredItemAlone(t *testing.T) {
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
-	grabs, err := h.st.Q.ListGrabsBySeries(context.Background(), id)
+	grabs, err := h.st.Q.ListGrabsByTitle(context.Background(), id)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}

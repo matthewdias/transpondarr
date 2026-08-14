@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { EpisodesTab } from "@/components/detail/episodes-tab";
-import type { SeriesDetail, WantedItem } from "@/lib/api";
+import type { TitleDetail, WantedItem } from "@/lib/api";
 
 const item = (over: Partial<WantedItem>): WantedItem => ({
   id: 1,
@@ -13,7 +13,7 @@ const item = (over: Partial<WantedItem>): WantedItem => ({
   ...over,
 });
 
-const detail = (items: WantedItem[]): SeriesDetail => ({
+const detail = (items: WantedItem[]): TitleDetail => ({
   id: 7,
   title: "Placeholder Saga",
   format: "TV",
@@ -161,7 +161,7 @@ describe("EpisodesTab monitoring", () => {
     expect(onToggleSelect).toHaveBeenCalledWith(42);
   });
 
-  // The header count and the series-list bar must read the same denominator, or
+  // The header count and the titles-list bar must read the same denominator, or
   // one says 3 / 3 while the other says 3 / 1050. That means the server's exact
   // definition of tracked: monitored AND already broadcast.
   it("counts only monitored, aired episodes in the header", () => {

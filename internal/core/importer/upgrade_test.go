@@ -13,15 +13,15 @@ import (
 
 // seedHeldGrab is seedGrab for an item the library already holds: an upgrade in
 // flight over the release named by heldTitle.
-func seedHeldGrab(t *testing.T, st *store.Store, hash, heldTitle string) (itemID, seriesID int64) {
+func seedHeldGrab(t *testing.T, st *store.Store, hash, heldTitle string) (itemID, titleID int64) {
 	t.Helper()
-	itemID, seriesID = seedGrab(t, st, hash)
+	itemID, titleID = seedGrab(t, st, hash)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`UPDATE wanted_items SET in_library = 1, held_release_title = ? WHERE id = ?`,
 		heldTitle, itemID); err != nil {
 		t.Fatalf("seed held item: %v", err)
 	}
-	return itemID, seriesID
+	return itemID, titleID
 }
 
 // heldTitleOf reads what the store says holds an item.
@@ -121,9 +121,9 @@ func TestFailedUpgradeLeavesTheHeldFileInPlace(t *testing.T) {
 func TestDeferredUpgradeKeepsTheHeldFile(t *testing.T) {
 	const heldTitle = "[ExampleSubs] Placeholder Saga - 05 [480p]"
 	st := coretest.NewStore(t)
-	itemID, seriesID := seedHeldGrab(t, st, "abc", heldTitle)
+	itemID, titleID := seedHeldGrab(t, st, "abc", heldTitle)
 	// A second item on the same release, so no lone-file rule can resolve either.
-	other := addItem(t, st, seriesID, 6)
+	other := addItem(t, st, titleID, 6)
 	if _, err := st.DB.ExecContext(context.Background(),
 		`INSERT INTO grabs (wanted_item_id, info_hash, release_title, status) VALUES (?, 'abc', 'rel', 'grabbed')`,
 		other); err != nil {

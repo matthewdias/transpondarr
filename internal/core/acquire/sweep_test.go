@@ -30,7 +30,7 @@ type sweepItem struct {
 	unmonitored bool
 }
 
-// seedSweep inserts a series with the given items and returns its id.
+// seedSweep inserts a title with the given items and returns its id.
 func seedSweep(t *testing.T, st *store.Store, title string, monitored bool, items ...sweepItem) int64 {
 	t.Helper()
 	ctx := context.Background()
@@ -38,7 +38,7 @@ func seedSweep(t *testing.T, st *store.Store, title string, monitored bool, item
 	if monitored {
 		mon = 1
 	}
-	s, err := st.Q.CreateSeries(ctx, db.CreateSeriesParams{Title: title, Format: "TV", Monitored: mon})
+	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: mon})
 	if err != nil {
 		t.Fatalf("create series: %v", err)
 	}
@@ -84,7 +84,7 @@ func seedSweep(t *testing.T, st *store.Store, title string, monitored bool, item
 	return s.ID
 }
 
-// episodeRelease builds a synthetic single-episode release for a series title.
+// episodeRelease builds a synthetic single-episode release for a title.
 func episodeRelease(title string, number int) indexer.Release {
 	return indexer.Release{
 		Title:       fmt.Sprintf("[ExampleSubs] %s - %02d [1080p]", title, number),
@@ -93,7 +93,7 @@ func episodeRelease(title string, number int) indexer.Release {
 	}
 }
 
-// searchState is the cadence a sweep wrote for one series.
+// searchState is the cadence a sweep wrote for one title.
 type searchState struct {
 	backoff      int64
 	nextSearchAt sql.NullString
@@ -127,14 +127,14 @@ func wantNextSearchNear(t *testing.T, got sql.NullString, want time.Time) {
 	}
 }
 
-func grabbedItemNumbers(t *testing.T, st *store.Store, seriesID int64) []int {
+func grabbedItemNumbers(t *testing.T, st *store.Store, titleID int64) []int {
 	t.Helper()
 	ctx := context.Background()
-	grabs, err := st.Q.ListGrabsBySeries(ctx, seriesID)
+	grabs, err := st.Q.ListGrabsByTitle(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
-	items, err := st.Q.ListWantedItems(ctx, seriesID)
+	items, err := st.Q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}
@@ -151,7 +151,7 @@ func grabbedItemNumbers(t *testing.T, st *store.Store, seriesID int64) []int {
 
 // recorded is one call the sweep made to the blocklist.
 type recorded struct {
-	seriesID     int64
+	titleID      int64
 	itemIDs      []int64
 	infoHash     string
 	releaseTitle string
@@ -165,8 +165,8 @@ type fakeRecorder struct {
 	suppress bool
 }
 
-func (f *fakeRecorder) Record(_ context.Context, seriesID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
-	f.calls = append(f.calls, recorded{seriesID, itemIDs, infoHash, releaseTitle, reason})
+func (f *fakeRecorder) Record(_ context.Context, titleID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
+	f.calls = append(f.calls, recorded{titleID, itemIDs, infoHash, releaseTitle, reason})
 	return !f.suppress, f.err
 }
 
@@ -292,9 +292,9 @@ func TestSweepNoOpsWithoutIndexerOrDownloadClient(t *testing.T) {
 	}
 }
 
-// Monitoring is what gates automation (half of #102): an unmonitored series is
+// Monitoring is what gates automation (half of #102): an unmonitored title is
 // never swept, however wanted its items are.
-func TestSweepSkipsUnmonitoredSeries(t *testing.T) {
+func TestSweepSkipsUnmonitoredTitles(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", false, sweepItem{number: 3, airsAt: &past})
@@ -368,7 +368,7 @@ func TestSweepDoesNotRegrabInFlightItems(t *testing.T) {
 	if len(h.dl.Adds) != 1 {
 		t.Fatalf("download Add called %d times, want 1 (item 4 only)", len(h.dl.Adds))
 	}
-	grabs, _ := h.st.Q.ListGrabsBySeries(context.Background(), id)
+	grabs, _ := h.st.Q.ListGrabsByTitle(context.Background(), id)
 	for _, g := range grabs {
 		if g.InfoHash == "existing3" && g.Status != "grabbed" {
 			t.Errorf("in-flight grab was disturbed: %+v", g)
@@ -401,8 +401,8 @@ func TestSweepGrabsMultipleReleasesInOnePass(t *testing.T) {
 }
 
 // A dead download URL is one release's problem. It must not cost the rest of the
-// series its pass, and it must not skip the cadence write — that would re-search
-// the same series every tick forever.
+// title its pass, and it must not skip the cadence write — that would re-search
+// the same title every tick forever.
 func TestSweepContinuesPastAFailedAdd(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	dead := episodeRelease("Placeholder Saga", 3)
@@ -449,7 +449,7 @@ func TestSweepFallsBackToTheNextCandidateForTheSameItem(t *testing.T) {
 }
 
 // Repeated add failures mean the client is unwell, not that every release is
-// dead: the series gives up rather than walking the whole candidate list.
+// dead: the title gives up rather than walking the whole candidate list.
 func TestSweepStopsAfterRepeatedAddFailures(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	var releases []indexer.Release
@@ -469,8 +469,8 @@ func TestSweepStopsAfterRepeatedAddFailures(t *testing.T) {
 	if len(h.dl.Adds) > 3 {
 		t.Errorf("attempted %d adds against a failing client, want at most 3", len(h.dl.Adds))
 	}
-	// The failure is series-local, so it must still yield its slot: leaving the
-	// cadence due would keep this series at the head of every pass forever.
+	// The failure is title-local, so it must still yield its slot: leaving the
+	// cadence due would keep this title at the head of every pass forever.
 	state := readSearchState(t, h.st, id)
 	if state.backoff != 1 {
 		t.Errorf("backoff = %d, want 1 — a failed pass must still give up its slot", state.backoff)
@@ -483,8 +483,8 @@ func TestSweepStopsAfterRepeatedAddFailures(t *testing.T) {
 	}
 }
 
-// An indexer outage is the one failure a series is not charged for: every due
-// series shares it, so backing them all off would idle the whole library on one
+// An indexer outage is the one failure a title is not charged for: every due
+// title shares it, so backing them all off would idle the whole library on one
 // upstream hiccup.
 func TestSweepIndexerFailureLeavesTheCadenceUntouched(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -502,13 +502,13 @@ func TestSweepIndexerFailureLeavesTheCadenceUntouched(t *testing.T) {
 }
 
 // The starvation the backoff-on-failure exists to prevent: the due query is a
-// small LIMIT ordered by next_search_at, so series that fail without yielding
+// small LIMIT ordered by next_search_at, so title that fail without yielding
 // their slot hold the head of the queue and nothing else is ever searched.
-func TestSweepFailingSeriesDoNotStarveHealthyOnes(t *testing.T) {
+func TestSweepFailingTitlesDoNotStarveHealthyOnes(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	var releases []indexer.Release
 	fail := map[string]error{}
-	// Enough failing series to fill the 5-series pass, each with enough dead
+	// Enough failing title to fill the 5-title pass, each with enough dead
 	// releases to trip maxAddFailures.
 	for i := range 5 {
 		title := fmt.Sprintf("Broken Saga %d", i)
@@ -532,7 +532,7 @@ func TestSweepFailingSeriesDoNotStarveHealthyOnes(t *testing.T) {
 	}
 	healthyID := seedSweep(t, h.st, "Healthy Saga", true, sweepItem{number: 1, airsAt: &past})
 
-	// One pass fills entirely with the broken series; the second must reach past
+	// One pass fills entirely with the broken title; the second must reach past
 	// them now that a failed pass backs off.
 	for range 2 {
 		_ = h.svc.SweepOnce(context.Background())
@@ -542,7 +542,7 @@ func TestSweepFailingSeriesDoNotStarveHealthyOnes(t *testing.T) {
 	}
 }
 
-// A series nobody is seeding for backs off exponentially rather than asking the
+// A title nobody is seeding for backs off exponentially rather than asking the
 // indexer every tick forever, and the backoff stops growing at the cap.
 func TestSweepEmptySearchBackoffGrowsAndCaps(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -622,7 +622,7 @@ func TestSweepClampsNextSearchToUpcomingAirDate(t *testing.T) {
 }
 
 // The per-pass cap is what keeps the indexer budget bounded.
-func TestSweepStopsAtTheSeriesPerPassCap(t *testing.T) {
+func TestSweepStopsAtTheTitlesPerPassCap(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, nil, fakeConfig{})
 	for i := range 8 {

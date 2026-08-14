@@ -34,7 +34,7 @@ import {
 } from "./profile-editor-state";
 import { DEFAULT_CUTOFF, SCORE_LANDMARKS } from "@/lib/score-landmarks";
 import { plural } from "@/lib/format";
-import { profilesQuery } from "@/lib/queries";
+import { profilesQuery, titlesQuery } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -678,7 +678,7 @@ function DeleteProfileDialog({
     onSuccess: () => {
       toast.success(`Profile “${profile.name}” deleted`);
       queryClient.invalidateQueries({ queryKey: profilesQuery().queryKey });
-      queryClient.invalidateQueries({ queryKey: ["series"] });
+      queryClient.invalidateQueries({ queryKey: titlesQuery().queryKey });
       onOpenChange(false);
       onDeleted();
     },

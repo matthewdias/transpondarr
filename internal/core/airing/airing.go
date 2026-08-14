@@ -22,10 +22,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// seriesPerPass bounds how much of the request budget one pass can spend. Series
+// titlesPerPass bounds how much of the request budget one pass can spend. Title
 // due for a sync sort never-synced first, so a newly added title is picked up on
 // the next tick rather than queued behind a backlog of routine refreshes.
-const seriesPerPass = 5
+const titlesPerPass = 5
 
 // Service syncs broadcast schedules into wanted_items.airs_at.
 type Service struct {
@@ -40,9 +40,9 @@ func New(st *store.Store, provider metadata.Provider, log *slog.Logger) *Service
 	return &Service{store: st, provider: provider, log: log}
 }
 
-// SyncOnce fetches schedules for every series due one, and is what the job runner
+// SyncOnce fetches schedules for every title due one, and is what the job runner
 // calls. A provider that publishes no schedule is a supported configuration, not
-// a failure. One series' error never costs the rest their sync.
+// a failure. One title's error never costs the rest their sync.
 func (s *Service) SyncOnce(ctx context.Context) error {
 	airing, ok := s.provider.(metadata.AiringProvider)
 	if !ok {
@@ -55,53 +55,53 @@ func (s *Service) SyncOnce(ctx context.Context) error {
 	}
 
 	var errs []error
-	for _, series := range due {
+	for _, title := range due {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := s.syncSeries(ctx, airing, series); err != nil {
-			errs = append(errs, fmt.Errorf("series %d: %w", series.ID, err))
+		if err := s.syncTitle(ctx, airing, title); err != nil {
+			errs = append(errs, fmt.Errorf("series %d: %w", title.ID, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// due lists the series whose schedule has never been synced or has gone stale,
+// due lists the title whose schedule has never been synced or has gone stale,
 // pacing each status by the same TTL policy the title cache uses.
 func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 	now := time.Now()
 	cutoff := func(status string) sql.NullString {
 		return sql.NullString{String: store.FormatTimestamp(now.Add(-metadata.TTLFor(status))), Valid: true}
 	}
-	return s.store.Q.ListSeriesDueAiringSync(ctx, db.ListSeriesDueAiringSyncParams{
+	return s.store.Q.ListTitlesDueAiringSync(ctx, db.ListTitlesDueAiringSyncParams{
 		Provider:         sql.NullString{String: s.provider.Name(), Valid: true},
 		AiringSyncedAt:   cutoff("FINISHED"),
 		AiringSyncedAt_2: cutoff("RELEASING"),
-		Limit:            seriesPerPass,
+		Limit:            titlesPerPass,
 	})
 }
 
-// syncSeries writes one series' schedule, then stamps it as synced. The stamp is
+// syncTitle writes one title's schedule, then stamps it as synced. The stamp is
 // what stops a title AniList has no schedule for (its coverage thins out badly
 // before ~2015) from being re-asked every tick forever.
-func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider, series db.Series) error {
-	// A series synced before has its aired history already; only the not-yet-aired
+func (s *Service) syncTitle(ctx context.Context, airing metadata.AiringProvider, title db.Series) error {
+	// A title synced before has its aired history already; only the not-yet-aired
 	// tail can still move, and that is 1-2 pages instead of one per 50 episodes.
-	notYetAired := series.AiringSyncedAt.Valid
+	notYetAired := title.AiringSyncedAt.Valid
 
-	schedule, err := airing.GetSchedule(ctx, series.ProviderID.Int64, notYetAired)
+	schedule, err := airing.GetSchedule(ctx, title.ProviderID.Int64, notYetAired)
 	if err != nil {
 		return fmt.Errorf("fetch schedule: %w", err)
 	}
 
-	kind := domain.KindFor(domain.Format(series.Format))
+	kind := domain.KindFor(domain.Format(title.Format))
 	var premiere time.Time
 	if kind == domain.KindMovie {
 		schedule = premiereOnly(schedule)
 		if len(schedule) == 0 {
 			// Fetched here, before the transaction, for the same reason the schedule
 			// is: no write lock may be held across the network.
-			meta, _, err := s.provider.GetTitle(ctx, series.ProviderID.Int64)
+			meta, _, err := s.provider.GetTitle(ctx, title.ProviderID.Int64)
 			if err != nil {
 				return fmt.Errorf("fetch title for a release date: %w", err)
 			}
@@ -123,11 +123,11 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	for _, a := range schedule {
 		number := sql.NullInt64{Int64: int64(a.Number), Valid: true}
 		if err := q.UpsertWantedItemAiring(ctx, db.UpsertWantedItemAiringParams{
-			SeriesID:  series.ID,
+			SeriesID:  title.ID,
 			Kind:      string(kind),
 			Number:    number,
 			AirsAt:    sql.NullString{String: store.FormatTimestamp(a.AirsAt), Valid: true},
-			Monitored: store.MonitorNew(series.MonitorNewFrom, number),
+			Monitored: store.MonitorNew(title.MonitorNewFrom, number),
 		}); err != nil {
 			return fmt.Errorf("upsert airing for item %d: %w", a.Number, err)
 		}
@@ -138,7 +138,7 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	if !premiere.IsZero() {
 		if err := q.SetWantedItemAirsAtIfNull(ctx, db.SetWantedItemAirsAtIfNullParams{
 			AirsAt:   sql.NullString{String: store.FormatTimestamp(premiere), Valid: true},
-			SeriesID: series.ID,
+			SeriesID: title.ID,
 			Kind:     string(kind),
 			Number:   sql.NullInt64{Int64: 1, Valid: true},
 		}); err != nil {
@@ -151,9 +151,9 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	var filled int64
 	for _, n := range skipped(schedule, !notYetAired) {
 		number := sql.NullInt64{Int64: int64(n), Valid: true}
-		monitored := store.MonitorNew(series.MonitorNewFrom, number)
+		monitored := store.MonitorNew(title.MonitorNewFrom, number)
 		rows, err := q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
-			SeriesID:  series.ID,
+			SeriesID:  title.ID,
 			Kind:      string(kind),
 			Number:    number,
 			Monitored: monitored,
@@ -165,23 +165,23 @@ func (s *Service) syncSeries(ctx context.Context, airing metadata.AiringProvider
 	}
 	// A filled item has no air date, so it is exactly what airedSince cannot see.
 	if filled > 0 {
-		if err := q.ResetSeriesSearchState(ctx, series.ID); err != nil {
+		if err := q.ResetTitleSearchState(ctx, title.ID); err != nil {
 			return fmt.Errorf("reset search cadence: %w", err)
 		}
 	}
 
 	// Guarded on the stamp read at selection: if the metadata refresh cleared it
-	// mid-sync (the series grew), the clear wins and the next pass re-pages.
-	if err := q.SetSeriesAiringSyncedAt(ctx, db.SetSeriesAiringSyncedAtParams{
-		ID:             series.ID,
-		AiringSyncedAt: series.AiringSyncedAt,
+	// mid-sync (the title grew), the clear wins and the next pass re-pages.
+	if err := q.SetTitleAiringSyncedAt(ctx, db.SetTitleAiringSyncedAtParams{
+		ID:             title.ID,
+		AiringSyncedAt: title.AiringSyncedAt,
 	}); err != nil {
 		return fmt.Errorf("stamp synced: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
-	s.log.Debug("airing schedule synced", "series", series.ID, "airings", len(schedule), "tail_only", notYetAired)
+	s.log.Debug("airing schedule synced", "series", title.ID, "airings", len(schedule), "tail_only", notYetAired)
 	return nil
 }
 

@@ -99,9 +99,9 @@ func (q *Queries) GetWantedItemByNumber(ctx context.Context, arg GetWantedItemBy
 
 const listCalendarItems = `-- name: ListCalendarItems :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored,
-       s.title         AS series_title,
-       s.format        AS series_format,
-       s.monitored     AS series_monitored,
+       s.title         AS title_name,
+       s.format        AS title_format,
+       s.monitored     AS title_monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
        g.last_error    AS grab_last_error
@@ -127,9 +127,9 @@ type ListCalendarItemsRow struct {
 	AirsAt           sql.NullString `json:"airs_at"`
 	HeldReleaseTitle string         `json:"held_release_title"`
 	Monitored        int64          `json:"monitored"`
-	SeriesTitle      string         `json:"series_title"`
-	SeriesFormat     string         `json:"series_format"`
-	SeriesMonitored  int64          `json:"series_monitored"`
+	TitleName        string         `json:"title_name"`
+	TitleFormat      string         `json:"title_format"`
+	TitleMonitored   int64          `json:"title_monitored"`
 	GrabStatus       sql.NullString `json:"grab_status"`
 	GrabReleaseTitle sql.NullString `json:"grab_release_title"`
 	GrabLastError    sql.NullString `json:"grab_last_error"`
@@ -156,9 +156,9 @@ func (q *Queries) ListCalendarItems(ctx context.Context, arg ListCalendarItemsPa
 			&i.AirsAt,
 			&i.HeldReleaseTitle,
 			&i.Monitored,
-			&i.SeriesTitle,
-			&i.SeriesFormat,
-			&i.SeriesMonitored,
+			&i.TitleName,
+			&i.TitleFormat,
+			&i.TitleMonitored,
 			&i.GrabStatus,
 			&i.GrabReleaseTitle,
 			&i.GrabLastError,
@@ -176,7 +176,7 @@ func (q *Queries) ListCalendarItems(ctx context.Context, arg ListCalendarItemsPa
 	return items, nil
 }
 
-const listSeriesIDsForUnmonitoredItems = `-- name: ListSeriesIDsForUnmonitoredItems :many
+const listTitleIDsForUnmonitoredItems = `-- name: ListTitleIDsForUnmonitoredItems :many
 SELECT DISTINCT series_id
 FROM wanted_items
 WHERE id IN (/*SLICE:ids*/?) AND monitored = 0
@@ -185,8 +185,8 @@ WHERE id IN (/*SLICE:ids*/?) AND monitored = 0
 // The series a re-monitor will actually change, so the cadence reset lands once
 // per series and only where something moved. Read before the update, in the
 // same transaction, since the update reports only a row count.
-func (q *Queries) ListSeriesIDsForUnmonitoredItems(ctx context.Context, ids []int64) ([]int64, error) {
-	query := listSeriesIDsForUnmonitoredItems
+func (q *Queries) ListTitleIDsForUnmonitoredItems(ctx context.Context, ids []int64) ([]int64, error) {
+	query := listTitleIDsForUnmonitoredItems
 	var queryParams []interface{}
 	if len(ids) > 0 {
 		for _, v := range ids {
@@ -218,7 +218,7 @@ func (q *Queries) ListSeriesIDsForUnmonitoredItems(ctx context.Context, ids []in
 	return items, nil
 }
 
-const listUnscheduledSeries = `-- name: ListUnscheduledSeries :many
+const listUnscheduledTitles = `-- name: ListUnscheduledTitles :many
 SELECT DISTINCT s.id, s.title
 FROM series s
 JOIN wanted_items w ON w.series_id = s.id
@@ -226,22 +226,22 @@ WHERE s.monitored = 1 AND w.in_library = 0 AND w.airs_at IS NULL
 ORDER BY s.title
 `
 
-type ListUnscheduledSeriesRow struct {
+type ListUnscheduledTitlesRow struct {
 	ID    int64  `json:"id"`
 	Title string `json:"title"`
 }
 
 // Monitored series still missing an episode the provider gives no air date
 // for, so the calendar can surface them instead of silently omitting them.
-func (q *Queries) ListUnscheduledSeries(ctx context.Context) ([]ListUnscheduledSeriesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUnscheduledSeries)
+func (q *Queries) ListUnscheduledTitles(ctx context.Context) ([]ListUnscheduledTitlesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnscheduledTitles)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListUnscheduledSeriesRow{}
+	items := []ListUnscheduledTitlesRow{}
 	for rows.Next() {
-		var i ListUnscheduledSeriesRow
+		var i ListUnscheduledTitlesRow
 		if err := rows.Scan(&i.ID, &i.Title); err != nil {
 			return nil, err
 		}

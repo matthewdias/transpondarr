@@ -20,7 +20,7 @@ func TestSeasonPackIsMatchedAndEligibleAndGrabs(t *testing.T) {
 	}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "packhash", Outcome: download.AddSuccess}}
 	h := newHarness(t, idx, dl)
-	seriesID := seedSeries(t, h.store, "Placeholder Saga", 12)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
 	var searchOut struct {
 		Results []struct {
@@ -30,7 +30,7 @@ func TestSeasonPackIsMatchedAndEligibleAndGrabs(t *testing.T) {
 			IneligibleReason string `json:"ineligible_reason"`
 		} `json:"results"`
 	}
-	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", seriesID), &searchOut); code != http.StatusOK {
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/search", titleID), &searchOut); code != http.StatusOK {
 		t.Fatalf("search status = %d, want 200", code)
 	}
 	if len(searchOut.Results) != 1 {
@@ -50,7 +50,7 @@ func TestSeasonPackIsMatchedAndEligibleAndGrabs(t *testing.T) {
 	var grabOut struct {
 		IneligibleReason string `json:"ineligible_reason"`
 	}
-	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", seriesID),
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, &grabOut)
 	if code != http.StatusCreated {
 		t.Fatalf("grab status = %d, want 201 — a manual grab is never refused", code)

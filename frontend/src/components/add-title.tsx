@@ -39,7 +39,7 @@ function candidateTitle(c: Candidate) {
 
 // selected is the container's, not this body's: Escape is dispatched on the
 // dialog, so only the container can turn it into a step back.
-function AddSeriesBody({
+function AddTitleBody({
   onDone,
   selected,
   onSelect,
@@ -87,9 +87,9 @@ function AddSeriesBody({
           title={candidateTitle(selected)}
           target={selected}
           onBack={() => onSelect(null)}
-          onAdded={(series) => {
+          onAdded={(title) => {
             onDone();
-            navigate(`/series/${series.id}`);
+            navigate(`/titles/${title.id}`);
           }}
           onExists={onDone}
         />
@@ -195,7 +195,7 @@ function AddSeriesBody({
   );
 }
 
-export function AddSeriesButton() {
+export function AddTitleButton() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Candidate | null>(null);
   const isMobile = useIsMobile();
@@ -217,7 +217,7 @@ export function AddSeriesButton() {
   };
 
   const body = (
-    <AddSeriesBody onDone={close} selected={selected} onSelect={setSelected} />
+    <AddTitleBody onDone={close} selected={selected} onSelect={setSelected} />
   );
 
   const trigger = (

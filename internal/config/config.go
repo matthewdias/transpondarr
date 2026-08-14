@@ -65,7 +65,7 @@ type Config struct {
 	// download client before anything grabs on its own. Accepts the mode names
 	// "off" / "notify_only" / "on" as well as bool spellings (#116).
 	AutomationEnabled string
-	// PinDelayHours is how long the sweep waits for a series' pinned group before
+	// PinDelayHours is how long the sweep waits for a title's pinned group before
 	// taking another group's release. "0" means no wait.
 	PinDelayHours string
 }

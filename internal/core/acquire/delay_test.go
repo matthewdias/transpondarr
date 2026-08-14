@@ -11,9 +11,9 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// pinSeries sets a series' pinned group and, when hours >= 0, its per-series
+// pinTitle sets a title's pinned group and, when hours >= 0, its per-title
 // delay override (a negative value leaves the column NULL = use the global).
-func pinSeries(t *testing.T, st *store.Store, id int64, group string, hours int) {
+func pinTitle(t *testing.T, st *store.Store, id int64, group string, hours int) {
 	t.Helper()
 	var delay sql.NullInt64
 	if hours >= 0 {
@@ -31,7 +31,7 @@ func TestSweepGrabsPinnedReleaseImmediately(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
-	pinSeries(t, h.st, id, "ExampleSubs", -1)
+	pinTitle(t, h.st, id, "ExampleSubs", -1)
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -42,12 +42,12 @@ func TestSweepGrabsPinnedReleaseImmediately(t *testing.T) {
 }
 
 // #62: within the window, another group's release is held rather than taken, and
-// the series comes back exactly when the window closes.
+// the title comes back exactly when the window closes.
 func TestSweepHoldsNonPinnedReleaseInsideTheDelay(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
-	pinSeries(t, h.st, id, "OtherSubs", -1)
+	pinTitle(t, h.st, id, "OtherSubs", -1)
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -68,7 +68,7 @@ func TestSweepGrabsNonPinnedReleaseAfterTheDelay(t *testing.T) {
 	aired := time.Now().Add(-7 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
-	pinSeries(t, h.st, id, "OtherSubs", -1)
+	pinTitle(t, h.st, id, "OtherSubs", -1)
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -83,7 +83,7 @@ func TestSweepGrabsNonPinnedReleaseAfterTheDelay(t *testing.T) {
 func TestSweepDelayIsInapplicableWithoutAnAirDate(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3})
-	pinSeries(t, h.st, id, "OtherSubs", -1)
+	pinTitle(t, h.st, id, "OtherSubs", -1)
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -100,7 +100,7 @@ func TestSweepClampsAnAbsurdPinDelay(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
-	pinSeries(t, h.st, id, "OtherSubs", 3000000)
+	pinTitle(t, h.st, id, "OtherSubs", 3000000)
 
 	if err := h.svc.SweepOnce(context.Background()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
@@ -112,14 +112,14 @@ func TestSweepClampsAnAbsurdPinDelay(t *testing.T) {
 		aired.Add(domain.MaxPinDelayHours*time.Hour))
 }
 
-// A per-series delay overrides the global default in both directions.
-func TestSweepPerSeriesDelayOverridesTheGlobalDefault(t *testing.T) {
+// A per-title delay overrides the global default in both directions.
+func TestSweepPerTitleDelayOverridesTheGlobalDefault(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 
 	t.Run("series waits where the global would not", func(t *testing.T) {
 		h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 		id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
-		pinSeries(t, h.st, id, "OtherSubs", 6)
+		pinTitle(t, h.st, id, "OtherSubs", 6)
 
 		if err := h.svc.SweepOnce(context.Background()); err != nil {
 			t.Fatalf("SweepOnce: %v", err)
@@ -132,7 +132,7 @@ func TestSweepPerSeriesDelayOverridesTheGlobalDefault(t *testing.T) {
 	t.Run("series grabs where the global would wait", func(t *testing.T) {
 		h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
 		id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
-		pinSeries(t, h.st, id, "OtherSubs", 0)
+		pinTitle(t, h.st, id, "OtherSubs", 0)
 
 		if err := h.svc.SweepOnce(context.Background()); err != nil {
 			t.Fatalf("SweepOnce: %v", err)
