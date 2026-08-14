@@ -79,6 +79,7 @@ type CutoffUnmetItem struct {
 type CutoffGroup struct {
 	TitleID     int64
 	TitleName   string
+	Format      string
 	Monitored   bool
 	ProfileName string
 	CutoffScore int
@@ -159,6 +160,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 			group := CutoffGroup{
 				TitleID:     sr.ID,
 				TitleName:   sr.Title,
+				Format:      sr.Format,
 				Monitored:   sr.Monitored == 1,
 				ProfileName: sr.ProfileName,
 				CutoffScore: profile.CutoffScore,

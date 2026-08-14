@@ -100,6 +100,14 @@ All notable changes to this project are documented here. The format is based on
   film rather than an episode number it does not have. Episode wording is
   untouched everywhere an episode is what arrived, single-episode OVAs and
   specials included, and the webhook payload is unchanged for every event.
+- **The Wanted and Activity lists no longer call a film an episode, or count
+  down to a date it does not have.** A film waiting in **Wanted** was listed as
+  `Episode 1`, counted as `1 episode missing`, and badged **Not aired yet**;
+  once it had a release date it also showed a live countdown to a precise
+  moment, where AniList publishes only a day. It now reads as a film, says
+  **Not released yet**, and states the date plainly. The **Activity** queue
+  drops the episode line for a film in the same way. Episodes are untouched,
+  single-episode OVAs and specials included.
 - **The quality-profile chip on a series page no longer vanishes while it loads
   or when it fails.** The picker rendered nothing until the profile list
   arrived, so the chips row shifted on every visit, and a failed fetch left no

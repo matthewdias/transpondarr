@@ -29,7 +29,14 @@ import {
   type TitleMissingReason,
 } from "@/lib/api";
 import { wantedCutoffQuery, wantedMissingQuery } from "@/lib/queries";
-import { airDate, countdownOrDate, pad2, plural, timeAgo } from "@/lib/format";
+import {
+  airDate,
+  countdownOrDate,
+  pad2,
+  plural,
+  premiereDate,
+  timeAgo,
+} from "@/lib/format";
 import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 import { cn } from "@/lib/utils";
@@ -43,6 +50,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type WantedTab = "missing" | "cutoff";
+
+// Format alone (#208), never item count: a one-episode OVA is a series here.
+const isFilm = (format: string) => format === "MOVIE";
 
 // The reason tiers' vocabulary (#150): the page says what blocks everything,
 // a group header says where its series stands in the sweep queue, and a row
@@ -375,14 +385,21 @@ function MissingGroupCard({
           <span className="text-xs text-faint tabular-nums">
             {unmonitored > 0
               ? `${group.missing - unmonitored} missing · ${unmonitored} not monitored`
-              : `${plural(group.missing, "episode")} missing`}
+              : isFilm(group.format)
+                ? "Missing"
+                : `${plural(group.missing, "episode")} missing`}
           </span>
           <TitleReasonBadge group={group} />
         </>
       }
     >
       {group.items.map((item) => (
-        <MissingRow key={item.id} titleId={group.title_id} item={item} />
+        <MissingRow
+          key={item.id}
+          titleId={group.title_id}
+          format={group.format}
+          item={item}
+        />
       ))}
       {hidden > 0 && (
         <OverflowRow
@@ -394,25 +411,44 @@ function MissingGroupCard({
   );
 }
 
-function MissingRow({ titleId, item }: { titleId: number; item: MissingItem }) {
+function MissingRow({
+  titleId,
+  format,
+  item,
+}: {
+  titleId: number;
+  format: string;
+  item: MissingItem;
+}) {
+  const film = isFilm(format);
   return (
     <div className="flex items-center gap-3 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40">
       <span className="w-8 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
         {pad2(item.number)}
       </span>
       <span className="min-w-0 flex-1 truncate text-sm text-foreground/90">
-        {item.name || `Episode ${item.number}`}
+        {item.name || (film ? "Film" : `Episode ${item.number}`)}
       </span>
       <span className="hidden w-28 shrink-0 text-right text-xs text-faint sm:block">
         {item.airs_at ? (
-          airDate(item.airs_at)
+          film ? (
+            premiereDate(item.airs_at)
+          ) : (
+            airDate(item.airs_at)
+          )
         ) : (
-          <span title="AniList publishes no broadcast time for this episode">
-            No air date
+          <span
+            title={
+              film
+                ? "AniList publishes no release date for this film"
+                : "AniList publishes no broadcast time for this episode"
+            }
+          >
+            {film ? "No release date" : "No air date"}
           </span>
         )}
       </span>
-      <ItemReasonBadge item={item} />
+      <ItemReasonBadge item={item} film={film} />
       <Button variant="outline" size="sm" asChild>
         {/* #105's episode-targeted search: the Releases tab opens filtered to
             this episode, where the unchanged manual grab lives. */}
@@ -475,9 +511,14 @@ function itemReasonTitle(item: MissingItem): string | undefined {
 
 // A row speaks only when it has its own story; most rows are told by their
 // group and stay quiet.
-function ItemReasonBadge({ item }: { item: MissingItem }) {
+function ItemReasonBadge({ item, film }: { item: MissingItem; film: boolean }) {
   if (!item.reason) return null;
-  const label = itemReasonLabel[item.reason];
+  // The badge is right either way; only the word is episodic. A film has a
+  // release date, not a broadcast.
+  const label =
+    film && item.reason === "unaired"
+      ? "Not released yet"
+      : itemReasonLabel[item.reason];
   return (
     <span
       title={itemReasonTitle(item)}
@@ -557,7 +598,9 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
             {group.title}
           </Link>
           <span className="text-xs text-faint tabular-nums">
-            {plural(group.below, "episode")} below cutoff
+            {isFilm(group.format)
+              ? "Below cutoff"
+              : `${plural(group.below, "episode")} below cutoff`}
           </span>
           <span
             className="hidden shrink-0 items-center rounded-full border border-border bg-panel-2 px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap text-muted-foreground md:inline-flex"

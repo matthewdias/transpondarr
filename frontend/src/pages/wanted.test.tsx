@@ -33,6 +33,7 @@ const group = (
 ): MissingGroup => ({
   title_id: 7,
   title: "Signal Anomaly",
+  format: "TV",
   monitored: true,
   reason: "search_due",
   missing: items.length,
@@ -56,6 +57,7 @@ const cutoffGroup = (
 ): CutoffGroup => ({
   title_id: 7,
   title: "Signal Anomaly",
+  format: "TV",
   monitored: true,
   profile_name: "Anime HD",
   cutoff_score: 2300,
@@ -728,4 +730,83 @@ it("offers an unmonitored cutoff row its own monitor toggle", async () => {
   expect(
     screen.getByRole("button", { name: /stop monitoring episode 2/i }),
   ).toBeInTheDocument();
+});
+
+// #215's DTO half. A film reaches this page like anything else, and format is
+// the only thing that can tell it apart -- item count cannot (#208), because a
+// one-episode OVA is a series. Air date far enough out that the countdown
+// branch cannot fire for either row: what is under test is the wording.
+it("never calls a film's item an episode, or dates it to the hour", async () => {
+  const airsAt = new Date(Date.now() + 40 * 86400 * 1000).toISOString();
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({ title: "Placeholder Film", format: "MOVIE" }, [
+            missing({ id: 1, number: 1, airs_at: airsAt, reason: "unaired" }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  expect(await screen.findByText("Placeholder Film")).toBeInTheDocument();
+  expect(screen.getByText("Film")).toBeInTheDocument();
+  expect(screen.queryByText(/episode 1/i)).not.toBeInTheDocument();
+  // The group's count line is episodic too, and a film's is always 1. Scoped
+  // to the count span, since the tab beside it is also called Missing.
+  expect(
+    screen.getByText("Missing", { selector: "span.tabular-nums" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText(/1 episode missing/i)).not.toBeInTheDocument();
+  // The badge is right; only the word was wrong.
+  expect(screen.getByText("Not released yet")).toBeInTheDocument();
+  expect(screen.queryByText("Not aired yet")).not.toBeInTheDocument();
+});
+
+// A film's stored instant may be noon UTC standing in for a day (#224), so a
+// countdown would state precision the provider never published. Inside the
+// week, which is exactly where countdownOrDate would otherwise count down.
+it("shows a film's near release as a date, never as a countdown", async () => {
+  const airsAt = new Date(Date.now() + 3 * 86400 * 1000).toISOString();
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({ title_id: 7, title: "Placeholder Film", format: "MOVIE" }, [
+            missing({ id: 1, number: 1, airs_at: airsAt }),
+          ]),
+          group({ title_id: 8, title: "Placeholder Saga" }, [
+            missing({ id: 2, number: 4, airs_at: airsAt }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  await screen.findByText("Placeholder Film");
+  // The episode beside it still counts down, so this is the format branch and
+  // not a page-wide change of mind.
+  expect(screen.getByText(/^in \d+d$/)).toBeInTheDocument();
+  expect(screen.getAllByText(/^in \d+d$/)).toHaveLength(1);
+});
+
+// The cutoff tab groups by title too, and its count line is just as episodic.
+it("keeps a film's cutoff group from counting in episodes", async () => {
+  useHandlers({
+    cutoffGroups: [
+      cutoffGroup({ title: "Placeholder Film", format: "MOVIE" }, [
+        cutoff({ id: 11, number: 1 }),
+      ]),
+    ],
+  });
+  renderPage();
+
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
+
+  expect(await screen.findByText("Below cutoff")).toBeInTheDocument();
+  expect(screen.queryByText(/1 episode below cutoff/i)).not.toBeInTheDocument();
 });

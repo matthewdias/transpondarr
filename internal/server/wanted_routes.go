@@ -50,6 +50,7 @@ type missingItemDTO struct {
 type missingGroupDTO struct {
 	TitleID         int64            `json:"title_id"`
 	Title           string           `json:"title"`
+	Format          string           `json:"format" doc:"Title format; the sole discriminator between movie and series wording, so a film is never called an episode"`
 	Monitored       bool             `json:"monitored"`
 	Reason          string           `json:"reason" enum:"unmonitored,blocklisted,never_searched,search_backoff,search_due" doc:"The title's standing in the sweep queue, derived from stored state at request time"`
 	BlockedReleases int              `json:"blocked_releases,omitempty" doc:"Releases this title is currently refusing (reason blocklisted)"`
@@ -80,6 +81,7 @@ type cutoffItemDTO struct {
 type cutoffGroupDTO struct {
 	TitleID     int64           `json:"title_id"`
 	Title       string          `json:"title"`
+	Format      string          `json:"format" doc:"Title format; the sole discriminator between movie and series wording"`
 	Monitored   bool            `json:"monitored"`
 	ProfileName string          `json:"profile_name"`
 	CutoffScore int             `json:"cutoff_score"`
@@ -315,6 +317,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		group := missingGroupDTO{
 			TitleID:   s.ID,
 			Title:     s.Title,
+			Format:    s.Format,
 			Monitored: facts.Monitored,
 			Reason:    titleReason(facts, now),
 			Missing:   int(s.Missing),
@@ -373,6 +376,7 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 		group := cutoffGroupDTO{
 			TitleID:     g.TitleID,
 			Title:       g.TitleName,
+			Format:      g.Format,
 			Monitored:   g.Monitored,
 			ProfileName: g.ProfileName,
 			CutoffScore: g.CutoffScore,

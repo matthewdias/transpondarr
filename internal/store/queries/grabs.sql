@@ -81,7 +81,8 @@ SELECT
     w.number AS item_number,
     w.kind   AS item_kind,
     s.id     AS title_id,
-    s.title  AS title_name
+    s.title  AS title_name,
+    s.format AS title_format
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id

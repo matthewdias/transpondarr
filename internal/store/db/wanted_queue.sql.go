@@ -178,7 +178,7 @@ func (q *Queries) ListCutoffItemsByTitle(ctx context.Context, arg ListCutoffItem
 }
 
 const listCutoffTitlesPage = `-- name: ListCutoffTitlesPage :many
-SELECT s.id, s.title, s.monitored,
+SELECT s.id, s.title, s.format, s.monitored,
        qp.id           AS profile_id,
        qp.name         AS profile_name,
        qp.cutoff_score AS profile_cutoff_score
@@ -213,6 +213,7 @@ type ListCutoffTitlesPageParams struct {
 type ListCutoffTitlesPageRow struct {
 	ID                 int64  `json:"id"`
 	Title              string `json:"title"`
+	Format             string `json:"format"`
 	Monitored          int64  `json:"monitored"`
 	ProfileID          int64  `json:"profile_id"`
 	ProfileName        string `json:"profile_name"`
@@ -248,6 +249,7 @@ func (q *Queries) ListCutoffTitlesPage(ctx context.Context, arg ListCutoffTitles
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
+			&i.Format,
 			&i.Monitored,
 			&i.ProfileID,
 			&i.ProfileName,
@@ -384,7 +386,7 @@ func (q *Queries) ListMissingItemsByTitle(ctx context.Context, arg ListMissingIt
 
 const listMissingTitlesPage = `-- name: ListMissingTitlesPage :many
 
-SELECT s.id, s.title, s.monitored, s.last_searched_at, s.next_search_at,
+SELECT s.id, s.title, s.format, s.monitored, s.last_searched_at, s.next_search_at,
        MAX(COALESCE(w.airs_at, '')) AS latest_missing_air,
        COUNT(*)                     AS missing
 FROM wanted_items w
@@ -413,6 +415,7 @@ type ListMissingTitlesPageParams struct {
 type ListMissingTitlesPageRow struct {
 	ID               int64          `json:"id"`
 	Title            string         `json:"title"`
+	Format           string         `json:"format"`
 	Monitored        int64          `json:"monitored"`
 	LastSearchedAt   sql.NullString `json:"last_searched_at"`
 	NextSearchAt     sql.NullString `json:"next_search_at"`
@@ -464,6 +467,7 @@ func (q *Queries) ListMissingTitlesPage(ctx context.Context, arg ListMissingTitl
 		if err := rows.Scan(
 			&i.ID,
 			&i.Title,
+			&i.Format,
 			&i.Monitored,
 			&i.LastSearchedAt,
 			&i.NextSearchAt,

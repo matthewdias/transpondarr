@@ -21,6 +21,7 @@ type queueItemJSON struct {
 	ID           int64    `json:"id"`
 	TitleID      int64    `json:"title_id"`
 	Title        string   `json:"title"`
+	Format       string   `json:"format"`
 	ItemNumber   int      `json:"item_number"`
 	ReleaseTitle string   `json:"release_title"`
 	InfoHash     string   `json:"infohash"`

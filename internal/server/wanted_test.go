@@ -34,6 +34,7 @@ type missingItem struct {
 type missingGroup struct {
 	TitleID         int64         `json:"title_id"`
 	Title           string        `json:"title"`
+	Format          string        `json:"format"`
 	Monitored       bool          `json:"monitored"`
 	Reason          string        `json:"reason"`
 	BlockedReleases int           `json:"blocked_releases"`
@@ -61,6 +62,7 @@ type cutoffResponse struct {
 	Groups []struct {
 		TitleID     int64  `json:"title_id"`
 		Title       string `json:"title"`
+		Format      string `json:"format"`
 		ProfileName string `json:"profile_name"`
 		CutoffScore int    `json:"cutoff_score"`
 		Below       int    `json:"below"`
@@ -620,6 +622,12 @@ func TestCutoffUnmetRoute(t *testing.T) {
 	g := out.Groups[0]
 	if g.TitleID != titleID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
 		t.Errorf("group = %+v, want the profile and cutoff hoisted to the header", g)
+	}
+	// Format rides the group so the page can word a film's row without calling
+	// it an episode (#215); it travels through acquire.CutoffGroup, not the
+	// row's own struct, which is the join this asserts.
+	if g.Format != "TV" {
+		t.Errorf("group format = %q, want TV", g.Format)
 	}
 	if len(g.Items) != 1 {
 		t.Fatalf("items = %+v, want only the sub-cutoff item", g.Items)

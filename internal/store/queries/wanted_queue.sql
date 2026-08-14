@@ -24,7 +24,7 @@
 -- on the aggregate; a first page passes a sentinel above every stored value so
 -- one query serves every page. The count is the whole group even when the
 -- handler caps the items it returns for one.
-SELECT s.id, s.title, s.monitored, s.last_searched_at, s.next_search_at,
+SELECT s.id, s.title, s.format, s.monitored, s.last_searched_at, s.next_search_at,
        MAX(COALESCE(w.airs_at, '')) AS latest_missing_air,
        COUNT(*)                     AS missing
 FROM wanted_items w
@@ -80,7 +80,7 @@ ORDER BY w.series_id, w.number;
 -- series here may contribute no group and the caller scans on. Ordered by title
 -- -- this listing is an inventory, not a queue, so alphabetical reads best --
 -- with the id tie-break ascending and a zero cursor as the natural top.
-SELECT s.id, s.title, s.monitored,
+SELECT s.id, s.title, s.format, s.monitored,
        qp.id           AS profile_id,
        qp.name         AS profile_name,
        qp.cutoff_score AS profile_cutoff_score

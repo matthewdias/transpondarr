@@ -292,7 +292,8 @@ SELECT
     w.number AS item_number,
     w.kind   AS item_kind,
     s.id     AS title_id,
-    s.title  AS title_name
+    s.title  AS title_name,
+    s.format AS title_format
 FROM grabs g
 JOIN wanted_items w ON w.id = g.wanted_item_id
 JOIN series s ON s.id = w.series_id
@@ -313,6 +314,7 @@ type ListOpenGrabsRow struct {
 	ItemKind     string         `json:"item_kind"`
 	TitleID      int64          `json:"title_id"`
 	TitleName    string         `json:"title_name"`
+	TitleFormat  string         `json:"title_format"`
 }
 
 // Open mirrors the importer's scan set: grabbed plus deferred.
@@ -338,6 +340,7 @@ func (q *Queries) ListOpenGrabs(ctx context.Context) ([]ListOpenGrabsRow, error)
 			&i.ItemKind,
 			&i.TitleID,
 			&i.TitleName,
+			&i.TitleFormat,
 		); err != nil {
 			return nil, err
 		}
