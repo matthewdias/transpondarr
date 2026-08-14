@@ -1916,11 +1916,18 @@ export interface components {
             format: string;
             /** Format: int64 */
             id: number;
+            /** @description Why the last import attempt failed (item_status stuck) */
+            import_error?: string;
             /**
              * Format: int64
              * @description Held items inside the tracked set, so progress can never exceed it
              */
             in_library: number;
+            /**
+             * @description Derived acquisition state of the sole item; present for a movie only
+             * @enum {string}
+             */
+            item_status?: "in_library" | "downloading" | "stuck" | "deferred" | "wanted";
             monitored: boolean;
             /**
              * Format: int64

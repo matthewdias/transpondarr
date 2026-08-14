@@ -152,6 +152,61 @@ func (q *Queries) GetTitleByProviderID(ctx context.Context, arg GetTitleByProvid
 	return i, err
 }
 
+const listMovieItemStates = `-- name: ListMovieItemStates :many
+SELECT w.series_id,
+       w.in_library,
+       g.status        AS grab_status,
+       g.release_title AS grab_release_title,
+       g.last_error    AS grab_last_error
+FROM wanted_items w
+JOIN series s ON s.id = w.series_id
+LEFT JOIN grabs g ON g.wanted_item_id = w.id
+WHERE s.format = 'MOVIE'
+ORDER BY w.series_id
+`
+
+type ListMovieItemStatesRow struct {
+	SeriesID         int64          `json:"series_id"`
+	InLibrary        int64          `json:"in_library"`
+	GrabStatus       sql.NullString `json:"grab_status"`
+	GrabReleaseTitle sql.NullString `json:"grab_release_title"`
+	GrabLastError    sql.NullString `json:"grab_last_error"`
+}
+
+// Format guarantees a film one wanted item (#208), so a per-title list can carry
+// that item's own state -- which reads its grab, and so cannot come from the
+// aggregate above. One grab per item (UNIQUE) keeps the join 1:1.
+// NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
+// rune offsets and silently truncates the emitted SQL on a multi-byte character.
+func (q *Queries) ListMovieItemStates(ctx context.Context) ([]ListMovieItemStatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMovieItemStates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMovieItemStatesRow{}
+	for rows.Next() {
+		var i ListMovieItemStatesRow
+		if err := rows.Scan(
+			&i.SeriesID,
+			&i.InLibrary,
+			&i.GrabStatus,
+			&i.GrabReleaseTitle,
+			&i.GrabLastError,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTitles = `-- name: ListTitles :many
 SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year
 FROM series
