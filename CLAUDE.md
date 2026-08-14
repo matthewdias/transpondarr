@@ -635,6 +635,23 @@ Behaviour changes are test-driven. Work red → green → refactor:
   to the one it scans — the blast radius is unchanged either way. But E03/E30
   diverge at the first digit and pass with the guard removed; E10/E100 is the
   pair that catches it.
+- **The temp sweep deletes on a predicate, never on a walk (#132).** Both
+  transfer paths stage beside the destination — `copyFile`'s `.partial`,
+  `replace`'s `.upgrade` link — and both are reclaimed by the next attempt at
+  that destination, so what survives is exactly the orphan whose destination is
+  never written again: one shape twice, and therefore one sweep. Every clause of
+  the conjunction is load-bearing — **our own suffix, over a known video
+  extension, under a configured root, past a 24h mtime** — and the sweep removes
+  only what it finds, so an unmounted root reads empty rather than condemning a
+  library. Age is the whole margin against a live transfer, since a copy in
+  flight is still writing. The video-extension check is what makes it *our* temp
+  name rather than any `.partial`, and is a third thing leaning on `videoExts`
+  being importer's list again: drift there costs a **missed** sweep and never a
+  wrong delete, which is the only direction that may fail. `library.TempSweeper`
+  is an optional capability by type assertion, so `library.Target` stays
+  write-only and enumerating a library remains #170's question; a target without
+  it is a supported configuration, not an error. It is its own slow job rather
+  than a rider on the 15s import scan because it walks the roots.
 - **A year is read the same way whichever form names it, and both are decided
   against the variants (#209).** anitogo fills `AnimeYear` only from a
   *bracket-isolated* token, so `[Grp] Film (2019)` yields a year while the scene

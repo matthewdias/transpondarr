@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **An import interrupted mid-transfer no longer leaves a file behind in the
+  library forever.** Transpondarr writes to a temporary file beside the
+  destination and renames it on completion, so a crash or a restart never leaves
+  a half-written episode under the real name — but the temporary file itself
+  stayed. A new **Library tidy** job removes them once they are a day old, and
+  only ever the temporary files Transpondarr writes: anything else in the library
+  is left alone. This matters most for copy-mode imports, where the leftover is a
+  full-sized file, and for upgrades, where it kept the download's disk space
+  claimed even after the torrent was removed.
+
 ## [0.8.0] — 2026-08-14
 
 Films: the release where Transpondarr tracks both anime formats as themselves.

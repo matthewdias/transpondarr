@@ -44,6 +44,13 @@ var videoExts = map[string]bool{
 	".flv": true, ".mpg": true, ".mpeg": true, ".rmvb": true, ".divx": true,
 }
 
+// partialSuffix and upgradeSuffix name the staging files a transfer writes beside
+// its destination; the sweep reads them from here so the two cannot drift (#132).
+const (
+	partialSuffix = ".partial"
+	upgradeSuffix = ".upgrade"
+)
+
 // seasonNumber is the season every entry is filed under. Each AniList entry is
 // its own single-season show; a "2nd Season" is a distinct entry/title, not
 // Season 02 inside the first entry's folder.
@@ -132,7 +139,10 @@ func New(roots Roots, layout Layout, mode string, log *slog.Logger) *Target {
 
 func (t *Target) Name() string { return "mediaserver" }
 
-var _ library.Target = (*Target)(nil)
+var (
+	_ library.Target      = (*Target)(nil)
+	_ library.TempSweeper = (*Target)(nil)
+)
 
 // Place transfers a single downloaded file into the library and returns its final
 // path. A directory source (a batch/season pack) is rejected — per-file batch
@@ -281,7 +291,7 @@ func (t *Target) replace(ctx context.Context, src, dest string) error {
 	if t.mode == ModeCopy {
 		return copyFile(ctx, src, dest)
 	}
-	tmp := dest + ".upgrade"
+	tmp := dest + upgradeSuffix
 	_ = os.Remove(tmp) // a previous attempt's staging link
 	if err := os.Link(src, tmp); err != nil {
 		if t.mode == ModeAuto && isUnsupportedLink(err) {
@@ -387,7 +397,7 @@ func copyFile(ctx context.Context, src, dest string) error {
 	}
 	defer func() { _ = in.Close() }()
 
-	tmp := dest + ".partial"
+	tmp := dest + partialSuffix
 	out, err := os.Create(tmp)
 	if err != nil {
 		return fmt.Errorf("mediaserver: create temp: %w", err)

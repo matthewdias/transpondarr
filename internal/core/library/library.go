@@ -5,6 +5,7 @@ package library
 
 import (
 	"context"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/domain"
 )
@@ -23,4 +24,12 @@ type ImportRequest struct {
 type Target interface {
 	Name() string
 	Place(ctx context.Context, req ImportRequest) (finalPath string, err error)
+}
+
+// TempSweeper is an optional Target capability: dropping the staging files an
+// interrupted transfer left behind (#132). A type assertion rather than a wider
+// Target, which stays write-only — enumerating a library is #170's question, not
+// this one's — so a Target without it is a supported configuration, not an error.
+type TempSweeper interface {
+	SweepTemp(ctx context.Context, olderThan time.Duration) (removed int, err error)
 }
