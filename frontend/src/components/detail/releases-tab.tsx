@@ -237,10 +237,12 @@ export function ReleasesTab({
   }
 
   const results = search.data?.results ?? [];
+  // A film has one item, so filtering to it selects every release: the chip and
+  // focused empty state below would state a distinction that is not there (#231).
+  const focus = format === "MOVIE" ? null : focusItem;
   // The search itself stays series-wide; focusing narrows what is shown, so a
   // release covering the episode inside a batch is still on offer.
-  const shown =
-    focusItem == null ? results : filterCovering(results, focusItem);
+  const shown = focus == null ? results : filterCovering(results, focus);
 
   return (
     <div>
@@ -248,19 +250,19 @@ export function ReleasesTab({
         <h2 className="text-[13px] font-semibold uppercase tracking-wide text-faint">
           Search results
         </h2>
-        {focusItem != null && (
+        {focus != null && (
           <button
             type="button"
             onClick={onClearFocus}
-            aria-label={`Covering E${focusItem} — clear filter`}
+            aria-label={`Covering E${focus} — clear filter`}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-accent-foreground"
           >
-            Covering E{focusItem}
+            Covering E{focus}
             <X className="size-3" aria-hidden />
           </button>
         )}
         <span className="h-px flex-1 bg-border" />
-        {focusItem == null ? (
+        {focus == null ? (
           <span className="hidden text-xs text-faint sm:inline">
             matched against wanted items — season &amp; number aware
           </span>
@@ -304,7 +306,7 @@ export function ReleasesTab({
 
       {results.length > 0 && shown.length === 0 && (
         <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
-          <h3 className="text-sm font-semibold">{`No releases cover E${focusItem}`}</h3>
+          <h3 className="text-sm font-semibold">{`No releases cover E${focus}`}</h3>
           <p className="mt-1.5 text-sm text-muted-foreground">
             This search found releases for the series, but none of them include
             this episode.

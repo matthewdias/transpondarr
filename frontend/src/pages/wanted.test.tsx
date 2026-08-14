@@ -173,7 +173,10 @@ it("renders group and item reasons on their own tiers", async () => {
   const links = screen
     .getAllByRole("link", { name: /search/i })
     .map((a) => a.getAttribute("href"));
-  expect(links).toEqual(["/titles/7?item=4", "/titles/7?item=5"]);
+  expect(links).toEqual([
+    "/titles/7?tab=releases&item=4",
+    "/titles/7?tab=releases&item=5",
+  ]);
 });
 
 // #181's tier. It is the one stored reason on the page, so the chip carries a
@@ -809,4 +812,45 @@ it("keeps a film's cutoff group from counting in episodes", async () => {
 
   expect(await screen.findByText("Below cutoff")).toBeInTheDocument();
   expect(screen.queryByText(/1 episode below cutoff/i)).not.toBeInTheDocument();
+  // #231: the upgrade row emits the same link as the missing one, so it takes
+  // the same film branch.
+  expect(screen.getByRole("link", { name: /search/i })).toHaveAttribute(
+    "href",
+    "/titles/7?tab=releases",
+  );
+});
+
+// #231 split the two parameters: ?tab picks the tab and ?item focuses an item,
+// so a row states only what is true of it. A film's item is not a choice, and
+// format is the only thing that can say so -- a one-item OVA still numbers its
+// episode, which is why the OVA row here carries ?item and the film's does not.
+it("asks for a focused item only where there is a choice of item", async () => {
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({ title_id: 7, title: "Placeholder Film", format: "MOVIE" }, [
+            missing({ id: 1, number: 1 }),
+          ]),
+          group({ title_id: 8, title: "Placeholder OVA", format: "OVA" }, [
+            missing({ id: 2, number: 1 }),
+          ]),
+          group({ title_id: 9, title: "Placeholder Saga" }, [
+            missing({ id: 3, number: 4 }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  await screen.findByText("Placeholder Film");
+  const links = screen
+    .getAllByRole("link", { name: /search/i })
+    .map((a) => a.getAttribute("href"));
+  expect(links).toEqual([
+    "/titles/7?tab=releases",
+    "/titles/8?tab=releases&item=1",
+    "/titles/9?tab=releases&item=4",
+  ]);
 });

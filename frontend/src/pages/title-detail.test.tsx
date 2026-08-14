@@ -506,16 +506,42 @@ describe("TitleDetailPage episode search", () => {
     ).not.toBeInTheDocument();
   });
 
-  // ?item=N is the same focus reached from another page (#150's Wanted rows),
-  // so the tab has to open already filtered rather than on Episodes.
-  it("opens the Releases tab focused when the URL names an episode", async () => {
-    renderPage("/titles/7?item=5");
+  // The pair another page sends (#150's Wanted rows): ?tab opens Releases and
+  // ?item filters it, each doing exactly one job (#231).
+  it("opens the Releases tab focused when the URL names a tab and an episode", async () => {
+    renderPage("/titles/7?tab=releases&item=5");
 
     expect(
       await screen.findByText("[GroupA] Placeholder Saga - 05 (1080p)"),
     ).toBeInTheDocument();
     expect(
       screen.queryByText("[GroupA] Placeholder Saga - 02 (1080p)"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the Releases tab unfiltered when the URL names only the tab", async () => {
+    renderPage("/titles/7?tab=releases");
+
+    expect(
+      await screen.findByText("[GroupA] Placeholder Saga - 05 (1080p)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("[GroupA] Placeholder Saga - 02 (1080p)"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/covering e/i)).not.toBeInTheDocument();
+  });
+
+  // ?item no longer implies the tab, so it lands on the format's own tab and
+  // the focus it carries is simply not on screen -- never a half-focused one.
+  it("leaves the landing tab alone when the URL names only an item", async () => {
+    renderPage("/titles/7?item=5");
+
+    expect(
+      await screen.findByRole("columnheader", { name: "Ep" }),
+    ).toBeVisible();
+    expect(screen.queryByText(/covering e/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("[GroupA] Placeholder Saga - 05 (1080p)"),
     ).not.toBeInTheDocument();
   });
 

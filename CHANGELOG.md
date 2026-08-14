@@ -52,6 +52,11 @@ All notable changes to this project are documented here. The format is based on
   old address, so a saved link or a browser-history entry pointing at
   `#/series/:id` will not resolve — open the title from the Titles list instead.
   Every link inside the app already points at the new address.
+- **A title page's link parameters now do one job each.** `?tab=releases` opens
+  the Releases tab and `?item=N` filters it to one episode, where a single
+  `?item=N` used to do both. A saved link or bookmark carrying only `?item=N`
+  now opens the title on its usual landing tab rather than on Releases; the
+  **Search** buttons on the Wanted page send both and are unaffected.
 - **Films no longer read as one-episode series across the web UI.** A film's
   detail page drops the episodes table for a status card saying whether it is
   wanted, downloading or in the library, and its header reads the release year
@@ -92,6 +97,15 @@ All notable changes to this project are documented here. The format is based on
   announced with only a year stays in that footer rather than being placed on a
   date nobody published. Single-episode OVAs and specials keep their episode
   line, and the empty week no longer says it found no episodes.
+
+- **A film's Releases tab no longer claims it has episodes to choose between.**
+  Searching a film from the Wanted page opened its releases filtered to
+  `Covering E1` — a filter with nothing to filter, since a film has a single
+  item. It could hide releases from the list and answer a search with "No
+  releases cover E1" when releases had in fact been found. A film's Releases tab
+  now lists everything the search returned, and its **Search** button links
+  straight there without asking for an episode. Episode filtering is unchanged,
+  single-episode OVAs and specials included.
 
 - **Three remaining places no longer call a film a series.** The confirm button
   on a film's page now reads **Delete film**, its Releases tab says no releases

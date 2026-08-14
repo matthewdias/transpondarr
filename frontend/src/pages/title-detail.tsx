@@ -68,13 +68,14 @@ const chipClass =
 export function TitleDetailPage() {
   const params = useParams();
   const id = Number(params.id);
-  // ?item=N is how another page asks for an episode-targeted search (#150's
-  // Wanted rows); the Episodes tab's own button sets the same state directly.
+  // Each parameter does one job (#231): ?tab picks the tab, ?item focuses an
+  // item. Only Releases renders a focus, so ?item alone is inert, not half applied.
   const [search] = useSearchParams();
   const linkedItem = Number(search.get("item")) || null;
+  const linkedTab = search.get("tab") === "releases" ? "releases" : null;
   // Null means "whatever this format lands on", resolved below: the format is
   // not known until the detail loads, so it cannot seed the initial state.
-  const [tab, setTab] = useState<TabKey | null>(linkedItem ? "releases" : null);
+  const [tab, setTab] = useState<TabKey | null>(linkedTab);
   // Radix unmounts an inactive panel, so the focused episode is the page's to
   // hold, not the Releases tab's.
   const [focusItem, setFocusItem] = useState<number | null>(linkedItem);
@@ -82,8 +83,8 @@ export function TitleDetailPage() {
   // the series you left means something else in the one you arrived at.
   useEffect(() => {
     setFocusItem(linkedItem);
-    if (linkedItem) setTab("releases");
-  }, [id, linkedItem]);
+    if (linkedTab) setTab(linkedTab);
+  }, [id, linkedItem, linkedTab]);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
