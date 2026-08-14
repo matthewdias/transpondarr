@@ -36,6 +36,14 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/library"
 )
 
+// videoExts is importer's list again rather than a shared one: the dependency
+// runs importer -> library, and only heldElsewhere's diagnosis reads it here.
+var videoExts = map[string]bool{
+	".mkv": true, ".mp4": true, ".avi": true, ".m4v": true, ".mov": true,
+	".ts": true, ".m2ts": true, ".webm": true, ".ogm": true, ".wmv": true,
+	".flv": true, ".mpg": true, ".mpeg": true, ".rmvb": true, ".divx": true,
+}
+
 // seasonNumber is the season every entry is filed under. Each AniList entry is
 // its own single-season show; a "2nd Season" is a distinct entry/title, not
 // Season 02 inside the first entry's folder.
@@ -152,15 +160,16 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 	}
 	dest := filepath.Join(destDir, stem+ext)
 
-	// Replacing into a directory that does not exist means our own naming inputs
-	// moved under us — a refreshed year or title — so the held file is somewhere
-	// only #213's placed-path memory can find. Also fires on a hand-deleted folder.
-	// The layout switch is diagnosed first because it names the actual file.
+	// Two independent diagnoses, so neither may silence the other: the layout was
+	// switched and moved nothing already placed, and — a refreshed year or title,
+	// or a hand-deleted folder — our own naming inputs moved under us, leaving the
+	// held file where only #213's placed-path memory can find it.
 	if req.Replace {
 		if held, ok := t.heldElsewhere(req, name); ok {
 			t.log.Warn("mediaserver: another layout holds this item; the superseded file is left where it is",
 				"title", req.Title.Name, "item", req.Item.Number, "held", held, "dest", dest)
-		} else if _, err := os.Stat(destDir); errors.Is(err, os.ErrNotExist) {
+		}
+		if _, err := os.Stat(destDir); errors.Is(err, os.ErrNotExist) {
 			t.log.Warn("mediaserver: upgrading into a directory that does not exist; the library may hold this item under an older name",
 				"title", req.Title.Name, "item", req.Item.Number, "dest", dest, "source", req.SourcePath)
 		}
@@ -245,8 +254,11 @@ func (t *Target) heldElsewhere(req library.ImportRequest, name string) (string, 
 		return "", false
 	}
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasPrefix(e.Name(), stem+".") {
-			return filepath.Join(dir, e.Name()), true
+		n := e.Name()
+		// Only a video is the episode: a sidecar or an interrupted copy's
+		// .partial shares the stem and would be a false positive.
+		if !e.IsDir() && n == stem+filepath.Ext(n) && videoExts[strings.ToLower(filepath.Ext(n))] {
+			return filepath.Join(dir, n), true
 		}
 	}
 	return "", false

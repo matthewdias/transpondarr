@@ -1342,7 +1342,7 @@ export interface components {
              * @description Path shape inside the series root; movies are unaffected
              * @enum {string}
              */
-            series_layout?: "season_folders" | "flat";
+            series_layout: "season_folders" | "flat";
         };
         LibrarySettingsDTO: {
             configured: boolean;

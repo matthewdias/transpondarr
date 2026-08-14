@@ -131,11 +131,10 @@ func TestLibraryMoviesRootRoundTrip(t *testing.T) {
 
 	var saved settingsJSON
 	code := do(t, h, http.MethodPut, "/api/v1/settings/library",
-		map[string]any{"dir": "/media/Anime", "movies_dir": "/media/Anime Films", "mode": "copy"}, &saved)
+		map[string]any{"dir": "/media/Anime", "movies_dir": "/media/Anime Films", "series_layout": "season_folders", "mode": "copy"}, &saved)
 	if code != http.StatusOK {
 		t.Fatalf("PUT /settings/library = %d, want 200", code)
 	}
-	// A save that names no layout reports the default rather than an empty one.
 	want := libraryJSON{Dir: "/media/Anime", MoviesDir: "/media/Anime Films", SeriesLayout: "season_folders", Mode: "copy"}
 	if saved.Library != want {
 		t.Errorf("save returned %+v, want %+v", saved.Library, want)
@@ -177,5 +176,21 @@ func TestLibrarySeriesLayoutRoundTrip(t *testing.T) {
 		map[string]any{"dir": "/media/Anime", "series_layout": "seasons"}, nil)
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("PUT /settings/library with an unknown layout = %d, want 422", code)
+	}
+
+	// automationInput's rule: with omitempty, "leave the layout alone" and "set
+	// it to season_folders" would be the same request, so a flat library would
+	// silently revert on any partial save.
+	code = do(t, h, http.MethodPut, "/api/v1/settings/library",
+		map[string]any{"dir": "/media/Anime", "mode": "copy"}, nil)
+	if code != http.StatusUnprocessableEntity {
+		t.Fatalf("PUT /settings/library omitting the layout = %d, want 422", code)
+	}
+	var after settingsJSON
+	if code := do(t, h, http.MethodGet, "/api/v1/settings", nil, &after); code != http.StatusOK {
+		t.Fatalf("GET /settings = %d, want 200", code)
+	}
+	if after.Library.SeriesLayout != "flat" {
+		t.Errorf("layout after a refused partial save = %q, want the stored flat", after.Library.SeriesLayout)
 	}
 }

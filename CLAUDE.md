@@ -605,8 +605,19 @@ Behaviour changes are test-driven. Work red → green → refactor:
   **Switching layouts moves nothing already placed**, so an upgrade writes the
   new shape beside the old file. That is the same orphan class as a refreshed
   title or year and is repaired the same way (#213's placed-path memory), never
-  by deleting from a computed path; but the series folder still exists, so the
-  missing-directory warning cannot fire, and `heldElsewhere` warns in its place.
+  by deleting from a computed path; but switched *to* flat the series folder
+  still exists, so the missing-directory warning cannot fire and `heldElsewhere`
+  is the only evidence. The two warnings are **independent `if`s, not a chain** —
+  they answer different questions, and one silencing the other is worse than
+  either alone. `heldElsewhere` therefore matches a *video* at the exact stem
+  rather than any stem-mate, or an interrupted copy's `.partial` would report a
+  layout switch that never happened and suppress the real warning.
+- **`removeStemMates`' trailing dot is load-bearing and only a two- against
+  three-digit pair tests it.** `seasonNumber` is hardcoded to 1, so every episode
+  of an entry already shares a directory and the flat layout adds no neighbours
+  to the one it scans — the blast radius is unchanged either way. But E03/E30
+  diverge at the first digit and pass with the guard removed; E10/E100 is the
+  pair that catches it.
 - **A year is read the same way whichever form names it, and both are decided
   against the variants (#209).** anitogo fills `AnimeYear` only from a
   *bracket-isolated* token, so `[Grp] Film (2019)` yields a year while the scene

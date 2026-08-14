@@ -210,9 +210,11 @@ type indexerInput struct {
 
 type libraryInput struct {
 	Body struct {
-		Dir          string `json:"dir,omitempty"`
-		MoviesDir    string `json:"movies_dir,omitempty" doc:"Root movies are placed into; empty = movies do not import"`
-		SeriesLayout string `json:"series_layout,omitempty" enum:"season_folders,flat" doc:"Path shape inside the series root; movies are unaffected"`
+		Dir       string `json:"dir,omitempty"`
+		MoviesDir string `json:"movies_dir,omitempty" doc:"Root movies are placed into; empty = movies do not import"`
+		// Required, by automationInput's rule below: with omitempty, "leave the
+		// layout alone" and "set it to season_folders" are the same request.
+		SeriesLayout string `json:"series_layout" enum:"season_folders,flat" doc:"Path shape inside the series root; movies are unaffected"`
 		Mode         string `json:"mode,omitempty" enum:"auto,hardlink,copy"`
 	}
 }
@@ -588,10 +590,9 @@ func (h *settingsHandler) regenerateAPIKey(ctx context.Context, _ *struct{}) (*a
 
 func (h *settingsHandler) testLibrary(ctx context.Context, in *libraryInput) (*testOutput, error) {
 	if err := h.settings.TestLibrary(ctx, settings.LibraryConfig{
-		Dir:          in.Body.Dir,
-		MoviesDir:    in.Body.MoviesDir,
-		SeriesLayout: in.Body.SeriesLayout,
-		Mode:         in.Body.Mode,
+		Dir:       in.Body.Dir,
+		MoviesDir: in.Body.MoviesDir,
+		Mode:      in.Body.Mode,
 	}); err != nil {
 		return nil, huma.Error422UnprocessableEntity("library check failed: " + err.Error())
 	}
