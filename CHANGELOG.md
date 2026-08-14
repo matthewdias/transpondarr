@@ -6,79 +6,94 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-14
+
+Films: the release where Transpondarr tracks both anime formats as themselves.
+Add a film from AniList and it is searched on its title and release year,
+grabbed, and filed into a Movies library of its own; episodes keep going where
+they went before, and gain a flat filing option for the scanners that prefer it.
+The REST resource `series` is also now `titles`, which API clients need to know
+about.
+
+Quality profiles are now chosen when you add a title rather than reassigned
+afterwards, and the controls around them hold up — the chip survives a slow or
+failed load, and names no longer collide only by case.
+
 ### Added
 
+- **Anime films can be added, searched and grabbed.** A film in AniList search
+  or on the Discovery chart is no longer reserved and greyed out: adding one
+  tracks it like any other title, and the same pipeline searches, grades, grabs
+  and imports it. A film's releases are matched on its title and release year,
+  which is what they are named for, so a manual search lists what is available
+  and a monitored film joins the scheduled search queue and the recent-feed poll
+  alongside your series, backing off the same way when nothing turns up. Format
+  decides and episode count never does, so a one-episode OVA or special is a
+  series and stays one. Two things to expect: **automation waits for a release
+  year rather than guessing at one** — a film whose year AniList has not
+  published yet is listed as ineligible until a metadata refresh fills it in,
+  and a release naming a different year is listed with that mismatch as its
+  reason — and a batch or season pack is held back for the same kind of reason,
+  being as likely to be the parent series' pack as a multi-part release of the
+  film. Searching and grabbing by hand work throughout, in both cases. Adds
+  migration 00022.
+- **Films import into their own library directory.** Plex and Jellyfin want a
+  Movies library separate from Shows, so **Settings → Library** now takes a
+  movies directory alongside the existing one, and a film places into it as
+  `Placeholder Film (2019)/Placeholder Film (2019).mkv`, with the year left out
+  of the name when the provider publishes none. **Until that directory is set, a
+  grabbed film waits in the Activity queue and says so** rather than landing in
+  the wrong library; setting one imports it on the next scan, and adding a film
+  with no movies directory configured says so on the add form, so it is clear
+  before the download finishes rather than after. A download that ships the
+  feature alongside deleted scenes, an interview or a making-of imports the
+  feature — the largest video in the payload. When two videos are the same size
+  nothing is guessed: the import waits in the Activity queue for you to say
+  which is the film.
+- **Films read as films across the web UI.** A film's page carries a status card
+  — wanted, downloading or in the library — with the release year in its header,
+  and its add form asks only whether to monitor it. The library list reports what
+  a film is doing: **Downloading**, **Downloaded, not imported**, **Import
+  blocked**, **In library**, **Wanted**, or **Not monitored** when nothing is
+  pursuing it. The calendar shows a film's premiere as a premiere, and places far
+  more of them — the release date AniList publishes now fills in where a
+  broadcast schedule never existed, so a dated film leaves the **No schedule
+  data** footer and lands on its day, while one announced with only a year stays
+  in the footer rather than being placed on a date nobody published. A film's
+  Releases tab lists everything the search returned, and its **Search** button on
+  the Wanted page links straight there. Wanted says **Not released yet** and
+  states the date plainly; the Activity queue, the import notifications, the
+  delete confirmation and the release-match reasons all name the film. Series
+  screens keep their wording throughout, single-episode OVAs and specials
+  included.
 - **Episodes can be filed without season folders.** **Settings → Library** now
   takes a **Series layout**: keep the default season folders, or choose flat and
   have episodes land in `Placeholder Saga/Placeholder Saga - S01E05.mkv` for the
   scanner configurations that prefer it. Films are unaffected, and so are
   single-episode OVAs and specials, which stay series-shaped as before.
-- **Films import into their own library directory.** Plex and Jellyfin both want
-  a Movies library separate from Shows, so **Settings → Library** now takes a
-  movies directory alongside the existing one, and a film places into it as
-  `Placeholder Film (2019)/Placeholder Film (2019).mkv` — no season folder,
-  and no year in the name when the provider publishes none. Nothing changes
-  about where episodes land, single-episode OVAs and specials included. Until a
-  movies directory is set, a grabbed film waits in the Activity queue and says
-  so rather than landing in the wrong library; setting one imports it on the
-  next scan.
-- **Anime films can be added and tracked.** A movie result in search or on the
-  Discovery chart is no longer marked reserved and greyed out: adding one
-  creates a title with a single wanted item and stores its release year, which a
-  metadata refresh fills in later for a film announced before its date was
-  published. Because the movie is one item, the add form asks only whether to
-  monitor it rather than for a range of episodes.
-- **Anime films can be searched for and grabbed.** A film's releases are now
-  matched on title and release year, so searching one lists what is available
-  and grabbing it works exactly as it does for an episode — by hand from the
-  Releases tab, or unattended: a monitored film joins the scheduled search queue
-  and the recent-feed poll alongside your series, and backs off the same way
-  when nothing turns up. A release naming a different year is listed with that
-  mismatch as its reason instead of matching. A film announced for a future date
-  is left alone by automation until that date, since nothing exists to find
-  before it — it stays listed as wanted in the meantime, and searching or
-  grabbing it by hand still works.
-  A film whose year is not yet on record still matches and is still grabbable by
-  hand, but is marked ineligible so automation leaves it alone until a metadata
-  refresh fills the year in. A batch or season pack is held back the same way and
-  for the same reason: it is as likely to be the film's parent series as a
-  multi-part release of the film, so it is listed with that caution and left to
-  you to judge.
 
 ### Changed
 
-- **A title's page has moved from `#/series/:id` to `#/titles/:id`.** The URL now
-  matches what the rest of the product calls it. There is no redirect from the
-  old address, so a saved link or a browser-history entry pointing at
-  `#/series/:id` will not resolve — open the title from the Titles list instead.
-  Every link inside the app already points at the new address.
+- **A title's page has moved from `#/series/:id` to `#/titles/:id`, and the web
+  UI calls it a title.** The URL now matches what the rest of the product calls
+  it. There is no redirect from the old address, so a saved link or a
+  browser-history entry pointing at `#/series/:id` will not resolve — open the
+  title from the Titles list instead. Every link inside the app already points at
+  the new address. The sidebar and page title now read **Titles** to match, while
+  genuinely episodic screens keep their wording.
 - **A title page's link parameters now do one job each.** `?tab=releases` opens
   the Releases tab and `?item=N` filters it to one episode, where a single
   `?item=N` used to do both. A saved link or bookmark carrying only `?item=N`
   now opens the title on its usual landing tab rather than on Releases; a
   series' **Search** button on the Wanted page sends both, so it is unaffected.
-- **Films no longer read as one-episode series across the web UI.** A film's
-  detail page drops the episodes table for a status card saying whether it is
-  wanted, downloading or in the library, and its header reads the release year
-  rather than an episode count; the library list reports what the film is doing
-  — **Downloading**, **Downloaded, not imported**, **Import blocked**,
-  **In library**, **Wanted**, or **Not monitored** when nothing is pursuing
-  it — instead of counting to one; and search and Discovery stop
-  reporting a film as one episode. Adding a film with no movies directory
-  configured now says so on the add form, so it is clear before the download
-  finishes rather than after. Series screens are untouched, single-episode OVAs
-  and specials included. Wording that called a title a series has followed
-  suit — the sidebar and page title now read **Titles** — while genuinely
-  episodic screens keep their wording.
-- **The REST resource is now `titles`, not `series`.** Movies are the next
-  feature, and an endpoint called `series` that returns them would be a wart the
-  1.0 stability promise freezes in place. Every `/api/v1/series...` route is now
-  `/api/v1/titles...`, and the fields that name or reference one follow — in the
-  webhook payload as well as the REST API, so the two agree. Discord and ntfy
-  now announce **Title added** rather than "Series added". Nothing else
-  changes — same behaviour, same data, same database, and your notification
-  settings carry over untouched.
-- **Adding a series now opens a form for that title, carrying both add-time
+- **The REST resource is now `titles`, not `series`.** An endpoint called
+  `series` that returns films would be a wart the 1.0 stability promise freezes
+  in place. Every `/api/v1/series...` route is now `/api/v1/titles...`, and the
+  fields that name or reference one follow — in the webhook payload as well as
+  the REST API, so the two agree. Discord and ntfy now announce **Title added**
+  rather than "Series added". Nothing else changes — same behaviour, same data,
+  same database, and your notification settings carry over untouched.
+- **Adding a title now opens a form for it, carrying both add-time
   decisions.** The monitor choice was a single control above the whole result
   list, and the quality profile was not asked for at all — an added series took
   the default and had to be re-assigned from its own page afterwards. Clicking
@@ -90,51 +105,7 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
-- **A film on the calendar reads as a premiere, not as episode 1.** A film with
-  a television premiere already appeared on the calendar, labelled `Ep 01` as
-  though it were the first episode of a series; it now shows as a premiere
-  linking to the title. Films are also placed far more often: the release date
-  AniList publishes now fills in where a broadcast schedule never existed, so a
-  dated film leaves the **No schedule data** footer and lands on its day. A film
-  announced with only a year stays in that footer rather than being placed on a
-  date nobody published. Single-episode OVAs and specials keep their episode
-  line, and the empty week no longer says it found no episodes.
-
-- **A film's Releases tab no longer claims it has episodes to choose between.**
-  Searching a film from the Wanted page opened its releases filtered to
-  `Covering E1` — a filter with nothing to filter, since a film has a single
-  item. It could hide releases from the list and answer a search with "No
-  releases cover E1" when releases had in fact been found. A film's Releases tab
-  now lists everything the search returned, and its **Search** button links
-  straight there without asking for an episode. Episode filtering is unchanged,
-  single-episode OVAs and specials included.
-
-- **Three remaining places no longer call a film a series.** The confirm button
-  on a film's page now reads **Delete film**, its Releases tab says no releases
-  were found for this film, and a release for a different title is refused with
-  "title does not match this film" wherever that reason is shown. Series wording
-  is unchanged, single-episode OVAs and specials included.
-- **A film that ships with extras now imports the film.** A movie download
-  holding the feature alongside deleted scenes, an interview or a making-of
-  imports the feature — the largest video in the payload — where before a clip
-  with a number in its name could be filed as the movie instead. When two videos
-  are the same size, nothing is guessed: the import waits in the Activity queue
-  for you to say which is the film. Episodes are matched by number exactly as
-  before.
-- **A film is no longer called an episode.** Notifications for a movie dropped
-  the "Episode 1" line, and the Activity queue's import messages now name the
-  film rather than an episode number it does not have. Episode wording is
-  untouched everywhere an episode is what arrived, single-episode OVAs and
-  specials included, and the webhook payload is unchanged for every event.
-- **The Wanted and Activity lists no longer call a film an episode, or count
-  down to a date it does not have.** A film waiting in **Wanted** was listed as
-  `Episode 1`, counted as `1 episode missing`, and badged **Not aired yet**;
-  once it had a release date it also showed a live countdown to a precise
-  moment, where AniList publishes only a day. It now reads as a film, says
-  **Not released yet**, and states the date plainly. The **Activity** queue
-  drops the episode line for a film in the same way. Episodes are untouched,
-  single-episode OVAs and specials included.
-- **The quality-profile chip on a series page no longer vanishes while it loads
+- **The quality-profile chip on a title's page no longer vanishes while it loads
   or when it fails.** The picker rendered nothing until the profile list
   arrived, so the chips row shifted on every visit, and a failed fetch left no
   trace at all — just a missing control. It now holds its place while loading,
@@ -159,6 +130,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Upgrade notes
 
+- **Set a movies directory before a film can import.** **Settings → Library**
+  takes one alongside the existing library directory (or
+  `TRANSPONDARR_LIBRARY_MOVIES_DIR`); with it unset, films are still added,
+  searched and grabbed, but a completed film waits in the Activity queue instead
+  of being placed. Point it at a root your media server has as a Movies library,
+  under the same mount your downloads use so the hardlink works. Nothing about
+  episodes changes if you never set it.
+- **Saved links into a title's page need re-making.** `#/series/:id` has no
+  redirect to `#/titles/:id`, and a bookmark carrying only `?item=N` now opens
+  the title on its landing tab rather than on Releases. Links inside the app are
+  already updated; only your own bookmarks and browser history are affected.
 - **The new series layout setting defaults to season folders, so nothing moves
   on upgrade.** If you switch it later, it applies to future imports only:
   episodes already in your library stay where they are, and an upgrade of one of
@@ -190,9 +172,15 @@ All notable changes to this project are documented here. The format is based on
   Generated clients also see renamed operation ids (`list-series` →
   `list-titles`, and so on) and schema names (`SeriesDTO` → `TitleDTO`,
   `AddSeriesInputBody` → `AddTitleInputBody`, and so on); regenerate against the
-  new spec. The `series` database table is unchanged, so no migration runs, and
-  saved notification toggles are read under their existing keys — nothing needs
-  reconfiguring.
+  new spec. Nothing is dropped alongside the renames — the `series` database
+  table keeps its name and its columns, and saved notification toggles are read
+  under their existing keys, so nothing needs reconfiguring.
+
+  Films add fields rather than changing any: titles carry `format` and `year`,
+  the calendar, wanted and activity rows carry `format` so a client can word a
+  film as one, library settings take `movies_dir`, and adding a title accepts
+  `quality_profile_id`. All are optional on the way in, so a client that ignores
+  them behaves as it did.
 
   One rename fails quietly rather than loudly, so check it if you script your
   settings: a `PUT /api/v1/settings/notifications` that still sends
@@ -969,7 +957,8 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/matthewdias/transpondarr/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/matthewdias/transpondarr/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/matthewdias/transpondarr/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/matthewdias/transpondarr/compare/v0.4.0...v0.5.0
