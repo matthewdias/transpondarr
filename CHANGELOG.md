@@ -107,6 +107,9 @@ All notable changes to this project are documented here. The format is based on
 
 ### Internal
 
+- **Built with Go 1.26.6.** The 1.26.5 standard library carries six
+  vulnerabilities the release binary reaches — in `net/http`, `crypto/tls`,
+  `net/url`, `encoding/xml` and `encoding/asn1` — all fixed upstream.
 - **Duplicate-name detection reads SQLite's result code instead of matching on
   the error message**, so a driver that rewords its errors can no longer turn a
   conflict into a 500.
