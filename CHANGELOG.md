@@ -12,10 +12,12 @@ Films: the release where Transpondarr tracks both anime formats as themselves.
 Add a film from AniList and it is searched on its title and release year,
 grabbed, and filed into a Movies library of its own; episodes keep going where
 they went before, and gain a flat filing option for the scanners that prefer it.
+The REST resource `series` is also now `titles`, which API clients need to know
+about.
+
 Quality profiles are now chosen when you add a title rather than reassigned
 afterwards, and the controls around them hold up — the chip survives a slow or
-failed load, and names no longer collide only by case. The REST resource
-`series` is also now `titles`, which API clients need to know about.
+failed load, and names no longer collide only by case.
 
 ### Added
 
