@@ -1,12 +1,12 @@
 # Transpondarr
 
 An anime-focused PVR — Sonarr's job, built around anime-native tooling and
-metadata. It monitors series, finds releases on anime indexers, drives a
-download client, and organizes the results into a media library.
+metadata. It monitors anime series and films, finds releases on anime indexers,
+drives a download client, and organizes the results into a media library.
 
 > **Status:** Beta. The acquisition loop runs end-to-end and unattended — add a
-> series from AniList, and monitored episodes are searched, graded against your
-> quality profile, grabbed via qBittorrent, and hardlinked into a
+> series or a film from AniList, and what you monitor is searched, graded against
+> your quality profile, grabbed via qBittorrent, and hardlinked into a
 > Plex/Jellyfin-ready library. Automation ships off by default; flip it on in
 > Settings, or set it to **notify-only** first to watch what it would grab
 > without grabbing anything. Indexing is via Torznab/Prowlarr for now.
@@ -21,31 +21,42 @@ that lives on AniList/AniDB rather than TVDB.
 
 **Today:**
 
-- **AniList-native metadata** — add series from AniList search, browse a seasonal
-  discovery chart, and see upcoming episodes on an airing calendar keyed to
-  Japanese broadcast times.
+- **AniList-native metadata** — add series and films from AniList search, browse
+  a seasonal discovery chart, and see upcoming episodes and film premieres on an
+  airing calendar keyed to Japanese broadcast times.
+- **Series and films, each handled as itself** — an episode is matched by number
+  and filed under its show; a film is matched by title and release year and
+  filed into a movies library as `Placeholder Film (2019)/Placeholder Film
+  (2019).mkv`. Plex and Jellyfin want those in different places, so Transpondarr
+  keeps them there: each library takes its own root, and a film waits in the
+  queue rather than landing in the wrong one until the movies root is set.
+  Format decides and episode count never does, so a one-episode OVA is a series
+  and files with them. A film's year is what automation matches on, so it waits
+  for one to be published rather than guessing; searching and grabbing by hand
+  work throughout.
 - **Automated acquisition** — recent-feed polling grabs new releases within
   minutes of them appearing, and a scheduled sweep backs it up for everything
-  that already existed. Monitoring is per series **and per episode** — choose at
+  that already existed. Monitoring is per title **and per episode** — choose at
   add time whether to chase a whole back catalogue or only what airs next, and
   unmonitor anything you don't want chased — under a global off / notify-only /
   on switch (off until you enable it). **Notify-only** rehearses the whole thing —
   real searches and real decisions, reported rather than grabbed. Requests can be
   filtered to specific indexer categories, and a poll that misses a page puts the
   series that aired inside the gap back at the front of the search queue.
-- **A Wanted queue that says why** — every episode still missing across the
-  library, and every episode you hold that scores below its profile's cutoff,
-  each with the reason it hasn't been grabbed: automation off, unmonitored,
-  waiting its turn in the search queue, blocklisted — or the release the last
-  pass found and declined, and why.
+- **A Wanted queue that says why** — everything still missing across the
+  library, and everything you hold that scores below its profile's cutoff, each
+  with the reason it hasn't been grabbed: automation off, unmonitored, waiting
+  its turn in the search queue, blocklisted — or the release the last pass found
+  and declined, and why.
 - **Notifications and an activity feed** — Discord, generic webhook, and ntfy,
   with per-event toggles and a test button each; an Activity page collects the
-  in-flight queue, the grab/import history across every series, and any download
+  in-flight queue, the grab/import history across every title, and any download
   left in the client that nothing is waiting on.
 - **Anime-aware quality profiles** — release group is the dominant axis, then
   resolution/source, dual audio, and sub preferences, with a score floor and hard
-  excludes. A per-series **pinned group** can also mean *wait for* — hold new
-  episodes for the pinned group's release before settling for another. Opt a
+  excludes. A profile is chosen when you add a title and can be reassigned from
+  its page later. A per-title **pinned group** can also mean *wait for* — hold
+  new episodes for the pinned group's release before settling for another. Opt a
   profile into **upgrades** and an episode you already have is re-grabbed while
   what holds it scores below the cutoff, then left alone for good.
 - **Failure memory** — a failed release is blocklisted with escalating expiry
@@ -56,12 +67,13 @@ that lives on AniList/AniDB rather than TVDB.
   with an episode's Search opening the release list focused on that episode;
   profiles inform manual actions but only gate automation.
 - **Seeding-safe library import** — hardlink (or copy) into Plex/Jellyfin-ready
-  naming, without breaking the seeding torrent. Season packs import episode by
-  episode, so a back catalogue arrives in one grab, and anything the importer
+  naming, without breaking the seeding torrent. Episodes file into season
+  folders or flat, whichever your scanner prefers. Season packs import episode
+  by episode, so a back catalogue arrives in one grab, and anything the importer
   can't place by itself is fixable by hand from the Activity queue. Archived
-  payloads aren't unpacked: a RAR-set download says so and names what to extract,
-  and extracting it in place then retrying from **Fix import** completes the
-  import.
+  payloads aren't unpacked: a RAR-set download says so and names what to
+  extract, and extracting it in place then retrying from **Fix import**
+  completes the import.
 - **Self-hosted, single binary** — embedded web UI, login + API key auth, REST
   API with an OpenAPI spec, observable background jobs, and live-editable
   settings — no restarts.
@@ -69,10 +81,10 @@ that lives on AniList/AniDB rather than TVDB.
 **Planned** (tracked in the
 [milestones](https://github.com/matthewdias/transpondarr/milestones)):
 
-- Post-1.0: anime movies — with their own library root, indexer and category —
-  AniList account sync (auto-monitor your Watching list), adopting a pre-existing
-  library and noticing when it changes on disk, more indexers and download
-  clients, and Sonarr-API compatibility for existing dashboard/mobile apps.
+- Post-1.0: AniList account sync (auto-monitor your Watching list), adopting a
+  pre-existing library and noticing when it changes on disk, more indexers and
+  download clients with per-title routing between them, and Sonarr-API
+  compatibility for existing dashboard/mobile apps.
 - Post-1.0: first-class handling for series whose releases aren't numbered the way
   AniList numbers them — continuously-airing long-runners, fan re-cuts, and a
   per-series override for when the automatic mapping is simply wrong.
@@ -144,7 +156,8 @@ are simply disabled — the server still starts.
 | `TRANSPONDARR_TORZNAB_NAME`                | `torznab`                 | Display name for the indexer.                                                                             |
 | `TRANSPONDARR_TORZNAB_CATEGORIES`          | —                         | Comma-separated Newznab category IDs sent as `cat=` on every search and the recent feed (anime is usually `5070`); unset ⇒ no filter. |
 | `TRANSPONDARR_LIBRARY_DIR`                 | —                         | Library root episodes import into; unset ⇒ episodes do not import.                                                        |
-| `TRANSPONDARR_LIBRARY_MOVIES_DIR`          | —                         | Library root films place into, separate from the root above; unset ⇒ movies do not import.                |
+| `TRANSPONDARR_LIBRARY_MOVIES_DIR`          | —                         | Library root films place into, separate from the root above; unset ⇒ a grabbed film waits in the Activity queue instead of importing. |
+| `TRANSPONDARR_LIBRARY_SERIES_LAYOUT`       | `season_folders`          | Path shape inside the series root: `season_folders` \| `flat`. Films are unaffected, and switching applies to future imports only. |
 | `TRANSPONDARR_IMPORT_MODE`                 | `auto`                    | `auto` (hardlink, copy across filesystems) \| `hardlink` \| `copy`.                                       |
 | `TRANSPONDARR_AUTOMATION_ENABLED`          | `false`                   | `off` \| `notify_only` \| `on` (bools also accepted). `notify_only` rehearses: it reports what automation would grab, without grabbing. |
 | `TRANSPONDARR_PIN_DELAY_HOURS`             | `0`                       | Hours automation waits for a series' pinned group before taking another; per-series overrides in the UI.  |
