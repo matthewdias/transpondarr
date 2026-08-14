@@ -1,8 +1,13 @@
 package server_test
 
 import (
+	"context"
+	"database/sql"
+	"fmt"
 	"net/http"
 	"testing"
+
+	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
 type listedTitleJSON struct {
@@ -76,6 +81,37 @@ func TestTitleListReadsAFailedGrabAsWanted(t *testing.T) {
 
 	if got := listedTitles(t, h)[movieID].ItemStatus; got != "wanted" {
 		t.Errorf("failed-grab film item_status = %q, want wanted", got)
+	}
+}
+
+// #208 guarantees one item only for a film added since it. 00022 re-keys a
+// legacy movie's episodes to kind 'movie' without collapsing them, so a
+// pre-#208 add of a film whose shorts shipped as one entry survives upgrade as
+// several -- and the list must then say what the detail page says, which is
+// items[0] (ListWantedItems orders by number).
+func TestTitleListReadsTheFirstItemOfALegacyMultiItemFilm(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	movieID := seedMovie(t, h.store, "Placeholder Shorts", 2019)
+	for _, n := range []int64{2, 3} {
+		if _, err := h.store.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
+			SeriesID: movieID, Kind: "movie", Number: sql.NullInt64{Int64: n, Valid: true}, Monitored: 1,
+		}); err != nil {
+			t.Fatalf("create legacy item %d: %v", n, err)
+		}
+	}
+	holdItem(t, h.store, movieID, 3, "[SynthSubs] Placeholder Shorts (2019) [1080p]")
+
+	var detail struct {
+		Items []struct {
+			Status string `json:"status"`
+		} `json:"items"`
+	}
+	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", movieID), &detail); code != http.StatusOK {
+		t.Fatalf("GET title detail = %d, want 200", code)
+	}
+	if got := listedTitles(t, h)[movieID].ItemStatus; got != detail.Items[0].Status {
+		t.Errorf("list item_status = %q, detail items[0].status = %q; the two must agree",
+			got, detail.Items[0].Status)
 	}
 }
 

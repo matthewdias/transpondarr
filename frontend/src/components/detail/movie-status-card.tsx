@@ -29,7 +29,11 @@ export function MovieStatusCard({
             {unmonitoredWanted ? (
               <UnmonitoredItemBadge />
             ) : (
-              <ItemStatusBadge status={item.status} error={item.import_error} />
+              <ItemStatusBadge
+                status={item.status}
+                error={item.import_error}
+                movie
+              />
             )}
             {item.airs_at && (
               <span className="text-[13px] text-muted-foreground">

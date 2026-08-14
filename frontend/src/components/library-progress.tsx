@@ -31,7 +31,7 @@ export function LibraryProgress({
     return monitored === 0 && status === "wanted" ? (
       <UnmonitoredItemBadge />
     ) : (
-      <ItemStatusBadge status={status} error={importError} />
+      <ItemStatusBadge status={status} error={importError} movie />
     );
   }
   const pct = tracked > 0 ? (inLibrary / tracked) * 100 : 0;

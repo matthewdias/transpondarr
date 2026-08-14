@@ -89,7 +89,7 @@ it("keeps the ratio for a series with no items at all", () => {
 it.each([
   ["in_library", "In library"],
   ["downloading", "Downloading"],
-  ["deferred", "Batch downloaded"],
+  ["deferred", "Downloaded, not imported"],
   ["stuck", "Import blocked"],
   ["wanted", "Wanted"],
 ] as const)("shows a film's %s state rather than a count", (status, label) => {
@@ -174,7 +174,7 @@ it("keeps a film's real state when it is unmonitored", () => {
     />,
   );
 
-  expect(screen.getByText("Batch downloaded")).toBeInTheDocument();
+  expect(screen.getByText("Downloaded, not imported")).toBeInTheDocument();
   expect(screen.queryByText("Not monitored")).not.toBeInTheDocument();
 });
 

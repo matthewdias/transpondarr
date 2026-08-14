@@ -56,8 +56,9 @@ All notable changes to this project are documented here. The format is based on
   detail page drops the episodes table for a status card saying whether it is
   wanted, downloading or in the library, and its header reads the release year
   rather than an episode count; the library list reports what the film is doing
-  — **Downloading**, **Batch downloaded**, **Import blocked**, **In library** or
-  **Wanted** — instead of counting to one; and search and Discovery stop
+  — **Downloading**, **Downloaded, not imported**, **Import blocked**,
+  **In library**, **Wanted**, or **Not monitored** when nothing is pursuing
+  it — instead of counting to one; and search and Discovery stop
   reporting a film as one episode. Adding a film with no movies directory
   configured now says so on the add form, so it is clear before the download
   finishes rather than after. Series screens are untouched, single-episode OVAs

@@ -30,9 +30,16 @@ GROUP BY s.id
 ORDER BY s.title;
 
 -- name: ListMovieItemStates :many
--- Format guarantees a film one wanted item (#208), so a per-title list can carry
--- that item's own state -- which reads its grab, and so cannot come from the
--- aggregate above. One grab per item (UNIQUE) keeps the join 1:1.
+-- A film's item state, which reads the item's grab and so cannot come from the
+-- aggregate above. One grab per item (UNIQUE) keeps the join 1:1. Format
+-- guarantees one item only for a film added since #208 -- 00022 re-keys a
+-- legacy movie's episodes to kind 'movie' without collapsing them -- so the
+-- ordering is load-bearing: the caller takes the first by number, which is the
+-- item the detail page renders.
+-- Cost: driving from wanted_items scans them all and probes grabs per row,
+-- measured at 5.5ms over a 400-title library against 0.1ms with a forced join
+-- order. Left alone: it is roughly what ListTitlesWithProgress already pays on
+-- the same request. Nothing here runs ANALYZE.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 SELECT w.series_id,
@@ -44,7 +51,7 @@ FROM wanted_items w
 JOIN series s ON s.id = w.series_id
 LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE s.format = 'MOVIE'
-ORDER BY w.series_id;
+ORDER BY w.series_id, w.number;
 
 -- name: GetTitle :one
 SELECT *

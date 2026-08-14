@@ -299,6 +299,12 @@ func (h *titleHandler) listTitles(ctx context.Context, _ *struct{}) (*listTitles
 	}
 	stateByTitle := make(map[int64]itemState, len(movieRows))
 	for _, r := range movieRows {
+		// First by number, which is the item the detail page renders: #208
+		// guarantees one item only for a film added since it, and 00022 leaves a
+		// legacy movie the several it was created with.
+		if _, seen := stateByTitle[r.SeriesID]; seen {
+			continue
+		}
 		stateByTitle[r.SeriesID] = deriveItemState(r.InLibrary == 1, db.Grab{
 			Status:       r.GrabStatus.String,
 			ReleaseTitle: r.GrabReleaseTitle.String,
