@@ -93,6 +93,11 @@ All notable changes to this project are documented here. The format is based on
   date nobody published. Single-episode OVAs and specials keep their episode
   line, and the empty week no longer says it found no episodes.
 
+- **Three remaining places no longer call a film a series.** The confirm button
+  on a film's page now reads **Delete film**, its Releases tab says no releases
+  were found for this film, and a release for a different title is refused with
+  "title does not match this film" wherever that reason is shown. Series wording
+  is unchanged, single-episode OVAs and specials included.
 - **A film that ships with extras now imports the film.** A movie download
   holding the feature alongside deleted scenes, an interview or a making-of
   imports the feature — the largest video in the payload — where before a clip

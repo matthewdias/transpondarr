@@ -252,6 +252,7 @@ function renderReleases(focusItem: number | null, gated = false) {
     <QueryClientProvider client={client}>
       <ReleasesTab
         titleId={7}
+        format="TV"
         active
         focusItem={focusItem}
         onClearFocus={onClearFocus}
@@ -259,6 +260,28 @@ function renderReleases(focusItem: number | null, gated = false) {
     </QueryClientProvider>,
   );
   return { onClearFocus, user, land };
+}
+
+function renderNoResults(format: string) {
+  server.use(
+    http.get("/api/v1/titles/7/search", () =>
+      HttpResponse.json({ title: "Example Show", results: [] }),
+    ),
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <ReleasesTab
+        titleId={7}
+        format={format}
+        active
+        focusItem={null}
+        onClearFocus={vi.fn()}
+      />
+    </QueryClientProvider>,
+  );
 }
 
 describe("ReleasesTab episode focus", () => {
@@ -329,6 +352,23 @@ describe("ReleasesTab episode focus", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/covering e/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/of 4 results/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ReleasesTab empty state", () => {
+  // Format alone (#208): a single-episode OVA is a series and keeps this wording.
+  it("says series for a series", async () => {
+    renderNoResults("TV");
+    expect(
+      await screen.findByText("No releases found for this series."),
+    ).toBeInTheDocument();
+  });
+
+  it("says film for a film", async () => {
+    renderNoResults("MOVIE");
+    expect(
+      await screen.findByText("No releases found for this film."),
+    ).toBeInTheDocument();
   });
 });
 

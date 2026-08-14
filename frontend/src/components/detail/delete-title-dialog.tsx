@@ -120,7 +120,7 @@ export function DeleteTitleDialog({
             disabled={del.isPending}
           >
             {del.isPending && <Loader2 className="size-4 animate-spin" />}
-            Delete series
+            {detail.format === "MOVIE" ? "Delete film" : "Delete series"}
           </Button>
         </DialogFooter>
       </DialogContent>

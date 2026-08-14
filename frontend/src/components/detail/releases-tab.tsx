@@ -164,11 +164,13 @@ function MatchCell({ r }: { r: CandidateRelease }) {
 
 export function ReleasesTab({
   titleId,
+  format,
   active,
   focusItem,
   onClearFocus,
 }: {
   titleId: number;
+  format: string;
   active: boolean;
   focusItem: number | null;
   onClearFocus: () => void;
@@ -293,7 +295,9 @@ export function ReleasesTab({
         <div className="flex flex-col items-center rounded-lg border border-dashed bg-card py-16 text-center">
           <Search className="mb-3 size-7 text-faint" />
           <p className="text-sm text-muted-foreground">
-            No releases found for this series.
+            {format === "MOVIE"
+              ? "No releases found for this film."
+              : "No releases found for this series."}
           </p>
         </div>
       )}

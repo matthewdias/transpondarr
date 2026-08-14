@@ -319,6 +319,7 @@ export function TitleDetailPage() {
               <TabsContent value="releases">
                 <ReleasesTab
                   titleId={id}
+                  format={detail.format}
                   active={activeTab === "releases"}
                   focusItem={focusItem}
                   onClearFocus={() => setFocusItem(null)}
