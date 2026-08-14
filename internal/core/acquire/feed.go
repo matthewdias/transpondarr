@@ -46,7 +46,7 @@ func feedMarkKey(indexerName string) string { return "feed.seen." + indexerName 
 // which passes the kill switch as explicit intent (#122).
 //
 // An indexer with no recent feed is a supported configuration, not a failure:
-// the scheduled sweep already covers those title, just less promptly.
+// the scheduled sweep already covers those titles, just less promptly.
 func (s *Service) PollFeedOnce(ctx context.Context) error {
 	// Gated jobs are mirrored in the UI's AUTOMATION_GATED list (jobs.tsx).
 	if !s.cfg.AutomationEnabled() && !jobs.ManualRun(ctx) {
@@ -108,9 +108,9 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 	)
 }
 
-// recoverFeedGap puts the sweep back on the title whose broadcast happened
+// recoverFeedGap puts the sweep back on the titles whose broadcast happened
 // while the feed was scrolling past us. The set is bounded to one sweep pass'
-// worth of title and ordered furthest-postponed first: the gap fires routinely
+// worth of titles and ordered furthest-postponed first: the gap fires routinely
 // on a busy aggregating indexer, so resetting everything would queue more
 // searches than the sweep can spend. A failed reset still lets the mark advance
 // — the sweep's ladder remains the fallback it already was.
@@ -153,7 +153,7 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 // something wanted. This is the inverse of the sweep's lookup, so it is title ×
 // entry rather than one search per title — deliberately unoptimised, because a
 // page is ~100 entries and the due query already drops any title with nothing
-// left to grab. One title' failure never costs the rest their pass.
+// left to grab. One title's failure never costs the rest their pass.
 func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) error {
 	now := time.Now()
 	due, err := s.store.Q.ListTitlesWithWantedItems(ctx,

@@ -10,7 +10,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// searchCadence reads a title' accumulated sweep backoff and next-due stamp.
+// searchCadence reads a title's accumulated sweep backoff and next-due stamp.
 func searchCadence(t *testing.T, h *harness, titleID int64) (int, *string) {
 	t.Helper()
 	var backoff int

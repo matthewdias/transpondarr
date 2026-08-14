@@ -72,7 +72,7 @@ func TestFlatLayoutDropsTheSeasonFolder(t *testing.T) {
 	}
 }
 
-// The layout is a shape within the title branch, never a second discriminator:
+// The layout is a shape within the series branch, never a second discriminator:
 // a movie's path is the same under either.
 func TestFlatLayoutLeavesTheMovieBranchAlone(t *testing.T) {
 	series, movies := t.TempDir(), t.TempDir()
@@ -89,7 +89,7 @@ func TestFlatLayoutLeavesTheMovieBranchAlone(t *testing.T) {
 }
 
 // Format is still the discriminator under a flat layout: a one-item OVA takes
-// the title shape, so it loses its season folder along with everything else.
+// the series shape, so it loses its season folder along with everything else.
 func TestFlatLayoutKeepsASingleItemOVASeriesShaped(t *testing.T) {
 	series, movies := t.TempDir(), t.TempDir()
 	r := library.ImportRequest{
@@ -158,7 +158,7 @@ func TestFlatUpgradeClearsStemMatesAndSparesLongerNumbers(t *testing.T) {
 
 // Switching the layout moves nothing already placed, so an upgrade writes the
 // new shape and leaves the old file behind. Switched to flat is the direction
-// with no other evidence: the title folder still exists, so the
+// with no other evidence: the series folder still exists, so the
 // missing-directory warning cannot fire. Switched back, Season 01 is missing and
 // that warning does fire too, naming the folder rather than the held file.
 func TestReplaceWarnsWhenTheOtherLayoutHoldsTheEpisode(t *testing.T) {

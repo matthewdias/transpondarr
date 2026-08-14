@@ -42,7 +42,7 @@ func New(st *store.Store, provider metadata.Provider, log *slog.Logger) *Service
 
 // SyncOnce fetches schedules for every title due one, and is what the job runner
 // calls. A provider that publishes no schedule is a supported configuration, not
-// a failure. One title' error never costs the rest their sync.
+// a failure. One title's error never costs the rest their sync.
 func (s *Service) SyncOnce(ctx context.Context) error {
 	airing, ok := s.provider.(metadata.AiringProvider)
 	if !ok {
@@ -81,7 +81,7 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 	})
 }
 
-// syncTitle writes one title' schedule, then stamps it as synced. The stamp is
+// syncTitle writes one title's schedule, then stamps it as synced. The stamp is
 // what stops a title AniList has no schedule for (its coverage thins out badly
 // before ~2015) from being re-asked every tick forever.
 func (s *Service) syncTitle(ctx context.Context, airing metadata.AiringProvider, title db.Series) error {

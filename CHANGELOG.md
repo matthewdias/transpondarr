@@ -47,6 +47,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- **A title's page has moved from `#/series/:id` to `#/titles/:id`.** The URL now
+  matches what the rest of the product calls it. There is no redirect from the
+  old address, so a saved link or a browser-history entry pointing at
+  `#/series/:id` will not resolve — open the title from the Titles list instead.
+  Every link inside the app already points at the new address.
 - **Films no longer read as one-episode series across the web UI.** A film's
   detail page drops the episodes table for a status card saying whether it is
   wanted, downloading or in the library, and its header reads the release year

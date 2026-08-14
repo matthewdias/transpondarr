@@ -261,7 +261,7 @@ func TestParseScoringAxes(t *testing.T) {
 			subs: "softsub"},
 		{title: "[SubCorp] Placeholder Saga - 09 [1080p][Multi-Sub]",
 			multiSub: true},
-		// A title title containing "Web" must not read as Source=web.
+		// A title containing "Web" must not read as Source=web.
 		{title: "[SpiderGroup] Ghost Web - 03 [1080p]"},
 		// The same guard must hold for scene dot-names, where anitogo's parsed
 		// title ("Ghost Web") no longer matches the raw text ("Ghost.Web").

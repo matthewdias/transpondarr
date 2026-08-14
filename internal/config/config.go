@@ -53,7 +53,7 @@ type Config struct {
 	// wanting a Movies library separate from Shows. Empty is not a fallback into
 	// LibraryDir: a movie import fails until one is set.
 	LibraryMoviesDir string
-	// LibraryTitleLayout is season_folders|flat: the path shape inside the title
+	// LibrarySeriesLayout is season_folders|flat: the path shape inside the series
 	// root. It says nothing about movies, which have one shape.
 	LibrarySeriesLayout string
 	ImportMode          string
@@ -65,7 +65,7 @@ type Config struct {
 	// download client before anything grabs on its own. Accepts the mode names
 	// "off" / "notify_only" / "on" as well as bool spellings (#116).
 	AutomationEnabled string
-	// PinDelayHours is how long the sweep waits for a title' pinned group before
+	// PinDelayHours is how long the sweep waits for a title's pinned group before
 	// taking another group's release. "0" means no wait.
 	PinDelayHours string
 }

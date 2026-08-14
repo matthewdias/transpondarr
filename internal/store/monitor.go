@@ -3,7 +3,7 @@ package store
 import "database/sql"
 
 // MonitorNew is the one read rule for title.monitor_new_from (#188): a newly
-// created item is monitored when its number reaches the title' cut. A NULL cut
+// created item is monitored when its number reaches the title's cut. A NULL cut
 // monitors nothing new; a numberless item has no number to compare, so it
 // follows whether the title wants anything new at all.
 func MonitorNew(from, number sql.NullInt64) int64 {

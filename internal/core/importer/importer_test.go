@@ -775,9 +775,9 @@ func TestLeavesAnUnclaimedFileAloneWhenItsItemIsGrabbedUnderTheClaim(t *testing.
 	}
 }
 
-// One torrent can back grabs for two title (a manual grab bypasses eligibility),
+// One torrent can back grabs for two titles (a manual grab bypasses eligibility),
 // and a group is the unit of both mapping and attribution — so it is per title,
-// not per hash, or one title' rows borrow the other's numbering and title.
+// not per hash, or one title's rows borrow the other's numbering and title.
 func TestKeepsTwoTitlesSharingAnInfoHashApart(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedBatchGrab(t, st, "abc", 1)

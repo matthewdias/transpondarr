@@ -251,7 +251,7 @@ func TestSyncFillsTheGapsAScheduleSkips(t *testing.T) {
 	}
 }
 
-// searchCadence reads a title' accumulated backoff and its next due time.
+// searchCadence reads a title's accumulated backoff and its next due time.
 func searchCadence(t *testing.T, st *store.Store, titleID int64) (backoff int, next *string) {
 	t.Helper()
 	if err := st.DB.QueryRowContext(context.Background(),

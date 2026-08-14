@@ -182,7 +182,7 @@ type grabGroup struct {
 // groupByHash buckets the already-fetched rows, preserving first-seen order so a
 // scan's work is still deterministic. Title is part of the key because a group
 // is the unit of numbering and attribution both, and one torrent can back grabs
-// for two title — a manual grab answers to no eligibility rule.
+// for two titles — a manual grab answers to no eligibility rule.
 func groupByHash(grabs []db.ListGrabsByStatusRow) []grabGroup {
 	type key struct {
 		title int64

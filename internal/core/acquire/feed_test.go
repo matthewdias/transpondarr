@@ -674,7 +674,7 @@ func TestFeedPollGapResetIsBoundedToOnePass(t *testing.T) {
 			reset++
 			continue
 		}
-		// The two nearest-due title are the ones the ladder makes wait least.
+		// The two nearest-due titles are the ones the ladder makes wait least.
 		if i > 1 {
 			t.Errorf("series %d was left postponed; the furthest-postponed series come first", i)
 		}

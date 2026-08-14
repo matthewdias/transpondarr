@@ -36,7 +36,7 @@ func TestTitleDetailEnrichedFromMetadataCache(t *testing.T) {
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
 		t.Fatalf("GET series detail = %d, want 200", code)
 	}
-	// The enrichment is looked up on the title' own provider, not a literal.
+	// The enrichment is looked up on the title's own provider, not a literal.
 	if out.Provider != "anilist" || out.ProviderID != 42 {
 		t.Errorf("identity = (%q, %d), want (anilist, 42)", out.Provider, out.ProviderID)
 	}

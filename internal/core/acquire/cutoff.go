@@ -33,7 +33,7 @@ func QueueCursorTop() QueueCursor { return QueueCursor{Key: "~", ID: 0} }
 //
 // It bounds the response, not the work: a batch parses and scores every held
 // item of the title it read, so one request can cost scanBatches x Limit
-// title' worth of parsing whatever it returns. The worst case is the healthy
+// title's worth of parsing whatever it returns. The worst case is the healthy
 // steady state (everything already at cutoff), not an exotic one -- tracked
 // separately rather than papered over here, since scoring is what decides
 // membership and cannot be pushed into SQL.
@@ -74,7 +74,7 @@ type CutoffUnmetItem struct {
 	HasGrab    bool
 }
 
-// CutoffGroup is one title' sub-cutoff items; the cutoff itself lives here
+// CutoffGroup is one title's sub-cutoff items; the cutoff itself lives here
 // because it is the profile's, not any one item's.
 type CutoffGroup struct {
 	TitleID     int64
@@ -113,7 +113,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 	out := CutoffUnmetPage{Groups: make([]CutoffGroup, 0, p.Limit)}
 	itemSum := 0
 	for range scanBatches {
-		title, err := s.store.Q.ListCutoffTitlesPage(ctx, db.ListCutoffTitlesPageParams{
+		titles, err := s.store.Q.ListCutoffTitlesPage(ctx, db.ListCutoffTitlesPageParams{
 			Column1: unmonitored,
 			Column2: unmonitored,
 			Title:   cursor.Key,
@@ -124,11 +124,11 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 		if err != nil {
 			return CutoffUnmetPage{}, fmt.Errorf("list cutoff-unmet series: %w", err)
 		}
-		if len(title) == 0 {
+		if len(titles) == 0 {
 			return out, nil
 		}
-		ids := make([]int64, 0, len(title))
-		for _, sr := range title {
+		ids := make([]int64, 0, len(titles))
+		for _, sr := range titles {
 			ids = append(ids, sr.ID)
 		}
 		items, err := s.store.Q.ListCutoffItemsByTitle(ctx, db.ListCutoffItemsByTitleParams{
@@ -143,7 +143,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 			byTitle[r.SeriesID] = append(byTitle[r.SeriesID], r)
 		}
 
-		for _, sr := range title {
+		for _, sr := range titles {
 			// The cursor advances per title examined, not per group kept, so a
 			// resume never re-scores a title whose releases all met the cutoff.
 			// prev survives one iteration for the budget close below, which must
@@ -209,7 +209,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 				return out, nil
 			}
 		}
-		if len(title) < p.Limit {
+		if len(titles) < p.Limit {
 			return out, nil
 		}
 	}

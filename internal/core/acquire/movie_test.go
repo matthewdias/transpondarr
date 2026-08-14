@@ -213,7 +213,7 @@ func TestSweepMovieIgnoresThePinDelayWithNoAirDate(t *testing.T) {
 
 // The wrong grab both of movie mode's numeric gates are blind to: a numberless
 // season pack of the film's parent title names no episode and carries no year,
-// so nothing refuses it and the importer then hardlinks the title' episode 1
+// so nothing refuses it and the importer then hardlinks the title's episode 1
 // into the Movies root under the film's name. Automation must decline it; the
 // reason is stored, so the Wanted page says which release and why.
 func TestSweepNeverGrabsAParentSeriesSeasonPackForAFilm(t *testing.T) {
@@ -242,7 +242,7 @@ func TestSweepNeverGrabsAParentSeriesSeasonPackForAFilm(t *testing.T) {
 
 // The deliberate cost of the rule above, stated as its own test: a genuine
 // multi-part film release is withheld from automation too, because nothing can
-// tell it from its parent title' pack. A human still takes it (PR #57).
+// tell it from its parent title's pack. A human still takes it (PR #57).
 func TestSweepWithholdsAFilmsOwnBatchTokenedRelease(t *testing.T) {
 	rel := indexer.Release{
 		Title:       "[ExampleSubs] Sample Film (2019) (Complete) [1080p][Dual Audio]",

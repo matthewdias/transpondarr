@@ -119,7 +119,7 @@ func TestSweepGrabsNothingWhenEveryReleaseIsBlocklisted(t *testing.T) {
 	}
 }
 
-// Scope is per-title: another title' entry must not suppress this one.
+// Scope is per-title: another title's entry must not suppress this one.
 func TestSweepIgnoresAnotherTitlesBlocklistEntry(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	rel := indexer.Release{

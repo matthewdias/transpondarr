@@ -107,8 +107,8 @@ type IndexerConfig struct {
 
 // LibraryConfig is the library import target configuration. MoviesDir is the
 // per-format root movies place into (#198); empty is not a fallback into Dir,
-// so a movie import fails until one is set. TitleLayout shapes the path within
-// the title root (#129) and says nothing about movies.
+// so a movie import fails until one is set. SeriesLayout shapes the path within
+// the series root (#129) and says nothing about movies.
 type LibraryConfig struct {
 	Dir          string
 	MoviesDir    string
@@ -130,7 +130,7 @@ const (
 )
 
 // AutomationConfig is the global automation policy: the mode every unattended
-// job reads, and the pinned-group wait for title not overriding it.
+// job reads, and the pinned-group wait for titles not overriding it.
 type AutomationConfig struct {
 	Mode          AutomationMode
 	PinDelayHours int
@@ -357,8 +357,8 @@ func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationMode 
 // never grab (#116).
 func (s *Service) NotifyOnly() bool { return s.cur.Load().automationMode == AutomationNotifyOnly }
 
-// PinDelayDefault is how long the sweep waits for a title' pinned group before
-// taking another group's release, for title that do not override it.
+// PinDelayDefault is how long the sweep waits for a title's pinned group before
+// taking another group's release, for titles that do not override it.
 func (s *Service) PinDelayDefault() time.Duration {
 	return domain.PinDelay(int64(s.cur.Load().pinDelayHours))
 }
@@ -795,7 +795,7 @@ func NormalizeCategories(s string) (string, error) {
 	return strings.Join(ids, ","), nil
 }
 
-// ValidTitleLayout reports whether l is a recognised title layout. Empty is
+// ValidSeriesLayout reports whether l is a recognised series layout. Empty is
 // valid and means the default, matching how an omitted import mode is handled.
 func ValidSeriesLayout(l string) bool {
 	switch l {
@@ -836,7 +836,7 @@ func buildIndexer(c IndexerConfig) indexer.Indexer {
 // as non-nil through the interface and defeat the importer's nil check.
 //
 // Either root alone builds one: a films-only library is a supported install, and
-// only "no root at all" still means import is off. Requiring the title root
+// only "no root at all" still means import is off. Requiring the series root
 // would leave a movies-only install with no target, and the importer skips a nil
 // target silently — the stuck-queue failure a missing root must never become.
 func buildLibrary(c LibraryConfig, log *slog.Logger) library.Target {

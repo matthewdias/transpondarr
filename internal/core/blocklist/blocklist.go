@@ -31,7 +31,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// ErrNotFound reports an entry that is not this title', so the HTTP layer can
+// ErrNotFound reports an entry that is not this title's, so the HTTP layer can
 // 404 without the store leaking upwards.
 var ErrNotFound = errors.New("blocklist: entry not found")
 
@@ -170,7 +170,7 @@ func (s *Service) ClearAll(ctx context.Context) (int64, error) {
 	return rows, nil
 }
 
-// Summary counts what is being skipped right now, and across how many title.
+// Summary counts what is being skipped right now, and across how many titles.
 func (s *Service) Summary(ctx context.Context) (db.CountActiveBlocklistRow, error) {
 	row, err := s.store.Q.CountActiveBlocklist(ctx,
 		sql.NullString{String: store.FormatTimestamp(s.now()), Valid: true})

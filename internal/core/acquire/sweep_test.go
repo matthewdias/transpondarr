@@ -84,7 +84,7 @@ func seedSweep(t *testing.T, st *store.Store, title string, monitored bool, item
 	return s.ID
 }
 
-// episodeRelease builds a synthetic single-episode release for a title title.
+// episodeRelease builds a synthetic single-episode release for a title.
 func episodeRelease(title string, number int) indexer.Release {
 	return indexer.Release{
 		Title:       fmt.Sprintf("[ExampleSubs] %s - %02d [1080p]", title, number),

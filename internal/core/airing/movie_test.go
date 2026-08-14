@@ -160,7 +160,7 @@ func TestMovieWithNoFullStartDateStaysUndated(t *testing.T) {
 	}
 }
 
-// Format is the discriminator (#208): a title' items are dated by its schedule,
+// Format is the discriminator (#208): a title's items are dated by its schedule,
 // so a start date must not date episode 1 of a show that has none.
 func TestTitleIsNeverDatedFromAStartDate(t *testing.T) {
 	st := coretest.NewStore(t)

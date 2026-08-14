@@ -11,7 +11,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// pinTitle sets a title' pinned group and, when hours >= 0, its per-title
+// pinTitle sets a title's pinned group and, when hours >= 0, its per-title
 // delay override (a negative value leaves the column NULL = use the global).
 func pinTitle(t *testing.T, st *store.Store, id int64, group string, hours int) {
 	t.Helper()

@@ -519,7 +519,7 @@ func (h *titleHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupInp
 	if rows == 0 {
 		return nil, huma.Error404NotFound("series not found")
 	}
-	// A held title' next_search_at was computed from the pin that just changed,
+	// A held title's next_search_at was computed from the pin that just changed,
 	// so without this a shortened wait or a new group does nothing until the old
 	// window closes.
 	if err := h.store.Q.ResetTitleSearchState(ctx, in.ID); err != nil {

@@ -55,7 +55,7 @@ func (s *Service) ProviderName() string { return s.provider.Name() }
 
 // TitleVariants returns the accepted display-name variants (romaji/english/
 // native) for a title, used by the decide layer to filter releases that use a
-// different one of a title' names. It is cache-backed via the provider.
+// different one of a title's names. It is cache-backed via the provider.
 func (s *Service) TitleVariants(ctx context.Context, providerID int64) ([]string, error) {
 	meta, _, err := s.provider.GetTitle(ctx, providerID)
 	if err != nil {

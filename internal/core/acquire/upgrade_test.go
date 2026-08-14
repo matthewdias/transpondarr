@@ -46,7 +46,7 @@ func grabFor(t *testing.T, st *store.Store, titleID int64, number int) (string, 
 	return release, status
 }
 
-// heldTitleOf reads what the store says holds a title' only item.
+// heldTitleOf reads what the store says holds a title's only item.
 func heldTitleOf(t *testing.T, st *store.Store, titleID int64) string {
 	t.Helper()
 	var title string

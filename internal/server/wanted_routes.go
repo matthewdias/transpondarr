@@ -33,7 +33,7 @@ type lastPassDTO struct {
 // missingItemDTO is one item still worth acquiring. It carries no derived status
 // because the listing's predicate admits only wanted ones -- an in-flight grab
 // is Activity's row, not this page's. Its reason covers only what varies row to
-// row; the title' story lives on the group and the page's on global_reason.
+// row; the title's story lives on the group and the page's on global_reason.
 type missingItemDTO struct {
 	ID           int64        `json:"id"`
 	Number       int          `json:"number"`
@@ -45,7 +45,7 @@ type missingItemDTO struct {
 	LastPass     *lastPassDTO `json:"last_pass,omitempty" doc:"Present only when the reason is the last pass's answer, which is dated because it can go stale"`
 }
 
-// missingGroupDTO is one title' missing items. Grouping is the page's shape
+// missingGroupDTO is one title's missing items. Grouping is the page's shape
 // because the bulk action is per title: a search queues a title, never a row.
 type missingGroupDTO struct {
 	TitleID         int64            `json:"title_id"`
@@ -77,7 +77,7 @@ type cutoffItemDTO struct {
 	UnmetGoals  []scorePartDTO `json:"unmet_goals,omitempty" doc:"Profile axes the held release scores below its best on, each with the points still available"`
 }
 
-// cutoffGroupDTO is one title' sub-cutoff items, the listing's pagination unit.
+// cutoffGroupDTO is one title's sub-cutoff items, the listing's pagination unit.
 type cutoffGroupDTO struct {
 	TitleID     int64           `json:"title_id"`
 	Title       string          `json:"title"`

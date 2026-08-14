@@ -216,7 +216,7 @@ func TestNotifyOnlyFeedReportsInsteadOfGrabbing(t *testing.T) {
 	}
 }
 
-// The feed page mostly holds other title' releases, so a poll that would take
+// The feed page mostly holds other titles' releases, so a poll that would take
 // nothing for a title stays silent — the searched sweep owns "here's why not".
 func TestNotifyOnlyFeedStaysSilentWhenNothingWouldBeTaken(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)

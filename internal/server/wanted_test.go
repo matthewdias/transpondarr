@@ -585,7 +585,7 @@ func TestMissingPaginatesByGroup(t *testing.T) {
 }
 
 // Cutoff Unmet is queried from stored state: the held release is re-scored under
-// the title' current profile, so the row carries the numbers behind the claim.
+// the title's current profile, so the row carries the numbers behind the claim.
 func TestCutoffUnmetRoute(t *testing.T) {
 	h := wantedHarness(t)
 	ctx := context.Background()
@@ -690,7 +690,7 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 
 	// An explicit empty array means the whole library, which is what "Search
 	// all" sends. Omitting the field entirely is rejected instead, so a
-	// mis-serialized request cannot discard every title' backoff by accident.
+	// mis-serialized request cannot discard every title's backoff by accident.
 	if code := h.postJSON(t, "/api/v1/wanted/search", struct{}{}, &out); code != http.StatusUnprocessableEntity {
 		t.Fatalf("POST wanted/search with no series_ids = %d, want 422", code)
 	}

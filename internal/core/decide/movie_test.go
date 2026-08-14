@@ -398,7 +398,7 @@ func TestMovieKeepsTheTitleMismatchReason(t *testing.T) {
 
 // The wrong grab both numeric gates are blind to: a numberless season pack of
 // the film's parent title names no episode and carries no year, so nothing
-// above refuses it, and the importer would then place the title' episode 1 as
+// above refuses it, and the importer would then place the title's episode 1 as
 // the film. It is an eligibility rule rather than a matching one -- the pack may
 // genuinely be a multi-part film, so only automation is held back (PR #57).
 func TestMovieWithholdsASeasonPackFromAutomation(t *testing.T) {

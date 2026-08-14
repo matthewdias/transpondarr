@@ -28,7 +28,7 @@ const (
 	statusImported = "imported"
 )
 
-// maxAddFailures ends a title' pass once the download client has refused this
+// maxAddFailures ends a title's pass once the download client has refused this
 // many releases: past a couple, the client is unwell rather than the releases.
 const maxAddFailures = 3
 
@@ -77,7 +77,7 @@ type sweepItem struct {
 // job runner calls. The clients and the kill switch are both read per run, so
 // configuring an integration or flipping automation in Settings takes effect on
 // the next tick without a restart — except on a hand-triggered run, which passes
-// the kill switch as explicit intent (#122). One title' failure never costs the
+// the kill switch as explicit intent (#122). One title's failure never costs the
 // rest their pass.
 func (s *Service) SweepOnce(ctx context.Context) error {
 	// Gated jobs are mirrored in the UI's AUTOMATION_GATED list (jobs.tsx).
@@ -298,7 +298,7 @@ func (s *Service) walkCandidates(ctx context.Context, title db.Series, m Match, 
 			if !errors.Is(err, ErrDownloadAdd) {
 				return res, err
 			}
-			// A dead download URL is this release's problem, not the title': the
+			// A dead download URL is this release's problem, not the title's: the
 			// items stay unclaimed so the next-ranked release is still tried, and
 			// only a client that keeps refusing ends the pass. AutoGrab has already
 			// remembered it if the release itself was at fault (#120).

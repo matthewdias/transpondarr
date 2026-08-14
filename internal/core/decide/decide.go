@@ -5,7 +5,7 @@
 // wanted-item numbers — surfacing a human-readable reason for every decision so
 // the matching can be eyeballed before it drives an automatic grab. Matched
 // candidates are then ranked by a pure, profile-driven score (group first — see
-// the weights), below an absolute tier for a title' pinned group; an explicit
+// the weights), below an absolute tier for a title's pinned group; an explicit
 // floor lets the answer be "nothing yet".
 //
 // v1 is deliberately transparent rather than clever: reconciling absolute vs
@@ -36,7 +36,7 @@ type Candidate struct {
 	ScoreParts       []ScorePart
 	Eligible         bool
 	IneligibleReason string // non-empty exactly when !Eligible
-	Pinned           bool   // release group equals the title' pinned group
+	Pinned           bool   // release group equals the title's pinned group
 
 	UpgradeItems   []int          // covered items we hold that this release may replace
 	UpgradeBlocked map[int]string // covered held items the upgrade policy refused, by reason
@@ -84,7 +84,7 @@ type MatchOpts struct {
 	Year int
 }
 
-// BlockedSet is the title' active release blocklist as plain data, so decide
+// BlockedSet is the title's active release blocklist as plain data, so decide
 // stays pure. A release matches on either axis: Torznab often omits the infohash.
 type BlockedSet struct {
 	Hashes map[string]string // lowercased info hash -> reason
@@ -140,7 +140,7 @@ type heldRelease struct {
 
 // Match evaluates releases against a title. titleVariants are the accepted names
 // for the title (e.g. romaji/english/native) used to filter out releases for
-// other title. Results are ranked matched-first, then eligible-first, then
+// other titles. Results are ranked matched-first, then eligible-first, then
 // pinned-first, then by how many still-wanted items they cover, then by profile
 // score; seeders are only the tie-break between equal scores. A pin is an
 // absolute tier, never a score: it wins only among eligible releases, so it can
@@ -345,7 +345,7 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 		return fmt.Sprintf("score %d is below the profile minimum %d", score, profile.MinScore)
 	}
 	// A numberless pack names no episode and carries no year, so both of movie
-	// mode's numeric gates are blind to it and the parent title' pack would be
+	// mode's numeric gates are blind to it and the parent title's pack would be
 	// placed as the film. Eligibility rather than matching, because a multi-part
 	// film release is indistinguishable from one: only automation is held back.
 	if o.Format == domain.FormatMovie && p.Batch {
@@ -533,7 +533,7 @@ func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {
 	return out
 }
 
-// titleBelongs reports whether a parsed release title matches one of the title'
+// titleBelongs reports whether a parsed release title matches one of the title's
 // accepted names, comparing on a punctuation- and space-stripped form so
 // "Frieren: Beyond Journey's End" and "Frieren Beyond Journeys End" compare equal.
 func titleBelongs(parsedTitle string, variants []string) bool {

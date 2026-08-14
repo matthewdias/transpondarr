@@ -107,7 +107,7 @@ func syncedAt(t *testing.T, st *store.Store, titleID int64) (string, bool) {
 	return *stored, true
 }
 
-// items returns number -> in_library for a title' wanted items.
+// items returns number -> in_library for a title's wanted items.
 func items(t *testing.T, st *store.Store, titleID int64) map[int]int {
 	t.Helper()
 	rows, err := st.DB.QueryContext(context.Background(),

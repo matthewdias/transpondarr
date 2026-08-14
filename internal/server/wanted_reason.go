@@ -50,7 +50,7 @@ func globalReason(indexerReady bool, mode settings.AutomationMode) string {
 	return ""
 }
 
-// titleFacts is one title' standing in the sweep queue, the scope a group
+// titleFacts is one title's standing in the sweep queue, the scope a group
 // header answers for.
 type titleFacts struct {
 	Monitored       bool

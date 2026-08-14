@@ -102,7 +102,7 @@ type Config interface {
 	PinDelayDefault() time.Duration
 }
 
-// Match is one title' search result: the ranked candidates plus the inputs a
+// Match is one title's search result: the ranked candidates plus the inputs a
 // caller needs to act on them.
 type Match struct {
 	Title      db.Series
@@ -314,7 +314,7 @@ func (s *Service) evaluate(ctx context.Context, title db.Series, items []passIte
 	}, nil
 }
 
-// blocked loads the title' active release blocklist. Read off the store rather
+// blocked loads the title's active release blocklist. Read off the store rather
 // than blocklist.Service so acquire need not depend on the package that writes it.
 func (s *Service) blocked(ctx context.Context, titleID int64) (decide.BlockedSet, error) {
 	rows, err := s.store.Q.ListActiveBlocklist(ctx, db.ListActiveBlocklistParams{
@@ -341,7 +341,7 @@ func (s *Service) blocked(ctx context.Context, titleID int64) (decide.BlockedSet
 	return set, nil
 }
 
-// profile loads the title' quality profile in the domain form decide scores against.
+// profile loads the title's quality profile in the domain form decide scores against.
 func (s *Service) profile(ctx context.Context, title db.Series) (domain.QualityProfile, error) {
 	row, err := s.store.Q.GetQualityProfile(ctx, title.QualityProfileID)
 	if err != nil {

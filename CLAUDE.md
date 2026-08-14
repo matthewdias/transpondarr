@@ -254,7 +254,7 @@ Behaviour changes are test-driven. Work red → green → refactor:
   and a grab settles its item, so the sweep's `EXISTS` drops the series anyway.
   The one exception is a poll that catches itself missing a page (#140): it
   resets the sweep for the series that aired inside the gap, bounded to
-  `seriesPerPass` per gap event so a routine gap on a busy indexer queues no more
+  `titlesPerPass` per gap event so a routine gap on a busy indexer queues no more
   searches than one pass can spend.
   They divide by what they can see: the feed owns releases published while we
   watch, the sweep owns what already existed and everything when no feed is
@@ -317,7 +317,7 @@ Behaviour changes are test-driven. Work red → green → refactor:
   so notify-only means nothing reaches the download client no matter who
   triggered the run.
 - **A rehearsal rehearses the search cadence but not the grab-driven reset, so
-  switching to `on` resets every series' cadence** (`ResetAllSeriesSearchState`,
+  switching to `on` resets every series' cadence** (`ResetAllTitlesSearchState`,
   in the same transaction as the settings write). A rehearsed pass returns a grab
   count of 0 — nothing settled, so counting would-grabs would re-decide the same
   items every tick — which means it takes the empty-handed branch and climbs the
@@ -376,7 +376,7 @@ Behaviour changes are test-driven. Work red → green → refactor:
   sweep spends one search per *series* regardless of item count. Numbers only —
   carrying dates through the add would pull in `ItemMeta`, `CreateWantedItem` and
   the sqlc layer for a column `internal/core/airing` already owns. A gap-filled
-  item does reset the search cadence (`ResetSeriesSearchState`, as `refresh`
+  item does reset the search cadence (`ResetTitleSearchState`, as `refresh`
   does): it carries no air date, so it is exactly what `airedSince` cannot see.
 - **Auth is forms-based** (`internal/core/auth`): the web UI logs in (username +
   argon2id password) and gets an httpOnly session cookie; the **API key** is for
@@ -494,8 +494,8 @@ Behaviour changes are test-driven. Work red → green → refactor:
   rather than as a policy to re-derive — a re-evaluated `future` would unmonitor
   episodes someone has been waiting weeks for — and it is self-maintaining, so
   episode 1051 created six months later is monitored with no follow-up write.
-  `monitor_new_from` is left to its schema default in `CreateSeries` and narrowed
-  by `SetSeriesMonitorNewFrom`: an omitted sqlc params field writes NULL, which
+  `monitor_new_from` is left to its schema default in `CreateTitle` and narrowed
+  by `SetTitleMonitorNewFrom`: an omitted sqlc params field writes NULL, which
   reads as "monitor nothing new", so the insert is the one place that must not be
   able to say it. Both later create sites also **split the reset counter** — an
   unmonitored fill must not put a narrowed long-runner back at the front of the
@@ -511,7 +511,7 @@ Behaviour changes are test-driven. Work red → green → refactor:
   entry cannot create three items. Downstream, `domain.KindFor(Format)` is the one
   helper every create site writes `kind` through (catalog, refresh, airing) — and
   since it derives from the format frozen at add time, **any future
-  `SetSeriesFormat` must re-key the existing items**, exactly as `00022`'s
+  `SetTitleFormat` must re-key the existing items**, exactly as `00022`'s
   backfill does: `idx_wanted_items_identity` is `(series_id, kind, number)`, so a
   stale `('episode', 1)` does not collide with `('movie', 1)` and the next refresh
   silently doubles the title instead of failing.
@@ -588,7 +588,7 @@ Behaviour changes are test-driven. Work red → green → refactor:
   the availability cost on the unsupervised one, because a null year correlates
   with an unreleased title, which is exactly when every candidate a search returns
   is wrong. The stored year is refresh-maintained rather than an add-time
-  snapshot, and `SetSeriesYear` guards `? > 0` **in SQL** so no caller can let a
+  snapshot, and `SetTitleYear` guards `? > 0` **in SQL** so no caller can let a
   transient upstream null erase one. **A movie's path is keyed on that
   refresh-maintained year**, so a 0 -> N fill after an import orphans the
   year-less folder the next upgrade replaces into — the same class as an AniList
@@ -733,7 +733,7 @@ Concretely, in `internal/core/decide`:
   rather than depending on TVDB.
 - **The indexer is the scheduled sweep's scarce resource.** A pass costs one
   search per series (two when the zero-result title-variant fallback fires), so
-  `seriesPerPass` × the job interval sets the whole search rate. Cost scales with
+  `titlesPerPass` × the job interval sets the whole search rate. Cost scales with
   series carrying *unfilled* items, not library size: the due query's `EXISTS`
   drops a series as soon as nothing is wanted, so a complete library is free and a
   satisfied one leaves the queue instead of taking a second slot. To raise

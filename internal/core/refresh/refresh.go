@@ -38,7 +38,7 @@ func New(st *store.Store, provider metadata.Provider, log *slog.Logger) *Service
 }
 
 // RefreshOnce re-fetches metadata for every title due one, and is what the job
-// runner calls. One title' error never costs the rest their refresh.
+// runner calls. One title's error never costs the rest their refresh.
 func (s *Service) RefreshOnce(ctx context.Context) error {
 	due, err := s.due(ctx)
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 	})
 }
 
-// refreshTitle upserts one title' items from a re-fetch, in one transaction.
+// refreshTitle upserts one title's items from a re-fetch, in one transaction.
 // Clearing the airing stamp on growth is what gets the new items air dates: the
 // next airing pass re-pages exactly the title that grew. Resetting the search
 // cadence in the same transaction is the other half of that handshake — a new

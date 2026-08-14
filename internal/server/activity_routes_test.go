@@ -37,7 +37,7 @@ type queueJSON struct {
 	ClientOk bool            `json:"client_ok"`
 }
 
-// seedOpenGrab writes a grab for the title' item with the given number.
+// seedOpenGrab writes a grab for the title's item with the given number.
 func seedOpenGrab(t *testing.T, st *store.Store, titleID int64, number int, hash, title, status string) db.Grab {
 	t.Helper()
 	ctx := context.Background()
