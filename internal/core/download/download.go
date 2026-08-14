@@ -61,6 +61,10 @@ const (
 	StateChecking    State = "checking"
 	StatePaused      State = "paused"
 	StateError       State = "error"
+	// StateDataMissing is the client holding the torrent and reporting its data
+	// gone from disk — not the torrent being absent from the client, which has no
+	// state at all because nothing is there to report one.
+	StateDataMissing State = "data_missing"
 	StateUnknown     State = "unknown"
 )
 

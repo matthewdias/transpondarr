@@ -248,8 +248,10 @@ func mapState(s string) download.State {
 		return download.StateChecking
 	case "pausedDL", "stoppedDL":
 		return download.StatePaused
-	case "error", "missingFiles":
+	case "error":
 		return download.StateError
+	case "missingFiles":
+		return download.StateDataMissing
 	default:
 		return download.StateUnknown
 	}

@@ -227,6 +227,26 @@ Behaviour changes are test-driven. Work red → green → refactor:
   filtered, never deleted — the row carries the failure count the ladder reads.
   An *import* failure deliberately records nothing: it stays `grabbed` and
   retries, because its causes are path-mapping gaps rather than bad releases.
+- **An absent torrent is not a verdict (#241).** `failed` settles two different
+  things and only one survives an inference: freeing the item is self-healing and
+  stays automatic, while remembering the release as bad is a judgement that needs
+  a cause. Only two things supply one — the client reporting `error` for a
+  torrent it holds, and a payload we examined that lacked what it claimed.
+  Absence supplies none (every cause is external: a hand-removed torrent, a reset
+  client, other tooling, a hash the client never had), and neither does
+  `missingFiles`, which is why it maps to its own `download.State` rather than
+  sharing `StateError` — the data is gone, the release is not at fault, and a
+  dropped mount would otherwise blocklist every release on it at once. **A blamed
+  failure's two consequences travel together**: the memory, and the re-fronting of
+  the search queue — so an unblamed failure takes neither. `record()`'s breaker
+  arm (#120) was already the precedent, declining to re-front exactly when it
+  declines to blame, and a dropped mount would otherwise answer one thundering
+  herd with another. `blame` is a required `failGrab` argument rather than a
+  default so a new failure path has to state its answer. A stalled torrent is
+  *present* and reaches none of these paths, so the doomed-release case #118
+  defends against cannot arise from absence at all. The posture behind it: this
+  app disassociates a torrent from the library and never removes or deletes one
+  on its own, because the download client is the user's disk and their ratio.
 - **A batch is matched, eligible, and preferred on coverage (#126).** #125
   refused a pack in `ineligibleReason` because the importer could only *defer* a
   multi-episode payload; per-file import removed the reason, so the refusal is

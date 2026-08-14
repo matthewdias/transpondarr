@@ -147,7 +147,13 @@ function QueueSection() {
 function queueTone(item: QueueItem) {
   if (item.client_state === "paused")
     return { icon: Pause, tone: "bg-panel-2 text-muted-foreground" };
-  if (item.client_state === "stalled" || item.client_state === "error")
+  // data_missing is alarming on purpose: we decline to blame the release for it
+  // (#241), which leaves the user as the only one who can act on it.
+  if (
+    item.client_state === "stalled" ||
+    item.client_state === "error" ||
+    item.client_state === "data_missing"
+  )
     return { icon: TriangleAlert, tone: "bg-destructive/15 text-destructive" };
   if (item.status === "stuck")
     return { icon: TriangleAlert, tone: "bg-destructive/15 text-destructive" };
@@ -163,6 +169,7 @@ const clientStateLabel: Record<string, string> = {
   checking: "Checking",
   paused: "Paused",
   error: "Error",
+  data_missing: "Data missing",
   unknown: "Unknown",
 };
 

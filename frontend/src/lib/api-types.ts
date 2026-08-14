@@ -1616,7 +1616,7 @@ export interface components {
              * @description Live torrent state; absent when the client is unreachable
              * @enum {string}
              */
-            client_state?: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "unknown";
+            client_state?: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "data_missing" | "unknown";
             created_at: string;
             /** @description Title format; the sole discriminator between movie and series wording */
             format: string;
@@ -2021,7 +2021,7 @@ export interface components {
             /** @description RFC3339; absent when the client reports no add time */
             added_at?: string;
             /** @enum {string} */
-            client_state: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "unknown";
+            client_state: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "data_missing" | "unknown";
             infohash: string;
             name: string;
             /** Format: double */

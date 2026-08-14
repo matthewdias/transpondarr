@@ -320,27 +320,130 @@ func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 	}
 }
 
-// The grace-period path fails a grab for the same reason and must remember it too.
-func TestGrabGoneFromClientRecordsBlocklistEntry(t *testing.T) {
+// assertItemFreed checks the item is back to wanted, by the same two fields
+// deriveItemState reads: freeing it is the half of a failure that must not
+// regress, and a grab settling is not on its own evidence that it did.
+func assertItemFreed(t *testing.T, st *store.Store, titleID int64, number int) {
+	t.Helper()
+	item, err := st.Q.GetWantedItemByNumber(context.Background(), db.GetWantedItemByNumberParams{
+		SeriesID: titleID, Kind: "episode",
+		Number: sql.NullInt64{Int64: int64(number), Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("read item %d: %v", number, err)
+	}
+	if item.InLibrary == 1 {
+		t.Errorf("item %d is marked in_library; a failed grab holds no file", number)
+	}
+	if !item.GrabStatus.Valid || item.GrabStatus.String != statusFailed {
+		t.Errorf("item %d grab status = %q (valid %v), want failed so the item reads as wanted again",
+			number, item.GrabStatus.String, item.GrabStatus.Valid)
+	}
+}
+
+// Absence is not a verdict (#241): every cause is external to the release — a
+// hand-removed torrent, a reset client, a hash the client never had — so the
+// grace period frees the item and remembers nothing.
+func TestGrabGoneFromClientRecordsNoBlocklistEntry(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, titleID := seedGrab(t, st, "abc")
 	backdateMissingSince(t, st, "abc", time.Hour)
-	rec := &fakeRecorder{}
+	backdateSearchState(t, st, titleID)
+	svc := blocklist.New(st, nil)
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "zzz", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
 		ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
-	if len(rec.calls) != 1 || rec.calls[0].titleID != titleID {
-		t.Fatalf("blocklist records = %+v, want one for series %d", rec.calls, titleID)
+	// The path ran: without this the empty table below passes vacuously.
+	if got := grabByHash(t, st, "abc").Status; got != "failed" {
+		t.Fatalf("status = %q, want failed past the grace period", got)
 	}
-	if grabByHash(t, st, "abc").Status != "failed" {
-		t.Error("grab not failed")
+	assertItemFreed(t, st, titleID, 5)
+	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	if err != nil {
+		t.Fatalf("list blocklist: %v", err)
 	}
+	if len(entries) != 0 {
+		t.Errorf("recorded %+v, want nothing: an absence says nothing about the release", entries)
+	}
+	// The memory and the re-fronting are one blamed failure's two consequences,
+	// so an unblamed one takes neither (the breaker arm's precedent, #120).
+	if backoff, hasNext := readSearchBackoff(t, st, titleID); backoff == 0 || !hasNext {
+		t.Errorf("search state = backoff %d, next set %v; want the backdated cadence left as it was",
+			backoff, hasNext)
+	}
+}
+
+// The client holds the torrent and its data is gone from disk (#241). Nothing
+// there is about the release, and a dropped mount reports it for every torrent
+// on the mount at once -- which is what recording it used to blocklist.
+func TestDataMissingRecordsNoBlocklistEntry(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, titleID := seedGrab(t, st, "abc")
+	backdateSearchState(t, st, titleID)
+	svc := blocklist.New(st, nil)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateDataMissing, ContentPath: "/whatever"},
+	}}
+
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	// The path ran: without this the empty table below passes vacuously.
+	if got := grabByHash(t, st, "abc").Status; got != "failed" {
+		t.Fatalf("status = %q, want failed", got)
+	}
+	assertItemFreed(t, st, titleID, 5)
+	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	if err != nil {
+		t.Fatalf("list blocklist: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("recorded %+v, want nothing: the data is gone, the release is not at fault", entries)
+	}
+	if backoff, hasNext := readSearchBackoff(t, st, titleID); backoff == 0 || !hasNext {
+		t.Errorf("search state = backoff %d, next set %v; want the backdated cadence left as it was",
+			backoff, hasNext)
+	}
+}
+
+// The negative that keeps the split a split: the one path with a cause still
+// writes its entry, at the ladder's first rung. A later simplification folding
+// the three paths back together fails here.
+func TestErroredDownloadIsStillRememberedOnTheLadder(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, titleID := seedGrab(t, st, "abc")
+	svc := blocklist.New(st, nil)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
+	}}
+
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	if err != nil {
+		t.Fatalf("list blocklist: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("blocklist entries = %d, want the errored release remembered", len(entries))
+	}
+	if entries[0].Failures != 1 {
+		t.Errorf("failures = %d after one incident, want 1", entries[0].Failures)
+	}
+	if !entries[0].BlockedUntil.Valid {
+		t.Error("blocked_until is NULL: one error blocked the release permanently")
+	}
+	assertItemFreed(t, st, titleID, 5)
 }
 
 // A blocklist write that fails must never wedge the grab in "grabbed", or the

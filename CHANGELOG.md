@@ -18,6 +18,12 @@ All notable changes to this project are documented here. The format is based on
   alone. This matters most for copy-mode imports, where the leftover is a
   full-sized file, and for upgrades, where it kept the download's disk space
   claimed even after the torrent was removed.
+- **A release is no longer blocked because its torrent went missing.** A download
+  that disappears from the client, or whose files vanish from disk, frees its
+  episode to be searched again as before — but the release itself is no longer
+  remembered as a bad one, because neither says anything about it. A dropped
+  mount or a reset client used to block every release it touched, for a day, a
+  week, or permanently on a third occurrence.
 
 ## [0.8.0] — 2026-08-14
 

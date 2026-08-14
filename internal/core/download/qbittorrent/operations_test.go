@@ -386,7 +386,7 @@ func TestMapState(t *testing.T) {
 		"checkingDL":   download.StateChecking,
 		"moving":       download.StateChecking,
 		"error":        download.StateError,
-		"missingFiles": download.StateError,
+		"missingFiles": download.StateDataMissing,
 		"wat":          download.StateUnknown,
 	}
 	for in, want := range cases {
