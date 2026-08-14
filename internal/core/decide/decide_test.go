@@ -337,6 +337,18 @@ func TestSeasonTwoPackRejectedForSeasonOneEntry(t *testing.T) {
 	}
 }
 
+// The series half of the title gate's wording, pinned so the movie branch cannot
+// be widened over it: most titles are series, and "series" is accurate for them.
+func TestTitleMismatchStaysSeriesWordedForASeries(t *testing.T) {
+	rels := []indexer.Release{
+		{Title: "[Group] Unrelated Thing S1E01", Seeders: 1000},
+	}
+	got := Match(items(12), []string{"Placeholder Saga"}, rels, domain.QualityProfile{})
+	if got[0].Reason != "title does not match this series" {
+		t.Errorf("reason = %q, want the series title mismatch", got[0].Reason)
+	}
+}
+
 // Matched releases rank ahead of unmatched, and by seeders within matched.
 func TestRankingMatchedThenSeeders(t *testing.T) {
 	rels := []indexer.Release{

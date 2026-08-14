@@ -445,7 +445,12 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 	c := Candidate{Release: rel, Parsed: p}
 
 	if !titleBelongs(p.Title, variants) {
+		// The gate runs before the movie branch below, so it is the one reason a
+		// film reaches that the movie path does not already word for itself.
 		c.Reason = "title does not match this series"
+		if o.Format == domain.FormatMovie {
+			c.Reason = "title does not match this film"
+		}
 		return c
 	}
 

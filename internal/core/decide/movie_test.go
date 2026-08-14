@@ -380,7 +380,8 @@ func TestZeroFormatDoesNotRefuse(t *testing.T) {
 }
 
 // A release for a different title keeps the honest reason: the movie path sits
-// after the title gate, not before it.
+// after the title gate, not before it. The gate is the one reason string a film
+// reaches before movieCandidate takes over, so it is the one that words itself.
 func TestMovieKeepsTheTitleMismatchReason(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Unrelated Work - 01 [1080p]", Seeders: 40},
@@ -391,7 +392,7 @@ func TestMovieKeepsTheTitleMismatchReason(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("candidates = %d, want 1", len(got))
 	}
-	if got[0].Reason != "title does not match this series" {
+	if got[0].Reason != "title does not match this film" {
 		t.Errorf("reason = %q, want the title mismatch", got[0].Reason)
 	}
 }

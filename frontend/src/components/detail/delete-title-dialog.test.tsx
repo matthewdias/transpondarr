@@ -47,14 +47,14 @@ const detail: TitleDetail = {
   ],
 };
 
-function renderDialog(onDeleted = vi.fn()) {
+function renderDialog(onDeleted = vi.fn(), d: TitleDetail = detail) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <DeleteTitleDialog detail={detail} onDeleted={onDeleted} />
+        <DeleteTitleDialog detail={d} onDeleted={onDeleted} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -196,6 +196,25 @@ describe("DeleteTitleDialog", () => {
     await user.click(screen.getByRole("button", { name: /delete series/i }));
 
     await waitFor(() => expect(listGets).toBe(2));
+  });
+
+  // Format alone (#208), so a single-episode OVA still reads "Delete series".
+  it("calls a film a film on the confirm button", async () => {
+    const user = userEvent.setup();
+    renderDialog(vi.fn(), {
+      ...detail,
+      format: "MOVIE",
+      title: "Placeholder Film",
+      items: [item(1, "wanted")],
+    });
+
+    await user.click(screen.getByRole("button", { name: /delete/i }));
+    expect(
+      screen.getByRole("button", { name: /delete film/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /delete series/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the dialog open and reports a failed delete", async () => {
