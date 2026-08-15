@@ -226,7 +226,8 @@ func run(logger *slog.Logger) error {
 	// enabling both via Settings activates importing without a restart.
 	// Built once and shared with the API: the manual import fix must serialize
 	// with the scan, which it does by holding the same importer's mutex.
-	importSvc := importer.New(st, reg, logger, blocklistSvc, acquireSvc)
+	importSvc := importer.New(st, reg, logger, blocklistSvc, acquireSvc,
+		importer.WithStallPolicy(settingsSvc))
 	runner.Add(jobs.Job{
 		Name:       "import-scan",
 		Interval:   importPollInterval,

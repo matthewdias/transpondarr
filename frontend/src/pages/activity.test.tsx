@@ -106,6 +106,50 @@ describe("ActivityPage", () => {
     expect(document.querySelectorAll(".text-destructive")).toHaveLength(1);
   });
 
+  // A stalled row can already say it is stalled; what it cannot say is that we
+  // are going to give up on it and when (#242). A stall with bytes on disk
+  // carries no deadline, and is what makes the countdown assertion mean something.
+  it("says when a stalled download will be given up on", async () => {
+    // Half an hour past the boundary: the countdown floors, so an exact 4h would
+    // have elapsed into "in 3h" by the time it rendered.
+    const inFourHours = new Date(Date.now() + 4.5 * 3600 * 1000).toISOString();
+    useHandlers(
+      {
+        client_ok: true,
+        items: [
+          queueItem({
+            id: 1,
+            client_state: "stalled",
+            progress: 0,
+            abandon_at: inFourHours,
+          }),
+          queueItem({ id: 2, client_state: "stalled", progress: 0.4 }),
+          // A wait past countdownOrDate's week-long cliff renders a date, which
+          // reads as a sentence only with a preposition the countdown omits.
+          queueItem({
+            id: 3,
+            client_state: "stalled",
+            progress: 0,
+            abandon_at: new Date(
+              Date.now() + 10 * 24 * 3600 * 1000,
+            ).toISOString(),
+          }),
+        ],
+      },
+      { "": { events: [] } },
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/giving up in 4h/)).toBeInTheDocument();
+    // The date itself is the runner's locale; the preposition is what is pinned.
+    expect(screen.getByText(/giving up on /)).toBeInTheDocument();
+    expect(screen.getAllByText("Stalled")).toHaveLength(3);
+    // Two deadlines, on the two rows that have one: a stall with bytes on disk
+    // is not going to be given up on however long it sits.
+    expect(screen.getAllByText(/giving up/)).toHaveLength(2);
+  });
+
   it("shows queue rows with live client state and history rows with details", async () => {
     useHandlers(
       {

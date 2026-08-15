@@ -17,6 +17,8 @@ export function DownloadSection({ settings }: { settings: Settings }) {
   const [user, setUser] = useState(d.user);
   const [password, setPassword] = useState("");
   const [category, setCategory] = useState(d.category);
+  // Held as a string so the field can be transiently empty while being retyped.
+  const [stallHours, setStallHours] = useState(String(d.stall_hours));
   const [testState, setTestState] = useState<TestState>(null);
 
   const body = (): DownloadInput => ({
@@ -24,6 +26,7 @@ export function DownloadSection({ settings }: { settings: Settings }) {
     user,
     password: password || undefined,
     category,
+    stall_hours: Math.max(0, Math.trunc(Number(stallHours) || 0)),
   });
 
   const test = useMutation({
@@ -36,9 +39,15 @@ export function DownloadSection({ settings }: { settings: Settings }) {
         message: e instanceof Error ? e.message : String(e),
       }),
   });
+  const saveToast = useSaveToast(queryClient, "Download client");
   const save = useMutation({
     mutationFn: () => api.updateDownload(body()),
-    ...useSaveToast(queryClient, "Download client"),
+    ...saveToast,
+    onSuccess: (fresh) => {
+      saveToast.onSuccess(fresh);
+      // The service clamps the hours, so re-seed from what was actually saved.
+      setStallHours(String(fresh.download.stall_hours));
+    },
   });
 
   return (
@@ -89,6 +98,15 @@ export function DownloadSection({ settings }: { settings: Settings }) {
         value={category}
         onChange={(e) => setCategory(e.target.value)}
         hint="Applied to grabbed torrents so they're identifiable in the client."
+      />
+      <Field
+        label="Give up on a stalled download after (hours)"
+        type="number"
+        min={0}
+        max={24 * 365}
+        value={stallHours}
+        onChange={(e) => setStallHours(e.target.value)}
+        hint="A download that has stalled without transferring anything at all is abandoned after this long: the episode goes back to wanted and the release is remembered as failed. A download that has made any progress is never abandoned. 0 waits forever."
       />
     </SectionShell>
   );

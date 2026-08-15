@@ -6,8 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -249,41 +247,4 @@ func TestInfoHashFromMetaV1Control(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 	t.Logf("v1 control %s\n  InfoHashFromMeta (SHA-1)  %s", spikeV1Name, got)
-}
-
-// TestWriteSpikeArtifacts writes the two .torrent files for the live half of the
-// #165 spike. Skipped by default: the artifacts are reproducible from this test,
-// so nothing binary is committed.
-func TestWriteSpikeArtifacts(t *testing.T) {
-	dir := os.Getenv("TRANSPONDARR_SPIKE_OUT")
-	if dir == "" {
-		// -count=1 is load-bearing: a cached pass writes no files, so a rebuild
-		// into an existing directory would report ok and leave stale ones.
-		t.Skip("to write the #165 spike torrents:\n" +
-			`  TRANSPONDARR_SPIKE_OUT=<dir> go test ./internal/core/download/ \` + "\n" +
-			"    -run TestWriteSpikeArtifacts -v -count=1")
-	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("create %s: %v", dir, err)
-	}
-
-	for _, tc := range []struct {
-		file, name string
-		build      func(*testing.T, string) ([]byte, []byte)
-	}{
-		{"spike165-v1-control.torrent", spikeV1Name, buildV1OnlyMeta},
-		{"spike165-v2-only.torrent", spikeV2Name, buildV2OnlyMeta},
-	} {
-		meta, rawInfo := tc.build(t, tc.name)
-		path := filepath.Join(dir, tc.file)
-		if err := os.WriteFile(path, meta, 0o600); err != nil {
-			t.Fatalf("write %s: %v", path, err)
-		}
-		s1 := sha1.Sum(rawInfo)
-		s2 := sha256.Sum256(rawInfo)
-		t.Logf("wrote %s (%d bytes)\n  name                      %s\n"+
-			"  InfoHashFromMeta (SHA-1)  %s\n  BEP52 v2 (SHA-256)        %s\n  BEP52 v2 truncated (20B)  %s",
-			path, len(meta), tc.name,
-			hex.EncodeToString(s1[:]), hex.EncodeToString(s2[:]), hex.EncodeToString(s2[:20]))
-	}
 }

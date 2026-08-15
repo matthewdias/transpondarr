@@ -93,6 +93,12 @@ type Status struct {
 	AddedAt time.Time
 }
 
+// StalledAtZero reports a download the client says is stalled having
+// transferred nothing, the one shape the stall timeout acts on (#242).
+func (s Status) StalledAtZero() bool {
+	return s.State == StateStalled && s.Progress == 0
+}
+
 // Client is a download client Transpondarr can drive.
 type Client interface {
 	// Name identifies the client implementation, e.g. "qbittorrent".

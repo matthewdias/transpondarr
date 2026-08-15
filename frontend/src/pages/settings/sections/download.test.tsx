@@ -5,7 +5,7 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Settings } from "@/lib/api";
-import { IndexerSection } from "@/pages/settings/sections/indexer";
+import { DownloadSection } from "@/pages/settings/sections/download";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -21,17 +21,16 @@ const notifyEvents = {
   on_rehearsal: true,
 };
 
-function settings(indexer: Settings["indexer"]): Settings {
+function settings(download: Settings["download"]): Settings {
   return {
-    download: {
+    download,
+    indexer: {
       configured: false,
+      name: "",
       url: "",
-      user: "",
-      password_set: false,
-      category: "",
-      stall_hours: 6,
+      apikey_set: false,
+      categories: "",
     },
-    indexer,
     library: {
       configured: false,
       dir: "",
@@ -62,52 +61,66 @@ function settings(indexer: Settings["indexer"]): Settings {
   };
 }
 
-function renderSection(indexer: Settings["indexer"]) {
+const stored: Settings["download"] = {
+  configured: true,
+  url: "http://qb:8080",
+  user: "admin",
+  password_set: true,
+  category: "transpondarr",
+  stall_hours: 6,
+};
+
+function renderSection(download: Settings["download"] = stored) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <IndexerSection settings={settings(indexer)} />
+      <DownloadSection settings={settings(download)} />
     </QueryClientProvider>,
   );
 }
 
-describe("IndexerSection", () => {
-  // #142: the filter is stored config, not a secret, so it is seeded from the
-  // snapshot and an edit — including clearing it — goes out with the save.
-  it("seeds the category filter and saves an edited one", async () => {
+describe("DownloadSection", () => {
+  // 0 is the deliberate "never give up", so it has to survive the round trip as
+  // a number rather than being dropped as an empty field (#242).
+  it("saves the stall timeout, zero included", async () => {
     let body: unknown;
     server.use(
-      http.put("/api/v1/settings/indexer", async ({ request }) => {
+      http.put("/api/v1/settings/download", async ({ request }) => {
         body = await request.json();
-        return HttpResponse.json(
-          settings({
-            configured: true,
-            name: "prowlarr",
-            url: "http://prowlarr:9696/1/api",
-            apikey_set: true,
-            categories: "5070",
-          }),
-        );
+        return HttpResponse.json(settings({ ...stored, stall_hours: 0 }));
       }),
     );
     const user = userEvent.setup();
-    renderSection({
-      configured: true,
-      name: "prowlarr",
-      url: "http://prowlarr:9696/1/api",
-      apikey_set: true,
-      categories: "5070,127720",
-    });
+    renderSection();
 
-    const field = screen.getByLabelText(/categories/i);
-    expect(field).toHaveValue("5070,127720");
-
+    const field = screen.getByRole("spinbutton");
+    expect(field).toHaveValue(6);
     await user.clear(field);
-    await user.type(field, "5070");
+    await user.type(field, "0");
     await user.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(body).toMatchObject({ categories: "5070" });
+    expect(body).toMatchObject({ stall_hours: 0 });
+  });
+
+  // The service clamps the hours, so a save can return a different number than
+  // was typed; the field must re-seed from the response rather than keep showing
+  // the rejected value under a "saved" toast (the automation precedent).
+  it("re-seeds the field with the clamped value a save returns", async () => {
+    server.use(
+      http.put("/api/v1/settings/download", () =>
+        HttpResponse.json(settings({ ...stored, stall_hours: 8760 })),
+      ),
+    );
+    const user = userEvent.setup();
+    renderSection();
+
+    const field = screen.getByRole("spinbutton");
+    await user.clear(field);
+    await user.type(field, "3000000");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByDisplayValue("8760")).toBe(field);
   });
 });

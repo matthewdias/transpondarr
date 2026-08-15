@@ -8,6 +8,19 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **A download your client reports as stalled no longer holds its episode
+  forever.** A torrent that announces fine but finds nobody to download from used
+  to sit in the Activity queue indefinitely: nothing timed it out, the episode was
+  never released, and no other release was ever tried. One your download client
+  reports as stalled having transferred nothing at all is now given up on after
+  six hours — the episode goes back to wanted, the release is remembered as
+  failed, and the next search takes the next-best one. The wait is configurable
+  under **Settings → Download client**, and 0 waits forever. A download that has
+  made any progress is never abandoned, however long it then sits, and a paused
+  one is left alone. Nothing is removed from your download client; cancelling
+  stays yours to do there. A stalled row in the Activity queue now says when it
+  will be given up on.
+
 - **An import interrupted mid-transfer no longer leaves a file behind in the
   library forever.** Transpondarr writes to a temporary file beside the
   destination and renames it on completion, so a crash or a restart never leaves
@@ -38,6 +51,14 @@ All notable changes to this project are documented here. The format is based on
   recorded against it says what actually happened.
 
 ### Upgrade notes
+
+- **Downloads that have been stuck at 0% will start being given up on.** The
+  six-hour timeout applies to what is already in your queue, but it is counted
+  from the upgrade rather than from however long the torrent has already been
+  stuck — so one sitting there transferring nothing will be failed six hours
+  after you upgrade, and its release blocked for a day. That is the point, but if
+  you are deliberately holding one, pause it in your download client or set the
+  wait to 0 under **Settings → Download client**; either one stops the clock.
 
 - **Releases already blocked under the old rule stay blocked.** Anything recorded
   when a torrent went missing from your download client, or lost its files on

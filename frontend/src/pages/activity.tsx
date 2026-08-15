@@ -22,7 +22,12 @@ import {
   activityQueueQuery,
   activityUnmatchedQuery,
 } from "@/lib/queries";
-import { formatBytes, timeAgo } from "@/lib/format";
+import {
+  countdownOrDate,
+  formatBytes,
+  parseTimestamp,
+  timeAgo,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { GrabEventRow } from "@/components/grab-event-row";
 import { RemoveUnmatchedDialog } from "@/components/remove-unmatched-dialog";
@@ -173,6 +178,16 @@ const clientStateLabel: Record<string, string> = {
   unknown: "Unknown",
 };
 
+// The deadline can pass between import scans, where a countdown would read "in
+// 0m" and an absolute date would read like a plan rather than an imminent one.
+// Past countdownOrDate's own week-long cliff it renders a bare date, which needs
+// the preposition a countdown does not.
+function abandonLabel(at: string): string {
+  const secs = (parseTimestamp(at) - Date.now()) / 1000;
+  if (secs <= 0) return "giving up shortly";
+  return `giving up ${secs >= 7 * 86400 ? "on " : ""}${countdownOrDate(at)}`;
+}
+
 function QueueRow({ item }: { item: QueueItem }) {
   const { icon: Icon, tone } = queueTone(item);
   const [fixing, setFixing] = useState(false);
@@ -228,6 +243,11 @@ function QueueRow({ item }: { item: QueueItem }) {
             {item.progress !== undefined && (
               <span className="text-faint">
                 {` · ${Math.round(item.progress * 100)}%`}
+              </span>
+            )}
+            {item.abandon_at && (
+              <span className="text-faint">
+                {` · ${abandonLabel(item.abandon_at)}`}
               </span>
             )}
           </span>

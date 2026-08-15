@@ -6,9 +6,10 @@ ON CONFLICT (wanted_item_id) DO UPDATE SET
     release_title = excluded.release_title,
     status        = excluded.status,
     created_at    = datetime('now'),
-    -- A re-grab is a fresh download; the previous attempt's stamp and import
+    -- A re-grab is a fresh download; the previous attempt's stamps and import
     -- error must not count.
     missing_since = NULL,
+    stalled_since = NULL,
     last_error    = NULL
 RETURNING *;
 
@@ -26,7 +27,7 @@ ORDER BY g.created_at DESC;
 -- The three grab row shapes stay parallel: a retry converts between two of them.
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
-    g.missing_since, g.last_error,
+    g.missing_since, g.stalled_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
     w.in_library AS item_in_library,
@@ -43,7 +44,7 @@ ORDER BY w.number;
 -- name: GetGrabByID :one
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
-    g.missing_since, g.last_error,
+    g.missing_since, g.stalled_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
     w.in_library AS item_in_library,
@@ -59,7 +60,7 @@ WHERE g.id = ?;
 -- name: ListGrabsByStatus :many
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
-    g.missing_since, g.last_error,
+    g.missing_since, g.stalled_since, g.last_error,
     w.number AS item_number,
     w.kind   AS item_kind,
     w.in_library AS item_in_library,
@@ -77,7 +78,7 @@ ORDER BY g.info_hash;
 -- Open mirrors the importer's scan set: grabbed plus deferred.
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
-    g.missing_since, g.last_error, g.created_at,
+    g.missing_since, g.stalled_since, g.last_error, g.created_at,
     w.number AS item_number,
     w.kind   AS item_kind,
     s.id     AS title_id,
@@ -105,6 +106,10 @@ UPDATE grabs SET status = ?, last_error = NULL WHERE id = ?;
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 UPDATE grabs SET missing_since = ? WHERE id = ?;
+
+-- name: SetGrabStalledSince :exec
+-- Same clock and format as missing_since above.
+UPDATE grabs SET stalled_since = ? WHERE id = ?;
 
 -- name: SetGrabLastError :exec
 UPDATE grabs SET last_error = ? WHERE id = ?;
