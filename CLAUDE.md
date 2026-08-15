@@ -635,6 +635,42 @@ Behaviour changes are test-driven. Work red → green → refactor:
   to the one it scans — the blast radius is unchanged either way. But E03/E30
   diverge at the first digit and pass with the guard removed; E10/E100 is the
   pair that catches it.
+- **The staging sweep deletes on a predicate, never on a walk (#132).** Both
+  transfer paths stage beside the destination — `copyFile`'s `.partial`,
+  `replace`'s `.upgrade` link — and both are reclaimed by the next attempt at
+  that destination, so what survives is exactly the orphan whose destination is
+  never written again: one shape twice, and therefore one sweep. Every clause of
+  the conjunction is load-bearing — **not in flight, our own suffix, over a known
+  video extension, under a configured root, past a 24h mtime** — and the sweep
+  removes only what it finds, so an unmounted root reads empty rather than
+  condemning a library.
+  **What protects a live transfer is the in-flight registry, not the age.**
+  `os.Link` shares the payload's inode, so an `.upgrade` link to a week-old
+  payload reads as a week old the instant it exists — age is a margin on
+  `.partial` alone. Hence `staged` *owns* the staging name (both paths receive it
+  rather than compute it, so a staging file cannot exist unregistered) and
+  `removeUnstaged` takes the check and the unlink under one lock, or a transfer
+  could register between them. The deliberate limitation on the other side:
+  an `.upgrade` orphaned by a crash is only swept once its *payload's* mtime
+  passes the threshold, so it can outlive its usefulness — late, never wrong.
+  Two more things a reader would otherwise break. **Roots are resolved before
+  walking**, since `WalkDir` will not descend a symlinked root and `/media ->
+  /mnt/user/media` is an ordinary NAS shape — which is also why `staged` keys on
+  a `canonical` path, or the registry would silently fail to match in exactly
+  that config. Inside the tree links are still not followed, so the sweep cannot
+  escape a root. And **every root is walked before anything is removed**: a root
+  nested in the other enumerates one path twice, and the second sighting reaching
+  the removal already gone is what makes the `ErrNotExist` tolerance reachable
+  and testable. That tolerance is the mechanism; `stagingRoots`' de-dupe is only a
+  spared walk.
+  The video-extension check is what makes it *our* staging name rather than any
+  `.partial`, and is a third thing leaning on `videoExts` being importer's list
+  again: drift there costs a **missed** sweep and never a wrong delete, which is
+  the only direction that may fail. `library.StagingSweeper` is an optional
+  capability by type assertion, so `library.Target` stays write-only and
+  enumerating a library remains #170's question; a target without it is a
+  supported configuration, not an error. It is its own slow job rather than a
+  rider on the 15s import scan because it walks the roots.
 - **A year is read the same way whichever form names it, and both are decided
   against the variants (#209).** anitogo fills `AnimeYear` only from a
   *bracket-isolated* token, so `[Grp] Film (2019)` yields a year while the scene

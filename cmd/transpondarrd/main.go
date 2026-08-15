@@ -23,6 +23,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/clients"
 	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
+	"github.com/matthewdias/transpondarr/internal/core/library"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 	"github.com/matthewdias/transpondarr/internal/core/metadata/anilist"
 	"github.com/matthewdias/transpondarr/internal/core/metadata/dbcache"
@@ -38,6 +39,15 @@ import (
 // importPollInterval is how often the importer polls the download client for
 // completed grabs.
 const importPollInterval = 15 * time.Second
+
+// libraryTidyInterval and libraryStagingMaxAge govern the staging-file sweep (#132).
+// It walks the library roots, so it gets its own slow cadence rather than riding
+// the 15s import scan; the age is generous because nothing depends on it being
+// prompt, and an interrupted transfer's staging file is orphaned for good.
+const (
+	libraryTidyInterval  = 6 * time.Hour
+	libraryStagingMaxAge = 24 * time.Hour
+)
 
 // shutdownTimeout is the whole budget for draining the HTTP server and any
 // in-flight background work.
@@ -222,6 +232,25 @@ func run(logger *slog.Logger) error {
 		Interval:   importPollInterval,
 		RunAtStart: true,
 		Run:        importSvc.ScanOnce,
+	})
+	// Sweeping the library's staging orphans is an optional target capability, so a
+	// target without one is a supported configuration and this tick simply passes.
+	runner.Add(jobs.Job{
+		Name:       "library-tidy",
+		Interval:   libraryTidyInterval,
+		RunAtStart: true,
+		Run: func(ctx context.Context) error {
+			sweeper, ok := reg.Library().(library.StagingSweeper)
+			if !ok {
+				logger.Debug("library-tidy: the configured library cannot sweep staging files")
+				return nil
+			}
+			removed, err := sweeper.SweepStaging(ctx, libraryStagingMaxAge)
+			if removed > 0 {
+				logger.Info("library-tidy: removed stale staging files", "count", removed)
+			}
+			return err
+		},
 	})
 	jobsDone := runner.Start(ctx)
 
