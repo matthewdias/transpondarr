@@ -46,8 +46,10 @@ func TestInfoHashFromMeta(t *testing.T) {
 	// A minimal but structurally real torrent: a top-level dict with an
 	// "announce" string, an "info" dict, and a trailing key to ensure the span
 	// scanner stops at the right byte. The info dict itself contains a nested
-	// list to exercise recursive scanning.
-	info := "d6:lengthi12345e4:name8:test.mkv12:piece lengthi16384e4:tagsl2:hd3:subee"
+	// list to exercise recursive scanning. One 20-byte "pieces" digest, which is
+	// what the length and piece length below imply.
+	info := "d6:lengthi12345e4:name8:test.mkv12:piece lengthi16384e" +
+		"6:pieces20:PLACEHOLDERSHA1DIGES4:tagsl2:hd3:subee"
 	meta := "d8:announce20:http://tracker.test/4:info" + info + "13:creation datei1700000000ee"
 
 	want := sha1.Sum([]byte(info))

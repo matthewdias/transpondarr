@@ -50,6 +50,41 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	}
 }
 
+// A torrent the client cannot manage is the release's own fault and is
+// remembered — but under its own reason. The blocklist entry is what a user
+// reads to understand why a release was blocked, and #165's cause is not the
+// fetch failure the other string names.
+func TestSweepRemembersATorrentTheClientCannotManageUnderItsOwnReason(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	v2 := episodeRelease("Placeholder Saga", 3)
+	h := newSweep(t, []indexer.Release{v2}, fakeConfig{})
+	// The shape resolveAdd produces: badRelease() wraps whatever InfoHashFromMeta
+	// returned, so the new sentinel rides inside ErrBadRelease rather than replacing
+	// it — which is what keeps AutoGrab recording at all.
+	addErr := fmt.Errorf("%w: %w", download.ErrBadRelease,
+		fmt.Errorf(`%w: its "info" dictionary carries no v1 pieces`, download.ErrNoV1InfoHash))
+	if !errors.Is(addErr, download.ErrBadRelease) || !errors.Is(addErr, download.ErrNoV1InfoHash) {
+		t.Fatalf("the add error must satisfy both sentinels, got %v", addErr)
+	}
+	h.dl.FailURLs = map[string]error{v2.DownloadURL: addErr}
+	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+
+	if len(h.rec.calls) != 1 {
+		t.Fatalf("blocklist records = %d, want the release remembered once", len(h.rec.calls))
+	}
+	got := h.rec.calls[0].reason
+	if got == "the download URL could not be fetched or parsed" {
+		t.Errorf("reason = %q, which misattributes it: the URL fetched and parsed fine", got)
+	}
+	if got != "the download client cannot manage this torrent" {
+		t.Errorf("reason = %q, want the torrent the client cannot manage", got)
+	}
+}
+
 // The loop breaker for a torrent the client holds with its data gone (#241):
 // converging on it would report a grab that can never deliver, so the same
 // release would rank first and "grab" every pass forever. Refusing the add makes

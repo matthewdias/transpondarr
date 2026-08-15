@@ -61,9 +61,13 @@ func (s *Service) AutoGrab(ctx context.Context, titleID int64, cand decide.Candi
 	if err == nil || !errors.Is(err, download.ErrBadRelease) || s.blocklist == nil {
 		return res, err
 	}
+	// A reason true of both causes would tell the reader less than either alone.
+	reason := "the download URL could not be fetched or parsed"
+	if errors.Is(err, download.ErrNoV1InfoHash) {
+		reason = "the download client cannot manage this torrent"
+	}
 	if _, rerr := s.blocklist.Record(ctx, titleID, ids,
-		cand.Release.InfoHash, cand.Release.Title,
-		"the download URL could not be fetched or parsed"); rerr != nil {
+		cand.Release.InfoHash, cand.Release.Title, reason); rerr != nil {
 		s.log.Error("acquire: record blocklist entry for a refused add",
 			"series", titleID, "release", cand.Release.Title, "err", rerr)
 	}
