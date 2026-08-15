@@ -28,6 +28,16 @@ All notable changes to this project are documented here. The format is based on
   search moves on to another release rather than retrying the one it cannot
   deliver.
 
+### Upgrade notes
+
+- **Releases already blocked under the old rule stay blocked.** Anything recorded
+  when a torrent went missing from your download client, or lost its files on
+  disk, was blocked for something that was never the release's fault — and those
+  entries carry over, including any that had reached the permanent rung. A
+  title's **History** tab lists them under *Blocked releases* with an **Unblock**
+  on each, and **Settings → Failure memory** has a **Forget all** if you would
+  rather start clean. Nothing is recorded that way from now on.
+
 ## [0.8.0] — 2026-08-14
 
 Films: the release where Transpondarr tracks both anime formats as themselves.

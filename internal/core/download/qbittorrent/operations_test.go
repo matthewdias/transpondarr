@@ -169,6 +169,43 @@ func TestAddConvergesWhenAFailedAddWasADuplicate(t *testing.T) {
 	}
 }
 
+// Both duplicate paths converge through one helper, so the losing race refuses a
+// data-missing torrent too -- and it is the path that matters most, since losing
+// to a concurrent add is how a second grab reaches a torrent already in this state.
+func TestAddRefusesADataMissingDuplicateFoundByTheRecheck(t *testing.T) {
+	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
+	var added bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "test"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/info":
+			// Empty until the racing add lands, present on the post-failure recheck.
+			if added {
+				_, _ = w.Write([]byte(`[{"hash":"` + hash + `","state":"missingFiles"}]`))
+				return
+			}
+			_, _ = w.Write([]byte("[]"))
+		case "/api/v2/torrents/add":
+			added = true
+			w.WriteHeader(http.StatusConflict)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	_, err := New(srv.URL, "u", "p").Add(context.Background(),
+		download.AddOptions{URL: "magnet:?xt=urn:btih:" + hash})
+	if !errors.Is(err, download.ErrDataMissing) {
+		t.Fatalf("Add error = %v, want the recheck to refuse a data-missing duplicate", err)
+	}
+	if errors.Is(err, download.ErrBadRelease) {
+		t.Error("refusal classed as the release's fault; it would blocklist a healthy release")
+	}
+}
+
 // A genuine add failure must still surface: the recheck only converges when the
 // hash actually turned up, never by swallowing the error.
 func TestAddSurfacesAFailureThatWasNotADuplicate(t *testing.T) {
