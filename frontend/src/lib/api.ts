@@ -51,9 +51,13 @@ function problemCause(problem: ProblemBody): string {
   if (!Array.isArray(problem?.errors)) return "";
   const joined = problem.errors
     .map((e) => {
-      const message = e?.message?.trim();
+      // ProblemBody is an assertion over a body we did not write, so the types
+      // are checked here: an entry that is not a string is dropped, not coerced.
+      if (typeof e?.message !== "string") return "";
+      const message = e.message.trim();
       if (!message) return "";
-      return e?.location ? `${e.location}: ${message}` : message;
+      const location = typeof e.location === "string" ? e.location.trim() : "";
+      return location ? `${location}: ${message}` : message;
     })
     .filter(Boolean)
     .join("; ");

@@ -113,6 +113,29 @@ describe("typed client (openapi-fetch)", () => {
     });
   });
 
+  // ProblemBody is an assertion over a body we did not write, not a check, so a
+  // non-string message must not replace the ApiError with a TypeError.
+  it("drops an errors[] entry whose message is not a string", async () => {
+    server.use(
+      http.post("/api/v1/titles", () =>
+        HttpResponse.json(
+          {
+            title: "Bad Gateway",
+            detail: "failed to add series",
+            errors: [{ message: 404 }, { message: { nested: true } }],
+          },
+          { status: 502 },
+        ),
+      ),
+    );
+    const err = await api.addTitle("anilist", 1).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).toMatchObject({
+      status: 502,
+      message: "failed to add series",
+    });
+  });
+
   it("falls back to detail when the body carries no errors[]", async () => {
     server.use(
       http.get("/api/v1/titles", () =>
