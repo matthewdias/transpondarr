@@ -45,14 +45,15 @@ func TestDecodeFallsBackWhenTheEnvelopeCarriesNoMessage(t *testing.T) {
 	}
 }
 
-// maxErrBytes, not maxRespBytes: an 8 MiB error message is not an error message.
+// The bound is a literal: read off maxErrBytes, this assertion would move with
+// the mutation it exists to catch and could never fail.
 func TestDecodeBoundsANon200Body(t *testing.T) {
 	err := decode(stubResponse(http.StatusBadGateway, strings.Repeat("x", 64<<10)), new(struct{}))
 	if err == nil {
 		t.Fatal("decode = nil, want an error")
 	}
-	if got := len(err.Error()); got > maxErrBytes+64 {
-		t.Fatalf("error is %d bytes, want it bounded near %d", got, maxErrBytes)
+	if got := len(err.Error()); got > 2112 { // 2048 bytes of body, plus slack for the prefix
+		t.Fatalf("error is %d bytes, want at most 2048 of body behind a short prefix", got)
 	}
 }
 
