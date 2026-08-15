@@ -91,8 +91,9 @@ const (
 )
 
 // DownloadConfig is the qBittorrent client configuration, plus the one download
-// policy that is not the client's: StallHours is how long a download may sit
-// stalled with nothing downloaded before its grab is failed, 0 meaning never.
+// policy that is not the client's: StallHours is how long a download the client
+// says it is trying may sit with nothing downloaded before its grab is failed, 0
+// meaning never.
 type DownloadConfig struct {
 	URL        string
 	User       string
@@ -357,9 +358,9 @@ func (s *Service) Snapshot() Snapshot {
 // DownloadCategory returns the category applied to grabbed torrents.
 func (s *Service) DownloadCategory() string { return s.cur.Load().dl.Category }
 
-// StallTimeout is how long a download may sit stalled with nothing downloaded
-// before the importer fails its grab; zero never does. Read per scan, so an edit
-// applies on the next tick without a restart.
+// StallTimeout is how long a download the client says it is trying may sit with
+// nothing downloaded before the importer fails its grab; zero never does. Read
+// per scan, so an edit applies on the next tick without a restart.
 func (s *Service) StallTimeout() time.Duration {
 	return domain.StallTimeout(int64(s.cur.Load().dl.StallHours))
 }

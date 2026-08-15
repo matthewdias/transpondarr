@@ -201,6 +201,74 @@ func TestLateRowInheritsTheGroupsEarliestStallClock(t *testing.T) {
 	}
 }
 
+// The per-group clock and the widened predicate (#246) compose: a pack can now
+// reach reconcileStalled because its magnet never obtained metadata, not only
+// because the client called it stalled, and the group must settle in one scan on
+// one rung there too.
+func TestMetadataStalledPackWithALateRowTakesOneRung(t *testing.T) {
+	st := coretest.NewStore(t)
+	titleID := seedPack(t, st, "abc", 1, 2)
+	backdateStalledSinceForItem(t, st, "abc", 1, 7*time.Hour)
+	svc := blocklist.New(st, nil)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0)}}
+
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	assertPackSettled(t, st, "abc", 2)
+	assertItemFreed(t, st, titleID, 1)
+	assertItemFreed(t, st, titleID, 2)
+	assertOneRung(t, st, titleID)
+}
+
+// A group is never half-stamped by the widened predicate: the same StuckAtZero
+// gates the clearing loop and the switch arm, so a scan either converges every
+// row on the earliest clock or clears them all.
+func TestMetadataStallStampsAndClearsTheWholeGroup(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedPack(t, st, "abc", 1, 2)
+	// Inside the timeout, so the scan only stamps and nothing is settled yet.
+	backdateStalledSinceForItem(t, st, "abc", 1, 2*time.Hour)
+	want := grabIDForItem(t, st, "abc", 1)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0)}}
+	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
+
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	var first string
+	for _, g := range packGrabs(t, st, "abc") {
+		if g.ID == want {
+			first = g.StalledSince.String
+		}
+	}
+	for _, g := range packGrabs(t, st, "abc") {
+		if g.Status != statusGrabbed {
+			t.Errorf("item %d settled early; 2h is inside the 6h timeout", g.ItemNumber.Int64)
+		}
+		if g.StalledSince.String != first {
+			t.Errorf("item %d stalled_since = %q, want the group's earliest %q",
+				g.ItemNumber.Int64, g.StalledSince.String, first)
+		}
+	}
+
+	// Metadata arrived: the clearing loop runs per row, so no row may keep a clock
+	// the group is no longer on.
+	dl.Statuses = []download.Status{fetchingMetadata("abc", 0.2)}
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+	for _, g := range packGrabs(t, st, "abc") {
+		if g.StalledSince.Valid {
+			t.Errorf("item %d stalled_since = %q, want cleared for every row once progress moved",
+				g.ItemNumber.Int64, g.StalledSince.String)
+		}
+	}
+}
+
 // missing_since has the identical shape. An absence is never blamed (#241), so
 // no rung is at stake -- but remember() states that "the grab_failed
 // notification groups the same way: one per incident", and a split group makes

@@ -106,6 +106,29 @@ describe("ActivityPage", () => {
     expect(document.querySelectorAll(".text-destructive")).toHaveLength(1);
   });
 
+  // A queued download is waiting its turn on purpose, so it reads as its own
+  // thing rather than as Downloading · 0%, and nothing is wrong with it (#246).
+  it("names a queued download without flagging it", async () => {
+    useHandlers(
+      {
+        client_ok: true,
+        items: [
+          queueItem({ id: 1, client_state: "queued", progress: 0 }),
+          queueItem({ id: 2, client_state: "stalled", progress: 0 }),
+        ],
+      },
+      { "": { events: [] } },
+    );
+
+    renderPage();
+
+    expect(await screen.findByText("Queued")).toBeInTheDocument();
+    expect(document.querySelectorAll(".text-destructive")).toHaveLength(1);
+    // Not alarming and not active either: without its own arm it would fall
+    // through to the downloading tone, which the label alone cannot catch.
+    expect(document.querySelectorAll(".text-dl")).toHaveLength(0);
+  });
+
   // A stalled row can already say it is stalled; what it cannot say is that we
   // are going to give up on it and when (#242). A stall with bytes on disk
   // carries no deadline, and is what makes the countdown assertion mean something.

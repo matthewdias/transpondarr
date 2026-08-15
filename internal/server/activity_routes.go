@@ -29,9 +29,9 @@ type queueItemDTO struct {
 	InfoHash     string   `json:"infohash"`
 	Status       string   `json:"status" enum:"downloading,stuck,deferred"`
 	ImportError  string   `json:"import_error,omitempty" doc:"Why the completed download cannot import (stuck rows)"`
-	ClientState  string   `json:"client_state,omitempty" enum:"downloading,complete,stalled,checking,paused,error,data_missing,unknown" doc:"Live torrent state; absent when the client is unreachable"`
+	ClientState  string   `json:"client_state,omitempty" enum:"downloading,queued,complete,stalled,checking,paused,error,data_missing,unknown" doc:"Live torrent state; absent when the client is unreachable"`
 	Progress     *float64 `json:"progress,omitempty" minimum:"0" maximum:"1"`
-	AbandonAt    string   `json:"abandon_at,omitempty" doc:"RFC3339; when a stall that has downloaded nothing will be given up on. Absent unless one is being counted"`
+	AbandonAt    string   `json:"abandon_at,omitempty" doc:"RFC3339; when a download that has transferred nothing will be given up on. Present on any such download, including one that has only just started; absent once anything arrives"`
 	CreatedAt    string   `json:"created_at"`
 }
 
@@ -138,7 +138,7 @@ type retryImportOutput struct {
 type unmatchedItemDTO struct {
 	InfoHash    string  `json:"infohash"`
 	Name        string  `json:"name"`
-	ClientState string  `json:"client_state" enum:"downloading,complete,stalled,checking,paused,error,data_missing,unknown"`
+	ClientState string  `json:"client_state" enum:"downloading,queued,complete,stalled,checking,paused,error,data_missing,unknown"`
 	Progress    float64 `json:"progress" minimum:"0" maximum:"1"`
 	SavePath    string  `json:"save_path,omitempty"`
 	Size        int64   `json:"size" doc:"Payload size in bytes"`
@@ -345,10 +345,10 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 }
 
 // abandonAt is when a stall the importer is counting will fail its grab. A
-// torrent that is no longer stalled, no stamp, or a disabled timeout all mean
-// nothing is coming, and the row says nothing rather than inventing a deadline.
+// torrent the client is no longer trying on, no stamp, or a disabled timeout all
+// mean nothing is coming, and the row says nothing rather than inventing a deadline.
 func abandonAt(s download.Status, stalledSince sql.NullString, timeout time.Duration) (time.Time, bool) {
-	if !s.StalledAtZero() || !stalledSince.Valid || timeout <= 0 {
+	if !s.StuckAtZero() || !stalledSince.Valid || timeout <= 0 {
 		return time.Time{}, false
 	}
 	since, err := store.ParseTimestamp(stalledSince.String)

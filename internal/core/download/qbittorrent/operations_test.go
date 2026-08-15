@@ -454,9 +454,15 @@ func TestRemoveDeletesTorrentsWithData(t *testing.T) {
 func TestMapState(t *testing.T) {
 	cases := map[string]download.State{
 		"downloading":  download.StateDownloading,
+		"forcedDL":     download.StateDownloading,
 		"metaDL":       download.StateDownloading,
+		"forcedMetaDL": download.StateDownloading,
+		"queuedDL":     download.StateQueued,
 		"stalledDL":    download.StateStalled,
 		"uploading":    download.StateComplete,
+		// Deliberate, not an omission: its payload is on disk and is the importer's
+		// to place, which is a different fact from a download waiting to start.
+		"queuedUP":     download.StateComplete,
 		"pausedUP":     download.StateComplete,
 		"stoppedUP":    download.StateComplete,
 		"pausedDL":     download.StatePaused,

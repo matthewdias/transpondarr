@@ -269,7 +269,23 @@ Behaviour changes are test-driven. Work red → green → refactor:
   #118 built the blocklist for, unreachable by it. **Progress is the
   discriminator, strictly `> 0`**: a torrent that moved at all proves a peer had
   the data, so those bytes are the user's to discard, where a percentage
-  threshold would draw a line nothing supports. `stalled_since` mirrors
+  threshold would draw a line nothing supports. **`Progress` is the right
+  predicate and must not be swapped for a bytes-received count** — the plausible
+  "refinement" is a regression. It is not piece-granular: `sessionimpl.cpp` calls
+  `post_torrent_updates()` with no arguments, so libtorrent's default
+  `status_flags_t::all()` applies, `query_accurate_download_counters` included,
+  which counts *partial blocks* in `total_wanted_done`; `TorrentImpl::progress()`
+  returns that unrounded, so progress moves on the first 16 KiB block — under a
+  byte per second over a six-hour timeout, which puts the slow-torrent false
+  positive out of reach, which is the whole of the case: the refinement solves
+  nothing that needed solving. A second reason to distrust it is *reasoning
+  rather than traced fact*, and is flagged as such — libtorrent documents
+  `all_time_download` only as an accumulated payload counter and describes
+  `total_failed_bytes` separately, so whether a byte counter excludes what a hash
+  check later discards is not settled by the documentation; if it does not, a
+  torrent failing every check would report bytes received and `progress == 0`
+  forever, and "has received nothing" would never abandon it.
+  `stalled_since` mirrors
   `missing_since` (stamped on the first qualifying observation, cleared the
   moment progress moves), the timeout is `download.stall_hours` — client-agnostic
   policy, hence not `qbit.*` — and 0 both disables it and **clears the stamp**,
@@ -281,17 +297,50 @@ Behaviour changes are test-driven. Work red → green → refactor:
   load-bearing: every such failure runs through `blocklist.Record`, so #120's
   breaker blames four items and suppresses the rest, and only a torrent that
   never received a byte qualifies at all.
-  **The trigger is the client saying `stalled`, which is narrower than "stuck".**
-  `StatePaused` is deliberate user intent and `StateUnknown` is a gap in
-  `mapState`, so neither reaches the arm; `queuedDL` maps to `StateDownloading`,
-  so a torrent waiting behind others is never one either — but so does `metaDL`,
-  which is a magnet whose swarm never answered, and that one *is* stuck and is
-  not covered. **Between the two timers absence wins by construction**: the
+  **The trigger is the client saying it is *trying*, with progress 0 (#246).**
+  `StateStalled` or `StateDownloading` — so `metaDL` and `forcedMetaDL` are
+  covered, which is the magnet parked at "Downloading metadata" that #242's own
+  wording had to exclude. `StatePaused` is deliberate user intent and
+  `StateUnknown` is a gap in `mapState`, so neither reaches the arm, and
+  `queuedDL` is now excluded by **having its own `StateQueued`** rather than by
+  hiding inside `StateDownloading`: a client holding a torrent back is not
+  trying, and folding the two together is what made "widen the predicate" and
+  "never abandon a queued download" look like opposites. `Status.StuckAtZero`
+  therefore names the predicate and `stalled_since` deliberately keeps a name it
+  has outgrown — the clock did not change, it still mirrors `missing_since`, and
+  a migration for a column name is cosmetics. **The stamp-clearing loop and the
+  switch arm must read the one predicate**: widening only the arm clears the
+  clock every scan while `sharedSince` re-derives it from the pre-clear rows, so
+  the DB keeps the cleared value, the timeout never accumulates, and the grab
+  sits open — the bug, surviving its own fix. It is a mutation that lives, so
+  `TestKeepsMetadataStallClockAcrossScans` exists to kill it.
+  **No fetching-metadata state, on purpose.** Queued is near-universal (five of
+  six surveyed clients; rTorrent has no queue, and a missing state degrades
+  cleanly because an adapter simply never emits it), while fetching-metadata is
+  one client's taxonomy: qBittorrent and Deluge are both libtorrent and disagree
+  in both directions, qBit passing the metadata state through while Deluge does
+  not expose it at all. The two are disjoint by construction in qBittorrent,
+  whose `updateState()` tests `isQueued()` first inside the `!hasMetadata()`
+  branch. If "Fetching metadata" is ever wanted in the UI it is a detail field
+  beside `State` — what Sonarr does, and what Transmission's
+  `metadata_percent_complete` and rTorrent's `d.is_meta` are shaped for — never a
+  state value.
+  **An adapter maps the derived predicate, never a client's own "stalled"
+  flag.** Ours is qBittorrent's instantaneous `download_payload_rate == 0`;
+  Transmission's `is_stalled` is a 30-minute idle timer, so mapping that boolean
+  would silently stack `stall_hours` on top of it and make the threshold mean
+  something different per client. `stalled` stays instantaneous everywhere and
+  `stalled_since` owns the duration (#159).
+  **Between the two timers absence wins by construction**: the
   `!ok` branch `continue`s before the state switch, so a torrent that goes
   missing is settled on the 5-minute grace and the stall clock never gets a say.
-  The queue's `abandon_at` is the part `client_state: stalled` could not say —
-  that we are going to act, and when — and it is therefore keyed on the *live*
-  status as well as the stamp, which outlives the stall by up to one scan. Its
+  The queue's `abandon_at` is the part `client_state` could not say — that we are
+  going to act, and when — and it is therefore keyed on the *live* status as well
+  as the stamp, which outlives the stall by up to one scan. Widened, it now shows
+  on a healthy grab too, for the scan or two before its first piece lands and on
+  a magnet for as long as metadata takes: accepted rather than hidden below some
+  fraction of the timeout, which would invent a second threshold with nothing
+  behind it. Its
   countdown is stale for as long as the tab is open, not for one poll: a queue of
   only stalled rows serializes byte-identically, so React Query's structural
   sharing re-renders nothing (#144's class, and `activity.tsx` is a third call

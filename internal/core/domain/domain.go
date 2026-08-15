@@ -82,17 +82,17 @@ func PinDelay(hours int64) time.Duration {
 	return time.Duration(ClampPinDelayHours(hours)) * time.Hour
 }
 
-// How long a download may sit stalled with nothing downloaded before its grab is
-// failed. Long enough not to punish a slow start, short enough that a dead
-// release does not hold its episode all day. The bound is MaxPinDelayHours' for
-// the same wrapping reason.
+// How long a download the client says it is trying may sit with nothing
+// downloaded before its grab is failed. Long enough not to punish a slow start,
+// short enough that a dead release does not hold its episode all day. The bound
+// is MaxPinDelayHours' for the same wrapping reason.
 const (
 	DefaultStallHours = 6
 	MaxStallHours     = 24 * 365
 )
 
 // ClampStallHours bounds a stall hour count to [0, MaxStallHours]; 0 means a
-// stalled download is never given up on.
+// stuck download is never given up on.
 func ClampStallHours(hours int64) int64 {
 	switch {
 	case hours <= 0:

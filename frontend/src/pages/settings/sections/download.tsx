@@ -100,13 +100,13 @@ export function DownloadSection({ settings }: { settings: Settings }) {
         hint="Applied to grabbed torrents so they're identifiable in the client."
       />
       <Field
-        label="Give up on a stalled download after (hours)"
+        label="Give up on a download that has transferred nothing after (hours)"
         type="number"
         min={0}
         max={24 * 365}
         value={stallHours}
         onChange={(e) => setStallHours(e.target.value)}
-        hint="A download that has stalled without transferring anything at all is abandoned after this long: the episode goes back to wanted and the release is remembered as failed. A download that has made any progress is never abandoned. 0 waits forever."
+        hint="A download that never transfers anything at all is abandoned after this long — one the client reports as stalled, and a magnet still looking for its metadata: the episode goes back to wanted and the release is remembered as failed. A download that has made any progress, and one the client has queued or paused, is never abandoned. 0 waits forever."
       />
     </SectionShell>
   );

@@ -191,6 +191,48 @@ func TestActivityQueueReportsWhenAStallWillBeGivenUpOn(t *testing.T) {
 	}
 }
 
+// The countdown follows the predicate, not the word "stalled": a magnet fetching
+// metadata is being counted, and a torrent the client is holding back is not
+// (#246).
+func TestActivityQueueCountsAMetadataStallButNotAQueuedDownload(t *testing.T) {
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "h1", State: download.StateDownloading, Progress: 0},
+		{Hash: "h2", State: download.StateQueued, Progress: 0},
+	}}
+	h := newHarness(t, nil, dl)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 2)
+
+	fetching := seedOpenGrab(t, h.store, titleID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
+	queued := seedOpenGrab(t, h.store, titleID, 2, "h2", "[ExampleSubs] Placeholder Saga - 02 [1080p]", "grabbed")
+	for _, id := range []int64{fetching.ID, queued.ID} {
+		if err := h.store.Q.SetGrabStalledSince(context.Background(), db.SetGrabStalledSinceParams{
+			StalledSince: sql.NullString{String: store.FormatTimestamp(time.Now().Add(-2 * time.Hour)), Valid: true},
+			ID:           id,
+		}); err != nil {
+			t.Fatalf("set stalled_since: %v", err)
+		}
+	}
+
+	var got queueJSON
+	if code := h.get(t, "/api/v1/activity/queue", &got); code != http.StatusOK {
+		t.Fatalf("queue status = %d, want 200", code)
+	}
+	byID := map[int64]queueItemJSON{}
+	for _, it := range got.Items {
+		byID[it.ID] = it
+	}
+
+	if f := byID[fetching.ID]; f.AbandonAt == "" {
+		t.Error("abandon_at is empty for a download the client says it is trying with nothing received")
+	}
+	if q := byID[queued.ID]; q.AbandonAt != "" {
+		t.Errorf("abandon_at = %q for a queued download, want empty: the client is holding it back on purpose", q.AbandonAt)
+	}
+	if q := byID[queued.ID]; q.ClientState != "queued" {
+		t.Errorf("client_state = %q, want queued", q.ClientState)
+	}
+}
+
 type activityEventJSON struct {
 	ID           int64  `json:"id"`
 	TitleID      int64  `json:"title_id"`

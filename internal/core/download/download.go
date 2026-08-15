@@ -60,11 +60,14 @@ type State string
 
 const (
 	StateDownloading State = "downloading"
-	StateComplete    State = "complete" // finished; may be seeding
-	StateStalled     State = "stalled"
-	StateChecking    State = "checking"
-	StatePaused      State = "paused"
-	StateError       State = "error"
+	// The client is holding the torrent back on purpose, so it is not trying and
+	// nothing about it is the release's fault (#246).
+	StateQueued   State = "queued"
+	StateComplete State = "complete" // finished; may be seeding
+	StateStalled  State = "stalled"
+	StateChecking State = "checking"
+	StatePaused   State = "paused"
+	StateError    State = "error"
 	// The client holds the torrent and reports its data gone from disk — not the
 	// torrent being absent, which has no state because nothing reports one.
 	StateDataMissing State = "data_missing"
@@ -93,10 +96,12 @@ type Status struct {
 	AddedAt time.Time
 }
 
-// StalledAtZero reports a download the client says is stalled having
-// transferred nothing, the one shape the stall timeout acts on (#242).
-func (s Status) StalledAtZero() bool {
-	return s.State == StateStalled && s.Progress == 0
+// StuckAtZero reports a download the client says it is trying with nothing
+// transferred, the one shape the stall timeout acts on (#242, widened by #246 to
+// cover a magnet that never obtains metadata). Progress counts partial blocks, so
+// it moves long before a piece completes — do not swap it for a byte counter.
+func (s Status) StuckAtZero() bool {
+	return (s.State == StateStalled || s.State == StateDownloading) && s.Progress == 0
 }
 
 // Client is a download client Transpondarr can drive.

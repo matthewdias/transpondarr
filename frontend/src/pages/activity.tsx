@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import {
+  Clock,
   Download,
   FileQuestion,
   FolderClock,
@@ -152,6 +153,10 @@ function QueueSection() {
 function queueTone(item: QueueItem) {
   if (item.client_state === "paused")
     return { icon: Pause, tone: "bg-panel-2 text-muted-foreground" };
+  // Waiting its turn is the client's own decision, so nothing is wrong with it
+  // and nothing is happening to it (#246).
+  if (item.client_state === "queued")
+    return { icon: Clock, tone: "bg-panel-2 text-muted-foreground" };
   // data_missing is alarming on purpose: we decline to blame the release for it
   // (#241), which leaves the user as the only one who can act on it.
   if (
@@ -169,6 +174,7 @@ function queueTone(item: QueueItem) {
 
 const clientStateLabel: Record<string, string> = {
   downloading: "Downloading",
+  queued: "Queued",
   complete: "Complete",
   stalled: "Stalled",
   checking: "Checking",
