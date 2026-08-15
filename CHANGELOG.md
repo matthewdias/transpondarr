@@ -8,98 +8,62 @@ All notable changes to this project are documented here. The format is based on
 
 ## [0.9.0] — 2026-08-15
 
-Acquisition reliability: the release where a download that goes nowhere stops
-holding its episode, and a release stops being blamed for things that were never
-about it.
-
-A torrent that transfers nothing — a dead swarm, or a magnet that never finds its
-metadata — is now given up on after six hours instead of sitting in the queue
-indefinitely, and the next-best release is tried. One waiting its turn reads
-*Queued* rather than *Downloading · 0%*, and every download shows how long it has
-before it would be abandoned.
-
-The other half is what gets remembered. A torrent vanishing from your download
-client, its files disappearing from disk, or a release published in a format
-Transpondarr cannot follow are all things the release itself was never at fault
-for, and none of them blocks it any more; one torrent now counts as one failure
-however many episodes it covered. Entries recorded under the old rule carry over
-— see the upgrade notes. Separately, an import interrupted mid-transfer no longer
-leaves its temporary file behind in the library.
+Acquisition reliability: a download that goes nowhere stops holding its episode,
+and a release stops being blamed for things that were never about it. A torrent
+transferring nothing is given up on after six hours and the next-best release
+tried; a torrent that vanishes, loses its files, or arrives in a format
+Transpondarr cannot follow no longer blocks the release.
 
 ### Fixed
 
-- **One failed download is now remembered once, not twice.** A season pack covers
-  several episodes, and when one of its episodes was added to the queue later than
-  the rest, a single stalled or vanished torrent was counted as two separate
-  failures of the same release. That pushed it up the blocklist's ladder twice as
-  fast, so a release could be blocked for a week on what was really its first
-  failure. A pack is now treated as the one download it is, however its episodes
-  were added.
 - **A download that never gets going no longer holds its episode forever.** A
-  torrent that announces fine but finds nobody to download from, and a magnet
-  stuck at *Downloading metadata*, both used to sit in the Activity queue
-  indefinitely: nothing timed them out, the episode was never released, and no
-  other release was ever tried. A download that has transferred nothing at all is
-  now given up on after six hours — the episode goes back to wanted, the release
-  is remembered as failed, and the next search takes the next-best one. The wait
-  is configurable under **Settings → Download client**, and 0 waits forever. A
-  download that has made any progress is never abandoned, however long it then
-  sits, and a paused or queued one is left alone. Nothing is removed from your
-  download client; cancelling stays yours to do there. **Every download now shows
-  that countdown from the moment it starts** — a new one reads *giving up in 6h*
-  until its first bytes arrive, which is usually seconds and is a magnet's whole
-  metadata wait; it is a statement of what would happen if nothing ever came, not
-  a sign anything is wrong.
-- **A download waiting its turn now reads *Queued*.** Where the Activity queue
-  showed it as *Downloading · 0%*, it now says what your client is actually doing
-  — which matters most if you cap how many downloads run at once, since those
-  rows were indistinguishable from ones that were getting nowhere. A queued
-  download is never given up on, however long it waits.
-- **An import interrupted mid-transfer no longer leaves a file behind in the
-  library forever.** Transpondarr writes to a temporary file beside the
-  destination and renames it on completion, so a crash or a restart never leaves
-  a half-written episode under the real name — but the temporary file itself
-  stayed. A new **Library tidy** job removes them once they are a day old,
-  matching only the temporary names an import writes and never an import still
-  running; your episodes, films and everything filed alongside them are left
-  alone. This matters most for copy-mode imports, where the leftover is a
-  full-sized file, and for upgrades, where it kept the download's disk space
-  claimed even after the torrent was removed.
+  torrent that finds nobody to download from, or a magnet stuck at *Downloading
+  metadata*, used to sit in the queue indefinitely with no other release tried.
+  One that has transferred nothing is now given up on after six hours and the
+  next-best release taken. Configurable under **Settings → Download client**,
+  where 0 waits forever.
+- **A download that has made any progress is never given up on**, however long it
+  then sits, and paused or queued ones are left alone. Nothing is removed from
+  your download client — cancelling stays yours to do there.
+- **Every download now shows how long it has left.** A new one reads *giving up
+  in 6h* until its first bytes arrive: what would happen if nothing ever came,
+  not a sign that anything is wrong.
+- **A download waiting its turn now reads *Queued*.** It showed as *Downloading ·
+  0%*, indistinguishable from one getting nowhere — which matters most if you cap
+  how many downloads run at once.
 - **A release is no longer blocked because its torrent went missing.** A download
-  that disappears from the client, or whose files vanish from disk, frees its
-  episode to be searched again as before — but the release itself is no longer
-  remembered as a bad one, because neither says anything about it. A dropped
-  mount or a reset client used to block every release it touched, for a day, a
-  week, or permanently on a third occurrence. A download the client is holding
-  with its data gone now reads *Data missing* in the Activity queue, and the next
-  search moves on to another release rather than retrying the one it cannot
-  deliver. Grabbing such a release by hand now fails outright with a message,
-  where before it reported success and then quietly failed.
+  that disappears from the client, or whose files vanish from disk, still frees
+  its episode — but the release is no longer remembered as a bad one, because
+  neither says anything about it. A dropped mount used to block every release it
+  touched, for a day, a week, or permanently on a third occurrence.
+- **A download whose data the client has lost now reads *Data missing***, and the
+  next search moves on to another release. Grabbing such a release by hand fails
+  outright rather than reporting success and quietly failing.
+- **One failed download is now remembered once, not twice.** When a pack's
+  episodes were added to the queue at different times, a torrent that vanished
+  counted as two separate failures of the same release, pushing it up the
+  blocklist's ladder twice as fast.
 - **A release in a torrent format Transpondarr does not support is refused when
-  it is grabbed, instead of failing quietly afterwards.** A download published in
-  the newer BitTorrent v2 format alone was handed to qBittorrent and accepted
-  normally, but Transpondarr had no way to follow it from there, so it sat
-  unaccounted for until the grace period expired — then it was marked failed and
-  the release was blocked for something that was never wrong with it. One is now
-  passed over at grab time and the next release is tried instead, and the reason
-  recorded against it says what actually happened.
+  it is grabbed.** A download published in BitTorrent v2 alone was accepted by
+  qBittorrent but could not be followed, so it sat unaccounted for until the
+  grace period expired — then was blocked for something never wrong with it.
+- **An import interrupted mid-transfer no longer leaves a file in the library.**
+  Transpondarr renames a temporary file into place on completion, so a crash
+  never leaves a half-written episode under the real name — but the temporary
+  file stayed. A new **Library tidy** job removes them once they are a day old.
 
 ### Upgrade notes
 
 - **Downloads that have been stuck at 0% will start being given up on.** The
-  six-hour timeout applies to what is already in your queue, but it is counted
-  from the upgrade rather than from however long the torrent has already been
-  stuck — so one sitting there transferring nothing will be failed six hours
-  after you upgrade, and its release blocked for a day. That is the point, but if
-  you are deliberately holding one, pause it in your download client or set the
-  wait to 0 under **Settings → Download client**; either one stops the clock.
-- **Releases already blocked under the old rule stay blocked.** Anything recorded
-  when a torrent went missing from your download client, or lost its files on
-  disk, was blocked for something that was never the release's fault — and those
-  entries carry over, including any that had reached the permanent rung. A
-  title's **History** tab lists them under *Blocked releases* with an **Unblock**
-  on each, and **Settings → Failure memory** has a **Forget all** if you would
-  rather start clean. Nothing is recorded that way from now on.
+  six-hour timeout is counted from the upgrade, not from however long a torrent
+  has already sat, so one transferring nothing is failed six hours after you
+  upgrade and its release blocked for a day. To hold one deliberately, pause it
+  in your download client or set the wait to 0; either stops the clock.
+- **Releases already blocked under the old rule stay blocked.** Entries recorded
+  when a torrent went missing or lost its files carry over, including any at the
+  permanent rung. A title's **History** tab lists them under *Blocked releases*
+  with an **Unblock** on each, and **Settings → Failure memory** has a **Forget
+  all**.
 
 ## [0.8.0] — 2026-08-14
 
@@ -1052,7 +1016,8 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/matthewdias/transpondarr/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/matthewdias/transpondarr/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/matthewdias/transpondarr/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/matthewdias/transpondarr/compare/v0.5.0...v0.6.0
