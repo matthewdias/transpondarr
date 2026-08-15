@@ -296,6 +296,28 @@ Behaviour changes are test-driven. Work red → green → refactor:
   only stalled rows serializes byte-identically, so React Query's structural
   sharing re-renders nothing (#144's class, and `activity.tsx` is a third call
   site for that audit).
+- **Both timers are the info-hash group's, not the row's (#247).** A pack is one
+  torrent, so `sharedSince` gives every row of a group its earliest stamp and
+  `stalled_since`/`missing_since` are stamped and cleared per group. Per-row
+  clocks were the bug: a row a later add wrote (#241's converged duplicate) began
+  its own clock, crossed the threshold in a *later* scan, and so escaped
+  `remember()`'s per-scan grouping — one incident, two `Record` calls, and since
+  the upsert is keyed on `(title, normalized title)` that reads as `failures = 2`
+  and jumps the ladder to 7d rather than writing a second row. The seam is here
+  and not in `remember()`, whose per-scan grouping is #124's design and correct;
+  widening *it* would need cross-scan memory the design avoids. Three
+  consequences. **Earliest, not `now`** — the clock belongs to the torrent, and
+  taking `now` for the late row would reproduce the split exactly; it also makes
+  an install upgrading mid-stall converge rather than stay inconsistent. **The
+  value is written, not just computed**, because the Activity queue renders
+  `abandon_at` from each row's own column, so a divergent stamp would show one
+  episode of a pack a countdown it will never be settled on; the write is guarded
+  on the value differing, so a steady state costs nothing. And **an unreadable
+  stamp is treated as an absent one** rather than restarting the group — the
+  tolerance that unparseable data must not fail a grab is preserved at the group
+  level, where only *no* row being readable waits another full period. Clearing
+  needed no change: both clear conditions read the group's status and the global
+  timeout, never the row.
 - **A batch is matched, eligible, and preferred on coverage (#126).** #125
   refused a pack in `ineligibleReason` because the importer could only *defer* a
   multi-episode payload; per-file import removed the reason, so the refusal is
