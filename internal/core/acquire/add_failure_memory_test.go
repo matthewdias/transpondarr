@@ -50,11 +50,12 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	}
 }
 
-// A torrent the client cannot manage is the release's own fault and is
-// remembered — but under its own reason. The blocklist entry is what a user
-// reads to understand why a release was blocked, and #165's cause is not the
-// fetch failure the other string names.
-func TestSweepRemembersATorrentTheClientCannotManageUnderItsOwnReason(t *testing.T) {
+// A torrent whose format we cannot derive an info hash for is remembered — we
+// cannot use it and retrying would only repeat that — but under its own reason.
+// The blocklist entry is what a user reads to understand why a release was
+// blocked, and this cause is neither the fetch failure the other string names
+// nor anything the download client did wrong (#165).
+func TestSweepRemembersAnUnsupportedTorrentUnderItsOwnReason(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	v2 := episodeRelease("Placeholder Saga", 3)
 	h := newSweep(t, []indexer.Release{v2}, fakeConfig{})
@@ -80,8 +81,10 @@ func TestSweepRemembersATorrentTheClientCannotManageUnderItsOwnReason(t *testing
 	if got == "the download URL could not be fetched or parsed" {
 		t.Errorf("reason = %q, which misattributes it: the URL fetched and parsed fine", got)
 	}
-	if got != "the download client cannot manage this torrent" {
-		t.Errorf("reason = %q, want the torrent the client cannot manage", got)
+	// The client accepted this torrent and is managing it perfectly well, so a
+	// reason blaming it sends the reader to debug the one place nothing is wrong.
+	if got != "the torrent's format is not supported" {
+		t.Errorf("reason = %q, want the unsupported format", got)
 	}
 }
 

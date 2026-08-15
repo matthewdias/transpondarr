@@ -64,7 +64,7 @@ func (s *Service) AutoGrab(ctx context.Context, titleID int64, cand decide.Candi
 	// A reason true of both causes would tell the reader less than either alone.
 	reason := "the download URL could not be fetched or parsed"
 	if errors.Is(err, download.ErrNoV1InfoHash) {
-		reason = "the download client cannot manage this torrent"
+		reason = "the torrent's format is not supported"
 	}
 	if _, rerr := s.blocklist.Record(ctx, titleID, ids,
 		cand.Release.InfoHash, cand.Release.Title, reason); rerr != nil {
