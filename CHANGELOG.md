@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **One failed download is now remembered once, not twice.** A season pack covers
+  several episodes, and when one of its episodes was added to the queue later than
+  the rest, a single stalled or vanished torrent was counted as two separate
+  failures of the same release. That pushed it up the blocklist's ladder twice as
+  fast, so a release could be blocked for a week on what was really its first
+  failure. A pack is now treated as the one download it is, however its episodes
+  were added.
+
 - **A download your client reports as stalled no longer holds its episode
   forever.** A torrent that announces fine but finds nobody to download from used
   to sit in the Activity queue indefinitely: nothing timed it out, the episode was

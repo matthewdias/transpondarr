@@ -167,9 +167,7 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 		}
 		st, ok := byHash[group.hash]
 		if !ok {
-			for _, g := range group.rows {
-				failed = append(failed, im.reconcileMissing(ctx, g, now)...)
-			}
+			failed = append(failed, im.reconcileMissing(ctx, group, now)...)
 			continue
 		}
 		for _, g := range group.rows {
@@ -201,9 +199,7 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 			if !st.StalledAtZero() {
 				continue
 			}
-			for _, g := range group.rows {
-				failed = append(failed, im.reconcileStalled(ctx, g, now)...)
-			}
+			failed = append(failed, im.reconcileStalled(ctx, group, now)...)
 		case download.StateComplete:
 			// Deferred rows were already examined; the same bytes won't resolve
 			// differently without a human naming the file.
@@ -383,68 +379,120 @@ func (im *Importer) openGrabs(ctx context.Context) ([]db.ListGrabsByStatusRow, e
 	return append(grabbed, deferred...), nil
 }
 
-// reconcileMissing fails a grab whose torrent the client has stopped reporting
-// for longer than missingGracePeriod; a single absence is only recorded. It
-// returns what it failed, empty when the grab is only being watched.
-func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatusRow, now time.Time) []failedGrab {
-	if !g.MissingSince.Valid {
-		im.log.Info("importer: download not reported by client; watching", "release", g.ReleaseTitle, "hash", g.InfoHash)
-		im.setMissingSince(ctx, g.ID, sql.NullString{String: store.FormatTimestamp(now), Valid: true})
-		return nil
+// clock is one of the two timers a group's rows share. A reader and a writer keep
+// "stalled_since mirrors missing_since" structural rather than a claim to uphold.
+type clock struct {
+	column string
+	read   func(db.ListGrabsByStatusRow) sql.NullString
+	write  func(*Importer, context.Context, int64, sql.NullString)
+}
+
+var (
+	missingClock = clock{
+		column: "missing_since",
+		read:   func(g db.ListGrabsByStatusRow) sql.NullString { return g.MissingSince },
+		write:  (*Importer).setMissingSince,
+	}
+	stalledClock = clock{
+		column: "stalled_since",
+		read:   func(g db.ListGrabsByStatusRow) sql.NullString { return g.StalledSince },
+		write:  (*Importer).setStalledSince,
+	}
+)
+
+// sharedSince returns when a group's clock started, converging every row on it (#247).
+func (im *Importer) sharedSince(ctx context.Context, c clock, rows []db.ListGrabsByStatusRow, now time.Time) (time.Time, bool) {
+	var since time.Time
+	var earliest string
+	for _, g := range rows {
+		v := c.read(g)
+		if !v.Valid {
+			continue
+		}
+		// Compare parsed and store the original: comparing the stored strings
+		// would work only while the layout stays lexicographically sortable.
+		t, err := store.ParseTimestamp(v.String)
+		if err != nil {
+			// Unreadable says nothing about when the clock started, so the row takes
+			// what the rest of the group says rather than failing on it.
+			im.log.Warn("importer: "+c.column+" could not be parsed; taking the group's clock",
+				"hash", g.InfoHash, "value", v.String, "err", err)
+			continue
+		}
+		if earliest == "" || t.Before(since) {
+			since, earliest = t, v.String
+		}
 	}
 
-	since, err := store.ParseTimestamp(g.MissingSince.String)
-	if err != nil {
-		// A value we cannot parse must not fail the grab, so wait another full period.
-		im.log.Warn("importer: missing_since could not be parsed; setting it to now", "hash", g.InfoHash, "value", g.MissingSince.String, "err", err)
-		im.setMissingSince(ctx, g.ID, sql.NullString{String: store.FormatTimestamp(now), Valid: true})
+	started := earliest != ""
+	if !started {
+		since, earliest = now, store.FormatTimestamp(now)
+	}
+	for _, g := range rows {
+		// Written, not merely computed: Activity renders each row's own column.
+		if v := c.read(g); !v.Valid || v.String != earliest {
+			c.write(im, ctx, g.ID, sql.NullString{String: earliest, Valid: true})
+		}
+	}
+	return since, started
+}
+
+// reconcileMissing fails a group whose torrent the client has stopped reporting
+// for longer than missingGracePeriod; a single absence is only recorded. It
+// returns what it failed, empty when the group is only being watched.
+func (im *Importer) reconcileMissing(ctx context.Context, group grabGroup, now time.Time) []failedGrab {
+	since, started := im.sharedSince(ctx, missingClock, group.rows, now)
+	if !started {
+		im.log.Info("importer: download not reported by client; watching",
+			"release", group.rows[0].ReleaseTitle, "hash", group.hash)
 		return nil
 	}
 	if now.Sub(since) < missingGracePeriod {
 		return nil
 	}
 
-	im.log.Warn("importer: download gone from client; failing grab",
-		"release", g.ReleaseTitle, "hash", g.InfoHash, "missing_for", now.Sub(since).Round(time.Second))
-	return []failedGrab{im.failGrab(ctx, g, "the download vanished from the client", blameNothing)}
+	im.log.Warn("importer: download gone from client; failing grabs",
+		"release", group.rows[0].ReleaseTitle, "hash", group.hash, "missing_for", now.Sub(since).Round(time.Second))
+	failed := make([]failedGrab, 0, len(group.rows))
+	for _, g := range group.rows {
+		failed = append(failed, im.failGrab(ctx, g, "the download vanished from the client", blameNothing))
+	}
+	return failed
 }
 
-// reconcileStalled fails a grab whose torrent has sat stalled with nothing
+// reconcileStalled fails a group whose torrent has sat stalled with nothing
 // downloaded for longer than the configured timeout; a first sighting only
 // starts the clock. It returns what it failed, empty while it is only watching.
-func (im *Importer) reconcileStalled(ctx context.Context, g db.ListGrabsByStatusRow, now time.Time) []failedGrab {
+func (im *Importer) reconcileStalled(ctx context.Context, group grabGroup, now time.Time) []failedGrab {
 	timeout := im.stallTimeout()
 	if timeout <= 0 {
 		// Off means off: a banked clock would fail the grab on the very next scan
 		// after the timeout was restored, where pausing gives it a fresh window.
-		if g.StalledSince.Valid {
-			im.setStalledSince(ctx, g.ID, sql.NullString{})
+		for _, g := range group.rows {
+			if g.StalledSince.Valid {
+				im.setStalledSince(ctx, g.ID, sql.NullString{})
+			}
 		}
 		return nil
 	}
-	if !g.StalledSince.Valid {
+	since, started := im.sharedSince(ctx, stalledClock, group.rows, now)
+	if !started {
 		im.log.Info("importer: download stalled with nothing downloaded; watching",
-			"release", g.ReleaseTitle, "hash", g.InfoHash)
-		im.setStalledSince(ctx, g.ID, sql.NullString{String: store.FormatTimestamp(now), Valid: true})
-		return nil
-	}
-
-	since, err := store.ParseTimestamp(g.StalledSince.String)
-	if err != nil {
-		// A value we cannot parse must not fail the grab, so wait another full timeout.
-		im.log.Warn("importer: stalled_since could not be parsed; setting it to now",
-			"hash", g.InfoHash, "value", g.StalledSince.String, "err", err)
-		im.setStalledSince(ctx, g.ID, sql.NullString{String: store.FormatTimestamp(now), Valid: true})
+			"release", group.rows[0].ReleaseTitle, "hash", group.hash)
 		return nil
 	}
 	if now.Sub(since) < timeout {
 		return nil
 	}
 
-	im.log.Warn("importer: download stalled with nothing downloaded past the timeout; failing grab",
-		"release", g.ReleaseTitle, "hash", g.InfoHash, "stalled_for", now.Sub(since).Round(time.Second))
-	// Unlike an absence, nobody seeding a release we can see is a fact about it (#241).
-	return []failedGrab{im.failGrab(ctx, g, stallReason(timeout), blameRelease)}
+	im.log.Warn("importer: download stalled with nothing downloaded past the timeout; failing grabs",
+		"release", group.rows[0].ReleaseTitle, "hash", group.hash, "stalled_for", now.Sub(since).Round(time.Second))
+	failed := make([]failedGrab, 0, len(group.rows))
+	for _, g := range group.rows {
+		// Unlike an absence, nobody seeding a release we can see is a fact about it (#241).
+		failed = append(failed, im.failGrab(ctx, g, stallReason(timeout), blameRelease))
+	}
+	return failed
 }
 
 // stallReason states the observation rather than the inference drawn from it,
