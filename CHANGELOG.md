@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-08-15
+
+Acquisition reliability: the release where a download that goes nowhere stops
+holding its episode, and a release stops being blamed for things that were never
+about it.
+
+A torrent that transfers nothing — a dead swarm, or a magnet that never finds its
+metadata — is now given up on after six hours instead of sitting in the queue
+indefinitely, and the next-best release is tried. One waiting its turn reads
+*Queued* rather than *Downloading · 0%*, and every download shows how long it has
+before it would be abandoned.
+
+The other half is what gets remembered. A torrent vanishing from your download
+client, its files disappearing from disk, or a release published in a format
+Transpondarr cannot follow are all things the release itself was never at fault
+for, and none of them blocks it any more; one torrent now counts as one failure
+however many episodes it covered. Entries recorded under the old rule carry over
+— see the upgrade notes. Separately, an import interrupted mid-transfer no longer
+leaves its temporary file behind in the library.
+
 ### Fixed
 
 - **One failed download is now remembered once, not twice.** A season pack covers
@@ -15,7 +35,6 @@ All notable changes to this project are documented here. The format is based on
   fast, so a release could be blocked for a week on what was really its first
   failure. A pack is now treated as the one download it is, however its episodes
   were added.
-
 - **A download that never gets going no longer holds its episode forever.** A
   torrent that announces fine but finds nobody to download from, and a magnet
   stuck at *Downloading metadata*, both used to sit in the Activity queue
@@ -31,13 +50,11 @@ All notable changes to this project are documented here. The format is based on
   until its first bytes arrive, which is usually seconds and is a magnet's whole
   metadata wait; it is a statement of what would happen if nothing ever came, not
   a sign anything is wrong.
-
 - **A download waiting its turn now reads *Queued*.** Where the Activity queue
   showed it as *Downloading · 0%*, it now says what your client is actually doing
   — which matters most if you cap how many downloads run at once, since those
   rows were indistinguishable from ones that were getting nowhere. A queued
   download is never given up on, however long it waits.
-
 - **An import interrupted mid-transfer no longer leaves a file behind in the
   library forever.** Transpondarr writes to a temporary file beside the
   destination and renames it on completion, so a crash or a restart never leaves
@@ -76,7 +93,6 @@ All notable changes to this project are documented here. The format is based on
   after you upgrade, and its release blocked for a day. That is the point, but if
   you are deliberately holding one, pause it in your download client or set the
   wait to 0 under **Settings → Download client**; either one stops the clock.
-
 - **Releases already blocked under the old rule stay blocked.** Anything recorded
   when a torrent went missing from your download client, or lost its files on
   disk, was blocked for something that was never the release's fault — and those
