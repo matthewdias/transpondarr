@@ -18,6 +18,26 @@ All notable changes to this project are documented here. The format is based on
   alone. This matters most for copy-mode imports, where the leftover is a
   full-sized file, and for upgrades, where it kept the download's disk space
   claimed even after the torrent was removed.
+- **A release is no longer blocked because its torrent went missing.** A download
+  that disappears from the client, or whose files vanish from disk, frees its
+  episode to be searched again as before — but the release itself is no longer
+  remembered as a bad one, because neither says anything about it. A dropped
+  mount or a reset client used to block every release it touched, for a day, a
+  week, or permanently on a third occurrence. A download the client is holding
+  with its data gone now reads *Data missing* in the Activity queue, and the next
+  search moves on to another release rather than retrying the one it cannot
+  deliver. Grabbing such a release by hand now fails outright with a message,
+  where before it reported success and then quietly failed.
+
+### Upgrade notes
+
+- **Releases already blocked under the old rule stay blocked.** Anything recorded
+  when a torrent went missing from your download client, or lost its files on
+  disk, was blocked for something that was never the release's fault — and those
+  entries carry over, including any that had reached the permanent rung. A
+  title's **History** tab lists them under *Blocked releases* with an **Unblock**
+  on each, and **Settings → Failure memory** has a **Forget all** if you would
+  rather start clean. Nothing is recorded that way from now on.
 
 ## [0.8.0] — 2026-08-14
 

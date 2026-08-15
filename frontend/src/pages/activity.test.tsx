@@ -84,6 +84,28 @@ function renderPage() {
 }
 
 describe("ActivityPage", () => {
+  // data_missing is alarming on purpose: we decline to blame the release for it
+  // (#241), leaving the user as the only one who can act. Paused shares the row
+  // shape and is not alarming, so it is what makes the tone assertion mean something.
+  it("flags a download whose data the client has lost, but not a paused one", async () => {
+    useHandlers(
+      {
+        client_ok: true,
+        items: [
+          queueItem({ id: 1, client_state: "data_missing" }),
+          queueItem({ id: 2, client_state: "paused" }),
+        ],
+      },
+      { "": { events: [] } },
+    );
+
+    renderPage();
+
+    expect(await screen.findByText("Data missing")).toBeInTheDocument();
+    expect(screen.getByText("Paused")).toBeInTheDocument();
+    expect(document.querySelectorAll(".text-destructive")).toHaveLength(1);
+  });
+
   it("shows queue rows with live client state and history rows with details", async () => {
     useHandlers(
       {

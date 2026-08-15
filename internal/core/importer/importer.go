@@ -42,7 +42,7 @@ const (
 	statusGrabbed  = "grabbed"         // downloading / awaiting completion
 	statusImported = "imported"        // placed in the library, item marked had
 	statusDeferred = "import_deferred" // completed, but no single episode file could be resolved
-	statusFailed   = "failed"          // the download errored or vanished in the client (terminal)
+	statusFailed   = "failed"          // the download failed or is gone in the client (terminal)
 )
 
 // missingGracePeriod need only cover a client answering before its torrent list
@@ -154,7 +154,14 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 			// Failing frees the items back to wanted, with the failure kept in history.
 			im.log.Warn("importer: download failed in client", "release", group.rows[0].ReleaseTitle, "hash", group.hash)
 			for _, g := range group.rows {
-				failed = append(failed, im.failGrab(ctx, g, "the download client reported an error"))
+				failed = append(failed, im.failGrab(ctx, g, "the download client reported an error", blameRelease))
+			}
+		case download.StateDataMissing:
+			// The client still holds the torrent and its data is gone from disk, so
+			// nothing here is a fact about the release (#241).
+			im.log.Warn("importer: download data missing in client", "release", group.rows[0].ReleaseTitle, "hash", group.hash)
+			for _, g := range group.rows {
+				failed = append(failed, im.failGrab(ctx, g, "the download client no longer has the data", blameNothing))
 			}
 		case download.StateComplete:
 			// Deferred rows were already examined; the same bytes won't resolve
@@ -223,6 +230,15 @@ func (im *Importer) notify(ctx context.Context, ev notify.Event) {
 	}
 }
 
+// blame says whether a failure is evidence about the release (#241). Required at
+// every failGrab call site, so a new one has to state its answer.
+type blame bool
+
+const (
+	blameRelease blame = true
+	blameNothing blame = false
+)
+
 // failedGrab is one row this scan settled as failed, held until the scan can
 // group them by the release they came from.
 type failedGrab struct {
@@ -234,6 +250,7 @@ type failedGrab struct {
 	infoHash     string
 	releaseTitle string
 	reason       string
+	blame        blame
 }
 
 // remember reports and records one entry per failed release, not per failed
@@ -278,7 +295,9 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 			ReleaseTitle: rows[0].releaseTitle,
 			Error:        rows[0].reason,
 		})
-		if im.blocklist == nil {
+		// Reporting is information, remembering is a judgement (#241). A group's
+		// rows come from one path, so the first speaks for all of them.
+		if !rows[0].blame || im.blocklist == nil {
 			continue
 		}
 		items := make([]int64, 0, len(rows))
@@ -346,13 +365,13 @@ func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatus
 
 	im.log.Warn("importer: download gone from client; failing grab",
 		"release", g.ReleaseTitle, "hash", g.InfoHash, "missing_for", now.Sub(since).Round(time.Second))
-	return []failedGrab{im.failGrab(ctx, g, "the download vanished from the client")}
+	return []failedGrab{im.failGrab(ctx, g, "the download vanished from the client", blameNothing)}
 }
 
 // failGrab settles one grab as failed and reports it for the scan to remember
 // (#118). Settling before recording is load-bearing: a grab left in "grabbed"
 // would never free its item.
-func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, reason string) failedGrab {
+func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, reason string, b blame) failedGrab {
 	im.settle(ctx, g, statusFailed, reason)
 	return failedGrab{
 		titleID:      g.TitleID,
@@ -363,6 +382,7 @@ func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, rea
 		infoHash:     g.InfoHash,
 		releaseTitle: g.ReleaseTitle,
 		reason:       reason,
+		blame:        b,
 	}
 }
 
@@ -469,7 +489,7 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 		}
 		// A movie never reaches this: its one item is always covered, so a covered
 		// item with nothing left over needs a sibling row this shape cannot have.
-		failed = append(failed, im.failGrab(ctx, g, "the payload held no file for this episode"))
+		failed = append(failed, im.failGrab(ctx, g, "the payload held no file for this episode", blameRelease))
 	}
 	return failed, details
 }

@@ -206,6 +206,36 @@ func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 	}
 }
 
+// A client already holding this torrent with its data gone refuses the add
+// (#241), so the manual grab reports it rather than returning a 201 whose grab
+// fails moments later. Not a PR #57 gate: eligibility never refuses, and this is
+// the client rejecting the add, exactly as a dead download URL does.
+func TestGrabReportsARefusalWhenTheClientHasLostTheData(t *testing.T) {
+	const url = "magnet:?xt=urn:btih:eeee"
+	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
+		{Title: "[FineSubs] Placeholder Saga S1E03 [1080p]", DownloadURL: url, Seeders: 10},
+	}}
+	dl := &coretest.FakeDownload{FailURLs: map[string]error{
+		url: fmt.Errorf("qbittorrent: add: %w", download.ErrDataMissing),
+	}}
+	h := newHarness(t, idx, dl)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
+
+	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
+		map[string]any{"download_url": url}, nil)
+	if code != http.StatusBadGateway {
+		t.Fatalf("grab status = %d, want 502 — the client refused the add", code)
+	}
+	// No grab row, so nothing settles later and the item stays plainly wanted.
+	grabs, err := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
+	if err != nil {
+		t.Fatalf("list grabs: %v", err)
+	}
+	if len(grabs) != 0 {
+		t.Errorf("grabs = %+v, want none written for a refused add", grabs)
+	}
+}
+
 // An eligible release grabs exactly as before — no acknowledgement, no reason.
 func TestGrabEligibleReleaseUnchanged(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:dddd"

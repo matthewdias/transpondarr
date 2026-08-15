@@ -16,6 +16,10 @@ import (
 // mismarking would blocklist healthy releases (#120).
 var ErrBadRelease = errors.New("download: release could not be resolved")
 
+// ErrDataMissing marks an Add the client already holds but cannot deliver, its
+// data being gone. Not ErrBadRelease: a caller blocklists that one (#241).
+var ErrDataMissing = errors.New("download: the client already holds this torrent and its data is missing")
+
 type AddOutcome string
 
 const (
@@ -61,6 +65,9 @@ const (
 	StateChecking    State = "checking"
 	StatePaused      State = "paused"
 	StateError       State = "error"
+	// The client holds the torrent and reports its data gone from disk — not the
+	// torrent being absent, which has no state because nothing reports one.
+	StateDataMissing State = "data_missing"
 	StateUnknown     State = "unknown"
 )
 

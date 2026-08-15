@@ -29,6 +29,11 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 	if existing, err := c.Status(ctx, hash); err != nil {
 		return download.AddResult{}, err
 	} else if len(existing) > 0 {
+		// Refused only here, where the torrent demonstrably pre-existed our add:
+		// reporting a grab it can never deliver re-grabs the release forever (#241).
+		if existing[0].State == download.StateDataMissing {
+			return download.AddResult{}, fmt.Errorf("qbittorrent: add: %w", download.ErrDataMissing)
+		}
 		return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
 	}
 
@@ -40,9 +45,9 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 	}
 	if err != nil {
 		// The duplicate check above is check-then-act, so a concurrent add of the
-		// same hash can land between it and here and this one loses. Re-check before
-		// reporting failure: converging is right, and the alternative is a caller
-		// that answers by grabbing a different release for the same item.
+		// same hash can land between it and here and this one loses. Converge
+		// unconditionally: our own add may have landed, and refusing here would
+		// orphan it (#134) — a data-missing one is refused by the next pass instead.
 		if existing, rerr := c.Status(ctx, hash); rerr == nil && len(existing) > 0 {
 			return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
 		}
@@ -248,8 +253,10 @@ func mapState(s string) download.State {
 		return download.StateChecking
 	case "pausedDL", "stoppedDL":
 		return download.StatePaused
-	case "error", "missingFiles":
+	case "error":
 		return download.StateError
+	case "missingFiles":
+		return download.StateDataMissing
 	default:
 		return download.StateUnknown
 	}

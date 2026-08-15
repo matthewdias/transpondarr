@@ -27,7 +27,7 @@ type queueItemDTO struct {
 	InfoHash     string   `json:"infohash"`
 	Status       string   `json:"status" enum:"downloading,stuck,deferred"`
 	ImportError  string   `json:"import_error,omitempty" doc:"Why the completed download cannot import (stuck rows)"`
-	ClientState  string   `json:"client_state,omitempty" enum:"downloading,complete,stalled,checking,paused,error,unknown" doc:"Live torrent state; absent when the client is unreachable"`
+	ClientState  string   `json:"client_state,omitempty" enum:"downloading,complete,stalled,checking,paused,error,data_missing,unknown" doc:"Live torrent state; absent when the client is unreachable"`
 	Progress     *float64 `json:"progress,omitempty" minimum:"0" maximum:"1"`
 	CreatedAt    string   `json:"created_at"`
 }
@@ -135,7 +135,7 @@ type retryImportOutput struct {
 type unmatchedItemDTO struct {
 	InfoHash    string  `json:"infohash"`
 	Name        string  `json:"name"`
-	ClientState string  `json:"client_state" enum:"downloading,complete,stalled,checking,paused,error,unknown"`
+	ClientState string  `json:"client_state" enum:"downloading,complete,stalled,checking,paused,error,data_missing,unknown"`
 	Progress    float64 `json:"progress" minimum:"0" maximum:"1"`
 	SavePath    string  `json:"save_path,omitempty"`
 	Size        int64   `json:"size" doc:"Payload size in bytes"`

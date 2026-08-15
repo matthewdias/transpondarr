@@ -91,6 +91,43 @@ func TestAddAlreadyExists(t *testing.T) {
 	}
 }
 
+// Converging on a duplicate assumes the duplicate can still deliver. One whose
+// data is gone never will: a re-add is a no-op, so reporting it as a grab would
+// re-grab the same release every pass and never reach the next-best one (#241).
+func TestAddRefusesADuplicateWhoseDataIsMissing(t *testing.T) {
+	var addCalled bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "test"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/info":
+			_, _ = w.Write([]byte(`[{"hash":"c9e15763f722f23e98a29decdfae341b98d53056","state":"missingFiles"}]`))
+		case "/api/v2/torrents/add":
+			addCalled = true
+			_, _ = w.Write([]byte("Ok."))
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "u", "p")
+	const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056"
+	_, err := c.Add(context.Background(), download.AddOptions{URL: magnet})
+	if !errors.Is(err, download.ErrDataMissing) {
+		t.Fatalf("Add error = %v, want it to report the duplicate's data as missing", err)
+	}
+	// ErrBadRelease is what a caller blocklists on (#120), and this is the
+	// client's disk, not the release.
+	if errors.Is(err, download.ErrBadRelease) {
+		t.Error("refusal classed as the release's fault; it would blocklist a healthy release")
+	}
+	if addCalled {
+		t.Error("add endpoint called for a torrent the client already holds")
+	}
+}
+
 // Duplicate detection is check-then-act, so two concurrent adds of one hash both
 // pass the empty check and one loses at the client. Re-checking after a failed
 // add turns that loser back into convergence rather than an error the caller
@@ -129,6 +166,47 @@ func TestAddConvergesWhenAFailedAddWasADuplicate(t *testing.T) {
 	}
 	if res.Hash != hash {
 		t.Errorf("hash = %q, want %q", res.Hash, hash)
+	}
+}
+
+// The refusal stops at the pre-check arm. Here our own add may be what landed, so
+// refusing would leave a torrent no grab row references -- the orphan this arm
+// exists to prevent (#134). The loop still ends: the next pass finds the torrent
+// pre-existing and refuses there, so converging costs one cycle, not a loop.
+func TestAddConvergesOnADataMissingDuplicateFoundByTheRecheck(t *testing.T) {
+	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
+	var added bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			http.SetCookie(w, &http.Cookie{Name: "SID", Value: "test"})
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/info":
+			// Empty until the racing add lands, present on the post-failure recheck.
+			if added {
+				_, _ = w.Write([]byte(`[{"hash":"` + hash + `","state":"missingFiles"}]`))
+				return
+			}
+			_, _ = w.Write([]byte("[]"))
+		case "/api/v2/torrents/add":
+			added = true
+			w.WriteHeader(http.StatusConflict)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer srv.Close()
+
+	res, err := New(srv.URL, "u", "p").Add(context.Background(),
+		download.AddOptions{URL: "magnet:?xt=urn:btih:" + hash})
+	if err != nil {
+		t.Fatalf("Add: %v, want convergence so the torrent we may have added is not orphaned", err)
+	}
+	if res.Outcome != download.AddAlreadyExists {
+		t.Errorf("outcome = %v, want already-exists", res.Outcome)
+	}
+	if res.Hash != hash {
+		t.Errorf("hash = %q, want %q — the caller writes the grab row against it", res.Hash, hash)
 	}
 }
 
@@ -386,7 +464,7 @@ func TestMapState(t *testing.T) {
 		"checkingDL":   download.StateChecking,
 		"moving":       download.StateChecking,
 		"error":        download.StateError,
-		"missingFiles": download.StateError,
+		"missingFiles": download.StateDataMissing,
 		"wat":          download.StateUnknown,
 	}
 	for in, want := range cases {
