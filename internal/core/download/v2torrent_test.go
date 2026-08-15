@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/zeebo/bencode"
@@ -162,8 +163,14 @@ func TestInfoHashFromMagnetV2Only(t *testing.T) {
 	// 0x12 0x20 is the multihash prefix for a 32-byte sha2-256 digest.
 	magnet := "magnet:?xt=urn:btmh:1220" + hex.EncodeToString(v2[:]) + "&dn=spike"
 
-	if got, err := InfoHashFromMagnet(magnet); err == nil {
-		t.Errorf("InfoHashFromMagnet accepted a v2-only magnet, returning %q", got)
+	got, err := InfoHashFromMagnet(magnet)
+	if err == nil {
+		t.Fatalf("InfoHashFromMagnet accepted a v2-only magnet, returning %q", got)
+	}
+	// Pinned to the reason: a merely malformed magnet errors too, and would keep
+	// this green over a fixture that had stopped being a v2 magnet at all.
+	if !strings.Contains(err.Error(), "no urn:btih info hash") {
+		t.Errorf("error = %v, want the missing-btih refusal", err)
 	}
 }
 
@@ -191,7 +198,14 @@ func TestInfoHashFromMetaV1Control(t *testing.T) {
 func TestWriteSpikeArtifacts(t *testing.T) {
 	dir := os.Getenv("TRANSPONDARR_SPIKE_OUT")
 	if dir == "" {
-		t.Skip("set TRANSPONDARR_SPIKE_OUT=<dir> to write the #165 spike torrents")
+		// -count=1 is load-bearing: a cached pass writes no files, so a rebuild
+		// into an existing directory would report ok and leave stale ones.
+		t.Skip("to write the #165 spike torrents:\n" +
+			`  TRANSPONDARR_SPIKE_OUT=<dir> go test ./internal/core/download/ \` + "\n" +
+			"    -run TestWriteSpikeArtifacts -v -count=1")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("create %s: %v", dir, err)
 	}
 
 	for _, tc := range []struct {
