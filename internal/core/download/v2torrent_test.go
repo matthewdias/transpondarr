@@ -4,6 +4,7 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -107,9 +108,76 @@ func buildV1OnlyMeta(t *testing.T, name string) (meta, rawInfo []byte) {
 	return meta, rawInfo
 }
 
-// TestInfoHashFromMetaV2Only demonstrates #165 without a download client: the
-// hash we derive for a v2-only torrent is neither of the two forms BEP52 says a
-// client can key it by.
+// buildHybridMeta returns metainfo carrying both formats. The payload is exactly
+// two 16 KiB pieces, so v1 pieces and v2 blocks already align and BEP47 padding
+// files — the fiddly part of a hybrid — are not needed.
+func buildHybridMeta(t *testing.T, name string) (meta, rawInfo []byte) {
+	t.Helper()
+	payload := synthPayload()
+	p0 := sha1.Sum(payload[:spikePieceLen])
+	p1 := sha1.Sum(payload[spikePieceLen:])
+	l0 := sha256.Sum256(payload[:spikeBlockSize])
+	l1 := sha256.Sum256(payload[spikeBlockSize:])
+	layer := append(append([]byte{}, l0[:]...), l1[:]...)
+	root := sha256.Sum256(layer)
+
+	rawInfo = bencodeValue(t, map[string]any{
+		"file tree": map[string]any{
+			name: map[string]any{
+				"": map[string]any{
+					"length":      spikePayloadLen,
+					"pieces root": root[:],
+				},
+			},
+		},
+		"length":       spikePayloadLen,
+		"meta version": 2,
+		"name":         name,
+		"piece length": spikePieceLen,
+		"pieces":       append(append([]byte{}, p0[:]...), p1[:]...),
+	})
+	pieceLayers := bencodeValue(t, map[string]any{string(root[:]): layer})
+
+	meta = []byte("d" + bstr("announce") + bstr(spikeAnnounce) +
+		bstr("info") + string(rawInfo) +
+		bstr("piece layers") + string(pieceLayers) + "e")
+	return meta, rawInfo
+}
+
+// TestInfoHashFromMetaHybrid is the guard against over-rejecting: anime trackers
+// publish v1 and hybrid essentially universally, so refusing a hybrid would break
+// the common case in the name of one nobody has yet observed.
+func TestInfoHashFromMetaHybrid(t *testing.T) {
+	meta, rawInfo := buildHybridMeta(t, spikeV2Name)
+
+	// The fixture is only a guard if it really carries both shapes.
+	var info map[string]bencode.RawMessage
+	if err := bencode.DecodeBytes(rawInfo, &info); err != nil {
+		t.Fatalf("decode fixture info dict: %v", err)
+	}
+	for _, k := range []string{"pieces", "file tree", "meta version"} {
+		if _, ok := info[k]; !ok {
+			t.Fatalf("fixture is not hybrid: info dict lacks %q", k)
+		}
+	}
+
+	sum := sha1.Sum(rawInfo)
+	want := hex.EncodeToString(sum[:])
+
+	got, err := InfoHashFromMeta(meta)
+	if err != nil {
+		t.Fatalf("InfoHashFromMeta rejected hybrid metainfo: %v", err)
+	}
+	// Not the control's hash — a different torrent — but the same kind of value,
+	// derived the same way: what a client reports as infohash_v1.
+	if got != want {
+		t.Errorf("got %q, want the SHA-1 of the info dict %q", got, want)
+	}
+}
+
+// TestInfoHashFromMetaV2Only pins #165's fix: the SHA-1 we would derive for a
+// v2-only torrent is neither form BEP52 lets a client key it by, and qBittorrent
+// reports no v1 hash at all for one, so the release is refused instead.
 func TestInfoHashFromMetaV2Only(t *testing.T) {
 	meta, rawInfo := buildV2OnlyMeta(t, spikeV2Name)
 
@@ -132,27 +200,18 @@ func TestInfoHashFromMetaV2Only(t *testing.T) {
 	}
 
 	got, err := InfoHashFromMeta(meta)
-	if err != nil {
-		t.Fatalf("InfoHashFromMeta rejected v2-only metainfo: %v\n"+
-			"FINDING: this contradicts #165, which predicts a silent success", err)
+	if err == nil {
+		v2 := sha256.Sum256(rawInfo)
+		t.Fatalf("InfoHashFromMeta accepted v2-only metainfo, returning %q\n"+
+			"  BEP52 v2 (SHA-256)        %s\n  BEP52 v2 truncated (20B)  %s\n"+
+			"neither of which it matches, so no client will ever report it",
+			got, hex.EncodeToString(v2[:]), hex.EncodeToString(v2[:20]))
 	}
-
-	v1 := sha1.Sum(rawInfo)
-	v2 := sha256.Sum256(rawInfo)
-	wantSHA1 := hex.EncodeToString(v1[:])
-	v2Full := hex.EncodeToString(v2[:])
-	v2Trunc := hex.EncodeToString(v2[:20])
-
-	if got != wantSHA1 {
-		t.Errorf("InfoHashFromMeta = %q, want the SHA-1 of the info dict %q", got, wantSHA1)
+	// Pinned to the cause: malformed metainfo errors too, and would keep this green
+	// over a fixture that had stopped being a v2 torrent at all.
+	if !errors.Is(err, ErrNoV1InfoHash) {
+		t.Errorf("error = %v, want ErrNoV1InfoHash", err)
 	}
-	if got == v2Trunc || got == v2Full {
-		t.Errorf("no divergence: InfoHashFromMeta = %q matches a BEP52 v2 form\n"+
-			"FINDING: this contradicts #165", got)
-	}
-
-	t.Logf("v2-only %s\n  InfoHashFromMeta (SHA-1)  %s\n  BEP52 v2 (SHA-256)        %s\n  BEP52 v2 truncated (20B)  %s",
-		spikeV2Name, got, v2Full, v2Trunc)
 }
 
 // TestInfoHashFromMagnetV2Only pins the contrast #165 draws: the same torrent

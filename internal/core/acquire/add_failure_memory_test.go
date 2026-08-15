@@ -50,6 +50,44 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	}
 }
 
+// A torrent whose format we cannot derive an info hash for is remembered — we
+// cannot use it and retrying would only repeat that — but under its own reason.
+// The blocklist entry is what a user reads to understand why a release was
+// blocked, and this cause is neither the fetch failure the other string names
+// nor anything the download client did wrong (#165).
+func TestSweepRemembersAnUnsupportedTorrentUnderItsOwnReason(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	v2 := episodeRelease("Placeholder Saga", 3)
+	h := newSweep(t, []indexer.Release{v2}, fakeConfig{})
+	// The shape resolveAdd produces: badRelease() wraps whatever InfoHashFromMeta
+	// returned, so the new sentinel rides inside ErrBadRelease rather than replacing
+	// it — which is what keeps AutoGrab recording at all.
+	addErr := fmt.Errorf("%w: %w", download.ErrBadRelease,
+		fmt.Errorf(`%w: its "info" dictionary carries no v1 pieces`, download.ErrNoV1InfoHash))
+	if !errors.Is(addErr, download.ErrBadRelease) || !errors.Is(addErr, download.ErrNoV1InfoHash) {
+		t.Fatalf("the add error must satisfy both sentinels, got %v", addErr)
+	}
+	h.dl.FailURLs = map[string]error{v2.DownloadURL: addErr}
+	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+
+	if len(h.rec.calls) != 1 {
+		t.Fatalf("blocklist records = %d, want the release remembered once", len(h.rec.calls))
+	}
+	got := h.rec.calls[0].reason
+	if got == "the download URL could not be fetched or parsed" {
+		t.Errorf("reason = %q, which misattributes it: the URL fetched and parsed fine", got)
+	}
+	// The client accepted this torrent and is managing it perfectly well, so a
+	// reason blaming it sends the reader to debug the one place nothing is wrong.
+	if got != "the torrent's format is not supported" {
+		t.Errorf("reason = %q, want the unsupported format", got)
+	}
+}
+
 // The loop breaker for a torrent the client holds with its data gone (#241):
 // converging on it would report a grab that can never deliver, so the same
 // release would rank first and "grab" every pass forever. Refusing the add makes

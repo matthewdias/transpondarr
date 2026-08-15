@@ -28,6 +28,14 @@ All notable changes to this project are documented here. The format is based on
   search moves on to another release rather than retrying the one it cannot
   deliver. Grabbing such a release by hand now fails outright with a message,
   where before it reported success and then quietly failed.
+- **A release in a torrent format Transpondarr does not support is refused when
+  it is grabbed, instead of failing quietly afterwards.** A download published in
+  the newer BitTorrent v2 format alone was handed to qBittorrent and accepted
+  normally, but Transpondarr had no way to follow it from there, so it sat
+  unaccounted for until the grace period expired — then it was marked failed and
+  the release was blocked for something that was never wrong with it. One is now
+  passed over at grab time and the next release is tried instead, and the reason
+  recorded against it says what actually happened.
 
 ### Upgrade notes
 
