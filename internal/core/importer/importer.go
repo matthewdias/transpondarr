@@ -379,9 +379,8 @@ func (im *Importer) openGrabs(ctx context.Context) ([]db.ListGrabsByStatusRow, e
 	return append(grabbed, deferred...), nil
 }
 
-// clock is one of the two timers a group's rows share. Addressing the column
-// through a reader and a writer keeps "stalled_since mirrors missing_since"
-// structural, rather than a claim two near-identical functions have to keep.
+// clock is one of the two timers a group's rows share. A reader and a writer keep
+// "stalled_since mirrors missing_since" structural rather than a claim to uphold.
 type clock struct {
 	column string
 	read   func(db.ListGrabsByStatusRow) sql.NullString
@@ -401,11 +400,7 @@ var (
 	}
 )
 
-// sharedSince returns when a group's clock started, converging every row on it.
-// A pack is one torrent, so a row a later add wrote inherits the group's
-// earliest stamp instead of starting its own — which would settle it in a later
-// scan and take a second blocklist rung for one incident (#247). Reports false
-// when no row carried a readable stamp: the clock starts now and only watches.
+// sharedSince returns when a group's clock started, converging every row on it (#247).
 func (im *Importer) sharedSince(ctx context.Context, c clock, rows []db.ListGrabsByStatusRow, now time.Time) (time.Time, bool) {
 	var since time.Time
 	var earliest string
@@ -434,8 +429,7 @@ func (im *Importer) sharedSince(ctx context.Context, c clock, rows []db.ListGrab
 		since, earliest = now, store.FormatTimestamp(now)
 	}
 	for _, g := range rows {
-		// Written, not merely computed: the Activity queue renders each row's own
-		// column, so a divergent value shows a countdown that will not happen.
+		// Written, not merely computed: Activity renders each row's own column.
 		if v := c.read(g); !v.Valid || v.String != earliest {
 			c.write(im, ctx, g.ID, sql.NullString{String: earliest, Valid: true})
 		}

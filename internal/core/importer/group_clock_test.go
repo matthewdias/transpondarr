@@ -14,6 +14,9 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
+// TestKeepsStallClockAcrossScans and TestKeepsGrabWhileAbsenceIsWithinGracePeriod
+// are not subsumed here: they pin a stamp surviving a scan, not just uniformity.
+
 // seedPack creates one title covered by a pack: an item per number, each with a
 // grab row on the same hash, which is the shape groupByHash buckets.
 func seedPack(t *testing.T, st *store.Store, hash string, numbers ...int) int64 {
