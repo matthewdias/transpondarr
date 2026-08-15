@@ -124,6 +124,16 @@ describe("ActivityPage", () => {
             abandon_at: inFourHours,
           }),
           queueItem({ id: 2, client_state: "stalled", progress: 0.4 }),
+          // A wait past countdownOrDate's week-long cliff renders a date, which
+          // reads as a sentence only with a preposition the countdown omits.
+          queueItem({
+            id: 3,
+            client_state: "stalled",
+            progress: 0,
+            abandon_at: new Date(
+              Date.now() + 10 * 24 * 3600 * 1000,
+            ).toISOString(),
+          }),
         ],
       },
       { "": { events: [] } },
@@ -132,10 +142,12 @@ describe("ActivityPage", () => {
     renderPage();
 
     expect(await screen.findByText(/giving up in 4h/)).toBeInTheDocument();
-    expect(screen.getAllByText("Stalled")).toHaveLength(2);
-    // One deadline, on the row that has one: a stall with bytes on disk is not
-    // going to be given up on however long it sits.
-    expect(screen.getAllByText(/giving up/)).toHaveLength(1);
+    // The date itself is the runner's locale; the preposition is what is pinned.
+    expect(screen.getByText(/giving up on /)).toBeInTheDocument();
+    expect(screen.getAllByText("Stalled")).toHaveLength(3);
+    // Two deadlines, on the two rows that have one: a stall with bytes on disk
+    // is not going to be given up on however long it sits.
+    expect(screen.getAllByText(/giving up/)).toHaveLength(2);
   });
 
   it("shows queue rows with live client state and history rows with details", async () => {

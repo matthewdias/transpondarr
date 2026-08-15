@@ -331,19 +331,34 @@ func TestStallTimeoutIsReadEachScan(t *testing.T) {
 }
 
 // Zero disables the timeout rather than making it instant, so an install that
-// wants today's behaviour keeps it.
-func TestStallTimeoutZeroNeverGivesUp(t *testing.T) {
+// wants today's behaviour keeps it -- and it banks no time while off, or
+// restoring a timeout would fail on the next scan what it was set to 0 to hold.
+// Holding a download by pausing it and by turning the timeout off must agree.
+func TestStallTimeoutZeroNeverGivesUpAndBanksNoTime(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
 	backdateStalledSince(t, st, "abc", 30*24*time.Hour)
+	policy := &stallAfter{}
 	dl := &coretest.FakeDownload{Statuses: []download.Status{stalled("abc", 0)}}
+	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil,
+		WithStallPolicy(policy))
 
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil,
-		WithStallPolicy(&stallAfter{})).ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-
-	if g := grabByHash(t, st, "abc"); g.Status != statusGrabbed {
+	g := grabByHash(t, st, "abc")
+	if g.Status != statusGrabbed {
 		t.Errorf("status = %q, want still grabbed: a zero timeout never gives up", g.Status)
+	}
+	if g.StalledSince.Valid {
+		t.Errorf("stalled_since = %q, want cleared while the timeout is off", g.StalledSince.String)
+	}
+
+	policy.d = 6 * time.Hour // restored a month later
+	if err := im.ScanOnce(context.Background()); err != nil {
+		t.Fatalf("second scan: %v", err)
+	}
+	if g := grabByHash(t, st, "abc"); g.Status != statusGrabbed {
+		t.Errorf("status = %q, want still grabbed: restoring the timeout starts a fresh window", g.Status)
 	}
 }

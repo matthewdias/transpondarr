@@ -66,9 +66,8 @@ type Recorder interface {
 	Record(ctx context.Context, titleID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }
 
-// StallPolicy supplies how long a download may sit stalled with nothing
-// downloaded before its grab is failed (satisfied by *settings.Service). Read
-// per scan, so an edit applies on the next tick; zero never gives up.
+// StallPolicy supplies how long a download may sit stalled having transferred
+// nothing before its grab is failed (satisfied by *settings.Service).
 type StallPolicy interface {
 	StallTimeout() time.Duration
 }
@@ -99,9 +98,8 @@ type Importer struct {
 	mu sync.Mutex
 }
 
-// Option configures an Importer dependency that has a usable default. Unlike
-// failGrab's blame (#243), which is a per-call judgement a required argument
-// forces every call site to state, these are the same on every scan.
+// Option configures a dependency that is the same on every scan and has a
+// default -- unlike failGrab's blame (#243), a per-call judgement no site may skip.
 type Option func(*Importer)
 
 // WithStallPolicy supplies the stall timeout. Without it the default applies.
@@ -179,7 +177,7 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 				// Clear it, so a later absence is measured from itself, not from this one.
 				im.setMissingSince(ctx, g.ID, sql.NullString{})
 			}
-			if g.StalledSince.Valid && !stalledAtZero(st) {
+			if g.StalledSince.Valid && !st.StalledAtZero() {
 				// Progress moved, or the torrent is no longer stalled: a later stall
 				// is measured from itself.
 				im.setStalledSince(ctx, g.ID, sql.NullString{})
@@ -200,7 +198,7 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 				failed = append(failed, im.failGrab(ctx, g, "the download client no longer has the data", blameNothing))
 			}
 		case download.StateStalled:
-			if !stalledAtZero(st) {
+			if !st.StalledAtZero() {
 				continue
 			}
 			for _, g := range group.rows {
@@ -411,21 +409,18 @@ func (im *Importer) reconcileMissing(ctx context.Context, g db.ListGrabsByStatus
 	return []failedGrab{im.failGrab(ctx, g, "the download vanished from the client", blameNothing)}
 }
 
-// stalledAtZero is the only shape the stall timeout may act on (#242). Strictly
-// above zero is exempt: a torrent that moved at all proves a peer had the data,
-// and those bytes are the user's to discard, where a percentage threshold would
-// draw a line nothing supports.
-func stalledAtZero(st download.Status) bool {
-	return st.State == download.StateStalled && st.Progress == 0
-}
-
 // reconcileStalled fails a grab whose torrent has sat stalled with nothing
 // downloaded for longer than the configured timeout; a first sighting only
 // starts the clock. It returns what it failed, empty while it is only watching.
 func (im *Importer) reconcileStalled(ctx context.Context, g db.ListGrabsByStatusRow, now time.Time) []failedGrab {
 	timeout := im.stallTimeout()
 	if timeout <= 0 {
-		return nil // configured never to give up
+		// Off means off: a banked clock would fail the grab on the very next scan
+		// after the timeout was restored, where pausing gives it a fresh window.
+		if g.StalledSince.Valid {
+			im.setStalledSince(ctx, g.ID, sql.NullString{})
+		}
+		return nil
 	}
 	if !g.StalledSince.Valid {
 		im.log.Info("importer: download stalled with nothing downloaded; watching",
@@ -455,15 +450,7 @@ func (im *Importer) reconcileStalled(ctx context.Context, g db.ListGrabsByStatus
 // stallReason states the observation rather than the inference drawn from it,
 // and carries the timeout so the entry stays true if that is changed later.
 func stallReason(timeout time.Duration) string {
-	return "the download stalled at 0% for " + humanHours(timeout)
-}
-
-// humanHours renders a timeout the way it is configured: whole hours.
-func humanHours(d time.Duration) string {
-	if rem := d % time.Hour; rem != 0 {
-		return fmt.Sprintf("%dh%dm", d/time.Hour, rem/time.Minute)
-	}
-	return fmt.Sprintf("%dh", d/time.Hour)
+	return fmt.Sprintf("the download stalled at 0%% for %dh", timeout/time.Hour)
 }
 
 // failGrab settles one grab as failed and reports it for the scan to remember

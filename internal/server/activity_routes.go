@@ -274,9 +274,12 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 				item.ClientState = string(s.State)
 				p := s.Progress
 				item.Progress = &p
-			}
-			if at, ok := abandonAt(g.StalledSince, stallTimeout); ok {
-				item.AbandonAt = at.UTC().Format(time.RFC3339)
+				// Keyed on the live status, not the stamp alone: a stalled torrent that
+				// then goes absent is settled on the grace period instead, so its stall
+				// deadline stops being what will happen.
+				if at, ok := abandonAt(s, g.StalledSince, stallTimeout); ok {
+					item.AbandonAt = at.UTC().Format(time.RFC3339)
+				}
 			}
 			out.Body.Items = append(out.Body.Items, item)
 		}
@@ -341,11 +344,11 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 	})
 }
 
-// abandonAt is when a stall the importer is counting will fail its grab. No
-// stamp or a disabled timeout means nothing is coming, and the row says nothing
-// rather than inventing a deadline.
-func abandonAt(stalledSince sql.NullString, timeout time.Duration) (time.Time, bool) {
-	if !stalledSince.Valid || timeout <= 0 {
+// abandonAt is when a stall the importer is counting will fail its grab. A
+// torrent that is no longer stalled, no stamp, or a disabled timeout all mean
+// nothing is coming, and the row says nothing rather than inventing a deadline.
+func abandonAt(s download.Status, stalledSince sql.NullString, timeout time.Duration) (time.Time, bool) {
+	if !s.StalledAtZero() || !stalledSince.Valid || timeout <= 0 {
 		return time.Time{}, false
 	}
 	since, err := store.ParseTimestamp(stalledSince.String)

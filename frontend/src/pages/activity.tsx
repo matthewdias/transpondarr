@@ -180,9 +180,12 @@ const clientStateLabel: Record<string, string> = {
 
 // The deadline can pass between import scans, where a countdown would read "in
 // 0m" and an absolute date would read like a plan rather than an imminent one.
+// Past countdownOrDate's own week-long cliff it renders a bare date, which needs
+// the preposition a countdown does not.
 function abandonLabel(at: string): string {
   const secs = (parseTimestamp(at) - Date.now()) / 1000;
-  return secs <= 0 ? "giving up shortly" : `giving up ${countdownOrDate(at)}`;
+  if (secs <= 0) return "giving up shortly";
+  return `giving up ${secs >= 7 * 86400 ? "on " : ""}${countdownOrDate(at)}`;
 }
 
 function QueueRow({ item }: { item: QueueItem }) {

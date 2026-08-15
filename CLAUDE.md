@@ -272,17 +272,30 @@ Behaviour changes are test-driven. Work red → green → refactor:
   threshold would draw a line nothing supports. `stalled_since` mirrors
   `missing_since` (stamped on the first qualifying observation, cleared the
   moment progress moves), the timeout is `download.stall_hours` — client-agnostic
-  policy, hence not `qbit.*` — and 0 disables it. It is `blameRelease`, unlike
-  #241's absence: nobody seeding a release we can see is a fact about it, and
-  without the memory the sweep re-picks the same first-ranked release and loops.
-  Two things bound the fan-out a VPN drop causes, and both are load-bearing:
-  every such failure runs through `blocklist.Record`, so #120's breaker blames
-  four items and suppresses the rest, and only a torrent that never received a
-  byte qualifies at all. `StatePaused` is deliberate user intent and
-  `StateUnknown` is a gap in `mapState`, so neither reaches the arm; `queuedDL`
-  maps to `StateDownloading`, so a torrent waiting behind others is never one
-  either. The queue's `abandon_at` is the part `client_state: stalled` could not
-  say — that we are going to act, and when.
+  policy, hence not `qbit.*` — and 0 both disables it and **clears the stamp**,
+  so the two ways of holding a download deliberately agree: pausing and switching
+  the timeout off both give a fresh window rather than banking the wait. It is
+  `blameRelease`, unlike #241's absence: nobody seeding a release we can see is a
+  fact about it, and without the memory the sweep re-picks the same first-ranked
+  release and loops. Two things bound the fan-out a VPN drop causes, and both are
+  load-bearing: every such failure runs through `blocklist.Record`, so #120's
+  breaker blames four items and suppresses the rest, and only a torrent that
+  never received a byte qualifies at all.
+  **The trigger is the client saying `stalled`, which is narrower than "stuck".**
+  `StatePaused` is deliberate user intent and `StateUnknown` is a gap in
+  `mapState`, so neither reaches the arm; `queuedDL` maps to `StateDownloading`,
+  so a torrent waiting behind others is never one either — but so does `metaDL`,
+  which is a magnet whose swarm never answered, and that one *is* stuck and is
+  not covered. **Between the two timers absence wins by construction**: the
+  `!ok` branch `continue`s before the state switch, so a torrent that goes
+  missing is settled on the 5-minute grace and the stall clock never gets a say.
+  The queue's `abandon_at` is the part `client_state: stalled` could not say —
+  that we are going to act, and when — and it is therefore keyed on the *live*
+  status as well as the stamp, which outlives the stall by up to one scan. Its
+  countdown is stale for as long as the tab is open, not for one poll: a queue of
+  only stalled rows serializes byte-identically, so React Query's structural
+  sharing re-renders nothing (#144's class, and `activity.tsx` is a third call
+  site for that audit).
 - **A batch is matched, eligible, and preferred on coverage (#126).** #125
   refused a pack in `ineligibleReason` because the importer could only *defer* a
   multi-episode payload; per-file import removed the reason, so the refusal is
