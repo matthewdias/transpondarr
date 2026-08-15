@@ -23,6 +23,7 @@ type downloadSettingsDTO struct {
 	User        string `json:"user"`
 	Category    string `json:"category"`
 	PasswordSet bool   `json:"password_set"`
+	StallHours  int    `json:"stall_hours" doc:"Hours a download may sit stalled having downloaded nothing before its grab fails; 0 never gives up"`
 }
 
 type indexerSettingsDTO struct {
@@ -107,6 +108,7 @@ func downloadDTO(c settings.DownloadConfig) downloadSettingsDTO {
 		User:        c.User,
 		Category:    c.Category,
 		PasswordSet: c.Password != "",
+		StallHours:  c.StallHours,
 	}
 }
 
@@ -195,6 +197,9 @@ type downloadInput struct {
 		User     string `json:"user,omitempty"`
 		Password string `json:"password,omitempty" doc:"Leave empty to keep the stored password"`
 		Category string `json:"category,omitempty"`
+		// Required, by automationInput's rule: 0 is the deliberate "never give
+		// up", which omitempty could not tell from an absent field.
+		StallHours int `json:"stall_hours" minimum:"0" doc:"Hours a download may sit stalled having downloaded nothing before its grab fails; 0 never gives up"`
 	}
 }
 
@@ -428,10 +433,11 @@ func (h *settingsHandler) getSettings(_ context.Context, _ *struct{}) (*settings
 
 func (h *settingsHandler) updateDownload(ctx context.Context, in *downloadInput) (*settingsOutput, error) {
 	if err := h.settings.UpdateDownload(ctx, settings.DownloadConfig{
-		URL:      in.Body.URL,
-		User:     in.Body.User,
-		Password: in.Body.Password,
-		Category: in.Body.Category,
+		URL:        in.Body.URL,
+		User:       in.Body.User,
+		Password:   in.Body.Password,
+		Category:   in.Body.Category,
+		StallHours: in.Body.StallHours,
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to save download settings", err)
 	}

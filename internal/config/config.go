@@ -34,6 +34,10 @@ type Config struct {
 	// identity — the pipeline keys torrents on their info hash (see internal/store
 	// grabs), so clients without a category concept still work.
 	QbitCategory string
+	// StallTimeoutHours is how long a download may sit stalled with nothing
+	// downloaded before its grab is failed. Empty means the default; "0" never
+	// gives up. Not a Qbit* value: it is client-agnostic policy.
+	StallTimeoutHours string
 
 	// Torznab indexer (optional). A single endpoint for v1 — pointing it at a
 	// Prowlarr aggregate feed already fans out across many trackers. When
@@ -93,6 +97,7 @@ func Load() (*Config, error) {
 	c.QbitUser = os.Getenv("TRANSPONDARR_QBIT_USER")
 	c.QbitPassword = os.Getenv("TRANSPONDARR_QBIT_PASSWORD")
 	c.QbitCategory = getenv("TRANSPONDARR_QBIT_CATEGORY", "transpondarr")
+	c.StallTimeoutHours = os.Getenv("TRANSPONDARR_STALL_TIMEOUT_HOURS")
 
 	c.TorznabName = getenv("TRANSPONDARR_TORZNAB_NAME", "torznab")
 	c.TorznabURL = os.Getenv("TRANSPONDARR_TORZNAB_URL")

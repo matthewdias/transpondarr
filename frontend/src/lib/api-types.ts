@@ -1155,6 +1155,11 @@ export interface components {
             category?: string;
             /** @description Leave empty to keep the stored password */
             password?: string;
+            /**
+             * Format: int64
+             * @description Hours a download may sit stalled having downloaded nothing before its grab fails; 0 never gives up
+             */
+            stall_hours: number;
             url?: string;
             user?: string;
         };
@@ -1162,6 +1167,11 @@ export interface components {
             category: string;
             configured: boolean;
             password_set: boolean;
+            /**
+             * Format: int64
+             * @description Hours a download may sit stalled having downloaded nothing before its grab fails; 0 never gives up
+             */
+            stall_hours: number;
             url: string;
             user: string;
         };
@@ -1612,6 +1622,8 @@ export interface components {
             upgrades_enabled: boolean;
         };
         QueueItemDTO: {
+            /** @description RFC3339; when a stall that has downloaded nothing will be given up on. Absent unless one is being counted */
+            abandon_at?: string;
             /**
              * @description Live torrent state; absent when the client is unreachable
              * @enum {string}

@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/blocklist"
+	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/importer"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
@@ -29,6 +31,7 @@ type queueItemJSON struct {
 	ImportError  string   `json:"import_error"`
 	ClientState  string   `json:"client_state"`
 	Progress     *float64 `json:"progress"`
+	AbandonAt    string   `json:"abandon_at"`
 	CreatedAt    string   `json:"created_at"`
 }
 
@@ -122,6 +125,53 @@ func TestActivityQueueReportsOpenGrabsWithClientState(t *testing.T) {
 	}
 	if f := byID[deferred.ID]; f.Status != "deferred" {
 		t.Errorf("deferred row status = %q, want deferred", f.Status)
+	}
+}
+
+// A stalled row already reads as stalled; what it cannot say is that we are
+// going to act on it and when, which is the part abandon_at adds (#242).
+func TestActivityQueueReportsWhenAStallWillBeGivenUpOn(t *testing.T) {
+	dl := &coretest.FakeDownload{Statuses: []download.Status{
+		{Hash: "h1", State: download.StateStalled, Progress: 0},
+		{Hash: "h2", State: download.StateDownloading, Progress: 0.3},
+	}}
+	h := newHarness(t, nil, dl)
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 2)
+
+	stalledGrab := seedOpenGrab(t, h.store, titleID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
+	healthy := seedOpenGrab(t, h.store, titleID, 2, "h2", "[ExampleSubs] Placeholder Saga - 02 [1080p]", "grabbed")
+	stalledFor := 2 * time.Hour
+	if err := h.store.Q.SetGrabStalledSince(context.Background(), db.SetGrabStalledSinceParams{
+		StalledSince: sql.NullString{String: store.FormatTimestamp(time.Now().Add(-stalledFor)), Valid: true},
+		ID:           stalledGrab.ID,
+	}); err != nil {
+		t.Fatalf("set stalled_since: %v", err)
+	}
+
+	var got queueJSON
+	if code := h.get(t, "/api/v1/activity/queue", &got); code != http.StatusOK {
+		t.Fatalf("queue status = %d, want 200", code)
+	}
+	byID := map[int64]queueItemJSON{}
+	for _, it := range got.Items {
+		byID[it.ID] = it
+	}
+
+	s := byID[stalledGrab.ID]
+	if s.AbandonAt == "" {
+		t.Fatal("abandon_at is empty for a stall the importer is counting")
+	}
+	at, err := time.Parse(time.RFC3339, s.AbandonAt)
+	if err != nil {
+		t.Fatalf("abandon_at %q is not RFC3339: %v", s.AbandonAt, err)
+	}
+	// The default timeout, measured from the stall rather than from now.
+	want := time.Now().Add(domain.DefaultStallHours*time.Hour - stalledFor)
+	if d := at.Sub(want); d > time.Minute || d < -time.Minute {
+		t.Errorf("abandon_at = %v, want about %v (the stall's own clock, not this request's)", at, want)
+	}
+	if h := byID[healthy.ID]; h.AbandonAt != "" {
+		t.Errorf("abandon_at = %q for a healthy download, want empty: nothing is going to happen to it", h.AbandonAt)
 	}
 }
 

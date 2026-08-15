@@ -29,6 +29,7 @@ function settings(automation: Settings["automation"]): Settings {
       user: "",
       password_set: false,
       category: "",
+      stall_hours: 6,
     },
     indexer: {
       configured: false,

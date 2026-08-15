@@ -106,6 +106,38 @@ describe("ActivityPage", () => {
     expect(document.querySelectorAll(".text-destructive")).toHaveLength(1);
   });
 
+  // A stalled row can already say it is stalled; what it cannot say is that we
+  // are going to give up on it and when (#242). A stall with bytes on disk
+  // carries no deadline, and is what makes the countdown assertion mean something.
+  it("says when a stalled download will be given up on", async () => {
+    // Half an hour past the boundary: the countdown floors, so an exact 4h would
+    // have elapsed into "in 3h" by the time it rendered.
+    const inFourHours = new Date(Date.now() + 4.5 * 3600 * 1000).toISOString();
+    useHandlers(
+      {
+        client_ok: true,
+        items: [
+          queueItem({
+            id: 1,
+            client_state: "stalled",
+            progress: 0,
+            abandon_at: inFourHours,
+          }),
+          queueItem({ id: 2, client_state: "stalled", progress: 0.4 }),
+        ],
+      },
+      { "": { events: [] } },
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/giving up in 4h/)).toBeInTheDocument();
+    expect(screen.getAllByText("Stalled")).toHaveLength(2);
+    // One deadline, on the row that has one: a stall with bytes on disk is not
+    // going to be given up on however long it sits.
+    expect(screen.getAllByText(/giving up/)).toHaveLength(1);
+  });
+
   it("shows queue rows with live client state and history rows with details", async () => {
     useHandlers(
       {

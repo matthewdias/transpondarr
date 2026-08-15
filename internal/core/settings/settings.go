@@ -46,18 +46,21 @@ const APIKeySettingKey = "api.key"
 
 // Setting keys persisted in the settings table.
 const (
-	keyQbitURL           = "qbit.url"
-	keyQbitUser          = "qbit.user"
-	keyQbitPassword      = "qbit.password"
-	keyQbitCategory      = "qbit.category"
-	keyTorznabName       = "torznab.name"
-	keyTorznabURL        = "torznab.url"
-	keyTorznabAPIKey     = "torznab.apikey"
-	keyTorznabCategories = "torznab.categories"
-	keyLibraryDir        = "library.dir"
-	keyLibraryMoviesDir  = "library.movies_dir"
-	keyLibraryLayout     = "library.series_layout"
-	keyLibraryMode       = "library.import_mode"
+	keyQbitURL      = "qbit.url"
+	keyQbitUser     = "qbit.user"
+	keyQbitPassword = "qbit.password"
+	keyQbitCategory = "qbit.category"
+	// Client-agnostic policy rather than one adapter's connection, so it is not
+	// spelled qbit.* like the four keys above it.
+	keyDownloadStallHours = "download.stall_hours"
+	keyTorznabName        = "torznab.name"
+	keyTorznabURL         = "torznab.url"
+	keyTorznabAPIKey      = "torznab.apikey"
+	keyTorznabCategories  = "torznab.categories"
+	keyLibraryDir         = "library.dir"
+	keyLibraryMoviesDir   = "library.movies_dir"
+	keyLibraryLayout      = "library.series_layout"
+	keyLibraryMode        = "library.import_mode"
 
 	keyAutomationEnabled  = "automation.enabled"
 	keyAutomationPinDelay = "automation.pin_delay_hours"
@@ -87,12 +90,15 @@ const (
 	defaultNtfyServer  = "https://ntfy.sh"
 )
 
-// DownloadConfig is the qBittorrent client configuration.
+// DownloadConfig is the qBittorrent client configuration, plus the one download
+// policy that is not the client's: StallHours is how long a download may sit
+// stalled with nothing downloaded before its grab is failed, 0 meaning never.
 type DownloadConfig struct {
-	URL      string
-	User     string
-	Password string
-	Category string
+	URL        string
+	User       string
+	Password   string
+	Category   string
+	StallHours int
 }
 
 // IndexerConfig is the Torznab indexer configuration. Categories is the
@@ -264,6 +270,8 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	overlay(m, keyQbitUser, &cfg.dl.User)
 	overlay(m, keyQbitPassword, &cfg.dl.Password)
 	overlay(m, keyQbitCategory, &cfg.dl.Category)
+	stallHours := base.StallTimeoutHours
+	overlay(m, keyDownloadStallHours, &stallHours)
 	overlay(m, keyTorznabName, &cfg.idx.Name)
 	overlay(m, keyTorznabURL, &cfg.idx.URL)
 	overlay(m, keyTorznabAPIKey, &cfg.idx.APIKey)
@@ -285,6 +293,7 @@ func New(ctx context.Context, st *store.Store, base *config.Config, reg *clients
 	overlay(m, keyAutomationEnabled, &automation)
 	overlay(m, keyAutomationPinDelay, &pinDelay)
 
+	cfg.dl.StallHours = parseStallHours(stallHours, log)
 	cfg.dl.applyDefaults()
 	cfg.idx.applyDefaults()
 	cfg.lib.applyDefaults()
@@ -348,6 +357,13 @@ func (s *Service) Snapshot() Snapshot {
 // DownloadCategory returns the category applied to grabbed torrents.
 func (s *Service) DownloadCategory() string { return s.cur.Load().dl.Category }
 
+// StallTimeout is how long a download may sit stalled with nothing downloaded
+// before the importer fails its grab; zero never does. Read per scan, so an edit
+// applies on the next tick without a restart.
+func (s *Service) StallTimeout() time.Duration {
+	return domain.StallTimeout(int64(s.cur.Load().dl.StallHours))
+}
+
 // AutomationEnabled reports whether unattended work may run at all — true in
 // notify-only too, where the jobs run but rehearse. Every job reads it per run,
 // so UpdateAutomation takes effect on the next tick without a restart.
@@ -381,6 +397,26 @@ func parseMode(v string, log *slog.Logger) AutomationMode {
 		}
 		return AutomationOff
 	}
+}
+
+// parseStallHours degrades like parseMode and parseHours, but an unset value is
+// the default rather than 0: 0 is the deliberate "never give up", which nobody
+// should reach by leaving a key blank.
+func parseStallHours(v string, log *slog.Logger) int {
+	t := strings.TrimSpace(v)
+	if t == "" {
+		return domain.DefaultStallHours
+	}
+	h, err := strconv.Atoi(t)
+	if err != nil {
+		log.Warn("ignoring unparseable download setting", "key", keyDownloadStallHours, "value", v)
+		return domain.DefaultStallHours
+	}
+	if h > domain.MaxStallHours {
+		log.Warn("clamping download setting to its maximum",
+			"key", keyDownloadStallHours, "value", v, "max_hours", domain.MaxStallHours)
+	}
+	return int(domain.ClampStallHours(int64(h)))
 }
 
 func parseHours(v string, log *slog.Logger) int {
@@ -437,12 +473,16 @@ func (s *Service) UpdateDownload(ctx context.Context, in DownloadConfig) error {
 		in.Password = cur.dl.Password
 	}
 	in.applyDefaults()
+	// Clamped before persisting, so a reload agrees with the live state rather
+	// than re-clamping (the UpdateAutomation rule).
+	in.StallHours = int(domain.ClampStallHours(int64(in.StallHours)))
 
 	if err := s.persist(ctx, map[string]string{
-		keyQbitURL:      in.URL,
-		keyQbitUser:     in.User,
-		keyQbitPassword: in.Password,
-		keyQbitCategory: in.Category,
+		keyQbitURL:            in.URL,
+		keyQbitUser:           in.User,
+		keyQbitPassword:       in.Password,
+		keyQbitCategory:       in.Category,
+		keyDownloadStallHours: strconv.Itoa(in.StallHours),
 	}); err != nil {
 		return err
 	}

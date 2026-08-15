@@ -17,6 +17,7 @@ type Grab struct {
 	CreatedAt    string         `json:"created_at"`
 	MissingSince sql.NullString `json:"missing_since"`
 	LastError    sql.NullString `json:"last_error"`
+	StalledSince sql.NullString `json:"stalled_since"`
 }
 
 type GrabEvent struct {

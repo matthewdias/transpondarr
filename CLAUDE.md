@@ -263,6 +263,26 @@ Behaviour changes are test-driven. Work red → green → refactor:
   defends against cannot arise from absence at all. The posture behind it: this
   app disassociates a torrent from the library and never removes or deletes one
   on its own, because the download client is the user's disk and their ratio.
+- **A stall at exactly 0% is the one absence-shaped thing that *is* the
+  release's (#242).** A `stalledDL` torrent is *present*, so it reached neither
+  `reconcileMissing` nor `StateError` and sat open forever — the doomed release
+  #118 built the blocklist for, unreachable by it. **Progress is the
+  discriminator, strictly `> 0`**: a torrent that moved at all proves a peer had
+  the data, so those bytes are the user's to discard, where a percentage
+  threshold would draw a line nothing supports. `stalled_since` mirrors
+  `missing_since` (stamped on the first qualifying observation, cleared the
+  moment progress moves), the timeout is `download.stall_hours` — client-agnostic
+  policy, hence not `qbit.*` — and 0 disables it. It is `blameRelease`, unlike
+  #241's absence: nobody seeding a release we can see is a fact about it, and
+  without the memory the sweep re-picks the same first-ranked release and loops.
+  Two things bound the fan-out a VPN drop causes, and both are load-bearing:
+  every such failure runs through `blocklist.Record`, so #120's breaker blames
+  four items and suppresses the rest, and only a torrent that never received a
+  byte qualifies at all. `StatePaused` is deliberate user intent and
+  `StateUnknown` is a gap in `mapState`, so neither reaches the arm; `queuedDL`
+  maps to `StateDownloading`, so a torrent waiting behind others is never one
+  either. The queue's `abandon_at` is the part `client_state: stalled` could not
+  say — that we are going to act, and when.
 - **A batch is matched, eligible, and preferred on coverage (#126).** #125
   refused a pack in `ineligibleReason` because the importer could only *defer* a
   multi-episode payload; per-file import removed the reason, so the refusal is

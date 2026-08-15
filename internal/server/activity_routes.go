@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/importer"
+	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
@@ -29,6 +31,7 @@ type queueItemDTO struct {
 	ImportError  string   `json:"import_error,omitempty" doc:"Why the completed download cannot import (stuck rows)"`
 	ClientState  string   `json:"client_state,omitempty" enum:"downloading,complete,stalled,checking,paused,error,data_missing,unknown" doc:"Live torrent state; absent when the client is unreachable"`
 	Progress     *float64 `json:"progress,omitempty" minimum:"0" maximum:"1"`
+	AbandonAt    string   `json:"abandon_at,omitempty" doc:"RFC3339; when a stall that has downloaded nothing will be given up on. Absent unless one is being counted"`
 	CreatedAt    string   `json:"created_at"`
 }
 
@@ -235,6 +238,12 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 			}
 		}
 
+		// settings is nil only on the OpenAPI-dump path, where no handler runs.
+		var stallTimeout time.Duration
+		if deps.settings != nil {
+			stallTimeout = deps.settings.StallTimeout()
+		}
+
 		out := &activityQueueOutput{}
 		out.Body.ClientOk = clientOk
 		out.Body.Items = make([]queueItemDTO, 0, len(rows))
@@ -265,6 +274,9 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 				item.ClientState = string(s.State)
 				p := s.Progress
 				item.Progress = &p
+			}
+			if at, ok := abandonAt(g.StalledSince, stallTimeout); ok {
+				item.AbandonAt = at.UTC().Format(time.RFC3339)
 			}
 			out.Body.Items = append(out.Body.Items, item)
 		}
@@ -327,6 +339,20 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 		}
 		return out, nil
 	})
+}
+
+// abandonAt is when a stall the importer is counting will fail its grab. No
+// stamp or a disabled timeout means nothing is coming, and the row says nothing
+// rather than inventing a deadline.
+func abandonAt(stalledSince sql.NullString, timeout time.Duration) (time.Time, bool) {
+	if !stalledSince.Valid || timeout <= 0 {
+		return time.Time{}, false
+	}
+	since, err := store.ParseTimestamp(stalledSince.String)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return since.Add(timeout), true
 }
 
 // downloadCategory is the safety boundary: only torrents carrying it are ours.
