@@ -320,9 +320,9 @@ func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 	}
 }
 
-// assertItemFreed checks the item is back to wanted, by the same two fields
-// deriveItemState reads: freeing it is the half of a failure that must not
-// regress, and a grab settling is not on its own evidence that it did.
+// assertItemFreed checks the item is back to wanted, by the two fields
+// deriveItemState reads. The grab-status arm is the one doing work here; the
+// in_library arm is a tripwire for a future path that marks it on failure.
 func assertItemFreed(t *testing.T, st *store.Store, titleID int64, number int) {
 	t.Helper()
 	item, err := st.Q.GetWantedItemByNumber(context.Background(), db.GetWantedItemByNumberParams{

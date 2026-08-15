@@ -23,7 +23,10 @@ All notable changes to this project are documented here. The format is based on
   episode to be searched again as before — but the release itself is no longer
   remembered as a bad one, because neither says anything about it. A dropped
   mount or a reset client used to block every release it touched, for a day, a
-  week, or permanently on a third occurrence.
+  week, or permanently on a third occurrence. A download the client is holding
+  with its data gone now reads *Data missing* in the Activity queue, and the next
+  search moves on to another release rather than retrying the one it cannot
+  deliver.
 
 ## [0.8.0] — 2026-08-14
 

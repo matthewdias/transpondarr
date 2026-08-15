@@ -50,6 +50,49 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	}
 }
 
+// The loop breaker for a torrent the client holds with its data gone (#241):
+// converging on it would report a grab that can never deliver, so the same
+// release would rank first and "grab" every pass forever. Refusing the add makes
+// it an add failure, which the walk answers with the next-best release in the
+// same pass -- and records nothing, because the client's disk is not the
+// release's fault.
+func TestSweepTakesTheNextReleaseWhenADuplicatesDataIsMissing(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	held := episodeRelease("Placeholder Saga", 3)
+	held.DownloadURL = "magnet:?xt=urn:btih:held"
+	held.Seeders = 999 // ranks first, so it is tried first
+	next := episodeRelease("Placeholder Saga", 3)
+	next.DownloadURL = "magnet:?xt=urn:btih:next"
+
+	h := newSweep(t, []indexer.Release{held, next}, fakeConfig{})
+	h.dl.FailURLs = map[string]error{
+		held.DownloadURL: fmt.Errorf("qbittorrent: add: %w", download.ErrDataMissing),
+	}
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+
+	if err := h.svc.SweepOnce(context.Background()); err != nil {
+		t.Fatalf("SweepOnce: %v", err)
+	}
+
+	if n := h.dl.AddCount(); n != 2 {
+		t.Fatalf("download Add called %d times, want 2 -- the next candidate must be tried", n)
+	}
+	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
+		t.Errorf("grabbed items = %v, want [3] from the second candidate", got)
+	}
+	grabs, err := h.st.Q.ListGrabsByTitle(context.Background(), id)
+	if err != nil {
+		t.Fatalf("list grabs: %v", err)
+	}
+	if len(grabs) != 1 || grabs[0].ReleaseTitle != next.Title {
+		t.Errorf("grab = %+v, want the next-best release %q", grabs, next.Title)
+	}
+	// Environmental, so it must not reach the blocklist the way ErrBadRelease does.
+	if len(h.rec.calls) != 0 {
+		t.Errorf("recorded %+v, want nothing: the client's disk is not the release's fault", h.rec.calls)
+	}
+}
+
 // A client that is down refuses every release, so remembering its refusals
 // would blocklist a healthy candidate pool for a fault that is not the
 // releases'.

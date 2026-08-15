@@ -230,9 +230,8 @@ func (im *Importer) notify(ctx context.Context, ev notify.Event) {
 	}
 }
 
-// blame says whether a failure is evidence about the release itself. Only a
-// cause supplies it; an absence and missing data are facts about the client
-// (#241). Required at every failGrab call site, so a new one has to answer.
+// blame says whether a failure is evidence about the release (#241). Required at
+// every failGrab call site, so a new one has to state its answer.
 type blame bool
 
 const (
@@ -296,9 +295,8 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 			ReleaseTitle: rows[0].releaseTitle,
 			Error:        rows[0].reason,
 		})
-		// Reporting it is information; remembering it is a judgement, and only a
-		// blamed failure carries the cause one needs (#241). The rows of a group
-		// come from one path, so the first speaks for all of them.
+		// Reporting is information, remembering is a judgement (#241). A group's
+		// rows come from one path, so the first speaks for all of them.
 		if !rows[0].blame || im.blocklist == nil {
 			continue
 		}

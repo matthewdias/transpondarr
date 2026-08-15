@@ -29,7 +29,7 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 	if existing, err := c.Status(ctx, hash); err != nil {
 		return download.AddResult{}, err
 	} else if len(existing) > 0 {
-		return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
+		return converge(hash, existing)
 	}
 
 	// qBittorrent auto-creates the category named on the add, so we just pass it.
@@ -44,11 +44,21 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 		// reporting failure: converging is right, and the alternative is a caller
 		// that answers by grabbing a different release for the same item.
 		if existing, rerr := c.Status(ctx, hash); rerr == nil && len(existing) > 0 {
-			return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
+			return converge(hash, existing)
 		}
 		return download.AddResult{}, fmt.Errorf("qbittorrent: add: %w", err)
 	}
 	return download.AddResult{Hash: hash, Outcome: download.AddSuccess}, nil
+}
+
+// converge reports a torrent the client already holds as added rather than
+// re-adding it (a re-add resets it). One whose data is gone is refused instead:
+// reporting a grab it can never deliver re-grabs the same release forever (#241).
+func converge(hash string, existing []download.Status) (download.AddResult, error) {
+	if existing[0].State == download.StateDataMissing {
+		return download.AddResult{}, fmt.Errorf("qbittorrent: add: %w", download.ErrDataMissing)
+	}
+	return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
 }
 
 // resolveAdd derives the info hash and decides how to hand the torrent to

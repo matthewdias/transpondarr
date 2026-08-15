@@ -230,8 +230,9 @@ Behaviour changes are test-driven. Work red → green → refactor:
 - **An absent torrent is not a verdict (#241).** `failed` settles two different
   things and only one survives an inference: freeing the item is self-healing and
   stays automatic, while remembering the release as bad is a judgement that needs
-  a cause. Only two things supply one — the client reporting `error` for a
-  torrent it holds, and a payload we examined that lacked what it claimed.
+  a cause. Only three things supply one — the client reporting `error` for a
+  torrent it holds, a payload we examined that lacked what it claimed, and a
+  download URL that could not be fetched or parsed (`acquire.AutoGrab`, #120).
   Absence supplies none (every cause is external: a hand-removed torrent, a reset
   client, other tooling, a hash the client never had), and neither does
   `missingFiles`, which is why it maps to its own `download.State` rather than
@@ -242,7 +243,16 @@ Behaviour changes are test-driven. Work red → green → refactor:
   arm (#120) was already the precedent, declining to re-front exactly when it
   declines to blame, and a dropped mount would otherwise answer one thundering
   herd with another. `blame` is a required `failGrab` argument rather than a
-  default so a new failure path has to state its answer. A stalled torrent is
+  default so a new failure path has to state its answer. **Dropping the memory
+  cost `data_missing` its only loop breaker**, which the blocklist entry had been
+  supplying by accident: converging on a duplicate (`AddAlreadyExists`) assumes it
+  can still deliver, and one whose data is gone never will, so the same release
+  ranked first and "grabbed" every pass while the item stayed unacquirable. The
+  adapter now refuses that add with `download.ErrDataMissing` — deliberately not
+  `ErrBadRelease`, which is the one `acquire.AutoGrab` blocklists — so the pass
+  reaches the next-best release instead. Only a `data_missing` duplicate is
+  refused; converging on a healthy one is what makes re-grabbing an in-flight
+  torrent safe. A stalled torrent is
   *present* and reaches none of these paths, so the doomed-release case #118
   defends against cannot arise from absence at all. The posture behind it: this
   app disassociates a torrent from the library and never removes or deletes one
