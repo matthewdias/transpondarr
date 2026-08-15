@@ -35,6 +35,33 @@ export class UnauthorizedError extends ApiError {
   }
 }
 
+type ProblemBody = {
+  detail?: string;
+  title?: string;
+  errors?: Array<{ message?: string; location?: string } | null> | null;
+} | null;
+
+// An upstream body reaches the toast verbatim, so a proxy's HTML error page
+// must not fill it.
+const MAX_PROBLEM_MESSAGE = 320;
+
+// Huma's errors[] holds the actual cause — the provider's own message on a 502,
+// one entry per field on a 422 — where detail is often the handler's summary.
+function problemCause(problem: ProblemBody): string {
+  if (!Array.isArray(problem?.errors)) return "";
+  const joined = problem.errors
+    .map((e) => {
+      const message = e?.message?.trim();
+      if (!message) return "";
+      return e?.location ? `${e.location}: ${message}` : message;
+    })
+    .filter(Boolean)
+    .join("; ");
+  return joined.length > MAX_PROBLEM_MESSAGE
+    ? `${joined.slice(0, MAX_PROBLEM_MESSAGE).trimEnd()}…`
+    : joined;
+}
+
 // Central failure handling shared by the typed client (unwrap) and the auth calls
 // (rawFetch). A 401 normally means the session went stale, so it re-opens the
 // auth gate even for calls outside React Query — but for endpoints whose job is
@@ -46,10 +73,13 @@ function throwApiError(status: number, body: unknown, authEvent = true): never {
     if (authEvent) window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
     throw new UnauthorizedError();
   }
-  const problem = body as { detail?: string; title?: string } | null;
+  const problem = body as ProblemBody;
   throw new ApiError(
     status,
-    problem?.detail || problem?.title || `HTTP ${status}`,
+    problemCause(problem) ||
+      problem?.detail ||
+      problem?.title ||
+      `HTTP ${status}`,
   );
 }
 

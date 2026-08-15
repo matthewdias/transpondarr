@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Fixed
+
+- **When a metadata provider fails, it now says why.** Adding a title while
+  AniList was down reported only *Could not add title / failed to add series*,
+  while AniList's own explanation — *The AniList API has been temporarily
+  disabled due to severe stability issues* — was dropped on the way through.
+  Errors from anywhere in the API now carry the underlying cause, and a
+  validation failure names the field it came from.
+- **The airing sync no longer reports the same failure once per series.** During
+  a provider outage its last error was a dozen identical copies of one message;
+  it now reads once, with a count.
+
 ## [0.9.0] — 2026-08-15
 
 Acquisition reliability: a download that goes nowhere stops holding its episode,

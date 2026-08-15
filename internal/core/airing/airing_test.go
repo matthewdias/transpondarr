@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -652,5 +653,57 @@ func TestGapFillBelowTheCutDoesNotResetSearchCadence(t *testing.T) {
 	}
 	if backoff, _ := searchCadence(t, st, titleID); backoff != 8 {
 		t.Errorf("search_backoff = %d, want the accumulated 8 -- an unmonitored fill is not news", backoff)
+	}
+}
+
+// An outage fails every due title with one cause, so the job's last_error was N
+// copies of the same blob, rewritten every tick.
+func TestSyncCollapsesIdenticalFailures(t *testing.T) {
+	st := coretest.NewStore(t)
+	outage := errors.New("anilist: status 403: the API has been temporarily disabled")
+
+	prov := newFakeProvider()
+	for _, id := range []int64{301, 302, 303} {
+		seedTitle(t, st, id, 1)
+		prov.errs[id] = outage
+	}
+
+	err := newService(t, st, prov).SyncOnce(context.Background())
+	if err == nil {
+		t.Fatal("SyncOnce reported success despite three failing series")
+	}
+	if got := strings.Count(err.Error(), "temporarily disabled"); got != 1 {
+		t.Errorf("the cause appears %d times in %q, want once", got, err)
+	}
+	if !strings.Contains(err.Error(), "3 series") {
+		t.Errorf("%q does not report how many series failed", err)
+	}
+	if !errors.Is(err, outage) {
+		t.Errorf("%q no longer wraps the cause", err)
+	}
+}
+
+// Collapsing duplicates is the point; aggregation is not -- two genuinely
+// different failures still both reach last_error.
+func TestSyncKeepsDistinctFailures(t *testing.T) {
+	st := coretest.NewStore(t)
+	unreachable := errors.New("dial tcp: connection refused")
+	notFound := errors.New("no such media")
+
+	prov := newFakeProvider()
+	seedTitle(t, st, 311, 1)
+	seedTitle(t, st, 312, 1)
+	prov.errs[311] = unreachable
+	prov.errs[312] = notFound
+
+	err := newService(t, st, prov).SyncOnce(context.Background())
+	if err == nil {
+		t.Fatal("SyncOnce reported success despite two failing series")
+	}
+	if !errors.Is(err, unreachable) || !errors.Is(err, notFound) {
+		t.Errorf("%q dropped one of two distinct causes", err)
+	}
+	if strings.Contains(err.Error(), "2 series") {
+		t.Errorf("%q counted two distinct failures as one repeated cause", err)
 	}
 }
