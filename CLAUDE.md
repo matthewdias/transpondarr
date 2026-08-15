@@ -250,9 +250,15 @@ Behaviour changes are test-driven. Work red → green → refactor:
   ranked first and "grabbed" every pass while the item stayed unacquirable. The
   adapter now refuses that add with `download.ErrDataMissing` — deliberately not
   `ErrBadRelease`, which is the one `acquire.AutoGrab` blocklists — so the pass
-  reaches the next-best release instead. Only a `data_missing` duplicate is
-  refused; converging on a healthy one is what makes re-grabbing an in-flight
-  torrent safe. A stalled torrent is
+  reaches the next-best release instead. **The refusal belongs to the arm where
+  the torrent demonstrably pre-existed our add**, which is the pre-check and never
+  the post-failure re-check: there our own add may be what landed, so refusing
+  would leave a torrent no grab row references — #134's orphan, which that arm
+  exists to prevent. It costs nothing to converge there, because the loop's steady
+  state runs through the pre-check: a duplicate reached by the re-check writes a
+  grab row, fails unblamed, and is refused on the next pass. One extra cycle, not
+  a loop. Converging on a *healthy* duplicate is unchanged either way, and is what
+  makes re-grabbing an in-flight torrent safe. A stalled torrent is
   *present* and reaches none of these paths, so the doomed-release case #118
   defends against cannot arise from absence at all. The posture behind it: this
   app disassociates a torrent from the library and never removes or deletes one

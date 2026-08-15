@@ -29,7 +29,12 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 	if existing, err := c.Status(ctx, hash); err != nil {
 		return download.AddResult{}, err
 	} else if len(existing) > 0 {
-		return converge(hash, existing)
+		// Refused only here, where the torrent demonstrably pre-existed our add:
+		// reporting a grab it can never deliver re-grabs the release forever (#241).
+		if existing[0].State == download.StateDataMissing {
+			return download.AddResult{}, fmt.Errorf("qbittorrent: add: %w", download.ErrDataMissing)
+		}
+		return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
 	}
 
 	// qBittorrent auto-creates the category named on the add, so we just pass it.
@@ -40,25 +45,15 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 	}
 	if err != nil {
 		// The duplicate check above is check-then-act, so a concurrent add of the
-		// same hash can land between it and here and this one loses. Re-check before
-		// reporting failure: converging is right, and the alternative is a caller
-		// that answers by grabbing a different release for the same item.
+		// same hash can land between it and here and this one loses. Converge
+		// unconditionally: our own add may have landed, and refusing here would
+		// orphan it (#134) — a data-missing one is refused by the next pass instead.
 		if existing, rerr := c.Status(ctx, hash); rerr == nil && len(existing) > 0 {
-			return converge(hash, existing)
+			return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
 		}
 		return download.AddResult{}, fmt.Errorf("qbittorrent: add: %w", err)
 	}
 	return download.AddResult{Hash: hash, Outcome: download.AddSuccess}, nil
-}
-
-// converge reports a torrent the client already holds as added rather than
-// re-adding it (a re-add resets it). One whose data is gone is refused instead:
-// reporting a grab it can never deliver re-grabs the same release forever (#241).
-func converge(hash string, existing []download.Status) (download.AddResult, error) {
-	if existing[0].State == download.StateDataMissing {
-		return download.AddResult{}, fmt.Errorf("qbittorrent: add: %w", download.ErrDataMissing)
-	}
-	return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
 }
 
 // resolveAdd derives the info hash and decides how to hand the torrent to

@@ -58,10 +58,14 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 // release's fault.
 func TestSweepTakesTheNextReleaseWhenADuplicatesDataIsMissing(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
+	// Distinct group names, or the two releases share a title and "the next-best
+	// was grabbed" passes for either candidate.
 	held := episodeRelease("Placeholder Saga", 3)
+	held.Title = "[TopSubs] Placeholder Saga - 03 [1080p]"
 	held.DownloadURL = "magnet:?xt=urn:btih:held"
 	held.Seeders = 999 // ranks first, so it is tried first
 	next := episodeRelease("Placeholder Saga", 3)
+	next.Title = "[NextSubs] Placeholder Saga - 03 [1080p]"
 	next.DownloadURL = "magnet:?xt=urn:btih:next"
 
 	h := newSweep(t, []indexer.Release{held, next}, fakeConfig{})
@@ -76,6 +80,9 @@ func TestSweepTakesTheNextReleaseWhenADuplicatesDataIsMissing(t *testing.T) {
 
 	if n := h.dl.AddCount(); n != 2 {
 		t.Fatalf("download Add called %d times, want 2 -- the next candidate must be tried", n)
+	}
+	if h.dl.Adds[1].URL != next.DownloadURL {
+		t.Errorf("second add = %q, want the next-best release %q", h.dl.Adds[1].URL, next.DownloadURL)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
 		t.Errorf("grabbed items = %v, want [3] from the second candidate", got)

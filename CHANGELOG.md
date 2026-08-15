@@ -26,7 +26,8 @@ All notable changes to this project are documented here. The format is based on
   week, or permanently on a third occurrence. A download the client is holding
   with its data gone now reads *Data missing* in the Activity queue, and the next
   search moves on to another release rather than retrying the one it cannot
-  deliver.
+  deliver. Grabbing such a release by hand now fails outright with a message,
+  where before it reported success and then quietly failed.
 
 ### Upgrade notes
 

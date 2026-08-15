@@ -169,10 +169,11 @@ func TestAddConvergesWhenAFailedAddWasADuplicate(t *testing.T) {
 	}
 }
 
-// Both duplicate paths converge through one helper, so the losing race refuses a
-// data-missing torrent too -- and it is the path that matters most, since losing
-// to a concurrent add is how a second grab reaches a torrent already in this state.
-func TestAddRefusesADataMissingDuplicateFoundByTheRecheck(t *testing.T) {
+// The refusal stops at the pre-check arm. Here our own add may be what landed, so
+// refusing would leave a torrent no grab row references -- the orphan this arm
+// exists to prevent (#134). The loop still ends: the next pass finds the torrent
+// pre-existing and refuses there, so converging costs one cycle, not a loop.
+func TestAddConvergesOnADataMissingDuplicateFoundByTheRecheck(t *testing.T) {
 	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
 	var added bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -196,13 +197,16 @@ func TestAddRefusesADataMissingDuplicateFoundByTheRecheck(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := New(srv.URL, "u", "p").Add(context.Background(),
+	res, err := New(srv.URL, "u", "p").Add(context.Background(),
 		download.AddOptions{URL: "magnet:?xt=urn:btih:" + hash})
-	if !errors.Is(err, download.ErrDataMissing) {
-		t.Fatalf("Add error = %v, want the recheck to refuse a data-missing duplicate", err)
+	if err != nil {
+		t.Fatalf("Add: %v, want convergence so the torrent we may have added is not orphaned", err)
 	}
-	if errors.Is(err, download.ErrBadRelease) {
-		t.Error("refusal classed as the release's fault; it would blocklist a healthy release")
+	if res.Outcome != download.AddAlreadyExists {
+		t.Errorf("outcome = %v, want already-exists", res.Outcome)
+	}
+	if res.Hash != hash {
+		t.Errorf("hash = %q, want %q — the caller writes the grab row against it", res.Hash, hash)
 	}
 }
 
