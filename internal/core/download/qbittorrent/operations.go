@@ -242,8 +242,12 @@ func (c *Client) Remove(ctx context.Context, hashes []string, deleteData bool) e
 // See https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)
 func mapState(s string) download.State {
 	switch s {
-	case "downloading", "metaDL", "queuedDL", "forcedDL":
+	case "downloading", "forcedDL", "metaDL", "forcedMetaDL":
+		// A magnet fetching metadata is trying, which is what the stall timeout
+		// reads; qBittorrent tests isQueued() first, so it is never also queued.
 		return download.StateDownloading
+	case "queuedDL":
+		return download.StateQueued
 	case "stalledDL":
 		return download.StateStalled
 	case "uploading", "queuedUP", "stalledUP", "forcedUP", "pausedUP", "stoppedUP":

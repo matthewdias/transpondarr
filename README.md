@@ -151,7 +151,7 @@ are simply disabled — the server still starts.
 | `TRANSPONDARR_QBIT_URL`                    | —                         | qBittorrent WebUI root; unset ⇒ no download client.                                                       |
 | `TRANSPONDARR_QBIT_USER` / `_PASSWORD`     | —                         | qBittorrent credentials.                                                                                  |
 | `TRANSPONDARR_QBIT_CATEGORY`               | `transpondarr`            | Category applied to grabbed torrents.                                                                     |
-| `TRANSPONDARR_STALL_TIMEOUT_HOURS`         | `6`                       | Hours a download may sit stalled having transferred nothing at all before its grab is failed and the release remembered; `0` waits forever. A download with any progress is never abandoned. |
+| `TRANSPONDARR_STALL_TIMEOUT_HOURS`         | `6`                       | Hours a download may sit having transferred nothing at all before its grab is failed and the release remembered; `0` waits forever. Covers a download the client reports as stalled and one still fetching a magnet's metadata. A download with any progress is never abandoned. |
 | `TRANSPONDARR_TORZNAB_URL`                 | —                         | Torznab feed (Prowlarr/Jackett); unset ⇒ no indexer.                                                      |
 | `TRANSPONDARR_TORZNAB_APIKEY`              | —                         | Torznab API key.                                                                                          |
 | `TRANSPONDARR_TORZNAB_NAME`                | `torznab`                 | Display name for the indexer.                                                                             |

@@ -16,18 +16,27 @@ All notable changes to this project are documented here. The format is based on
   failure. A pack is now treated as the one download it is, however its episodes
   were added.
 
-- **A download your client reports as stalled no longer holds its episode
-  forever.** A torrent that announces fine but finds nobody to download from used
-  to sit in the Activity queue indefinitely: nothing timed it out, the episode was
-  never released, and no other release was ever tried. One your download client
-  reports as stalled having transferred nothing at all is now given up on after
-  six hours — the episode goes back to wanted, the release is remembered as
-  failed, and the next search takes the next-best one. The wait is configurable
-  under **Settings → Download client**, and 0 waits forever. A download that has
-  made any progress is never abandoned, however long it then sits, and a paused
-  one is left alone. Nothing is removed from your download client; cancelling
-  stays yours to do there. A stalled row in the Activity queue now says when it
-  will be given up on.
+- **A download that never gets going no longer holds its episode forever.** A
+  torrent that announces fine but finds nobody to download from, and a magnet
+  stuck at *Downloading metadata*, both used to sit in the Activity queue
+  indefinitely: nothing timed them out, the episode was never released, and no
+  other release was ever tried. A download that has transferred nothing at all is
+  now given up on after six hours — the episode goes back to wanted, the release
+  is remembered as failed, and the next search takes the next-best one. The wait
+  is configurable under **Settings → Download client**, and 0 waits forever. A
+  download that has made any progress is never abandoned, however long it then
+  sits, and a paused or queued one is left alone. Nothing is removed from your
+  download client; cancelling stays yours to do there. **Every download now shows
+  that countdown from the moment it starts** — a new one reads *giving up in 6h*
+  until its first bytes arrive, which is usually seconds and is a magnet's whole
+  metadata wait; it is a statement of what would happen if nothing ever came, not
+  a sign anything is wrong.
+
+- **A download waiting its turn now reads *Queued*.** Where the Activity queue
+  showed it as *Downloading · 0%*, it now says what your client is actually doing
+  — which matters most if you cap how many downloads run at once, since those
+  rows were indistinguishable from ones that were getting nowhere. A queued
+  download is never given up on, however long it waits.
 
 - **An import interrupted mid-transfer no longer leaves a file behind in the
   library forever.** Transpondarr writes to a temporary file beside the

@@ -34,9 +34,9 @@ type Config struct {
 	// identity — the pipeline keys torrents on their info hash (see internal/store
 	// grabs), so clients without a category concept still work.
 	QbitCategory string
-	// StallTimeoutHours is how long a download may sit stalled with nothing
-	// downloaded before its grab is failed. Empty means the default; "0" never
-	// gives up. Not a Qbit* value: it is client-agnostic policy.
+	// StallTimeoutHours is how long a download the client says it is trying may
+	// sit with nothing downloaded before its grab is failed. Empty means the
+	// default; "0" never gives up. Not a Qbit* value: it is client-agnostic policy.
 	StallTimeoutHours string
 
 	// Torznab indexer (optional). A single endpoint for v1 — pointing it at a

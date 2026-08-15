@@ -1622,13 +1622,13 @@ export interface components {
             upgrades_enabled: boolean;
         };
         QueueItemDTO: {
-            /** @description RFC3339; when a stall that has downloaded nothing will be given up on. Absent unless one is being counted */
+            /** @description RFC3339; when a download that has transferred nothing will be given up on. Present on any such download, including one that has only just started; absent once anything arrives */
             abandon_at?: string;
             /**
              * @description Live torrent state; absent when the client is unreachable
              * @enum {string}
              */
-            client_state?: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "data_missing" | "unknown";
+            client_state?: "downloading" | "queued" | "complete" | "stalled" | "checking" | "paused" | "error" | "data_missing" | "unknown";
             created_at: string;
             /** @description Title format; the sole discriminator between movie and series wording */
             format: string;
@@ -2033,7 +2033,7 @@ export interface components {
             /** @description RFC3339; absent when the client reports no add time */
             added_at?: string;
             /** @enum {string} */
-            client_state: "downloading" | "complete" | "stalled" | "checking" | "paused" | "error" | "data_missing" | "unknown";
+            client_state: "downloading" | "queued" | "complete" | "stalled" | "checking" | "paused" | "error" | "data_missing" | "unknown";
             infohash: string;
             name: string;
             /** Format: double */

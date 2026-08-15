@@ -175,9 +175,9 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 				// Clear it, so a later absence is measured from itself, not from this one.
 				im.setMissingSince(ctx, g.ID, sql.NullString{})
 			}
-			if g.StalledSince.Valid && !st.StalledAtZero() {
-				// Progress moved, or the torrent is no longer stalled: a later stall
-				// is measured from itself.
+			if g.StalledSince.Valid && !st.StuckAtZero() {
+				// Progress moved, or the client stopped trying: a later stall is
+				// measured from itself.
 				im.setStalledSince(ctx, g.ID, sql.NullString{})
 			}
 		}
@@ -195,8 +195,10 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 			for _, g := range group.rows {
 				failed = append(failed, im.failGrab(ctx, g, "the download client no longer has the data", blameNothing))
 			}
-		case download.StateStalled:
-			if !st.StalledAtZero() {
+		case download.StateStalled, download.StateDownloading:
+			// A download the client says it is trying that has received nothing is
+			// the same fact however the client words it (#246).
+			if !st.StuckAtZero() {
 				continue
 			}
 			failed = append(failed, im.reconcileStalled(ctx, group, now)...)
@@ -209,7 +211,8 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 			}
 			failed = append(failed, im.importGroup(ctx, target, active, st)...)
 		default:
-			continue // still downloading / checking / paused
+			// Queued, checking or paused: the client is not trying, so no clock runs.
+			continue
 		}
 	}
 	im.remember(ctx, failed)
@@ -460,9 +463,10 @@ func (im *Importer) reconcileMissing(ctx context.Context, group grabGroup, now t
 	return failed
 }
 
-// reconcileStalled fails a group whose torrent has sat stalled with nothing
-// downloaded for longer than the configured timeout; a first sighting only
-// starts the clock. It returns what it failed, empty while it is only watching.
+// reconcileStalled fails a group whose torrent the client has been trying with
+// nothing downloaded for longer than the configured timeout; a first sighting
+// only starts the clock. It returns what it failed, empty while it is only
+// watching.
 func (im *Importer) reconcileStalled(ctx context.Context, group grabGroup, now time.Time) []failedGrab {
 	timeout := im.stallTimeout()
 	if timeout <= 0 {

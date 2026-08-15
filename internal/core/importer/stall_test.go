@@ -41,6 +41,90 @@ func stalled(hash string, progress float64) download.Status {
 	return download.Status{Hash: hash, State: download.StateStalled, Progress: progress, ContentPath: "/whatever"}
 }
 
+// fetchingMetadata is what the client reports for a magnet whose swarm never
+// answered: qBittorrent's metaDL and forcedMetaDL both map here (#246), so this
+// is the "Downloading metadata" torrent the timeout could not previously reach.
+func fetchingMetadata(hash string, progress float64) download.Status {
+	return download.Status{Hash: hash, State: download.StateDownloading, Progress: progress, ContentPath: "/whatever"}
+}
+
+// A magnet parked at "Downloading metadata" is never reported stalled, so before
+// #246 it sat open forever. The client says it is trying and nothing has arrived,
+// which is the same fact the stall timeout acts on.
+func TestFailsGrabFetchingMetadataAtZeroPastTimeout(t *testing.T) {
+	st := coretest.NewStore(t)
+	_, titleID := seedGrab(t, st, "abc")
+	backdateStalledSince(t, st, "abc", 7*time.Hour)
+	backdateSearchState(t, st, titleID)
+	svc := blocklist.New(st, nil)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0)}}
+
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	if g := grabByHash(t, st, "abc"); g.Status != statusFailed {
+		t.Errorf("status = %q, want failed: a download that never started is the stall the timeout is for", g.Status)
+	}
+	assertItemFreed(t, st, titleID, 5)
+	// Blame is inherited from #242's arm rather than re-decided: the client holds
+	// the torrent and reports no swarm, which is observed, not inferred (#241).
+	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	if err != nil {
+		t.Fatalf("list blocklist: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("recorded %d entries, want 1: nobody seeding a release we can see is the release's failure", len(entries))
+	}
+}
+
+// A download that has moved is never abandoned, whichever state carries it: the
+// widened predicate reads progress, not just the state name.
+func TestLeavesAFetchingMetadataDownloadWithProgressAlone(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	backdateStalledSince(t, st, "abc", 7*time.Hour)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0.01)}}
+
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	g := grabByHash(t, st, "abc")
+	if g.Status != statusGrabbed {
+		t.Errorf("status = %q, want still grabbed: a peer had the data", g.Status)
+	}
+	if g.StalledSince.Valid {
+		t.Errorf("stalled_since = %q, want cleared once progress moved", g.StalledSince.String)
+	}
+}
+
+// The clearing loop and the switch arm must read the *same* predicate. If only
+// the arm widened, a metadata stall would have its clock cleared and restarted
+// every scan, so the timeout would never accumulate and the grab would sit open
+// forever -- the bug being fixed, surviving the fix.
+func TestKeepsMetadataStallClockAcrossScans(t *testing.T) {
+	st := coretest.NewStore(t)
+	seedGrab(t, st, "abc")
+	first := backdateStalledSince(t, st, "abc", time.Hour)
+	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0)}}
+
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
+		ScanOnce(context.Background()); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	g := grabByHash(t, st, "abc")
+	if g.Status != statusGrabbed {
+		t.Errorf("status = %q, want still grabbed one hour into a six-hour timeout", g.Status)
+	}
+	if g.StalledSince.String != first {
+		t.Errorf("stalled_since = %q, want the original %q (the clock must not restart)", g.StalledSince.String, first)
+	}
+}
+
 // A stall that outlives the timeout with nothing downloaded settles the grab, so
 // the item is wanted again instead of sitting open forever (#242).
 func TestFailsGrabStalledAtZeroPastTimeout(t *testing.T) {
@@ -192,14 +276,16 @@ func TestStallThatResumesClearsTheClock(t *testing.T) {
 	}
 }
 
-// Only stalledDL qualifies. A pause is deliberate user intent, and StateUnknown
-// is a gap in our own mapping -- blaming a release for either is wrong.
-func TestNonStalledStatesAreNeverGivenUpOn(t *testing.T) {
+// Only a client that says it is trying qualifies. A pause is deliberate user
+// intent, StateUnknown is a gap in our own mapping, and a queued torrent is one
+// the client is holding back on purpose -- blaming a release for any of them is
+// wrong, however long it sits (#246).
+func TestStatesTheClientIsNotTryingAreNeverGivenUpOn(t *testing.T) {
 	for _, state := range []download.State{
 		download.StatePaused,
 		download.StateUnknown,
 		download.StateChecking,
-		download.StateDownloading,
+		download.StateQueued,
 	} {
 		t.Run(string(state), func(t *testing.T) {
 			st := coretest.NewStore(t)
@@ -219,7 +305,7 @@ func TestNonStalledStatesAreNeverGivenUpOn(t *testing.T) {
 				t.Errorf("status = %q, want still grabbed: %s is not a stall", g.Status, state)
 			}
 			if g.StalledSince.Valid {
-				t.Errorf("stalled_since = %q, want cleared once the torrent was not stalled", g.StalledSince.String)
+				t.Errorf("stalled_since = %q, want cleared once the client was not trying", g.StalledSince.String)
 			}
 		})
 	}
