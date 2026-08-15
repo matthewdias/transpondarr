@@ -123,7 +123,7 @@ type Target struct {
 	mode   Mode
 	log    *slog.Logger
 
-	// staging holds the temp paths this process is writing right now, which is
+	// staging holds the staging paths this process is writing right now, which is
 	// what tells the sweep a live transfer from an orphan (see staged).
 	stagingMu sync.Mutex
 	staging   map[string]bool
@@ -152,8 +152,8 @@ func New(roots Roots, layout Layout, mode string, log *slog.Logger) *Target {
 func (t *Target) Name() string { return "mediaserver" }
 
 var (
-	_ library.Target      = (*Target)(nil)
-	_ library.TempSweeper = (*Target)(nil)
+	_ library.Target         = (*Target)(nil)
+	_ library.StagingSweeper = (*Target)(nil)
 )
 
 // Place transfers a single downloaded file into the library and returns its final
@@ -297,8 +297,8 @@ func movieName(name string, year int) string {
 
 // replace transfers over a destination the library already holds. Link mode
 // cannot link onto an occupied name, so it links beside it and renames; copy
-// mode's temp-and-rename already is that. Transferring before removing anything
-// is the crash-safe order: the worst case is two files, never none.
+// mode's staging-and-rename already is that. Transferring before removing
+// anything is the crash-safe order: the worst case is two files, never none.
 func (t *Target) replace(ctx context.Context, src, dest string) error {
 	if t.mode == ModeCopy {
 		return t.copyFile(ctx, src, dest)
@@ -401,8 +401,8 @@ func isUnsupportedLink(err error) bool {
 		errors.Is(err, syscall.EOPNOTSUPP)
 }
 
-// copyFile copies src to dest via a deterministic temp file + rename: a failed copy
-// never leaves a partial at the destination, and the next attempt reclaims the temp.
+// copyFile copies src to dest via a deterministic staging file + rename: a failed
+// copy never leaves a partial at the destination, and the next attempt reclaims it.
 func (t *Target) copyFile(ctx context.Context, src, dest string) error {
 	in, err := os.Open(src)
 	if err != nil {

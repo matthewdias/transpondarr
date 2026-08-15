@@ -40,13 +40,13 @@ import (
 // completed grabs.
 const importPollInterval = 15 * time.Second
 
-// libraryTidyInterval and libraryTempMaxAge govern the staging-file sweep (#132).
+// libraryTidyInterval and libraryStagingMaxAge govern the staging-file sweep (#132).
 // It walks the library roots, so it gets its own slow cadence rather than riding
 // the 15s import scan; the age is generous because nothing depends on it being
-// prompt, and an interrupted transfer's temp is orphaned for good.
+// prompt, and an interrupted transfer's staging file is orphaned for good.
 const (
-	libraryTidyInterval = 6 * time.Hour
-	libraryTempMaxAge   = 24 * time.Hour
+	libraryTidyInterval  = 6 * time.Hour
+	libraryStagingMaxAge = 24 * time.Hour
 )
 
 // shutdownTimeout is the whole budget for draining the HTTP server and any
@@ -240,14 +240,14 @@ func run(logger *slog.Logger) error {
 		Interval:   libraryTidyInterval,
 		RunAtStart: true,
 		Run: func(ctx context.Context) error {
-			sweeper, ok := reg.Library().(library.TempSweeper)
+			sweeper, ok := reg.Library().(library.StagingSweeper)
 			if !ok {
-				logger.Debug("library-tidy: the configured library cannot sweep temp files")
+				logger.Debug("library-tidy: the configured library cannot sweep staging files")
 				return nil
 			}
-			removed, err := sweeper.SweepTemp(ctx, libraryTempMaxAge)
+			removed, err := sweeper.SweepStaging(ctx, libraryStagingMaxAge)
 			if removed > 0 {
-				logger.Info("library-tidy: removed stale temp files", "count", removed)
+				logger.Info("library-tidy: removed stale staging files", "count", removed)
 			}
 			return err
 		},

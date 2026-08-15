@@ -26,10 +26,10 @@ type Target interface {
 	Place(ctx context.Context, req ImportRequest) (finalPath string, err error)
 }
 
-// TempSweeper is an optional Target capability: dropping the staging files an
+// StagingSweeper is an optional Target capability: dropping the staging files an
 // interrupted transfer left behind (#132). A type assertion rather than a wider
 // Target, which stays write-only — enumerating a library is #170's question, not
 // this one's — so a Target without it is a supported configuration, not an error.
-type TempSweeper interface {
-	SweepTemp(ctx context.Context, olderThan time.Duration) (removed int, err error)
+type StagingSweeper interface {
+	SweepStaging(ctx context.Context, olderThan time.Duration) (removed int, err error)
 }
