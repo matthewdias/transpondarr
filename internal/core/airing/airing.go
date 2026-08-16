@@ -54,16 +54,46 @@ func (s *Service) SyncOnce(ctx context.Context) error {
 		return fmt.Errorf("list series due an airing sync: %w", err)
 	}
 
-	var errs []error
+	// A provider outage fails every due title with one cause, so causes are
+	// collapsed to a count: N copies of the same blob is not N failures.
+	var failures []*syncFailure
+	seen := map[string]*syncFailure{}
 	for _, title := range due {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := s.syncTitle(ctx, airing, title); err != nil {
-			errs = append(errs, fmt.Errorf("series %d: %w", title.ID, err))
+		err := s.syncTitle(ctx, airing, title)
+		if err == nil {
+			continue
 		}
+		if f, ok := seen[err.Error()]; ok {
+			f.titles++
+			continue
+		}
+		f := &syncFailure{first: title.ID, err: err, titles: 1}
+		seen[err.Error()] = f
+		failures = append(failures, f)
+	}
+
+	errs := make([]error, 0, len(failures))
+	for _, f := range failures {
+		errs = append(errs, f.summary())
 	}
 	return errors.Join(errs...)
+}
+
+// syncFailure is one cause and how many titles hit it.
+type syncFailure struct {
+	first  int64
+	err    error
+	titles int
+}
+
+func (f *syncFailure) summary() error {
+	if f.titles == 1 {
+		return fmt.Errorf("series %d: %w", f.first, f.err)
+	}
+	return fmt.Errorf("%d series including %d: %w", f.titles, f.first, f.err)
 }
 
 // due lists the title whose schedule has never been synced or has gone stale,

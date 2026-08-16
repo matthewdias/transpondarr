@@ -32,6 +32,7 @@ const (
 	maxAttempts     = 3
 	searchPerPage   = 10
 	maxRespBytes    = 8 << 20 // 8 MiB cap on a decoded response body
+	maxErrBytes     = 2 << 10 // an error message is not a response body, so maxRespBytes is no bound here
 )
 
 // Client is an AniList metadata provider. One instance is shared process-wide:
@@ -360,23 +361,42 @@ func (c *Client) awaitBackoff(ctx context.Context) error {
 	}
 }
 
+// envelope is AniList's GraphQL response shape. A failing status carries it too,
+// which is where the provider says what went wrong.
+type envelope struct {
+	Data   json.RawMessage `json:"data"`
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
+}
+
+// message is the provider's own explanation, or "" when the envelope carries none.
+func (e envelope) message() string {
+	if len(e.Errors) == 0 {
+		return ""
+	}
+	return strings.TrimSpace(e.Errors[0].Message)
+}
+
 // decode reads a GraphQL envelope, surfacing transport and GraphQL errors.
 func decode(resp *http.Response, out any) error {
 	if resp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<10))
-		return fmt.Errorf("anilist: status %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, maxErrBytes))
+		detail := strings.TrimSpace(string(b))
+		// A downed API often answers with a proxy's HTML page, which has no
+		// message to extract — its truncated self beats an empty string.
+		var env envelope
+		if err := json.Unmarshal(b, &env); err == nil && env.message() != "" {
+			detail = env.message()
+		}
+		return fmt.Errorf("anilist: status %d: %s", resp.StatusCode, detail)
 	}
-	var env struct {
-		Data   json.RawMessage `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
+	var env envelope
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxRespBytes)).Decode(&env); err != nil {
 		return fmt.Errorf("anilist: decode envelope: %w", err)
 	}
 	if len(env.Errors) > 0 {
-		return fmt.Errorf("anilist: %s", env.Errors[0].Message)
+		return fmt.Errorf("anilist: %s", env.message())
 	}
 	if err := json.Unmarshal(env.Data, out); err != nil {
 		return fmt.Errorf("anilist: decode data: %w", err)
