@@ -33,6 +33,14 @@ All notable changes to this project are documented here. The format is based on
   every episode switched off, so it sat at *0 / 12*, was never searched for, and
   gave no sign why. Nothing has aired yet means there is no back catalogue to
   skip, so all of it is monitored.
+- **A settings save can no longer change a setting it never mentioned.** Leaving
+  a field out of a `PUT /api/v1/settings/*` body quietly reset it to the
+  default — a flat library reverting to season folders, a custom qBittorrent
+  category becoming `transpondarr`, a self-hosted ntfy server becoming
+  `ntfy.sh` — and the same omission on `POST /api/v1/auth/mode` switched a
+  local-network install back to requiring a login. Each of those fields is now
+  required, so an incomplete body is refused instead. Nothing changes in the web
+  UI, which has always sent whole sections.
 
 ## [0.9.0] — 2026-08-15
 

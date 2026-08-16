@@ -183,6 +183,43 @@ func TestAuthEnabledModeIgnoresLocalAddress(t *testing.T) {
 	}
 }
 
+// The required-mode is the settings inputs' rule (#227) outside Huma: an enum
+// the service defaults, so an omitted field is an error rather than a silent
+// switch to "enabled" that locks a local install out of its own API.
+func TestAuthModeRequiresTheModeItSets(t *testing.T) {
+	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredLocal})
+
+	if code := setAuthMode(t, ts, map[string]string{}); code != http.StatusBadRequest {
+		t.Errorf("POST /auth/mode with no required field = %d, want 400", code)
+	}
+	if got := authSvc.Required(); got != auth.RequiredLocal {
+		t.Errorf("mode after a refused save = %q, want the stored %q", got, auth.RequiredLocal)
+	}
+	if code := setAuthMode(t, ts, map[string]string{"required": "sometimes"}); code != http.StatusBadRequest {
+		t.Errorf("POST /auth/mode with an unknown mode = %d, want 400", code)
+	}
+	if got := authSvc.Required(); got != auth.RequiredLocal {
+		t.Errorf("mode after an unknown mode = %q, want the stored %q", got, auth.RequiredLocal)
+	}
+	if code := setAuthMode(t, ts, map[string]string{"required": auth.RequiredEnabled}); code != http.StatusOK {
+		t.Errorf("POST /auth/mode = %d, want 200", code)
+	}
+	if got := authSvc.Required(); got != auth.RequiredEnabled {
+		t.Errorf("mode after the save = %q, want %q", got, auth.RequiredEnabled)
+	}
+}
+
+func setAuthMode(t *testing.T, ts *httptest.Server, body map[string]string) int {
+	t.Helper()
+	buf, _ := json.Marshal(body)
+	resp, err := ts.Client().Post(ts.URL+"/api/v1/auth/mode", "application/json", bytes.NewReader(buf))
+	if err != nil {
+		t.Fatalf("mode POST: %v", err)
+	}
+	_ = resp.Body.Close()
+	return resp.StatusCode
+}
+
 // TestAuthPasswordChangeIsRateLimited covers the change-password endpoint in
 // "local" mode, where the middleware admits any LAN peer with no credential at
 // all: without the limiter it is an unmetered password-guessing oracle.

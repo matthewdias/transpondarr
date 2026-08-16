@@ -1157,7 +1157,8 @@ export interface components {
              * @example https://example.com/schemas/DownloadInputBody.json
              */
             readonly $schema?: string;
-            category?: string;
+            /** @description Category grabbed torrents are filed under; empty takes the default */
+            category: string;
             /** @description Leave empty to keep the stored password */
             password?: string;
             /**
@@ -1297,7 +1298,8 @@ export interface components {
             apikey?: string;
             /** @description Comma-separated Newznab category IDs; empty = no filter */
             categories?: string;
-            name?: string;
+            /** @description Display name for the indexer; empty takes the default */
+            name: string;
             url?: string;
         };
         IndexerSettingsDTO: {
@@ -1352,7 +1354,7 @@ export interface components {
             readonly $schema?: string;
             dir?: string;
             /** @enum {string} */
-            mode?: "auto" | "hardlink" | "copy";
+            mode: "auto" | "hardlink" | "copy";
             /** @description Root movies are placed into; empty = movies do not import */
             movies_dir?: string;
             /**
@@ -1501,7 +1503,8 @@ export interface components {
             on_rehearsal: boolean;
             on_stuck: boolean;
             on_title_added: boolean;
-            server?: string;
+            /** @description ntfy host; empty takes the public default */
+            server: string;
             /** @description Leave empty to keep the stored token */
             token?: string;
             topic?: string;

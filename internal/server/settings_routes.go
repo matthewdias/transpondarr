@@ -187,25 +187,29 @@ func snapshotDTO(s settings.Snapshot) settingsDTO {
 }
 
 // Input bodies
+//
+// One rule decides every field below (#227). A body is its section's whole
+// state, not a patch, so a field is omitempty only where absent and empty say
+// the same thing: a blank secret keeps the stored one, a blank URL, root or
+// topic switches that piece off. Anything the service would fill in with a
+// default is required instead, because omitting it *selects* that default with
+// nothing said (#129: a flat library reverting to season folders on a save that
+// never mentioned the layout). Sending such a field empty still takes the
+// default — the difference is that the client asked for it.
 
-// All fields are optional (omitempty) so the same body works for a full save, a
-// partial test, or clearing a section (empty url/dir disables it). Secrets left
-// empty keep the stored value; the service applies defaults for name/category/mode.
 type downloadInput struct {
 	Body struct {
-		URL      string `json:"url,omitempty"`
-		User     string `json:"user,omitempty"`
-		Password string `json:"password,omitempty" doc:"Leave empty to keep the stored password"`
-		Category string `json:"category,omitempty"`
-		// Required, by automationInput's rule: 0 is the deliberate "never give
-		// up", which omitempty could not tell from an absent field.
-		StallHours int `json:"stall_hours" minimum:"0" doc:"Hours a download may sit stalled having downloaded nothing before its grab fails; 0 never gives up"`
+		URL        string `json:"url,omitempty"`
+		User       string `json:"user,omitempty"`
+		Password   string `json:"password,omitempty" doc:"Leave empty to keep the stored password"`
+		Category   string `json:"category" doc:"Category grabbed torrents are filed under; empty takes the default"`
+		StallHours int    `json:"stall_hours" minimum:"0" doc:"Hours a download may sit stalled having downloaded nothing before its grab fails; 0 never gives up"`
 	}
 }
 
 type indexerInput struct {
 	Body struct {
-		Name   string `json:"name,omitempty"`
+		Name   string `json:"name" doc:"Display name for the indexer; empty takes the default"`
 		URL    string `json:"url,omitempty"`
 		APIKey string `json:"apikey,omitempty" doc:"Leave empty to keep the stored API key"`
 		// Unlike the API key, empty clears the filter: this is not a secret.
@@ -215,18 +219,14 @@ type indexerInput struct {
 
 type libraryInput struct {
 	Body struct {
-		Dir       string `json:"dir,omitempty"`
-		MoviesDir string `json:"movies_dir,omitempty" doc:"Root movies are placed into; empty = movies do not import"`
-		// Required, by automationInput's rule below: with omitempty, "leave the
-		// layout alone" and "set it to season_folders" are the same request.
+		Dir          string `json:"dir,omitempty"`
+		MoviesDir    string `json:"movies_dir,omitempty" doc:"Root movies are placed into; empty = movies do not import"`
 		SeriesLayout string `json:"series_layout" enum:"season_folders,flat" doc:"Path shape inside the series root; movies are unaffected"`
-		Mode         string `json:"mode,omitempty" enum:"auto,hardlink,copy"`
+		Mode         string `json:"mode" enum:"auto,hardlink,copy"`
 	}
 }
 
-// Both fields are required, unlike the sections above: the delay has no "unset"
-// encoding, so omitempty would make "leave the delay alone" and "set it to 0"
-// the same request. The service clamps the hour count.
+// The service clamps the hour count.
 type automationInput struct {
 	Body struct {
 		Mode          string `json:"mode" enum:"off,notify_only,on" doc:"notify_only rehearses: search and decide, notify, never grab"`
@@ -234,9 +234,8 @@ type automationInput struct {
 	}
 }
 
-// notifyAdapterInput mirrors notifyAdapterDTO for writes. Toggles are required
-// (the automationInput precedent — bools have no unset encoding); an empty URL
-// disables the adapter.
+// notifyAdapterInput mirrors notifyAdapterDTO for writes; an empty URL disables
+// the adapter.
 type notifyAdapterInput struct {
 	URL          string `json:"url,omitempty"`
 	OnGrabbed    bool   `json:"on_grabbed"`
@@ -248,7 +247,7 @@ type notifyAdapterInput struct {
 }
 
 type ntfyInput struct {
-	Server       string `json:"server,omitempty"`
+	Server       string `json:"server" doc:"ntfy host; empty takes the public default"`
 	Topic        string `json:"topic,omitempty"`
 	Token        string `json:"token,omitempty" doc:"Leave empty to keep the stored token"`
 	OnGrabbed    bool   `json:"on_grabbed"`
@@ -490,7 +489,7 @@ func (h *settingsHandler) testIndexer(ctx context.Context, in *indexerInput) (*t
 }
 
 func (h *settingsHandler) updateLibrary(ctx context.Context, in *libraryInput) (*settingsOutput, error) {
-	if in.Body.Mode != "" && !settings.ValidImportMode(in.Body.Mode) {
+	if !settings.ValidImportMode(in.Body.Mode) {
 		return nil, huma.Error422UnprocessableEntity("invalid import mode (want auto, hardlink or copy)")
 	}
 	if !settings.ValidSeriesLayout(in.Body.SeriesLayout) {
