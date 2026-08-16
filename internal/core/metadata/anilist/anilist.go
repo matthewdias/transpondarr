@@ -183,6 +183,7 @@ query ($search: String!, $perPage: Int!) {
       seasonYear
       startDate { year }
       coverImage { large }
+      nextAiringEpisode { episode }
     }
   }
 }`
@@ -209,6 +210,7 @@ func (c *Client) Search(ctx context.Context, term string) ([]metadata.Candidate,
 			Status:     m.Status,
 			Year:       m.year(),
 			CoverURL:   m.CoverImage.Large,
+			NextItem:   nextItem(m),
 		})
 	}
 	return out, nil

@@ -98,8 +98,11 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 			}
 			if e.NextAiring != nil {
 				dto.NextEpisode = e.NextAiring.Number
-				airsAt := e.NextAiring.AirsAt
-				dto.NextAirsAt = &airsAt
+				// A scheduled episode with no time keeps the field omitted rather
+				// than sending the zero instant, which reads as the year 1.
+				if airsAt := e.NextAiring.AirsAt; !airsAt.IsZero() {
+					dto.NextAirsAt = &airsAt
+				}
 			}
 			out.Body.Entries = append(out.Body.Entries, dto)
 		}

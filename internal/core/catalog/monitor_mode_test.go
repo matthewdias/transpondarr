@@ -13,7 +13,9 @@ import (
 
 // longRunner is the shape #160 is about: a title with a back catalogue and one
 // episode still to come, which is what "future only" has to cut against.
-func longRunner(next int) *fakeProvider {
+func longRunner(next int) *fakeProvider { return sixItems("RELEASING", next) }
+
+func sixItems(status string, next int) *fakeProvider {
 	items := make([]metadata.ItemMeta, 0, 6)
 	for n := 1; n <= 6; n++ {
 		items = append(items, metadata.ItemMeta{Number: n})
@@ -21,7 +23,7 @@ func longRunner(next int) *fakeProvider {
 	return &fakeProvider{
 		meta: metadata.TitleMeta{
 			ProviderID: 42, Titles: metadata.Titles{Romaji: "Placeholder Saga"},
-			Format: "TV", Status: "RELEASING", NextItem: next,
+			Format: "TV", Status: status, NextItem: next,
 		},
 		items: items,
 	}
@@ -63,6 +65,7 @@ func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		mode      MonitorMode
+		status    string
 		next      int
 		wantItems []int
 		wantCut   sql.NullInt64
@@ -94,10 +97,32 @@ func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 			wantItems: nil,
 			wantCut:   sql.NullInt64{Int64: 7, Valid: true},
 		},
+		{
+			// #217: nothing has aired, so there is no back catalogue to exclude and
+			// the fallback above would monitor nothing at all, forever.
+			name: "future only on a title that has not started is every item",
+			mode: MonitorFuture, status: "NOT_YET_RELEASED", next: 0,
+			wantItems: []int{1, 2, 3, 4, 5, 6},
+			wantCut:   sql.NullInt64{Int64: 1, Valid: true},
+		},
+		{
+			// Having aired outranks the schedule, which is why the arms are in this
+			// order: a title AniList calls unstarted while scheduling its third
+			// broadcast is inconsistent upstream data, and cutting at 3 would strand
+			// two items that are still to come.
+			name: "not started outranks a schedule that begins late",
+			mode: MonitorFuture, status: "NOT_YET_RELEASED", next: 3,
+			wantItems: []int{1, 2, 3, 4, 5, 6},
+			wantCut:   sql.NullInt64{Int64: 1, Valid: true},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := coretest.NewStore(t)
-			prov := longRunner(tc.next)
+			status := tc.status
+			if status == "" {
+				status = "RELEASING"
+			}
+			prov := sixItems(status, tc.next)
 			svc := NewService(st, prov)
 
 			title, err := svc.AddTitle(context.Background(), prov.Name(), 42, true, tc.mode, 0)

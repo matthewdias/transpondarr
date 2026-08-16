@@ -147,6 +147,41 @@ func TestBrowseSeasonSparseEntry(t *testing.T) {
 	}
 }
 
+// The chart and the search row must not disagree about the next broadcast: the
+// add form reads whichever it was opened from, and answers "how many episodes
+// will be monitored" from it (#217). Search gates on the number alone, so this
+// does too, and a missing time is a missing time rather than a missing episode.
+func TestBrowseSeasonKeepsANextEpisodeWithNoAiringTime(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, browseResponse(false, `{
+			"id": 5,
+			"title": {"romaji": "Undated Show"},
+			"format": "TV",
+			"episodes": 12,
+			"status": "RELEASING",
+			"genres": [],
+			"averageScore": null,
+			"coverImage": {"large": ""},
+			"studios": {"nodes": []},
+			"nextAiringEpisode": {"episode": 7, "airingAt": 0}
+		}`))
+	}))
+	defer srv.Close()
+
+	got, err := stubClient(srv.URL).BrowseSeason(context.Background(), metadata.SeasonFall, 2026)
+	if err != nil {
+		t.Fatalf("BrowseSeason: %v", err)
+	}
+	e := got[0]
+	if e.NextAiring == nil || e.NextAiring.Number != 7 {
+		t.Fatalf("NextAiring = %+v, want episode 7", e.NextAiring)
+	}
+	if !e.NextAiring.AirsAt.IsZero() {
+		t.Errorf("AirsAt = %v, want the zero time rather than the epoch", e.NextAiring.AirsAt)
+	}
+}
+
 // An empty season is a normal outcome, not an error.
 func TestBrowseSeasonEmpty(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

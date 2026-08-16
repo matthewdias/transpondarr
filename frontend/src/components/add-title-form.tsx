@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Link } from "react-router";
 import { ChevronLeft, Loader2, TriangleAlert } from "lucide-react";
 import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
-import { formatLabel, statusLabel } from "@/lib/chart";
+import { formatLabel, isUpcoming, statusLabel } from "@/lib/chart";
 import { profilesQuery, titlesQuery, settingsQuery } from "@/lib/queries";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -32,10 +32,11 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 
-/** CandidateDTO and SeasonEntryDTO both satisfy this structurally. */
+/** CandidateDTO satisfies this structurally; a SeasonEntryDTO carries the same
+ * next broadcast as next_episode, which its call site maps. */
 export type AddTitle = Pick<
   Candidate,
-  "provider" | "provider_id" | "episodes" | "status" | "format"
+  "provider" | "provider_id" | "episodes" | "status" | "format" | "next_item"
 >;
 
 type AddedTitle = Awaited<ReturnType<typeof api.addTitle>>;
@@ -46,10 +47,64 @@ const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
   { value: "all", label: "All episodes", hint: "Including the back catalogue" },
   {
     value: "future",
-    label: "Future only",
+    // Named for what it keys on — having aired — so the answer on a title with
+    // no back catalogue, and on one that is all back catalogue, is derivable.
+    label: "Only unaired",
     hint: "From the next broadcast onwards",
   },
 ];
+
+/**
+ * The set the stored cut will cover, in the words of the episodes themselves.
+ * Its arms mirror catalog.monitorCut's so the two agree by construction: the
+ * status is what decides there, so nothing here may re-derive an answer from it.
+ */
+function monitorSummary(
+  target: AddTitle,
+  mode: MonitorItems,
+): { text: string; warn: boolean } {
+  const count = target.episodes ?? 0;
+  const next = target.next_item ?? 0;
+
+  if (target.format === "MOVIE") {
+    return { text: "The film will be monitored.", warn: false };
+  }
+  // A title that has not started takes this arm and no other: its control is
+  // hidden, so the mode it is summarising is always "all" (#217).
+  if (mode === "all") {
+    return {
+      text:
+        count > 1
+          ? `All ${count} episodes will be monitored.`
+          : count === 1
+            ? "The only episode will be monitored."
+            : "Every episode will be monitored.",
+      warn: false,
+    };
+  }
+  // The cut is the next broadcast, which covers items only while it lands
+  // inside the run; an unknown count is a run long enough to hold it.
+  if (next > 0 && (count === 0 || next <= count)) {
+    return {
+      text:
+        count > 0
+          ? `${count - next + 1} of ${count} episodes will be monitored, from episode ${next}.`
+          : `Episodes from ${next} onwards will be monitored.`,
+      warn: false,
+    };
+  }
+  // Everything else falls past the last item — a finished run, one between
+  // cours, and a schedule reaching beyond the count alike.
+  return {
+    text:
+      count > 1
+        ? `None of the ${count} episodes will be monitored. Any episode added later will be.`
+        : count === 1
+          ? "The only episode will not be monitored. Any episode added later will be."
+          : "No episode on record will be monitored. Any episode added later will be.",
+    warn: true,
+  };
+}
 
 /**
  * The add-time decisions for one title: which items to monitor and which
@@ -72,6 +127,10 @@ export function AddTitleForm({
   // A movie is one item, so all vs. future says nothing the series-level
   // Monitored switch does not already say.
   const isMovie = target.format === "MOVIE";
+  // Both choices resolve to the same cut before anything has aired (#217), so
+  // the question is not asked — only answered, by the summary below.
+  const askMonitor = !isMovie && !isUpcoming(target.status);
+  const summary = monitorSummary(target, monitorItems);
   const [profileId, setProfileId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const profiles = useQuery(profilesQuery());
@@ -147,16 +206,20 @@ export function AddTitleForm({
           </Link>
         )}
 
-        {!isMovie && (
-          <div className="space-y-1">
-            <span className="block text-xs font-medium text-muted-foreground">
-              Monitor
-            </span>
+        <div className="space-y-1">
+          <span className="block text-xs font-medium text-muted-foreground">
+            Monitor
+          </span>
+          {askMonitor && (
             <Select
               value={monitorItems}
               onValueChange={(v) => setMonitorItems(v as MonitorItems)}
             >
-              <SelectTrigger aria-label="Monitor" className="w-full">
+              <SelectTrigger
+                aria-label="Monitor"
+                aria-describedby="monitor-summary"
+                className="w-full"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -171,8 +234,19 @@ export function AddTitleForm({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        )}
+          )}
+          {/* Outside the dropdown deliberately: the trigger shows the label
+              alone, so a consequence only the open menu states is unread. */}
+          <p
+            id="monitor-summary"
+            className="flex items-start gap-1.5 text-[12.5px] text-muted-foreground"
+          >
+            {summary.warn && (
+              <TriangleAlert className="mt-0.5 size-3.5 flex-none text-dl" />
+            )}
+            <span>{summary.text}</span>
+          </p>
+        </div>
 
         {/* The row is held but never blocking: the add omits the profile until
             one is picked, so a slow or failed fetch just takes the server's

@@ -23,6 +23,9 @@ const STATUS_LABELS: Record<string, string> = {
 export const formatLabel = (f: string) => FORMAT_LABELS[f] ?? f;
 export const statusLabel = (s: string) => STATUS_LABELS[s] ?? s;
 
+/** Nothing has aired yet, so the title has no back catalogue. */
+export const isUpcoming = (s?: string) => s === "NOT_YET_RELEASED";
+
 export interface ChartFilters {
   format: string; // "all" or a provider-native value
   status: string;

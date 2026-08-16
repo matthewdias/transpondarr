@@ -66,10 +66,10 @@ func TestAddMovieCreatesOneItemOfKindMovie(t *testing.T) {
 	}
 }
 
-// Pins the non-decision (#208 §5): monitorCut is not coerced for a movie, so an
-// API client explicitly asking for "future" on an undated film gets the
-// pre-existing #188 edge rather than a special case. The first-party form sends
-// "all"; a single-episode OVA behaves identically today.
+// A released film has nothing left to come, so "future only" monitors nothing —
+// the same answer a finished series gives, and deliberate rather than the #188
+// edge it used to be (#217). Format is not the discriminator here; having aired
+// is.
 func TestAddMovieWithMonitorFutureLeavesItsItemUnmonitored(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc := NewService(st, movieProvider(0, 0))
@@ -86,6 +86,29 @@ func TestAddMovieWithMonitorFutureLeavesItsItemUnmonitored(t *testing.T) {
 	}
 	if monitored != 0 {
 		t.Errorf("monitored = %d, want 0 (cut lands past the only item)", monitored)
+	}
+}
+
+// The #217 population: AniList schedules no broadcast for most unreleased films,
+// so "future" fell past the only item and the film was never searched for.
+func TestAddUnreleasedMovieWithMonitorFutureMonitorsIt(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := movieProvider(0, 0)
+	prov.meta.Status = "NOT_YET_RELEASED"
+	svc := NewService(st, prov)
+	ctx := context.Background()
+
+	title, err := svc.AddTitle(ctx, "fake", 4321, true, MonitorFuture, 0)
+	if err != nil {
+		t.Fatalf("AddSeries: %v", err)
+	}
+	var monitored int
+	if err := st.DB.QueryRowContext(ctx,
+		`SELECT monitored FROM wanted_items WHERE series_id = ?`, title.ID).Scan(&monitored); err != nil {
+		t.Fatalf("read monitored: %v", err)
+	}
+	if monitored != 1 {
+		t.Errorf("monitored = %d, want 1 (nothing has aired, so there is no back catalogue to skip)", monitored)
 	}
 }
 

@@ -386,6 +386,51 @@ func TestGetTitleOVAWithOneEpisodeUnchanged(t *testing.T) {
 	}
 }
 
+// The add form names the episodes "only what hasn't aired" would monitor (#217),
+// which the search row can only answer by carrying the next broadcast. It is a
+// field on media the page already fetches, so it costs no extra request.
+func TestSearchCarriesTheNextBroadcast(t *testing.T) {
+	var query string
+	url := serveOnce(t, `{"data":{"Page":{"media":[{
+		"id": 21,
+		"title": {"romaji": "Placeholder Saga"},
+		"format": "TV",
+		"episodes": 12,
+		"status": "RELEASING",
+		"seasonYear": 2024,
+		"startDate": {"year": 2024},
+		"coverImage": {"large": ""},
+		"nextAiringEpisode": {"episode": 7}
+	},{
+		"id": 22,
+		"title": {"romaji": "Placeholder Saga Origins"},
+		"format": "TV",
+		"episodes": 12,
+		"status": "FINISHED",
+		"seasonYear": 2019,
+		"startDate": {"year": 2019},
+		"coverImage": {"large": ""},
+		"nextAiringEpisode": null
+	}]}}}`, &query)
+
+	got, err := stubClient(url).Search(context.Background(), "placeholder saga")
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("candidates = %+v, want 2", got)
+	}
+	if got[0].NextItem != 7 {
+		t.Errorf("NextItem = %d, want 7", got[0].NextItem)
+	}
+	if got[1].NextItem != 0 {
+		t.Errorf("a title with nothing scheduled reports NextItem %d, want 0", got[1].NextItem)
+	}
+	if !strings.Contains(query, "nextAiringEpisode") {
+		t.Errorf("search query does not request nextAiringEpisode: %s", query)
+	}
+}
+
 // The search row and the stored title must not disagree about a movie's year.
 func TestSearchYearSurvivesANullSeasonYear(t *testing.T) {
 	var query string
