@@ -814,7 +814,7 @@ export interface components {
              */
             readonly $schema?: string;
             /**
-             * @description Which items to monitor, now and as the title grows: all, or only from the next broadcast onwards
+             * @description Which items to monitor, now and as the title grows: all, or only those that have not yet aired
              * @default all
              * @enum {string}
              */
@@ -1016,6 +1016,11 @@ export interface components {
             episodes: number;
             format?: string;
             native?: string;
+            /**
+             * Format: int64
+             * @description Number of the next scheduled broadcast; omitted when nothing is scheduled
+             */
+            next_item?: number;
             /**
              * @description Metadata provider whose id space provider_id is numbered in
              * @enum {string}

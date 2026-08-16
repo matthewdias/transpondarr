@@ -442,7 +442,8 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
 
       <AddTitleDialog
         title={title}
-        target={entry}
+        // A season entry carries the same next broadcast under its own name.
+        target={{ ...entry, next_item: entry.next_episode }}
         open={formOpen}
         onOpenChange={setFormOpen}
         onAdded={() => {

@@ -73,7 +73,7 @@ type addTitleInput struct {
 		Monitored  *bool  `json:"monitored,omitempty" doc:"Whether to monitor for downloads (default true)"`
 		// The default must stay "all": an omitted field has to keep meaning
 		// today's behaviour for a client that never learned about the choice.
-		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future" default:"all" doc:"Which items to monitor, now and as the title grows: all, or only from the next broadcast onwards"`
+		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future" default:"all" doc:"Which items to monitor, now and as the title grows: all, or only those that have not yet aired"`
 		// Carried in the add so it is one atomic write; omitted (0) takes the
 		// default profile, which stays right as that default changes.
 		QualityProfileID int64 `json:"quality_profile_id,omitempty" minimum:"1" doc:"Quality profile to assign; omitted takes the default profile"`

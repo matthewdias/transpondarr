@@ -207,7 +207,7 @@ it("sends both choices when they are made", async () => {
   );
 
   await user.click(await screen.findByRole("combobox", { name: "Monitor" }));
-  await user.click(screen.getByRole("option", { name: /future only/i }));
+  await user.click(screen.getByRole("option", { name: /only unaired/i }));
   await user.click(screen.getByRole("combobox", { name: /quality profile/i }));
   await user.click(screen.getByRole("option", { name: "Sharper" }));
 

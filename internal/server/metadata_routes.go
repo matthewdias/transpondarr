@@ -21,6 +21,7 @@ type candidateDTO struct {
 	Status     string `json:"status,omitempty"`
 	Year       int    `json:"year,omitempty"`
 	CoverURL   string `json:"cover_url,omitempty"`
+	NextItem   int    `json:"next_item,omitempty" doc:"Number of the next scheduled broadcast; omitted when nothing is scheduled"`
 }
 
 type searchMetadataInput struct {
@@ -61,6 +62,7 @@ func registerMetadataRoutes(api huma.API, deps routeDeps) {
 				Status:     c.Status,
 				Year:       c.Year,
 				CoverURL:   c.CoverURL,
+				NextItem:   c.NextItem,
 			})
 		}
 		return out, nil

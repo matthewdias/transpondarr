@@ -36,6 +36,10 @@ type Candidate struct {
 	Status     string // provider-native status (e.g. "RELEASING", "FINISHED")
 	Year       int
 	CoverURL   string
+	// NextItem is the next scheduled broadcast's number, 0 when nothing is
+	// scheduled. Carried on the search row so the add form can name the items a
+	// monitor choice would cover before it is made (#217).
+	NextItem int
 }
 
 type TitleMeta struct {
@@ -58,6 +62,13 @@ type TitleMeta struct {
 	// title's position in its own run, and it keeps ItemMeta air-date-free.
 	NextItem int
 }
+
+// NotYetReleased reports a title none of whose items have aired. The provider's
+// own status is the only thing that says so: the population it matters for
+// (#217) is defined by publishing no schedule at all.
+func (m TitleMeta) NotYetReleased() bool { return m.Status == statusNotYetReleased }
+
+const statusNotYetReleased = "NOT_YET_RELEASED"
 
 type ItemMeta struct {
 	Number int

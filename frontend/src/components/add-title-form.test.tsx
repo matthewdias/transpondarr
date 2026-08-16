@@ -97,6 +97,17 @@ const title: AddTitle = {
   status: "RELEASING",
 };
 
+const upcoming: AddTitle = {
+  provider: "anilist",
+  provider_id: 22,
+  format: "TV",
+  episodes: 12,
+  status: "NOT_YET_RELEASED",
+};
+
+const airing: AddTitle = { ...title, status: "RELEASING", next_item: 7 };
+const finished: AddTitle = { ...title, status: "FINISHED" };
+
 // All vs. future is meaningless for a single-item run: the add-time choice
 // presents as monitored yes/no, which the series-level switch already is.
 it("hides the monitor mode for a movie and sends all", async () => {
@@ -107,11 +118,75 @@ it("hides the monitor mode for a movie and sends all", async () => {
   expect(
     screen.queryByRole("combobox", { name: "Monitor" }),
   ).not.toBeInTheDocument();
+  expect(screen.getByText("The film will be monitored.")).toBeInTheDocument();
 
   await user.click(screen.getByRole("button", { name: "Add Sample Film" }));
 
   await waitFor(() => expect(bodies).toHaveLength(1));
   expect(bodies[0]).toMatchObject({ monitor_items: "all" });
+});
+
+// #217: nothing has aired, so both choices monitor everything. A control whose
+// answers cannot differ is not a choice, so it is not offered.
+it("asks nothing for a title that has not started, and monitors all of it", async () => {
+  const bodies = captureAdd();
+  const user = renderForm(upcoming, "Placeholder Saga");
+
+  await screen.findByRole("combobox", { name: /quality profile/i });
+  expect(
+    screen.queryByRole("combobox", { name: "Monitor" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByText("All 12 episodes will be monitored."),
+  ).toBeInTheDocument();
+
+  await user.click(
+    screen.getByRole("button", { name: "Add Placeholder Saga" }),
+  );
+
+  await waitFor(() => expect(bodies).toHaveLength(1));
+  expect(bodies[0]).toMatchObject({ monitor_items: "all" });
+});
+
+// The choice is a count, not a category: naming the episodes it covers is what
+// makes it answerable without opening the dropdown.
+it("names the episodes each choice would monitor", async () => {
+  const user = renderForm(airing, "Placeholder Saga");
+
+  await screen.findByRole("combobox", { name: "Monitor" });
+  expect(
+    screen.getByText("All 12 episodes will be monitored."),
+  ).toBeInTheDocument();
+
+  await user.click(screen.getByRole("combobox", { name: "Monitor" }));
+  await user.click(screen.getByRole("option", { name: /only unaired/i }));
+
+  expect(
+    screen.getByText("6 of 12 episodes will be monitored, from episode 7."),
+  ).toBeInTheDocument();
+});
+
+// Monitoring nothing is a legitimate answer for a finished title, but a silent
+// one: it reads 0 / 12 and is never searched. It is also not permanent, which
+// is the part that separates it from switching the title off.
+it("says so when the choice would monitor nothing", async () => {
+  const user = renderForm(finished, "Placeholder Saga");
+
+  await screen.findByRole("combobox", { name: "Monitor" });
+  await user.click(screen.getByRole("combobox", { name: "Monitor" }));
+  await user.click(screen.getByRole("option", { name: /only unaired/i }));
+
+  expect(
+    screen.getByText(/Nothing to monitor now — everything has aired/),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Any episode added later will be monitored/),
+  ).toBeInTheDocument();
+
+  await user.click(screen.getByRole("combobox", { name: "Monitor" }));
+  await user.click(screen.getByRole("option", { name: /all episodes/i }));
+
+  expect(screen.queryByText(/Nothing to monitor now/)).not.toBeInTheDocument();
 });
 
 // The mode keys on the format alone, so a series is untouched.

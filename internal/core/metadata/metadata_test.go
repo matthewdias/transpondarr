@@ -200,6 +200,22 @@ func TestCachedSearchBypassesCache(t *testing.T) {
 	}
 }
 
+func TestNotYetReleased(t *testing.T) {
+	cases := map[string]bool{
+		"NOT_YET_RELEASED": true,
+		"RELEASING":        false,
+		"FINISHED":         false,
+		"CANCELLED":        false,
+		"HIATUS":           false,
+		"":                 false,
+	}
+	for status, want := range cases {
+		if got := (TitleMeta{Status: status}).NotYetReleased(); got != want {
+			t.Errorf("TitleMeta{Status: %q}.NotYetReleased() = %v, want %v", status, got, want)
+		}
+	}
+}
+
 func TestTTLFor(t *testing.T) {
 	long := 30 * 24 * time.Hour
 	short := 6 * time.Hour

@@ -17,6 +17,22 @@ All notable changes to this project are documented here. The format is based on
 - **The airing sync no longer reports the same failure once per series.** During
   a provider outage its last error was a dozen identical copies of one message;
   it now reads once, with a count.
+- **A title added before it starts airing now monitors its episodes.** Adding an
+  upcoming series or film and choosing to monitor only what is still to come left
+  every episode switched off, so it sat at *0 / 12*, was never searched for, and
+  gave no sign why. Nothing has aired yet means there is no back catalogue to
+  skip, so all of it is monitored.
+
+### Changed
+
+- **The add dialog now says which episodes it will monitor**, in both choices and
+  before you pick one — *All 12 episodes will be monitored*, or *6 of 12
+  episodes will be monitored, from episode 7*. For a title that has already
+  finished, it says plainly that monitoring only what is still to come leaves
+  nothing to monitor now.
+- **"Future only" is now "Only unaired"**, and the choice is no longer offered
+  for a title that has not started airing, where both answers mean the same
+  thing.
 
 ## [0.9.0] — 2026-08-15
 
