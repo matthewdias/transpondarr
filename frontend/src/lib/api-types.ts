@@ -1570,32 +1570,32 @@ export interface components {
              * Format: int64
              * @description Ceiling: a held release scoring at least this is good enough; zero means already met
              */
-            cutoff_score?: number;
-            /** @description Ranked group preference, most preferred first */
+            cutoff_score: number;
+            /** @description Ranked group preference, most preferred first; empty ranks no group */
             groups?: components["schemas"]["ProfileGroupDTO"][];
-            /** @description Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire */
+            /** @description Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty carries no exclusions */
             hard_excludes?: string[];
             /**
              * Format: int64
-             * @description Floor: candidates scoring below are ineligible
+             * @description Floor: candidates scoring below are ineligible; zero is no floor
              */
-            min_score?: number;
+            min_score: number;
             name: string;
-            prefer_dual_audio?: boolean;
+            prefer_dual_audio: boolean;
             /** @description web, bd, tv or dvd; empty for no preference */
             preferred_source?: string;
             /** @description Best first, as height tiers like 1080p; an unlisted resolution scores zero */
-            resolution_order?: string[];
+            resolution_order: string[];
             /** @description softsub or hardsub; empty for no preference */
             sub_pref?: string;
             /** @description Take the same group's v2/repack of what we hold even above the cutoff */
-            upgrade_v2_above_cutoff?: boolean;
+            upgrade_v2_above_cutoff: boolean;
             /** @description Re-grab a held item while what holds it scores below the cutoff */
-            upgrades_enabled?: boolean;
+            upgrades_enabled: boolean;
         };
         ProfileGroupDTO: {
             /** @description Never take this group, at any quality */
-            blocked?: boolean;
+            blocked: boolean;
             /** @description Release group name; array order is the preference rank */
             name: string;
         };

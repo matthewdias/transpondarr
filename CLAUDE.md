@@ -877,6 +877,19 @@ Behaviour changes are test-driven. Work red → green → refactor:
   `TestSettingsInputsRequireEveryDefaultedField` is the audit in runnable form:
   a field moved back to `omitempty` fails it unless someone also takes it out of
   the table, which is where the argument has to be made.
+  **The quality-profile body takes the same rule, and being one body for create
+  and update is why it has to.** A create that omitted a field did not take the
+  column's default — `CreateQualityProfile` writes every column explicitly, so
+  it wrote the *zero* over `resolution_order`'s three tiers and
+  `upgrade_v2_above_cutoff`'s on, which is the opposite of what both the schema
+  and the editor present as a new profile's starting point. So the usual "POST
+  defaults what it omits" idiom was never true here, and splitting create from
+  update would have meant inventing those defaults in Go to match the ones SQLite
+  already states. What stays `omitempty` is where empty is the value: no
+  preference, no excludes, no ranked groups. `blocked` on a group row is
+  required for the plain reason — under `omitempty` no client can say "not
+  blocked", which this repo's own Go and TypeScript test fixtures both
+  demonstrated by being unable to.
 - **Route handlers: group by resource; use a receiver when it earns its keep.**
   Each resource gets a `*_routes.go` file with a `register<Resource>Routes(api,
 deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest.

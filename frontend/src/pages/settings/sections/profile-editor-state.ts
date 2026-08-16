@@ -133,7 +133,7 @@ export function fromProfile(p: QualityProfile | null): EditorState {
     groups: (p?.groups ?? []).map((g) => ({
       key: nextKey(),
       name: g.name,
-      blocked: g.blocked ?? false,
+      blocked: g.blocked,
     })),
     resolutions,
     preferredSource: p?.preferred_source ?? "",
