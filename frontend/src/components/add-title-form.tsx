@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Link } from "react-router";
 import { ChevronLeft, Loader2, TriangleAlert } from "lucide-react";
 import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
-import { formatLabel, hasFinished, isUpcoming, statusLabel } from "@/lib/chart";
+import { formatLabel, isUpcoming, statusLabel } from "@/lib/chart";
 import { profilesQuery, titlesQuery, settingsQuery } from "@/lib/queries";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
@@ -54,41 +54,55 @@ const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
   },
 ];
 
-/** The set the stored cut will cover, in the words of the episodes themselves. */
+/**
+ * The set the stored cut will cover, in the words of the episodes themselves.
+ * Its arms mirror catalog.monitorCut's so the two agree by construction: the
+ * status is what decides there, so nothing here may re-derive an answer from it.
+ */
 function monitorSummary(
   target: AddTitle,
   mode: MonitorItems,
 ): { text: string; warn: boolean } {
   const count = target.episodes ?? 0;
   const next = target.next_item ?? 0;
-  const all =
-    count > 1
-      ? `All ${count} episodes will be monitored.`
-      : count === 1
-        ? "The only episode will be monitored."
-        : "Every episode will be monitored.";
 
   if (target.format === "MOVIE") {
     return { text: "The film will be monitored.", warn: false };
   }
   // A title that has not started takes this arm and no other: its control is
   // hidden, so the mode it is summarising is always "all" (#217).
-  if (mode === "all") return { text: all, warn: false };
-  if (hasFinished(target.status)) {
+  if (mode === "all") {
     return {
-      text: "Nothing to monitor now — everything has aired. Any episode added later will be monitored.",
-      warn: true,
-    };
-  }
-  if (next > 0 && count > 0 && next <= count) {
-    return {
-      text: `${count - next + 1} of ${count} episodes will be monitored, from episode ${next}.`,
+      text:
+        count > 1
+          ? `All ${count} episodes will be monitored.`
+          : count === 1
+            ? "The only episode will be monitored."
+            : "Every episode will be monitored.",
       warn: false,
     };
   }
+  // The cut is the next broadcast, which covers items only while it lands
+  // inside the run; an unknown count is a run long enough to hold it.
+  if (next > 0 && (count === 0 || next <= count)) {
+    return {
+      text:
+        count > 0
+          ? `${count - next + 1} of ${count} episodes will be monitored, from episode ${next}.`
+          : `Episodes from ${next} onwards will be monitored.`,
+      warn: false,
+    };
+  }
+  // Everything else falls past the last item — a finished run, one between
+  // cours, and a schedule reaching beyond the count alike.
   return {
-    text: "Episodes from the next broadcast onwards will be monitored.",
-    warn: false,
+    text:
+      count > 1
+        ? `None of the ${count} episodes will be monitored. Any episode added later will be.`
+        : count === 1
+          ? "The only episode will not be monitored. Any episode added later will be."
+          : "No episode on record will be monitored. Any episode added later will be.",
+    warn: true,
   };
 }
 
@@ -201,7 +215,11 @@ export function AddTitleForm({
               value={monitorItems}
               onValueChange={(v) => setMonitorItems(v as MonitorItems)}
             >
-              <SelectTrigger aria-label="Monitor" className="w-full">
+              <SelectTrigger
+                aria-label="Monitor"
+                aria-describedby="monitor-summary"
+                className="w-full"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -219,7 +237,10 @@ export function AddTitleForm({
           )}
           {/* Outside the dropdown deliberately: the trigger shows the label
               alone, so a consequence only the open menu states is unread. */}
-          <p className="flex items-start gap-1.5 text-[12.5px] text-muted-foreground">
+          <p
+            id="monitor-summary"
+            className="flex items-start gap-1.5 text-[12.5px] text-muted-foreground"
+          >
             {summary.warn && (
               <TriangleAlert className="mt-0.5 size-3.5 flex-none text-dl" />
             )}

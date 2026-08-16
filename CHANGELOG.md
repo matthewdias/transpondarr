@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Changed
+
+- **The add dialog now says which episodes it will monitor**, in both choices and
+  before you pick one — *All 12 episodes will be monitored*, or *6 of 12
+  episodes will be monitored, from episode 7*. When a choice would monitor
+  nothing — a finished title, or one between cours — it says so, and says that
+  an episode added later is still picked up.
+- **"Future only" is now "Only unaired"**, and the choice is no longer offered
+  for a title that has not started airing, where both answers mean the same
+  thing.
+
 ### Fixed
 
 - **When a metadata provider fails, it now says why.** Adding a title while
@@ -22,17 +33,6 @@ All notable changes to this project are documented here. The format is based on
   every episode switched off, so it sat at *0 / 12*, was never searched for, and
   gave no sign why. Nothing has aired yet means there is no back catalogue to
   skip, so all of it is monitored.
-
-### Changed
-
-- **The add dialog now says which episodes it will monitor**, in both choices and
-  before you pick one — *All 12 episodes will be monitored*, or *6 of 12
-  episodes will be monitored, from episode 7*. For a title that has already
-  finished, it says plainly that monitoring only what is still to come leaves
-  nothing to monitor now.
-- **"Future only" is now "Only unaired"**, and the choice is no longer offered
-  for a title that has not started airing, where both answers mean the same
-  thing.
 
 ## [0.9.0] — 2026-08-15
 

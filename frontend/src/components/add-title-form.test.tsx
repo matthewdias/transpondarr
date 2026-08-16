@@ -166,27 +166,68 @@ it("names the episodes each choice would monitor", async () => {
   ).toBeInTheDocument();
 });
 
-// Monitoring nothing is a legitimate answer for a finished title, but a silent
-// one: it reads 0 / 12 and is never searched. It is also not permanent, which
-// is the part that separates it from switching the title off.
-it("says so when the choice would monitor nothing", async () => {
-  const user = renderForm(finished, "Placeholder Saga");
+// Monitoring nothing is a legitimate answer, but a silent one: the title reads
+// 0 / 12 and is never searched. It is also not permanent, which is the part
+// that separates it from switching the title off.
+//
+// The cut lands past the last item for every one of these, so the warning keys
+// on where it lands and never on the status: a run between cours and one whose
+// schedule reaches past its count monitor exactly as much as a finished one
+// does, which is nothing, and used to be told they would be monitored.
+it.each([
+  ["a finished run", finished],
+  ["a run between cours", { ...title, next_item: undefined }],
+  ["a run on hiatus", { ...title, status: "HIATUS" }],
+  ["a schedule reaching past the count", { ...title, next_item: 13 }],
+])("says so when the choice would monitor nothing: %s", async (_, target) => {
+  const user = renderForm(target as AddTitle, "Placeholder Saga");
+
+  await screen.findByRole("combobox", { name: "Monitor" });
+  await user.click(screen.getByRole("combobox", { name: "Monitor" }));
+  await user.click(screen.getByRole("option", { name: /only unaired/i }));
+
+  const summary = () => document.getElementById("monitor-summary");
+  expect(
+    screen.getByText(
+      "None of the 12 episodes will be monitored. Any episode added later will be.",
+    ),
+  ).toBeInTheDocument();
+  expect(summary()?.querySelector("svg")).toBeInTheDocument();
+
+  await user.click(screen.getByRole("combobox", { name: "Monitor" }));
+  await user.click(screen.getByRole("option", { name: /all episodes/i }));
+
+  expect(screen.queryByText(/None of the 12/)).not.toBeInTheDocument();
+  expect(summary()?.querySelector("svg")).not.toBeInTheDocument();
+});
+
+// An unknown episode count is not an unknown answer: the cut is the broadcast
+// number either way, so the set is named without one.
+it("names the cut when the episode count is unknown", async () => {
+  const user = renderForm(
+    { ...title, episodes: 0, next_item: 1051 },
+    "Placeholder Saga",
+  );
 
   await screen.findByRole("combobox", { name: "Monitor" });
   await user.click(screen.getByRole("combobox", { name: "Monitor" }));
   await user.click(screen.getByRole("option", { name: /only unaired/i }));
 
   expect(
-    screen.getByText(/Nothing to monitor now — everything has aired/),
+    screen.getByText("Episodes from 1051 onwards will be monitored."),
   ).toBeInTheDocument();
-  expect(
-    screen.getByText(/Any episode added later will be monitored/),
-  ).toBeInTheDocument();
+});
 
-  await user.click(screen.getByRole("combobox", { name: "Monitor" }));
-  await user.click(screen.getByRole("option", { name: /all episodes/i }));
+// The summary is the reason the consequence sits outside the dropdown, so the
+// control has to point at it or a screen reader never reaches it.
+it("describes the control with the summary", async () => {
+  renderForm(airing, "Placeholder Saga");
 
-  expect(screen.queryByText(/Nothing to monitor now/)).not.toBeInTheDocument();
+  const trigger = await screen.findByRole("combobox", { name: "Monitor" });
+  const describedBy = String(trigger.getAttribute("aria-describedby"));
+  expect(document.getElementById(describedBy)).toHaveTextContent(
+    "All 12 episodes will be monitored.",
+  );
 });
 
 // The mode keys on the format alone, so a series is untouched.

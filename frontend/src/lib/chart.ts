@@ -26,10 +26,6 @@ export const statusLabel = (s: string) => STATUS_LABELS[s] ?? s;
 /** Nothing has aired yet, so the title has no back catalogue. */
 export const isUpcoming = (s?: string) => s === "NOT_YET_RELEASED";
 
-/** Everything that will air has aired; only a later addition can change that. */
-export const hasFinished = (s?: string) =>
-  s === "FINISHED" || s === "CANCELLED";
-
 export interface ChartFilters {
   format: string; // "all" or a provider-native value
   status: string;

@@ -202,8 +202,9 @@ func (s *Service) AddTitle(ctx context.Context, provider string, providerID int6
 }
 
 // monitorCut turns the add-time mode into the stored numeric boundary. A
-// "future" with no scheduled broadcast falls past the last item, never to 1:
-// erring high monitors nothing existing, erring low chases a back catalogue.
+// "future" on a title that has aired and has no scheduled broadcast falls past
+// the last item: erring high monitors nothing existing, erring low chases a
+// back catalogue.
 func monitorCut(mode MonitorMode, meta metadata.TitleMeta, itemCount int) (sql.NullInt64, error) {
 	switch mode {
 	case MonitorAll:
