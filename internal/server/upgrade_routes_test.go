@@ -34,13 +34,12 @@ func hold(t *testing.T, h *harness, titleID int64, number int, release string) {
 // the rest of the profile does.
 func TestProfileUpgradePolicyRoundTrips(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	in := map[string]any{
-		"name":                    "Upgrading",
+	in := profileInput("Upgrading", map[string]any{
 		"resolution_order":        []string{"1080p", "720p"},
 		"upgrades_enabled":        true,
 		"cutoff_score":            2400,
 		"upgrade_v2_above_cutoff": true,
-	}
+	})
 	var created upgradeProfileJSON
 	if code := do(t, h, "POST", "/api/v1/profiles", in, &created); code != http.StatusCreated {
 		t.Fatalf("create status = %d, want 201", code)

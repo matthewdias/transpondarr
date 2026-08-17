@@ -1157,7 +1157,8 @@ export interface components {
              * @example https://example.com/schemas/DownloadInputBody.json
              */
             readonly $schema?: string;
-            category?: string;
+            /** @description Category grabbed torrents are filed under; empty takes the default */
+            category: string;
             /** @description Leave empty to keep the stored password */
             password?: string;
             /**
@@ -1297,7 +1298,8 @@ export interface components {
             apikey?: string;
             /** @description Comma-separated Newznab category IDs; empty = no filter */
             categories?: string;
-            name?: string;
+            /** @description Display name for the indexer; empty takes the default */
+            name: string;
             url?: string;
         };
         IndexerSettingsDTO: {
@@ -1352,7 +1354,7 @@ export interface components {
             readonly $schema?: string;
             dir?: string;
             /** @enum {string} */
-            mode?: "auto" | "hardlink" | "copy";
+            mode: "auto" | "hardlink" | "copy";
             /** @description Root movies are placed into; empty = movies do not import */
             movies_dir?: string;
             /**
@@ -1501,7 +1503,8 @@ export interface components {
             on_rehearsal: boolean;
             on_stuck: boolean;
             on_title_added: boolean;
-            server?: string;
+            /** @description ntfy host; empty takes the public default */
+            server: string;
             /** @description Leave empty to keep the stored token */
             token?: string;
             topic?: string;
@@ -1567,32 +1570,32 @@ export interface components {
              * Format: int64
              * @description Ceiling: a held release scoring at least this is good enough; zero means already met
              */
-            cutoff_score?: number;
-            /** @description Ranked group preference, most preferred first */
+            cutoff_score: number;
+            /** @description Ranked group preference, most preferred first; empty ranks no group */
             groups?: components["schemas"]["ProfileGroupDTO"][];
-            /** @description Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire */
+            /** @description Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty carries no exclusions */
             hard_excludes?: string[];
             /**
              * Format: int64
-             * @description Floor: candidates scoring below are ineligible
+             * @description Floor: candidates scoring below are ineligible; zero is no floor
              */
-            min_score?: number;
+            min_score: number;
             name: string;
-            prefer_dual_audio?: boolean;
+            prefer_dual_audio: boolean;
             /** @description web, bd, tv or dvd; empty for no preference */
             preferred_source?: string;
             /** @description Best first, as height tiers like 1080p; an unlisted resolution scores zero */
-            resolution_order?: string[];
+            resolution_order: string[];
             /** @description softsub or hardsub; empty for no preference */
             sub_pref?: string;
             /** @description Take the same group's v2/repack of what we hold even above the cutoff */
-            upgrade_v2_above_cutoff?: boolean;
+            upgrade_v2_above_cutoff: boolean;
             /** @description Re-grab a held item while what holds it scores below the cutoff */
-            upgrades_enabled?: boolean;
+            upgrades_enabled: boolean;
         };
         ProfileGroupDTO: {
             /** @description Never take this group, at any quality */
-            blocked?: boolean;
+            blocked: boolean;
             /** @description Release group name; array order is the preference rank */
             name: string;
         };

@@ -18,7 +18,7 @@ import (
 
 type profileGroupDTO struct {
 	Name    string `json:"name" doc:"Release group name; array order is the preference rank"`
-	Blocked bool   `json:"blocked,omitempty" doc:"Never take this group, at any quality"`
+	Blocked bool   `json:"blocked" doc:"Never take this group, at any quality"`
 }
 
 type qualityProfileDTO struct {
@@ -40,20 +40,22 @@ type qualityProfileDTO struct {
 	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff"`
 }
 
+// The settings inputs' rule (#227) governs this body too: create writes every
+// column explicitly, so an omitted field overwrites the schema's default.
 type profileBody struct {
 	Name            string            `json:"name" required:"true" minLength:"1" maxLength:"120"`
-	ResolutionOrder []string          `json:"resolution_order,omitempty" doc:"Best first, as height tiers like 1080p; an unlisted resolution scores zero"`
+	ResolutionOrder []string          `json:"resolution_order" doc:"Best first, as height tiers like 1080p; an unlisted resolution scores zero"`
 	PreferredSource string            `json:"preferred_source,omitempty" doc:"web, bd, tv or dvd; empty for no preference"`
 	SubPref         string            `json:"sub_pref,omitempty" doc:"softsub or hardsub; empty for no preference"`
-	PreferDualAudio bool              `json:"prefer_dual_audio,omitempty"`
+	PreferDualAudio bool              `json:"prefer_dual_audio"`
 	CodecPref       string            `json:"codec_pref,omitempty" doc:"h264, h265 or av1; empty for no preference"`
-	HardExcludes    []string          `json:"hard_excludes,omitempty" doc:"Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire"`
-	MinScore        int64             `json:"min_score,omitempty" minimum:"0" doc:"Floor: candidates scoring below are ineligible"`
-	Groups          []profileGroupDTO `json:"groups,omitempty" doc:"Ranked group preference, most preferred first"`
+	HardExcludes    []string          `json:"hard_excludes,omitempty" doc:"Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty carries no exclusions"`
+	MinScore        int64             `json:"min_score" minimum:"0" doc:"Floor: candidates scoring below are ineligible; zero is no floor"`
+	Groups          []profileGroupDTO `json:"groups,omitempty" doc:"Ranked group preference, most preferred first; empty ranks no group"`
 
-	UpgradesEnabled      bool  `json:"upgrades_enabled,omitempty" doc:"Re-grab a held item while what holds it scores below the cutoff"`
-	CutoffScore          int64 `json:"cutoff_score,omitempty" minimum:"0" doc:"Ceiling: a held release scoring at least this is good enough; zero means already met"`
-	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff,omitempty" doc:"Take the same group's v2/repack of what we hold even above the cutoff"`
+	UpgradesEnabled      bool  `json:"upgrades_enabled" doc:"Re-grab a held item while what holds it scores below the cutoff"`
+	CutoffScore          int64 `json:"cutoff_score" minimum:"0" doc:"Ceiling: a held release scoring at least this is good enough; zero means already met"`
+	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff" doc:"Take the same group's v2/repack of what we hold even above the cutoff"`
 }
 
 type listProfilesOutput struct {

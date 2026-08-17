@@ -860,6 +860,42 @@ Behaviour changes are test-driven. Work red → green → refactor:
   The name is mechanism-agnostic on purpose — `imported` would name the importer
   as the only route into the library, which pre-existing-library import and hash
   identification (deferred, not rejected) would make a lie in the API contract.
+- **A settings body is its section's whole state, so `omitempty` is an argument
+  rather than a default (#227).** A field the service would fill in with a
+  default is required — the library mode and layout, the qBit category, the
+  stall hours, the ntfy server, every notify toggle — because omitting it
+  *selects* that default instead of leaving it alone, invisibly to the sender:
+  #129's flat library reverted to season folders on a save that never mentioned
+  the layout, and the DB row then outranked the env var permanently. A field is
+  `omitempty` only where absent and empty are the same instruction — a blank
+  secret keeps the stored one, a blank URL, root or topic switches that piece
+  off. Sending a required field empty still takes the default, and that *is* the
+  distinction: the client said so — **except where the field carries an `enum`
+  tag**, which refuses an empty value outright, so `mode`, `series_layout` and
+  automation's `mode` are 422 either way and the handler's `ValidImportMode` /
+  `ValidSeriesLayout` guards are unreachable defence in depth. The rule is about
+  the encoding, not about Huma, so it reaches the hand-rolled bodies too —
+  `POST /api/v1/auth/mode` validates the mode itself, where the service would
+  otherwise read an absent one as `enabled` and lock a `local` install out. It
+  validates *exactly*, matching those enums: `auth.ValidRequired` refuses a case
+  variant that `normalizeRequired` would have accepted, because that one reads
+  what a stored value or an env var may hold, not what a client sent.
+  `TestSettingsInputsRequireEveryDefaultedField` is the audit in runnable form:
+  a field moved back to `omitempty` fails it unless someone also takes it out of
+  the table, which is where the argument has to be made.
+  **The quality-profile body takes the same rule, and being one body for create
+  and update is why it has to.** A create that omitted a field did not take the
+  column's default — `CreateQualityProfile` writes every column explicitly, so
+  it wrote the *zero* over `resolution_order`'s three tiers and
+  `upgrade_v2_above_cutoff`'s on, which is the opposite of what both the schema
+  and the editor present as a new profile's starting point. So the usual "POST
+  defaults what it omits" idiom was never true here, and splitting create from
+  update would have meant inventing those defaults in Go to match the ones SQLite
+  already states. What stays `omitempty` is where empty is the value: no
+  preference, no excludes, no ranked groups. `blocked` on a group row is
+  required for the plain reason — under `omitempty` no client can say "not
+  blocked", which this repo's own Go and TypeScript test fixtures both
+  demonstrated by being unable to.
 - **Route handlers: group by resource; use a receiver when it earns its keep.**
   Each resource gets a `*_routes.go` file with a `register<Resource>Routes(api,
 deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest.

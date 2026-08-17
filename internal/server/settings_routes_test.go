@@ -101,7 +101,7 @@ func TestIndexerCategoriesRoundTrip(t *testing.T) {
 
 	var saved settingsJSON
 	code := do(t, h, http.MethodPut, "/api/v1/settings/indexer",
-		map[string]any{"url": "http://prowlarr:9696/1/api", "categories": " 5070, 127720 "}, &saved)
+		map[string]any{"name": "prowlarr", "url": "http://prowlarr:9696/1/api", "categories": " 5070, 127720 "}, &saved)
 	if code != http.StatusOK {
 		t.Fatalf("PUT /settings/indexer = %d, want 200", code)
 	}
@@ -118,7 +118,7 @@ func TestIndexerCategoriesRoundTrip(t *testing.T) {
 	}
 
 	code = do(t, h, http.MethodPut, "/api/v1/settings/indexer",
-		map[string]any{"url": "http://prowlarr:9696/1/api", "categories": "anime"}, nil)
+		map[string]any{"name": "prowlarr", "url": "http://prowlarr:9696/1/api", "categories": "anime"}, nil)
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("PUT /settings/indexer with a non-numeric category = %d, want 422", code)
 	}
@@ -173,14 +173,14 @@ func TestLibrarySeriesLayoutRoundTrip(t *testing.T) {
 	}
 
 	code = do(t, h, http.MethodPut, "/api/v1/settings/library",
-		map[string]any{"dir": "/media/Anime", "series_layout": "seasons"}, nil)
+		map[string]any{"dir": "/media/Anime", "series_layout": "seasons", "mode": "copy"}, nil)
 	if code != http.StatusUnprocessableEntity {
 		t.Fatalf("PUT /settings/library with an unknown layout = %d, want 422", code)
 	}
 
-	// automationInput's rule: with omitempty, "leave the layout alone" and "set
-	// it to season_folders" would be the same request, so a flat library would
-	// silently revert on any partial save.
+	// The settings inputs' rule (#227): with omitempty, "leave the layout alone"
+	// and "set it to season_folders" would be the same request, so a flat library
+	// would silently revert on any partial save.
 	code = do(t, h, http.MethodPut, "/api/v1/settings/library",
 		map[string]any{"dir": "/media/Anime", "mode": "copy"}, nil)
 	if code != http.StatusUnprocessableEntity {

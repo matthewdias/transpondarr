@@ -90,7 +90,7 @@ func TestAddTitleTakesTheQualityProfile(t *testing.T) {
 
 	var created profileJSON
 	if code := do(t, h, http.MethodPost, "/api/v1/profiles",
-		map[string]any{"name": "Sharper"}, &created); code != http.StatusCreated {
+		profileInput("Sharper", nil), &created); code != http.StatusCreated {
 		t.Fatalf("POST /profiles = %d, want 201", code)
 	}
 

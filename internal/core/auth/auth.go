@@ -109,6 +109,17 @@ func normalizeRequired(m string) string {
 	return RequiredEnabled
 }
 
+// ValidRequired reports whether m is a recognised required-mode. Exact, unlike
+// normalizeRequired, which reads what a stored value or an env var may hold.
+func ValidRequired(m string) bool {
+	switch m {
+	case RequiredEnabled, RequiredLocal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Configured reports whether an admin account exists.
 func (s *Service) Configured() bool {
 	s.mu.RLock()

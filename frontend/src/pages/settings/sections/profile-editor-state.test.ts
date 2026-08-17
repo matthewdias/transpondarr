@@ -25,8 +25,8 @@ function profile(overrides: Partial<QualityProfile>): QualityProfile {
     hard_excludes: ["hardsub"],
     min_score: 100,
     groups: [
-      { name: "FirstChoice" },
-      { name: "SecondChoice" },
+      { name: "FirstChoice", blocked: false },
+      { name: "SecondChoice", blocked: false },
       { name: "BadRipCo", blocked: true },
     ],
     title_count: 0,
