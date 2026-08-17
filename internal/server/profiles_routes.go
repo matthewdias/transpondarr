@@ -40,11 +40,8 @@ type qualityProfileDTO struct {
 	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff"`
 }
 
-// The settings inputs' rule (#227) governs this body too, and one body serves
-// both create and update: the create statement writes every column explicitly,
-// so an omitted field overwrites the schema's default rather than taking it —
-// resolution_order's three tiers and upgrade_v2_above_cutoff's on, both of which
-// the UI presents as the default a new profile starts from.
+// The settings inputs' rule (#227) governs this body too: create writes every
+// column explicitly, so an omitted field overwrites the schema's default.
 type profileBody struct {
 	Name            string            `json:"name" required:"true" minLength:"1" maxLength:"120"`
 	ResolutionOrder []string          `json:"resolution_order" doc:"Best first, as height tiers like 1080p; an unlisted resolution scores zero"`

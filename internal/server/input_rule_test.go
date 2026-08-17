@@ -9,12 +9,8 @@ import (
 	"testing"
 )
 
-// The audit behind #227. A settings body is its section's whole state, so a
-// field the service would fill in with a default is required and everything
-// else — a secret, a switch-it-off string — is omitempty. The table is the rule
-// made runnable: moving a field back to omitempty fails this unless someone
-// also takes it out of the required list, which is the argument, in review,
-// that the omission cannot select a value.
+// The #227 rule made runnable: moving a field back to omitempty fails this
+// unless someone also takes it out of the table, which is where the argument goes.
 func TestSettingsInputsRequireEveryDefaultedField(t *testing.T) {
 	for _, tc := range []struct {
 		path     string
@@ -91,11 +87,8 @@ func TestSettingsInputsRequireEveryDefaultedField(t *testing.T) {
 }
 
 // The same rule on the quality-profile body, which is one body for create and
-// update (#227). Omission-means-default cannot be the create idiom here: the
-// create statement writes every column explicitly, so a body that never
-// mentioned resolution_order or upgrade_v2_above_cutoff overwrites the schema's
-// own default rather than taking it. On update it is the settings case exactly —
-// a save that never mentioned upgrades switching them off.
+// update (#227): create writes every column explicitly, so omission-means-default
+// cannot be its idiom.
 func TestProfileInputRequiresEveryDefaultedField(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	body := profileInput("Trusted", map[string]any{

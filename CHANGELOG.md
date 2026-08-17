@@ -33,19 +33,20 @@ All notable changes to this project are documented here. The format is based on
   every episode switched off, so it sat at *0 / 12*, was never searched for, and
   gave no sign why. Nothing has aired yet means there is no back catalogue to
   skip, so all of it is monitored.
-- **A settings save can no longer change a setting it never mentioned.** Leaving
-  a field out of a `PUT /api/v1/settings/*` body quietly reset it to the
-  default — a flat library reverting to season folders, a custom qBittorrent
-  category becoming `transpondarr`, a self-hosted ntfy server becoming
-  `ntfy.sh` — and the same omission on `POST /api/v1/auth/mode` switched a
-  local-network install back to requiring a login. Each of those fields is now
-  required, so an incomplete body is refused instead. Nothing changes in the web
-  UI, which has always sent whole sections.
-- **The same applies to quality profiles.** Saving one over the API without
-  mentioning upgrades switched them off, and creating one without mentioning
-  resolutions or the v2 carve-out started it with no resolutions ranked and the
-  carve-out off — not the defaults a profile created in the UI starts from.
-  Those fields are required now too.
+- **Breaking: a settings save can no longer change a setting it never
+  mentioned.** Leaving a field out of a `PUT /api/v1/settings/*` body quietly
+  reset it to the default — a flat library reverting to season folders, a custom
+  qBittorrent category becoming `transpondarr`, a self-hosted ntfy server
+  becoming `ntfy.sh` — and the same omission on `POST /api/v1/auth/mode`
+  switched a local-network install back to requiring a login. Each of those
+  fields is now required, so an incomplete body is refused with a 422 instead.
+  Nothing changes in the web UI, which has always sent whole sections, but an
+  API client that sends partial bodies must now send whole ones.
+- **Breaking: the same applies to quality profiles.** Saving one over the API
+  without mentioning upgrades switched them off, and creating one without
+  mentioning resolutions or the v2 carve-out started it with no resolutions
+  ranked and the carve-out off — not the defaults a profile created in the UI
+  starts from. Those fields are required now too.
 
 ## [0.9.0] — 2026-08-15
 

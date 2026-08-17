@@ -188,14 +188,9 @@ func snapshotDTO(s settings.Snapshot) settingsDTO {
 
 // Input bodies
 //
-// One rule decides every field below (#227). A body is its section's whole
-// state, not a patch, so a field is omitempty only where absent and empty say
-// the same thing: a blank secret keeps the stored one, a blank URL, root or
-// topic switches that piece off. Anything the service would fill in with a
-// default is required instead, because omitting it *selects* that default with
-// nothing said (#129: a flat library reverting to season folders on a save that
-// never mentioned the layout). Sending such a field empty still takes the
-// default — the difference is that the client asked for it.
+// One rule decides every field below, and CLAUDE.md argues it (#227): a body is
+// its section's whole state, so omitempty means absent and empty say the same
+// thing, and anything the service would default is required instead.
 
 type downloadInput struct {
 	Body struct {
@@ -488,6 +483,8 @@ func (h *settingsHandler) testIndexer(ctx context.Context, in *indexerInput) (*t
 	return out, nil
 }
 
+// Both guards are defence in depth: the enum tags already refuse an empty or
+// unrecognized value, so neither is reachable through Huma.
 func (h *settingsHandler) updateLibrary(ctx context.Context, in *libraryInput) (*settingsOutput, error) {
 	if !settings.ValidImportMode(in.Body.Mode) {
 		return nil, huma.Error422UnprocessableEntity("invalid import mode (want auto, hardlink or copy)")

@@ -201,6 +201,14 @@ func TestAuthModeRequiresTheModeItSets(t *testing.T) {
 	if got := authSvc.Required(); got != auth.RequiredLocal {
 		t.Errorf("mode after an unknown mode = %q, want the stored %q", got, auth.RequiredLocal)
 	}
+	// Case-sensitive, so this body answers on the same terms as the Huma enums
+	// the rule reaches: {"mode":"COPY"} is a 422.
+	if code := setAuthMode(t, ts, map[string]string{"required": "ENABLED"}); code != http.StatusBadRequest {
+		t.Errorf("POST /auth/mode with a case variant = %d, want 400", code)
+	}
+	if got := authSvc.Required(); got != auth.RequiredLocal {
+		t.Errorf("mode after a case variant = %q, want the stored %q", got, auth.RequiredLocal)
+	}
 	if code := setAuthMode(t, ts, map[string]string{"required": auth.RequiredEnabled}); code != http.StatusOK {
 		t.Errorf("POST /auth/mode = %d, want 200", code)
 	}

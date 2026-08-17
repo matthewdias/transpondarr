@@ -870,10 +870,16 @@ Behaviour changes are test-driven. Work red → green → refactor:
   `omitempty` only where absent and empty are the same instruction — a blank
   secret keeps the stored one, a blank URL, root or topic switches that piece
   off. Sending a required field empty still takes the default, and that *is* the
-  distinction: the client said so. The rule is about the encoding, not about
-  Huma, so it reaches the hand-rolled bodies too — `POST /api/v1/auth/mode`
-  validates the mode itself, where the service would otherwise read an absent
-  one as `enabled` and lock a `local` install out.
+  distinction: the client said so — **except where the field carries an `enum`
+  tag**, which refuses an empty value outright, so `mode`, `series_layout` and
+  automation's `mode` are 422 either way and the handler's `ValidImportMode` /
+  `ValidSeriesLayout` guards are unreachable defence in depth. The rule is about
+  the encoding, not about Huma, so it reaches the hand-rolled bodies too —
+  `POST /api/v1/auth/mode` validates the mode itself, where the service would
+  otherwise read an absent one as `enabled` and lock a `local` install out. It
+  validates *exactly*, matching those enums: `auth.ValidRequired` refuses a case
+  variant that `normalizeRequired` would have accepted, because that one reads
+  what a stored value or an env var may hold, not what a client sent.
   `TestSettingsInputsRequireEveryDefaultedField` is the audit in runnable form:
   a field moved back to `omitempty` fails it unless someone also takes it out of
   the table, which is where the argument has to be made.

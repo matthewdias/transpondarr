@@ -121,12 +121,11 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 		}
 		// The settings inputs' rule (#227) reaches here too: the service reads an
 		// absent mode as "enabled", which would lock a local install out.
-		mode := strings.TrimSpace(in.Required)
-		if !strings.EqualFold(mode, auth.RequiredEnabled) && !strings.EqualFold(mode, auth.RequiredLocal) {
+		if !auth.ValidRequired(in.Required) {
 			http.Error(w, "required must be enabled or local", http.StatusBadRequest)
 			return
 		}
-		if err := a.SetRequired(req.Context(), mode); err != nil {
+		if err := a.SetRequired(req.Context(), in.Required); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

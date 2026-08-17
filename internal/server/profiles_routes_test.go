@@ -37,8 +37,10 @@ type profileJSON struct {
 }
 
 // profileInput is a whole profile body with the given overrides applied. The
-// endpoint takes no partial one (#227), and the values here are what the editor
-// starts a new profile from, so a test states only the fields it is about.
+// endpoint takes no partial one (#227), so a test states only what it is about.
+// resolution_order and upgrade_v2_above_cutoff restate the quality_profiles
+// column defaults (00009, 00017), as profile-editor-state.ts does — nothing ties
+// the three together, so a changed default has to be carried here by hand.
 func profileInput(name string, over map[string]any) map[string]any {
 	in := map[string]any{
 		"name":                    name,
