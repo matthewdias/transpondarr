@@ -76,26 +76,24 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 		return err
 	}
 	fresh := unseenEntries(entries, mark)
-	// Recognising nothing means the mark scrolled off the page: the feed moved
-	// further than one page between polls, so whatever aired in between is the
-	// sweep's to find — and with a feed configured the sweep no longer aims at
-	// the airing window, leaving its backoff ladder to reach it up to a day
+	// A page that no longer reaches the mark means it scrolled off: the feed
+	// moved further than one page between polls, so whatever aired in between is
+	// the sweep's to find — and with a feed configured the sweep no longer aims
+	// at the airing window, leaving its backoff ladder to reach it up to a day
 	// later. The poll knows when coverage was lost, so it recovers (#140).
-	// A gap means every entry is fresh, so the quiet-feed return below is never
-	// this path.
-	gap := !mark.Latest.IsZero() && len(fresh) == len(entries)
-	// The whole point of the mark: a quiet feed costs one request and nothing else.
-	if len(fresh) == 0 {
-		return s.saveFeedMark(ctx, idx.Name(), advanceFeedMark(mark, nextFeedMark(entries)))
-	}
+	gap := !mark.Latest.IsZero() && !pageReachesMark(entries, mark)
 
-	releases := make([]indexer.Release, 0, len(fresh))
-	for _, e := range fresh {
-		releases = append(releases, e.Release)
+	// The whole point of the mark: a quiet feed costs one request and nothing else.
+	var polled error
+	if len(fresh) > 0 {
+		releases := make([]indexer.Release, 0, len(fresh))
+		for _, e := range fresh {
+			releases = append(releases, e.Release)
+		}
+		polled = s.pollTitle(ctx, releases)
 	}
 	// Recovery runs after the page is processed, so anything this poll just
 	// grabbed has settled its item and drops out of the reset set.
-	polled := s.pollTitle(ctx, releases)
 	var recovered error
 	if gap {
 		recovered = s.recoverFeedGap(ctx, idx.Name(), mark.Latest, len(entries))
@@ -203,14 +201,34 @@ func feedEntryID(e indexer.FeedEntry) string {
 	return decide.NormalizeReleaseTitle(e.Release.Title)
 }
 
-// unseenEntries narrows a page to what the last poll did not already process. An
-// entry older than the mark is skipped even when its id is unfamiliar, which is
-// what stops a truncated id set from re-processing history.
-func unseenEntries(entries []indexer.FeedEntry, mark feedMark) []indexer.FeedEntry {
+// seenIDs is the mark's id set, as a lookup.
+func seenIDs(mark feedMark) map[string]bool {
 	seen := make(map[string]bool, len(mark.IDs))
 	for _, id := range mark.IDs {
 		seen[id] = true
 	}
+	return seen
+}
+
+// pageReachesMark reports whether the page still shows the mark's own instant: an
+// id we remembered, or an entry published at it, which a truncated id set cannot
+// name. An entry merely older is no evidence — its id was never remembered, so
+// backfill and a page that genuinely reaches back look identical (#176).
+func pageReachesMark(entries []indexer.FeedEntry, mark feedMark) bool {
+	seen := seenIDs(mark)
+	for _, e := range entries {
+		if seen[feedEntryID(e)] || (!e.Published.IsZero() && e.Published.Equal(mark.Latest)) {
+			return true
+		}
+	}
+	return false
+}
+
+// unseenEntries narrows a page to what the last poll did not already process. An
+// entry older than the mark is skipped even when its id is unfamiliar, which is
+// what stops a truncated id set from re-processing history.
+func unseenEntries(entries []indexer.FeedEntry, mark feedMark) []indexer.FeedEntry {
+	seen := seenIDs(mark)
 	out := make([]indexer.FeedEntry, 0, len(entries))
 	for _, e := range entries {
 		if seen[feedEntryID(e)] {

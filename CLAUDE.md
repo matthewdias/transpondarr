@@ -396,6 +396,23 @@ Behaviour changes are test-driven. Work red → green → refactor:
   resets the sweep for the series that aired inside the gap, bounded to
   `titlesPerPass` per gap event so a routine gap on a busy indexer queues no more
   searches than one pass can spend.
+  **A page proves coverage only by showing the mark's own instant (#176)** — an id
+  `nextFeedMark` remembered, or an entry published at it, which a truncated id set
+  cannot name. An entry merely *older* than the mark proves nothing: its id was
+  never remembered, so an aggregator's backfill is indistinguishable from a page
+  that genuinely reaches back, and backfill is structural rather than exotic —
+  Jackett's aggregate indexer returns partial results, so a member that timed out
+  on one poll reappears on the next carrying its original dates. Reading such an
+  entry as coverage is what masked the gap: the old signal was "every entry is
+  fresh", and one backdated straggler on the page defeated it. Sonarr's
+  `oldestReleaseDate < lastReleaseInfo.PublishDate` is exactly that reading, and is
+  safe *there* only because Sonarr re-processes its whole page each sync and
+  dedupes downstream, where `unseenEntries` skips what it dates before the mark —
+  so the precedent is one to understand and not to copy. Two consequences: a page
+  with nothing fresh on it can still be a gap, so the recovery sits outside the
+  quiet-feed shortcut rather than behind it; and a false gap is one-shot, since
+  `advanceFeedMark` merges the unrecognised page's ids into the kept mark, so the
+  poll after recognises it.
   They divide by what they can see: the feed owns releases published while we
   watch, the sweep owns what already existed and everything when no feed is
   configured. **Cadence follows that division; grab scope deliberately does
