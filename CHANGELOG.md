@@ -47,6 +47,13 @@ All notable changes to this project are documented here. The format is based on
   mentioning resolutions or the v2 carve-out started it with no resolutions
   ranked and the carve-out off — not the defaults a profile created in the UI
   starts from. Those fields are required now too.
+- **A missed page of the recent feed is now spotted even when a stale entry sits
+  on it.** When the feed moved on faster than Transpondarr could poll it, a
+  single entry that had been on the page all along — an older release from a
+  tracker catching up, or a dateless sticky post — was enough to hide that
+  anything had been missed, and the episodes that slipped past waited for the
+  scheduled search to come round to them, up to a day later. Those series go back
+  to the front of the search queue as soon as the poll notices.
 
 ## [0.9.0] — 2026-08-15
 

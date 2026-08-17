@@ -396,6 +396,33 @@ Behaviour changes are test-driven. Work red → green → refactor:
   resets the sweep for the series that aired inside the gap, bounded to
   `titlesPerPass` per gap event so a routine gap on a busy indexer queues no more
   searches than one pass can spend.
+  **A page proves coverage only by showing the mark's own instant (#176)** — an
+  entry published at it, or one whose id was remembered *for* it. Nothing else on
+  the page is evidence, and the three things that are not are worth naming because
+  each looked like evidence once: an entry merely *older* than the mark (an
+  aggregator's backfill, which is structural rather than exotic — Jackett's
+  aggregate indexer returns partial results, so a member that timed out on one
+  poll reappears on the next carrying its original dates); a **sticky the feed
+  never dated**, which sits on every page, so treating it as coverage disables gap
+  detection permanently and never self-corrects; and a **stale id the rewind path
+  merged**, which by construction was published before the instant it would be
+  claiming to reach. Hence the mark carries two id sets that a reader must not
+  merge back into one: `IDs` is the dedupe set `unseenEntries` needs, deliberately
+  the wider of the two, and `LatestIDs` is coverage alone. The id arm survives the
+  narrowing rather than being dropped because an aggregator rendering a tracker's
+  relative date recomputes it every poll, so the entry carrying the mark comes back
+  at a slightly different instant.
+  Reading a mere straggler as coverage is what masked the gap: the old signal was
+  "every entry is fresh", and one backdated entry on the page defeated it. Sonarr's
+  `oldestReleaseDate < lastReleaseInfo.PublishDate` is exactly that reading, and is
+  safe *there* only because Sonarr re-processes its whole page each sync and
+  dedupes downstream, where `unseenEntries` skips what it dates before the mark —
+  so the precedent is one to understand and not to copy. Two consequences: a page
+  with nothing fresh on it can still be a gap, so the recovery sits outside the
+  quiet-feed shortcut rather than behind it; and a false gap **recurs for as long
+  as the page hides the mark** — an indexer stuck serving an older page reports one
+  every poll — which is affordable only because the recovery is bounded to
+  `titlesPerPass` and reorders the sweep queue rather than adding searches to it.
   They divide by what they can see: the feed owns releases published while we
   watch, the sweep owns what already existed and everything when no feed is
   configured. **Cadence follows that division; grab scope deliberately does

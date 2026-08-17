@@ -411,6 +411,15 @@ func TestFeedPollDedupesAFeedWithoutPublishDates(t *testing.T) {
 	if len(h.dl.Adds) != 0 {
 		t.Errorf("second poll added %+v, want none — an undated entry dedupes on its id", h.dl.Adds)
 	}
+	// Such a feed has no instant to reach, so it stores no coverage ids: they
+	// would double the row and answer a question that is never asked of it.
+	stored, err := h.st.Q.GetSetting(ctx, "feed.seen."+h.feed.Name())
+	if err != nil {
+		t.Fatalf("read the stored mark: %v", err)
+	}
+	if strings.Contains(stored, "latest_ids") {
+		t.Errorf("stored mark = %s; an undated feed has no instant to remember ids for", stored)
+	}
 }
 
 // An indexer with no recent feed is a supported configuration: sweep behaviour
@@ -684,6 +693,248 @@ func TestFeedPollGapResetIsBoundedToOnePass(t *testing.T) {
 	}
 }
 
+// The acceptance criterion of #176: an aggregating indexer backfills a member
+// that timed out on the last poll, so one entry on the page carries a publish
+// date from before the mark. Nothing on the page is recognised, so the gap is
+// still a gap — and the entry that masked it must not cost the recovery.
+func TestFeedPollGapSurvivesABackdatedEntryOnThePage(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-2 * time.Hour)
+	h := newFeedPoll(t, nil, fakeConfig{})
+	pollThenGap(t, h, since)
+	h.feed.Entries = append(h.feed.Entries, feedEntry("Backfilled Show", 2, since.Add(-3*time.Hour)))
+
+	aired := now.Add(-time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if !h.log.logged("moved more than one page") {
+		t.Error("no gap warning: a backdated entry masked a page that recognised nothing")
+	}
+	if state := readSearchState(t, h.st, id); state.backoff != 0 || state.nextSearchAt.Valid {
+		t.Errorf("backoff = %d, next_search_at = %+v; want 0 and NULL — the backdated entry is no evidence of coverage",
+			state.backoff, state.nextSearchAt)
+	}
+}
+
+// A page carrying nothing but backfill has nothing fresh on it, and shows no
+// more coverage than a page of releases we have never seen: the recovery runs.
+func TestFeedPollRecoversAGapOnAPageWithNothingFresh(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-2 * time.Hour)
+	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since)}, fakeConfig{})
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("first PollFeedOnce: %v", err)
+	}
+	h.feed.Entries = []indexer.FeedEntry{feedEntry("Backfilled Show", 2, since.Add(-3*time.Hour))}
+
+	aired := now.Add(-time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if state := readSearchState(t, h.st, id); state.backoff != 0 || state.nextSearchAt.Valid {
+		t.Errorf("backoff = %d, next_search_at = %+v; want 0 and NULL — a page with nothing fresh on it can still be a gap",
+			state.backoff, state.nextSearchAt)
+	}
+}
+
+// The other half of #176: a page that still shows the mark's own entry overlaps
+// it however much new sits on top, so the ladder is left alone.
+func TestFeedPollOverlappingPageIsNotAGap(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-2 * time.Hour)
+	marked := feedEntry("Placeholder Saga", 1, since)
+	h := newFeedPoll(t, []indexer.FeedEntry{marked}, fakeConfig{})
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("first PollFeedOnce: %v", err)
+	}
+	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, now), marked}
+
+	aired := now.Add(-time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if h.log.logged("moved more than one page") {
+		t.Error("a page still carrying the mark warned about a gap it did not have")
+	}
+	state := readSearchState(t, h.st, id)
+	if state.backoff != 6 {
+		t.Errorf("backoff = %d, want 6 — continuity resets nothing", state.backoff)
+	}
+	wantNextSearchNear(t, state.nextSearchAt, now.Add(20*time.Hour))
+}
+
+// An indexer that rewrites its GUIDs leaves the mark's ids unrecognisable, and a
+// truncated id set never named them: the instant itself is on the page, so the
+// page still reaches back.
+func TestFeedPollTreatsTheMarkInstantAsContinuity(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-2 * time.Hour)
+	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since)}, fakeConfig{})
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("first PollFeedOnce: %v", err)
+	}
+	renamed := feedEntry("Placeholder Saga", 1, since)
+	renamed.GUID = "guid-rewritten-by-the-indexer"
+	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, now), renamed}
+
+	aired := now.Add(-time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if h.log.logged("moved more than one page") {
+		t.Error("an entry published at the mark's own instant should read as continuity")
+	}
+	if state := readSearchState(t, h.st, id); state.backoff != 6 {
+		t.Errorf("backoff = %d, want 6 — continuity resets nothing", state.backoff)
+	}
+}
+
+// An entry the feed dated not at all is remembered so it is not processed twice,
+// and that is all: a sticky item sits on every page forever, so reading one as
+// coverage would disable gap detection outright and never self-correct.
+func TestFeedPollUndatedEntryDedupesButIsNotCoverage(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-2 * time.Hour)
+	sticky := feedEntry("Undated Show", 4, time.Time{})
+	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since), sticky}, fakeConfig{})
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("first PollFeedOnce: %v", err)
+	}
+	// The dated entry that carried the mark has scrolled off; the sticky has not.
+	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, now), sticky}
+
+	aired := now.Add(-time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+	// Seeded only now, so a re-processed sticky would be visible as a grab.
+	sticky4 := seedSweep(t, h.st, "Undated Show", true, sweepItem{number: 4, airsAt: &aired})
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if state := readSearchState(t, h.st, id); state.backoff != 0 || state.nextSearchAt.Valid {
+		t.Errorf("backoff = %d, next_search_at = %+v; want 0 and NULL — a sticky is no evidence the page reaches the mark",
+			state.backoff, state.nextSearchAt)
+	}
+	if got := grabbedItemNumbers(t, h.st, sticky4); len(got) != 0 {
+		t.Errorf("grabbed %v for the sticky; narrowing coverage must not narrow the dedupe", got)
+	}
+}
+
+// The rewind path merges an older page's ids into the kept mark so they are not
+// re-processed, and one of those must not then claim the page reaches the mark:
+// that is #176's failure reached through the id arm instead of the date arm.
+func TestFeedPollGapSurvivesAStaleRememberedID(t *testing.T) {
+	now := time.Now()
+	stale := feedEntry("Dead Tracker Sticky", 7, now.Add(-30*time.Hour))
+	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, now.Add(-2*time.Hour))}, fakeConfig{})
+	ctx := context.Background()
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("first PollFeedOnce: %v", err)
+	}
+	// The busy member times out, so only the dead member's old entry is served:
+	// the mark is kept and the stale id is remembered alongside it.
+	h.feed.Entries = []indexer.FeedEntry{stale}
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+
+	aired := now.Add(-time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+	// The busy member returns having published more than one page: nothing here
+	// reaches the mark, and the stale entry is not evidence that anything does.
+	h.feed.Entries = []indexer.FeedEntry{feedEntry("Brand New Show", 9, now), stale}
+
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("third PollFeedOnce: %v", err)
+	}
+	if state := readSearchState(t, h.st, id); state.backoff != 0 || state.nextSearchAt.Valid {
+		t.Errorf("backoff = %d, next_search_at = %+v; want 0 and NULL — a merged id from an older page is no coverage",
+			state.backoff, state.nextSearchAt)
+	}
+}
+
+// Why the id arm survives being narrowed rather than dropped: an aggregator that
+// renders a tracker's relative date ("2 days ago") recomputes it every poll, so
+// the entry that carried the mark comes back at a slightly different instant.
+func TestFeedPollRecognisesTheMarkWhenTheIndexerRedatesIt(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-2 * time.Hour)
+	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since)}, fakeConfig{})
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("first PollFeedOnce: %v", err)
+	}
+	redated := feedEntry("Placeholder Saga", 1, since.Add(5*time.Minute)) // same GUID, recomputed date
+	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, now), redated}
+
+	aired := now.Add(-time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	if h.log.logged("moved more than one page") {
+		t.Error("the entry that carried the mark is on the page; a recomputed date is not a gap")
+	}
+	if state := readSearchState(t, h.st, id); state.backoff != 6 {
+		t.Errorf("backoff = %d, want 6 — continuity resets nothing", state.backoff)
+	}
+}
+
+// An install upgrading mid-poll has a mark that predates the coverage ids: the
+// instant itself is still on the page, and the mark written next carries them.
+func TestFeedPollAcceptsAMarkStoredBeforeCoverageIDs(t *testing.T) {
+	now := time.Now()
+	since := now.Add(-2 * time.Hour)
+	h := newFeedPoll(t, []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 1, since), feedEntry("Unrelated Show", 9, now),
+	}, fakeConfig{})
+	ctx := context.Background()
+	legacy := fmt.Sprintf(`{"latest":%q,"ids":["guid-Placeholder Saga-01"]}`,
+		since.UTC().Format(time.RFC3339Nano))
+	if err := h.st.Q.UpsertSetting(ctx, db.UpsertSettingParams{
+		Key: "feed.seen." + h.feed.Name(), Value: legacy,
+	}); err != nil {
+		t.Fatalf("seed a mark in the old shape: %v", err)
+	}
+
+	aired := now.Add(-time.Hour)
+	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
+	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
+
+	if err := h.svc.PollFeedOnce(ctx); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if h.log.logged("moved more than one page") {
+		t.Error("an upgraded install reported a gap on a page still showing its mark")
+	}
+	if state := readSearchState(t, h.st, id); state.backoff != 6 {
+		t.Errorf("backoff = %d, want 6 — continuity resets nothing", state.backoff)
+	}
+	stored, err := h.st.Q.GetSetting(ctx, "feed.seen."+h.feed.Name())
+	if err != nil {
+		t.Fatalf("read the stored mark: %v", err)
+	}
+	if !strings.Contains(stored, "latest_ids") {
+		t.Errorf("stored mark = %s; the poll should have written the coverage ids", stored)
+	}
+}
+
 // A mark that will not decode costs one re-processed page, never a dead feed —
 // the failure mode Sonarr's equivalent field actually has.
 func TestFeedPollToleratesACorruptMark(t *testing.T) {
@@ -729,6 +980,12 @@ func TestFeedPollDoesNotRewindOnAnOlderPage(t *testing.T) {
 	h.feed.Entries = []indexer.FeedEntry{older} // a stale page from the indexer
 	if err := h.svc.PollFeedOnce(ctx); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
+	}
+	// The stale page shows nothing of the mark, so it reads as lost coverage and
+	// spends a bounded recovery. That is the accepted cost of not inferring
+	// coverage from an older entry (#176) — and it recurs while the page does.
+	if !h.log.logged("moved more than one page") {
+		t.Error("a page showing nothing of the mark should report lost coverage")
 	}
 
 	// Now the title exists and the indexer serves the original page again. The
