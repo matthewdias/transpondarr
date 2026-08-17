@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -482,5 +483,59 @@ describe("EpisodesTab select all", () => {
     const box = screen.getByRole("checkbox", { name: /select all/i });
     expect(box).toHaveAttribute("aria-checked", "mixed");
     expect(box).toHaveAttribute("data-state", "indeterminate");
+  });
+});
+
+// The dead end #151 is about: AniList published neither a count nor a schedule,
+// so the tab has no rows and nothing else can ever create one.
+describe("EpisodesTab with no items at all", () => {
+  function renderEmptyTab() {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <EpisodesTab
+          detail={detail([])}
+          onSearchAll={vi.fn()}
+          onSearchItem={vi.fn()}
+          selected={new Set()}
+          onToggleSelect={vi.fn()}
+          onSelectRange={vi.fn()}
+          onSetSelection={vi.fn()}
+          onSetMonitored={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    return userEvent.setup();
+  }
+
+  it("explains the empty tab rather than showing a bare 0 / 0", () => {
+    renderEmptyTab();
+
+    expect(screen.getByText("Episode count unknown")).toBeInTheDocument();
+    expect(
+      screen.getByText(/neither an episode count nor a broadcast schedule/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("0 / 0")).not.toBeInTheDocument();
+  });
+
+  it("offers the only action that can unstick it", async () => {
+    const user = renderEmptyTab();
+
+    await user.click(
+      screen.getByRole("button", { name: /set episode count/i }),
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // A populated tab must not offer it: raising maxItem on a healthy title is
+  // what makes decide distrust of absolute numbering inert.
+  it("is absent from a populated tab", () => {
+    renderTab([item({ id: 1, number: 1 })]);
+
+    expect(
+      screen.queryByRole("button", { name: /set episode count/i }),
+    ).not.toBeInTheDocument();
   });
 });

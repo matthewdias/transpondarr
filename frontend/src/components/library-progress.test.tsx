@@ -68,8 +68,9 @@ it("names monitoring, not airing, when nothing is monitored", () => {
   expect(screen.getByText("(12 total)")).toBeInTheDocument();
 });
 
-// A series that genuinely has no items is the one case "0 / 0" states honestly.
-it("keeps the ratio for a series with no items at all", () => {
+// Replaces "a series that genuinely has no items is the one case 0 / 0 states
+// honestly": a tracked series with no items is the unknown-count dead end (#151).
+it("names the unknown count for a series with no items at all", () => {
   render(
     <LibraryProgress
       format="TV"
@@ -80,7 +81,8 @@ it("keeps the ratio for a series with no items at all", () => {
     />,
   );
 
-  expect(screen.getByText("0 / 0")).toBeInTheDocument();
+  expect(screen.getByText("Episode count unknown")).toBeInTheDocument();
+  expect(screen.queryByText("0 / 0")).not.toBeInTheDocument();
   expect(screen.queryByText(/^Nothing/)).not.toBeInTheDocument();
 });
 

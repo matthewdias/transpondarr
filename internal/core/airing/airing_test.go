@@ -472,6 +472,23 @@ func TestSyncHoldsFinishedTitlesForTheLongCutoff(t *testing.T) {
 	}
 }
 
+// This query's CASE keys on status alone, so the unknown-count tier (#151) must
+// not reach it: aired times are immutable whether or not a count was published.
+func TestSyncHoldsAFinishedTitlePastTheUnknownCountTier(t *testing.T) {
+	st := coretest.NewStore(t)
+	titleID := seedTitle(t, st, 105, 2)
+	setCachedStatus(t, st, 105, "FINISHED")
+	setSyncedAt(t, st, titleID, time.Now().Add(-8*24*time.Hour))
+
+	prov := newFakeProvider()
+	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if len(prov.calls) != 0 {
+		t.Errorf("a finished series resynced after 8 days; want it held to the long cutoff")
+	}
+}
+
 // AniList's coverage thins out badly before ~2015. An empty schedule is a normal
 // answer, and re-asking every tick would burn the request budget for nothing.
 func TestSyncStampsTitleWithNoScheduleData(t *testing.T) {

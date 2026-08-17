@@ -349,6 +349,7 @@ WHERE s.monitored = 1
       m.provider_id IS NULL
       OR m.fetched_at < CASE
              WHEN m.status IN ('FINISHED', 'CANCELLED') AND m.episode_count IS NOT NULL THEN ?
+             WHEN m.status IN ('FINISHED', 'CANCELLED') THEN ?
              ELSE ?
          END
   )
@@ -360,12 +361,14 @@ type ListTitlesDueMetadataRefreshParams struct {
 	Provider    sql.NullString `json:"provider"`
 	FetchedAt   string         `json:"fetched_at"`
 	FetchedAt_2 string         `json:"fetched_at_2"`
+	FetchedAt_3 string         `json:"fetched_at_3"`
 	Limit       int64          `json:"limit"`
 }
 
 // Monitored series whose cached title snapshot is missing or stale under the
 // status-aware TTL policy. Only a finished title with a known episode count
-// earns the long cutoff; anything moving, unknown, or empty rides the short
+// earns the long cutoff; a finished one whose count the provider never
+// publishes takes a middle tier, and anything still moving rides the short
 // one, mirroring the freshness rule in metadata.Cached. Never-fetched series
 // sort first; the limit bounds how much of the request budget one pass burns.
 // Scoped to one provider for the same reason ListTitlesDueAiringSync is.
@@ -374,6 +377,7 @@ func (q *Queries) ListTitlesDueMetadataRefresh(ctx context.Context, arg ListTitl
 		arg.Provider,
 		arg.FetchedAt,
 		arg.FetchedAt_2,
+		arg.FetchedAt_3,
 		arg.Limit,
 	)
 	if err != nil {

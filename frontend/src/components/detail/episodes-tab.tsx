@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
 import { MonitorToggle } from "@/components/monitor-toggle";
+import { SetEpisodeCountDialog } from "@/components/detail/set-episode-count-dialog";
 import {
   Table,
   TableBody,
@@ -102,7 +103,8 @@ export function EpisodesTab({
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
   // A zero denominator has two causes, and naming the wrong one is a plain false
   // statement on a series whose episodes have all aired and all been switched off.
-  const empty = total === 0 && items.length > 0;
+  // A third cause -- no items at all -- returns above rather than reaching here.
+  const empty = total === 0;
   const emptyLabel =
     unmonitored === items.length ? "Nothing monitored" : "Nothing aired yet";
 
@@ -127,6 +129,24 @@ export function EpisodesTab({
     },
     [items, onSelectRange, onToggleSelect],
   );
+
+  // No items at all is the dead end (#151): nothing else can ever create one,
+  // so the tab owes an explanation and the one action that unsticks it.
+  if (items.length === 0) {
+    return (
+      <div className="rounded-lg border bg-card px-4 py-10 text-center">
+        <p className="text-sm font-semibold">Episode count unknown</p>
+        <p className="mx-auto mt-1.5 max-w-md text-[13px] text-muted-foreground">
+          AniList publishes neither an episode count nor a broadcast schedule
+          for this title, so nothing can create its episodes on its own. Set the
+          count and Transpondarr will start searching for them.
+        </p>
+        <div className="mt-4 flex justify-center">
+          <SetEpisodeCountDialog titleId={detail.id} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

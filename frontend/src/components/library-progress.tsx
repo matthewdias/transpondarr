@@ -34,6 +34,16 @@ export function LibraryProgress({
       <ItemStatusBadge status={status} error={importError} movie />
     );
   }
+  // A tracked series with no items at all is the unknown-count dead end (#151),
+  // never a series known to be empty. A film's count is never unknown (#208
+  // gives it exactly one item), so it keeps the ratio it always had.
+  if (format !== "MOVIE" && total === 0) {
+    return (
+      <span className="whitespace-nowrap text-xs text-muted-foreground sm:min-w-[140px]">
+        Episode count unknown
+      </span>
+    );
+  }
   const pct = tracked > 0 ? (inLibrary / tracked) * 100 : 0;
   const complete = tracked > 0 && inLibrary >= tracked;
   // "0 / 0" would read as "this series has no episodes", which is exactly wrong

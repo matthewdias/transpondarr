@@ -214,7 +214,7 @@ func (c *cached) Search(ctx context.Context, term string) ([]Candidate, error) {
 
 func (c *cached) GetTitle(ctx context.Context, id int64) (TitleMeta, []ItemMeta, error) {
 	snap, fetchedAt, ok, cacheErr := c.cache.Get(ctx, c.inner.Name(), id)
-	if cacheErr == nil && ok && fresh(snap.Title.Status, len(snap.Items), fetchedAt) {
+	if cacheErr == nil && ok && fresh(snap.Title.Status, snap.Title.Episodes, fetchedAt) {
 		return snap.Title, snap.Items, nil
 	}
 
@@ -243,27 +243,31 @@ func (c *cached) TitleFromCache(ctx context.Context, id int64) (TitleMeta, []Ite
 	return snap.Title, snap.Items, true, nil
 }
 
-const shortTTL = 6 * time.Hour
+const (
+	shortTTL   = 6 * time.Hour
+	unknownTTL = 7 * 24 * time.Hour
+	longTTL    = 30 * 24 * time.Hour
+)
 
-// fresh reports whether a cached snapshot is still within its status-aware TTL. An
-// empty snapshot (itemCount 0) always uses the short TTL: a FINISHED title whose
-// episode count came back unknown/null would otherwise be trusted as "zero
-// episodes" for weeks instead of being re-checked soon.
-func fresh(status string, itemCount int, fetchedAt time.Time) bool {
-	ttl := TTLFor(status)
-	if itemCount == 0 {
-		ttl = shortTTL
-	}
-	return time.Since(fetchedAt) < ttl
+// fresh reports whether a cached snapshot is still within its status-aware TTL.
+// It reads the count rather than the item count so it mirrors the SQL in
+// ListTitlesDueMetadataRefresh, which is the other half of one rule (#151).
+func fresh(status string, episodes int, fetchedAt time.Time) bool {
+	return time.Since(fetchedAt) < TTLFor(status, episodes > 0)
 }
 
 // TTLFor keeps finished titles cached far longer than releasing ones (whose
 // episode count and status are still moving). Exported so background refreshes
 // pace themselves by the same status-aware policy instead of inventing a second.
-func TTLFor(status string) time.Duration {
+// A finished title whose count the provider never publishes takes a middle tier:
+// re-asking every 6 hours forever buys an answer that will not change (#151).
+func TTLFor(status string, countKnown bool) time.Duration {
 	switch status {
 	case "FINISHED", "CANCELLED":
-		return 30 * 24 * time.Hour
+		if countKnown {
+			return longTTL
+		}
+		return unknownTTL
 	default: // RELEASING, NOT_YET_RELEASED, HIATUS, or unknown
 		return shortTTL
 	}
