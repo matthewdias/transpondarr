@@ -29,9 +29,13 @@ const feedGapAiredSlack = time.Hour
 // it saw and the entries carrying it. Sonarr stores the same pair per indexer
 // (LastRssSyncReleaseInfo) — the timestamp answers "how far did we get", and the
 // ids settle the ties it cannot, since a batch of releases shares a second.
+// The id sets are two because the consumers differ: IDs is everything processed
+// and never to be processed again, LatestIDs only what was published at Latest —
+// the sole id evidence that a page still reaches the mark (#176).
 type feedMark struct {
-	Latest time.Time `json:"latest,omitempty"`
-	IDs    []string  `json:"ids,omitempty"`
+	Latest    time.Time `json:"latest,omitempty"`
+	IDs       []string  `json:"ids,omitempty"`
+	LatestIDs []string  `json:"latest_ids,omitempty"`
 }
 
 // feedMarkKey namespaces the mark by indexer name. There is one Torznab endpoint
@@ -81,7 +85,7 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 	// the sweep's to find — and with a feed configured the sweep no longer aims
 	// at the airing window, leaving its backoff ladder to reach it up to a day
 	// later. The poll knows when coverage was lost, so it recovers (#140).
-	gap := !mark.Latest.IsZero() && !pageReachesMark(entries, mark)
+	gap := lostCoverage(entries, mark)
 
 	// The whole point of the mark: a quiet feed costs one request and nothing else.
 	var polled error
@@ -201,34 +205,39 @@ func feedEntryID(e indexer.FeedEntry) string {
 	return decide.NormalizeReleaseTitle(e.Release.Title)
 }
 
-// seenIDs is the mark's id set, as a lookup.
-func seenIDs(mark feedMark) map[string]bool {
-	seen := make(map[string]bool, len(mark.IDs))
-	for _, id := range mark.IDs {
-		seen[id] = true
+// idSet turns an id list into a lookup.
+func idSet(ids []string) map[string]bool {
+	set := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
 	}
-	return seen
+	return set
 }
 
-// pageReachesMark reports whether the page still shows the mark's own instant: an
-// id we remembered, or an entry published at it, which a truncated id set cannot
-// name. An entry merely older is no evidence — its id was never remembered, so
-// backfill and a page that genuinely reaches back look identical (#176).
-func pageReachesMark(entries []indexer.FeedEntry, mark feedMark) bool {
-	seen := seenIDs(mark)
+// lostCoverage reports whether the page no longer shows the mark's own instant —
+// an entry published at it, or one whose id we remembered *for* it, since an
+// aggregator that renders a relative date recomputes it every poll. Anything else
+// on the page is no evidence: backfill, a sticky the feed never dated and a stale
+// id the rewind path merged all look exactly like a page that reaches back (#176).
+// A feed publishing no dates has no such instant, so it can never report one.
+func lostCoverage(entries []indexer.FeedEntry, mark feedMark) bool {
+	if mark.Latest.IsZero() {
+		return false
+	}
+	seen := idSet(mark.LatestIDs)
 	for _, e := range entries {
-		if seen[feedEntryID(e)] || (!e.Published.IsZero() && e.Published.Equal(mark.Latest)) {
-			return true
+		if seen[feedEntryID(e)] || e.Published.Equal(mark.Latest) {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 // unseenEntries narrows a page to what the last poll did not already process. An
 // entry older than the mark is skipped even when its id is unfamiliar, which is
 // what stops a truncated id set from re-processing history.
 func unseenEntries(entries []indexer.FeedEntry, mark feedMark) []indexer.FeedEntry {
-	seen := seenIDs(mark)
+	seen := idSet(mark.IDs)
 	out := make([]indexer.FeedEntry, 0, len(entries))
 	for _, e := range entries {
 		if seen[feedEntryID(e)] {
@@ -256,26 +265,39 @@ func nextFeedMark(entries []indexer.FeedEntry) feedMark {
 		if e.Published.IsZero() || e.Published.Equal(mark.Latest) {
 			mark.IDs = append(mark.IDs, feedEntryID(e))
 		}
+		// An undated entry rides in IDs for the dedupe but never here: a sticky
+		// item is on every page, so coverage would never be lost again (#176).
+		if !e.Published.IsZero() && e.Published.Equal(mark.Latest) {
+			mark.LatestIDs = append(mark.LatestIDs, feedEntryID(e))
+		}
 	}
-	if len(mark.IDs) > maxFeedMarkIDs {
-		mark.IDs = mark.IDs[:maxFeedMarkIDs]
-	}
+	mark.IDs = capIDs(mark.IDs)
+	mark.LatestIDs = capIDs(mark.LatestIDs)
 	return mark
+}
+
+// capIDs bounds one id list to what a mark may remember.
+func capIDs(ids []string) []string {
+	if len(ids) > maxFeedMarkIDs {
+		return ids[:maxFeedMarkIDs]
+	}
+	return ids
 }
 
 // advanceFeedMark keeps the furthest point the poll has reached. An indexer that
 // transiently serves an older page must not rewind the window, which would
 // re-process everything published since — so the older page's ids are remembered
-// alongside the mark rather than replacing it.
+// alongside the mark rather than replacing it. Only for the dedupe, though: the
+// kept instant keeps its own ids, or an older page's would claim to reach it.
 func advanceFeedMark(prev, next feedMark) feedMark {
 	if prev.Latest.IsZero() || !next.Latest.Before(prev.Latest) {
 		return next
 	}
-	merged := feedMark{Latest: prev.Latest, IDs: append(append([]string{}, next.IDs...), prev.IDs...)}
-	if len(merged.IDs) > maxFeedMarkIDs {
-		merged.IDs = merged.IDs[:maxFeedMarkIDs]
+	return feedMark{
+		Latest:    prev.Latest,
+		IDs:       capIDs(append(append([]string{}, next.IDs...), prev.IDs...)),
+		LatestIDs: prev.LatestIDs,
 	}
-	return merged
 }
 
 func (s *Service) loadFeedMark(ctx context.Context, indexerName string) (feedMark, error) {
