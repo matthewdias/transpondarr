@@ -53,10 +53,17 @@ var argon2idParams = &argon2id.Params{
 	KeyLength:   32,
 }
 
+// settingsWriter is the one store call persist makes, narrowed so a test can
+// observe whether the write runs with the writer lock held.
+type settingsWriter interface {
+	UpsertSetting(ctx context.Context, arg db.UpsertSettingParams) error
+}
+
 // Service holds the admin credentials and required-mode and manages sessions.
 type Service struct {
 	mu       sync.RWMutex
 	store    *store.Store
+	settings settingsWriter
 	username string
 	hash     string
 	required string
@@ -65,7 +72,7 @@ type Service struct {
 // New loads auth state from the store and, when no user exists yet, bootstraps
 // one from TRANSPONDARR_AUTH_USERNAME/PASSWORD if both are provided.
 func New(ctx context.Context, st *store.Store, cfg *config.Config) (*Service, error) {
-	s := &Service{store: st, required: normalizeRequired(cfg.AuthRequired)}
+	s := &Service{store: st, settings: st.Q, required: normalizeRequired(cfg.AuthRequired)}
 
 	if v, err := getSetting(ctx, st, keyUsername); err != nil {
 		return nil, err
@@ -168,34 +175,44 @@ func (s *Service) CreateUser(ctx context.Context, username, password string) err
 	if err != nil {
 		return err
 	}
+	if err := s.storeCredentials(ctx, username, h); err != nil {
+		return err
+	}
+	_ = s.store.Q.DeleteSessionsForUser(ctx, username)
+	return nil
+}
+
+// storeCredentials writes the credentials and applies them under one lock, for
+// the same reason SetRequired does (#258).
+func (s *Service) storeCredentials(ctx context.Context, username, hash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err := s.persist(ctx, keyUsername, username); err != nil {
 		return err
 	}
-	if err := s.persist(ctx, keyPassword, h); err != nil {
+	if err := s.persist(ctx, keyPassword, hash); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	s.username = username
-	s.hash = h
-	s.mu.Unlock()
-	_ = s.store.Q.DeleteSessionsForUser(ctx, username)
+	s.username, s.hash = username, hash
 	return nil
 }
 
 // SetRequired updates the auth-required mode.
 func (s *Service) SetRequired(ctx context.Context, mode string) error {
 	mode = normalizeRequired(mode)
+	// Persisting outside the lock lets two callers commit to the store in one
+	// order and to the field in the other, diverging until the next restart (#258).
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err := s.persist(ctx, keyRequired, mode); err != nil {
 		return err
 	}
-	s.mu.Lock()
 	s.required = mode
-	s.mu.Unlock()
 	return nil
 }
 
 func (s *Service) persist(ctx context.Context, k, v string) error {
-	if err := s.store.Q.UpsertSetting(ctx, db.UpsertSettingParams{Key: k, Value: v}); err != nil {
+	if err := s.settings.UpsertSetting(ctx, db.UpsertSettingParams{Key: k, Value: v}); err != nil {
 		return fmt.Errorf("persist %s: %w", k, err)
 	}
 	return nil
