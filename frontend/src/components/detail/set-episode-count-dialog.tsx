@@ -60,9 +60,8 @@ export function SetEpisodeCountDialog({ titleId }: { titleId: number }) {
         <DialogHeader>
           <DialogTitle>Set the episode count</DialogTitle>
           <DialogDescription>
-            Creates episodes 1 to the number you give, so this title can be
-            searched and downloaded. Nothing is stored: a count the provider
-            publishes later still applies.
+            Creates this many episodes, so this title can be searched and
+            downloaded. Will get overridden later if AniList publishes a count.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-2">

@@ -138,7 +138,7 @@ export function EpisodesTab({
         <p className="text-sm font-semibold">Episode count unknown</p>
         <p className="mx-auto mt-1.5 max-w-md text-[13px] text-muted-foreground">
           AniList publishes neither an episode count nor a broadcast schedule
-          for this title, so nothing can create its episodes on its own. Set the
+          for this title, so episodes cannot be searched automatically. Set the
           count and Transpondarr will start searching for them.
         </p>
         <div className="mt-4 flex justify-center">
