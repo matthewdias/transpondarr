@@ -219,22 +219,28 @@ func (q *Queries) ListTitleIDsForUnmonitoredItems(ctx context.Context, ids []int
 }
 
 const listUnscheduledTitles = `-- name: ListUnscheduledTitles :many
-SELECT DISTINCT s.id, s.title
+SELECT DISTINCT s.id, s.title, s.airing_synced_at IS NOT NULL AS schedule_checked
 FROM series s
 JOIN wanted_items w ON w.series_id = s.id
-WHERE s.monitored = 1 AND w.in_library = 0 AND w.airs_at IS NULL
+WHERE (? = 1 OR s.monitored = 1) AND w.in_library = 0 AND w.airs_at IS NULL
 ORDER BY s.title
 `
 
 type ListUnscheduledTitlesRow struct {
-	ID    int64  `json:"id"`
-	Title string `json:"title"`
+	ID              int64  `json:"id"`
+	Title           string `json:"title"`
+	ScheduleChecked bool   `json:"schedule_checked"`
 }
 
-// Monitored series still missing an episode the provider gives no air date
-// for, so the calendar can surface them instead of silently omitting them.
-func (q *Queries) ListUnscheduledTitles(ctx context.Context) ([]ListUnscheduledTitlesRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUnscheduledTitles)
+// Series still missing an episode the provider gives no air date for, so the
+// calendar can surface them instead of silently omitting them. The first param
+// mirrors the grid's own unmonitored filter: a footer explaining an absence
+// must cover exactly the population the grid was asked to show (#183).
+// schedule_checked separates the two absences the footer would otherwise assert
+// as one: nothing writes airs_at but the airing sync, so an unstamped title is
+// one we have not asked about rather than one the provider publishes nothing for.
+func (q *Queries) ListUnscheduledTitles(ctx context.Context, dollar_1 interface{}) ([]ListUnscheduledTitlesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUnscheduledTitles, dollar_1)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +248,7 @@ func (q *Queries) ListUnscheduledTitles(ctx context.Context) ([]ListUnscheduledT
 	items := []ListUnscheduledTitlesRow{}
 	for rows.Next() {
 		var i ListUnscheduledTitlesRow
-		if err := rows.Scan(&i.ID, &i.Title); err != nil {
+		if err := rows.Scan(&i.ID, &i.Title, &i.ScheduleChecked); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

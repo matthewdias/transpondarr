@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   CalendarDays,
+  CalendarClock,
   CalendarOff,
   EyeOff,
   ChevronLeft,
@@ -11,7 +12,13 @@ import {
   RefreshCw,
   TriangleAlert,
 } from "lucide-react";
-import { ApiError, type CalendarItem, type ItemStatus } from "@/lib/api";
+import type { LucideIcon } from "lucide-react";
+import {
+  ApiError,
+  type CalendarItem,
+  type ItemStatus,
+  type UnscheduledTitle,
+} from "@/lib/api";
 import {
   bucketByDay,
   type CalendarView,
@@ -190,31 +197,56 @@ export function CalendarPage() {
               <Agenda days={days} buckets={buckets} todayKey={todayKey} />
             )}
 
-            {cal.data.unscheduled.length > 0 && (
-              <div className="mt-6 flex flex-wrap items-baseline gap-x-1.5 gap-y-1 rounded-lg border border-dashed bg-card px-4 py-3 text-xs text-muted-foreground">
-                <CalendarOff className="size-3.5 self-center text-faint" />
-                <span className="font-medium">No schedule data:</span>
-                {cal.data.unscheduled.map((s, i) => (
-                  <span key={s.title_id}>
-                    <Link
-                      to={`/titles/${s.title_id}`}
-                      className="underline-offset-2 hover:underline"
-                    >
-                      {s.title}
-                    </Link>
-                    {i < cal.data.unscheduled.length - 1 && ","}
-                  </span>
-                ))}
-                <span className="text-faint">
-                  — AniList publishes no air dates for these, so nothing they
-                  are still missing can be placed on the calendar.
-                </span>
-              </div>
-            )}
+            <UnscheduledNote
+              icon={CalendarOff}
+              label="No schedule data:"
+              titles={cal.data.unscheduled.filter((s) => s.schedule_checked)}
+              explanation="AniList publishes no air dates for these, so nothing they are still missing can be placed on the calendar."
+            />
+            <UnscheduledNote
+              icon={CalendarClock}
+              label="Not checked yet:"
+              titles={cal.data.unscheduled.filter((s) => !s.schedule_checked)}
+              explanation="Their broadcast times have not been looked up yet, and they will be placed once they are."
+            />
           </div>
         )}
       </div>
     </>
+  );
+}
+
+// The calendar cannot place these, and the two reasons are not interchangeable:
+// one is the provider's answer, the other is that we have not asked yet (#183).
+function UnscheduledNote({
+  icon: Icon,
+  label,
+  titles,
+  explanation,
+}: {
+  icon: LucideIcon;
+  label: string;
+  titles: UnscheduledTitle[];
+  explanation: string;
+}) {
+  if (titles.length === 0) return null;
+  return (
+    <div className="mt-6 flex flex-wrap items-baseline gap-x-1.5 gap-y-1 rounded-lg border border-dashed bg-card px-4 py-3 text-xs text-muted-foreground">
+      <Icon className="size-3.5 self-center text-faint" />
+      <span className="font-medium">{label}</span>
+      {titles.map((s, i) => (
+        <span key={s.title_id}>
+          <Link
+            to={`/titles/${s.title_id}`}
+            className="underline-offset-2 hover:underline"
+          >
+            {s.title}
+          </Link>
+          {i < titles.length - 1 && ","}
+        </span>
+      ))}
+      <span className="text-faint">— {explanation}</span>
+    </div>
   );
 }
 

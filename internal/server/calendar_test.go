@@ -24,9 +24,19 @@ type calendarResponse struct {
 		ImportError string `json:"import_error"`
 	} `json:"items"`
 	Unscheduled []struct {
-		TitleID int64  `json:"title_id"`
-		Title   string `json:"title"`
+		TitleID         int64  `json:"title_id"`
+		Title           string `json:"title"`
+		ScheduleChecked bool   `json:"schedule_checked"`
 	} `json:"unscheduled"`
+}
+
+func setAiringSynced(t *testing.T, st *store.Store, titleID int64) {
+	t.Helper()
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET airing_synced_at = ? WHERE id = ?`,
+		store.FormatTimestamp(time.Now()), titleID); err != nil {
+		t.Fatalf("stamp airing_synced_at: %v", err)
+	}
 }
 
 func setAirsAt(t *testing.T, st *store.Store, titleID int64, number int, airsAt string) {
@@ -152,8 +162,9 @@ func TestCalendarDerivesItemStatus(t *testing.T) {
 	}
 }
 
-// A monitored title still missing episodes with no schedule data is surfaced
-// in `unscheduled` rather than silently absent from the calendar.
+// A title still missing episodes with no schedule data is surfaced in
+// `unscheduled` rather than silently absent. The footer follows the grid's own
+// Unmonitored filter, so it explains exactly the population being shown (#183).
 func TestCalendarSurfacesUnscheduledTitles(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	ctx := context.Background()
@@ -182,6 +193,50 @@ func TestCalendarSurfacesUnscheduledTitles(t *testing.T) {
 	}
 	if out.Unscheduled[0].TitleID != noSchedule || out.Unscheduled[0].Title != "No Schedule Show" {
 		t.Errorf("unscheduled[0] = %+v, want No Schedule Show", out.Unscheduled[0])
+	}
+
+	var withUnmonitored calendarResponse
+	if code := h.get(t, "/api/v1/calendar?start=2026-07-01T00:00:00Z&end=2026-08-01T00:00:00Z&unmonitored=true", &withUnmonitored); code != http.StatusOK {
+		t.Fatalf("GET calendar unmonitored = %d, want 200", code)
+	}
+	got := map[int64]bool{}
+	for _, s := range withUnmonitored.Unscheduled {
+		got[s.TitleID] = true
+	}
+	if len(withUnmonitored.Unscheduled) != 2 || !got[noSchedule] || !got[unmonitored] {
+		t.Errorf("unscheduled with unmonitored = %+v, want both incomplete series", withUnmonitored.Unscheduled)
+	}
+	if got[complete] {
+		t.Error("a complete series was named unscheduled")
+	}
+}
+
+// "We asked and the provider had nothing" and "we have not asked yet" are
+// different absences, and only the first is permanent. Nothing writes airs_at
+// but the airing sync, so every freshly added title is briefly the second (#183).
+func TestCalendarSeparatesNeverCheckedFromNoSchedule(t *testing.T) {
+	h := newHarness(t, nil, nil)
+
+	asked := seedTitle(t, h.store, "Asked Show", 1)
+	setAiringSynced(t, h.store, asked)
+	unasked := seedTitle(t, h.store, "Unasked Show", 1)
+
+	var out calendarResponse
+	if code := h.get(t, "/api/v1/calendar?start=2026-07-01T00:00:00Z&end=2026-08-01T00:00:00Z", &out); code != http.StatusOK {
+		t.Fatalf("GET calendar = %d, want 200", code)
+	}
+	checked := map[int64]bool{}
+	for _, s := range out.Unscheduled {
+		checked[s.TitleID] = s.ScheduleChecked
+	}
+	if len(out.Unscheduled) != 2 {
+		t.Fatalf("unscheduled = %+v, want both incomplete series", out.Unscheduled)
+	}
+	if !checked[asked] {
+		t.Error("a synced title reads as unchecked, so the footer understates what it knows")
+	}
+	if checked[unasked] {
+		t.Error("a never-synced title claims the provider publishes nothing, which we never asked")
 	}
 }
 

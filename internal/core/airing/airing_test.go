@@ -98,6 +98,17 @@ func seedTitle(t *testing.T, st *store.Store, anilistID int64, episodes int) int
 	return id
 }
 
+// seedUnmonitoredTitle is the seedTitle a title-level unmonitor produces.
+func seedUnmonitoredTitle(t *testing.T, st *store.Store, anilistID int64, episodes int) int64 {
+	t.Helper()
+	id := seedTitle(t, st, anilistID, episodes)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET monitored = 0 WHERE id = ?`, id); err != nil {
+		t.Fatalf("unmonitor: %v", err)
+	}
+	return id
+}
+
 func setSyncedAt(t *testing.T, st *store.Store, titleID int64, at time.Time) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
@@ -508,20 +519,63 @@ func TestSyncStampsTitleWithNoScheduleData(t *testing.T) {
 	}
 }
 
-func TestSyncSkipsUnmonitoredTitles(t *testing.T) {
+// Monitoring gates what automation pursues, not what we know: without a synced
+// schedule the calendar drops an unmonitored title's rows before its own
+// Unmonitored filter can include them (#183).
+func TestSyncIncludesUnmonitoredTitles(t *testing.T) {
 	st := coretest.NewStore(t)
-	titleID := seedTitle(t, st, 105, 1)
-	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET monitored = 0 WHERE id = ?`, titleID); err != nil {
-		t.Fatalf("unmonitor: %v", err)
-	}
+	titleID := seedUnmonitoredTitle(t, st, 105, 1)
+	airsAtWant := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 
 	prov := newFakeProvider()
+	prov.schedules[105] = []metadata.Airing{{Number: 1, AirsAt: airsAtWant}}
 	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
-	if len(prov.calls) != 0 {
-		t.Errorf("provider called %d times for an unmonitored series, want 0", len(prov.calls))
+	if len(prov.calls) != 1 {
+		t.Fatalf("provider called %d times for an unmonitored series, want 1", len(prov.calls))
+	}
+	got, ok := airsAt(t, st, titleID, 1)
+	if !ok {
+		t.Fatal("item 1 airs_at is null, so the calendar can never place it")
+	}
+	if want := store.FormatTimestamp(airsAtWant); got != want {
+		t.Errorf("airs_at = %q, want %q", got, want)
+	}
+}
+
+// The budget's priority is unchanged: an unmonitored title takes a slot only
+// once no monitored one wants it, however long it has gone unsynced.
+func TestSyncGivesMonitoredTitlesEverySlot(t *testing.T) {
+	st := coretest.NewStore(t)
+	// Five stale monitored title fill the pass; the unmonitored one is
+	// never-synced, so it outranks them on every key but monitoring.
+	for id := int64(300); id < 305; id++ {
+		stale := seedTitle(t, st, id, 1)
+		setCachedStatus(t, st, id, "RELEASING")
+		setSyncedAt(t, st, stale, time.Now().Add(-24*time.Hour))
+	}
+	seedUnmonitoredTitle(t, st, 310, 1)
+
+	prov := newFakeProvider()
+	svc := newService(t, st, prov)
+	if err := svc.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("SyncOnce: %v", err)
+	}
+	if len(prov.calls) != 5 {
+		t.Fatalf("first pass fetched %d series, want the 5-series bound", len(prov.calls))
+	}
+	for _, id := range prov.calls {
+		if id == 310 {
+			t.Fatal("the unmonitored series took a slot a monitored one wanted")
+		}
+	}
+
+	if err := svc.SyncOnce(context.Background()); err != nil {
+		t.Fatalf("second SyncOnce: %v", err)
+	}
+	if rest := prov.calls[5:]; len(rest) != 1 || rest[0] != 310 {
+		t.Fatalf("second pass fetched %v, want only the unmonitored series", rest)
 	}
 }
 

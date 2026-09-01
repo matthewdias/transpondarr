@@ -28,6 +28,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **The Calendar's *Unmonitored* filter can now actually reveal a title.** An
+  unmonitored title never received broadcast times, so the filter could only
+  surface one that had been monitored at some point — and the *No schedule data*
+  footer that exists to explain such absences left it out too. Air dates and
+  metadata now keep up to date for unmonitored titles, behind every monitored
+  one.
+- **The Calendar no longer says AniList published no air dates for a title it
+  has not looked up yet.** A title has no broadcast times until the airing sync
+  reaches it — minutes for a freshly added one, longer after a bulk add — and it
+  sat under *No schedule data* the whole time, beside titles that genuinely have
+  none. Those now read *Not checked yet* until they have been.
 - **When a metadata provider fails, it now says why.** Adding a title while
   AniList was down reported only *Could not add title / failed to add series*,
   while AniList's own explanation — *The AniList API has been temporarily

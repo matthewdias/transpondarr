@@ -1023,7 +1023,7 @@ export interface components {
              */
             readonly $schema?: string;
             items: components["schemas"]["CalendarItemDTO"][];
-            /** @description Monitored titles missing episodes with no schedule data */
+            /** @description Titles missing episodes the calendar cannot place, over the same monitored scope as items */
             unscheduled: components["schemas"]["UnscheduledTitleDTO"][];
         };
         CandidateDTO: {
@@ -2094,6 +2094,8 @@ export interface components {
             size: number;
         };
         UnscheduledTitleDTO: {
+            /** @description Whether the provider has been asked; false means no air dates have been looked up yet, not that none exist */
+            schedule_checked: boolean;
             title: string;
             /** Format: int64 */
             title_id: number;
