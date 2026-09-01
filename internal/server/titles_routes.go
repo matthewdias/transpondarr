@@ -156,6 +156,21 @@ type setPinnedGroupOutput struct {
 	}
 }
 
+// count is required with no default, per #227: an omitted field must not be
+// able to choose a value, least of all the numbering bound decide reads.
+type setItemCountInput struct {
+	ID   int64 `path:"id" doc:"Title id"`
+	Body struct {
+		Count int `json:"count" required:"true" minimum:"1" maximum:"5000" doc:"How many items the title has; creates items 1..count"`
+	}
+}
+
+type setItemCountOutput struct {
+	Body struct {
+		Created int `json:"created"`
+	}
+}
+
 type deleteTitleInput struct {
 	ID              int64 `path:"id" doc:"Title id"`
 	RemoveDownloads bool  `query:"remove_downloads" doc:"Also remove the title's torrents (and their data) from the download client; otherwise they are left seeding"`
@@ -272,6 +287,15 @@ func registerTitleRoutes(api huma.API, deps routeDeps) {
 		Summary:     "Pin a release group for a title (an absolute tier above profile scoring)",
 		Tags:        []string{"titles"},
 	}, h.setPinnedGroup)
+
+	huma.Register(api, huma.Operation{
+		OperationID:   "set-title-item-count",
+		Method:        http.MethodPost,
+		Path:          "/api/v1/titles/{id}/items",
+		Summary:       "Create items 1..count for a title the provider published no episode count for",
+		Tags:          []string{"titles"},
+		DefaultStatus: http.StatusCreated,
+	}, h.setItemCount)
 
 	huma.Register(api, huma.Operation{
 		OperationID: "list-title-grabs",
@@ -527,6 +551,24 @@ func (h *titleHandler) setMonitored(ctx context.Context, in *setMonitoredInput) 
 	out := &setMonitoredOutput{}
 	out.Body.ID = in.ID
 	out.Body.Monitored = in.Body.Monitored
+	return out, nil
+}
+
+// Guarded to a title with no items: it bounds the escape hatch to the dead end
+// it exists for, since maxItem is the bound decide uses to distrust a release's
+// own numbering and raising it on a healthy title would make that guard inert.
+func (h *titleHandler) setItemCount(ctx context.Context, in *setItemCountInput) (*setItemCountOutput, error) {
+	created, err := h.catalog.SetItemCount(ctx, in.ID, in.Body.Count)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, huma.Error404NotFound("series not found")
+	case errors.Is(err, catalog.ErrTitleHasItems):
+		return nil, huma.Error409Conflict("series already has episodes")
+	case err != nil:
+		return nil, huma.Error500InternalServerError("failed to create the series' items", err)
+	}
+	out := &setItemCountOutput{}
+	out.Body.Created = int(created)
 	return out, nil
 }
 

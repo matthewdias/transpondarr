@@ -218,19 +218,31 @@ func TestNotYetReleased(t *testing.T) {
 
 func TestTTLFor(t *testing.T) {
 	long := 30 * 24 * time.Hour
+	unknown := 7 * 24 * time.Hour
 	short := 6 * time.Hour
-	cases := map[string]time.Duration{
-		"FINISHED":         long,
-		"CANCELLED":        long,
-		"RELEASING":        short,
-		"NOT_YET_RELEASED": short,
-		"HIATUS":           short,
-		"":                 short,
-		"anything else":    short,
+	cases := []struct {
+		status     string
+		countKnown bool
+		want       time.Duration
+	}{
+		{"FINISHED", true, long},
+		{"CANCELLED", true, long},
+		// A count the provider never publishes is the middle tier: much less
+		// often than 6 hours, and still re-checked (#151).
+		{"FINISHED", false, unknown},
+		{"CANCELLED", false, unknown},
+		// Status wins over the count for anything still moving: its count is
+		// arriving, not missing.
+		{"RELEASING", true, short},
+		{"RELEASING", false, short},
+		{"NOT_YET_RELEASED", false, short},
+		{"HIATUS", false, short},
+		{"", false, short},
+		{"anything else", false, short},
 	}
-	for status, want := range cases {
-		if got := TTLFor(status); got != want {
-			t.Errorf("TTLFor(%q) = %v, want %v", status, got, want)
+	for _, c := range cases {
+		if got := TTLFor(c.status, c.countKnown); got != c.want {
+			t.Errorf("TTLFor(%q, %v) = %v, want %v", c.status, c.countKnown, got, c.want)
 		}
 	}
 }
@@ -242,9 +254,35 @@ func TestFresh(t *testing.T) {
 	if fresh("RELEASING", 12, time.Now().Add(-7*time.Hour)) {
 		t.Error("a RELEASING title fetched 7 hours ago should be stale (6h TTL)")
 	}
-	// An empty FINISHED snapshot uses the short TTL, not 30 days.
-	if fresh("FINISHED", 0, time.Now().Add(-7*time.Hour)) {
-		t.Error("an empty FINISHED snapshot fetched 7 hours ago should be stale")
+	// Replaces "an unknown count rides the short TTL": a count AniList will never
+	// publish is not worth re-asking every 6 hours (#151).
+	if !fresh("FINISHED", 0, time.Now().Add(-7*time.Hour)) {
+		t.Error("a FINISHED title with an unknown count fetched 7 hours ago should be fresh")
+	}
+	if fresh("FINISHED", 0, time.Now().Add(-8*24*time.Hour)) {
+		t.Error("a FINISHED title with an unknown count fetched 8 days ago should be stale")
+	}
+}
+
+// The tier reads the count, not how many items the schedule filled: a FINISHED
+// title with a schedule but no published count still re-checks (#151).
+func TestCachedGetTitleRefetchesAScheduledTitleWithAnUnknownCount(t *testing.T) {
+	items := make([]ItemMeta, 0, 12)
+	for n := 1; n <= 12; n++ {
+		items = append(items, ItemMeta{Number: n})
+	}
+	prov := &fakeProvider{meta: TitleMeta{ProviderID: 5, Status: "FINISHED"}}
+	cache := &fakeCache{
+		snap:      CachedTitle{Title: TitleMeta{ProviderID: 5, Status: "FINISHED"}, Items: items},
+		fetchedAt: time.Now().Add(-8 * 24 * time.Hour),
+		ok:        true,
+	}
+
+	if _, _, err := Cached(prov, cache).GetTitle(context.Background(), 5); err != nil {
+		t.Fatalf("GetTitle: %v", err)
+	}
+	if prov.getCalls != 1 {
+		t.Errorf("provider called %d times, want 1: an unknown count is stale at 8 days however many items the schedule filled", prov.getCalls)
 	}
 }
 

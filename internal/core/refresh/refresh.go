@@ -61,13 +61,14 @@ func (s *Service) RefreshOnce(ctx context.Context) error {
 // status by the same TTL policy the title cache uses.
 func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 	now := time.Now()
-	cutoff := func(status string) string {
-		return store.FormatTimestamp(now.Add(-metadata.TTLFor(status)))
+	cutoff := func(ttl time.Duration) string {
+		return store.FormatTimestamp(now.Add(-ttl))
 	}
 	return s.store.Q.ListTitlesDueMetadataRefresh(ctx, db.ListTitlesDueMetadataRefreshParams{
 		Provider:    sql.NullString{String: s.provider.Name(), Valid: true},
-		FetchedAt:   cutoff("FINISHED"),
-		FetchedAt_2: cutoff("RELEASING"),
+		FetchedAt:   cutoff(metadata.TTLFor("FINISHED", true)),
+		FetchedAt_2: cutoff(metadata.TTLFor("FINISHED", false)),
+		FetchedAt_3: cutoff(metadata.TTLFor("RELEASING", false)),
 		Limit:       titlesPerPass,
 	})
 }

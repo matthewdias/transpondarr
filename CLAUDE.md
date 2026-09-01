@@ -502,6 +502,33 @@ Behaviour changes are test-driven. Work red → green → refactor:
   registry/service each run, not capture a snapshot, or live config edits stop
   applying. **The importer is deliberately still on its own goroutine** (its
   shutdown semantics predate the runner); migrating it is tracked separately.
+- **A missing episode count is a normal state, and its two consequences are
+  answered separately (#151).** AniList publishes `episodes: null` for a
+  releasing title, for long-runners, and permanently for a scattering of older
+  OVAs; when it also has no schedule the title materializes *no* items, and the
+  sweep's `EXISTS` then drops it, the airing stamp stops it being re-asked, and
+  nothing else can create one. Two rules follow, and each is deliberately not
+  the other's fix. **The count is human-set and never inferred**:
+  `catalog.SetItemCount` materializes `1..N` one-shot, storing nothing (refresh
+  only ever adds, so there is no override to clobber), and it is deliberately
+  *not* prefilled from a release search — `maxItem` is the very bound `decide`
+  uses to distrust a release's numbering, so letting release names set it makes
+  the absolute-numbering guard inert. That is also why it is **guarded to a
+  title with zero items** (409 otherwise): raising `maxItem` on a healthy title
+  is the same hazard human-triggered, and a numberless pack would then claim the
+  inflated range. PR #57 does not reach it — that doctrine is about *eligibility*
+  gating a grab, not about creating items — and a title with a *partial*
+  schedule stays unfixable, which is the issue's scope and broadens additively.
+  **The cadence keys on the count, not the item count**: `TTLFor(status,
+  countKnown)` gives a FINISHED/CANCELLED title with a null count a middle 7d
+  tier, applied to *both* `fresh()` and `ListTitlesDueMetadataRefresh`'s CASE,
+  which is one two-armed rule and must be mutated arm by arm (#176's lesson).
+  Reading the item count was itself the defect the mirror exposes: a FINISHED
+  title whose *schedule* filled items but whose count was null got 30d from
+  `fresh()` and 6h from the SQL, so the two halves of one rule disagreed. The
+  airing sync passes `countKnown` true always — its own CASE keys on status
+  alone, because aired times are immutable — so the tier deliberately never
+  reaches it.
 - **Air dates are nullable everywhere, by design.** AniList's schedule coverage
   thins out badly before ~2015 and can skip episodes even for a modern title (it
   lists no entry for a multi-episode premiere block), so `wanted_items.airs_at`

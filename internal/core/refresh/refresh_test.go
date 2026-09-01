@@ -320,21 +320,56 @@ func TestRefreshRefetchesFinishedTitlesPastTheLongCutoff(t *testing.T) {
 	}
 }
 
-func TestRefreshUsesShortCutoffWhenTheCountIsUnknown(t *testing.T) {
+// Replaces TestRefreshUsesShortCutoffWhenTheCountIsUnknown, whose assertion this
+// change deliberately inverts: a count AniList will never publish is not worth
+// re-asking every 6 hours (#151).
+func TestRefreshHoldsAnUnknownCountTitleForTheMiddleCutoff(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
 	seedTitle(t, st, 100, 0)
-	// FINISHED but with no episode count: the empty snapshot must ride the short
-	// TTL, mirroring metadata.Cached's freshness rule.
 	seedCache(t, st, 100, "FINISHED", 0, time.Now().Add(-7*time.Hour))
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
+	if len(prov.calls) != 0 {
+		t.Errorf("provider called %v, want an unknown count held for the middle cutoff", prov.calls)
+	}
+}
+
+func TestRefreshRefetchesAnUnknownCountTitlePastTheMiddleCutoff(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := newFakeProvider()
+	prov.episodes[100] = 12
+	seedTitle(t, st, 100, 0)
+	seedCache(t, st, 100, "FINISHED", 0, time.Now().Add(-8*24*time.Hour))
+
+	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+		t.Fatalf("RefreshOnce: %v", err)
+	}
+
 	if len(prov.calls) != 1 {
-		t.Errorf("provider called %v, want one call for an empty snapshot past the short TTL", prov.calls)
+		t.Errorf("provider called %v, want one call past the middle cutoff", prov.calls)
+	}
+}
+
+// A count the provider does publish keeps the long cutoff, which is what makes
+// the middle tier a third arm rather than a demotion of every finished title.
+func TestRefreshHoldsAKnownCountTitleForTheLongCutoff(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := newFakeProvider()
+	prov.episodes[100] = 12
+	seedTitle(t, st, 100, 12)
+	seedCache(t, st, 100, "FINISHED", 12, time.Now().Add(-8*24*time.Hour))
+
+	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+		t.Fatalf("RefreshOnce: %v", err)
+	}
+
+	if len(prov.calls) != 0 {
+		t.Errorf("provider called %v, want a known count held for the long cutoff", prov.calls)
 	}
 }
 

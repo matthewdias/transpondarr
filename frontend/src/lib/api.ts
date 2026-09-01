@@ -336,6 +336,14 @@ export const api = {
       })
       .then(unwrap),
 
+  setItemCount: (id: number, count: number) =>
+    client
+      .POST("/api/v1/titles/{id}/items", {
+        params: { path: { id } },
+        body: { count },
+      })
+      .then(unwrap),
+
   browseSeason: (
     season: "winter" | "spring" | "summer" | "fall",
     year: number,

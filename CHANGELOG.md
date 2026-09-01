@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **A title AniList publishes no episode count for can now be given one.** Some
+  older OVAs and specials have neither a count nor a broadcast schedule on
+  record, which left them sitting in the library with no episodes, never
+  searched for, and no way to fix it. The episodes tab now says the count is
+  unknown and offers to create it, and the library list says the same instead of
+  showing *0 / 0*.
+
 ### Changed
 
 - **The add dialog now says which episodes it will monitor**, in both choices and
@@ -47,6 +56,10 @@ All notable changes to this project are documented here. The format is based on
   mentioning resolutions or the v2 carve-out started it with no resolutions
   ranked and the carve-out off — not the defaults a profile created in the UI
   starts from. Those fields are required now too.
+- **A finished title whose episode count AniList never publishes no longer costs
+  a metadata request every six hours forever.** It is now re-checked weekly,
+  which is often enough to notice a count that does arrive and rare enough to
+  stop eating the request budget for one that never will.
 - **A missed page of the recent feed is now spotted even when a stale entry sits
   on it.** When the feed moved on faster than Transpondarr could poll it, a
   single entry that had been on the page all along — an older release from a

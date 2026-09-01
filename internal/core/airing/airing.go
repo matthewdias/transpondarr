@@ -100,8 +100,10 @@ func (f *syncFailure) summary() error {
 // pacing each status by the same TTL policy the title cache uses.
 func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 	now := time.Now()
+	// Always countKnown: aired times are immutable, so this query's CASE keys on
+	// status alone and the unknown-count tier (#151) has nothing to say here.
 	cutoff := func(status string) sql.NullString {
-		return sql.NullString{String: store.FormatTimestamp(now.Add(-metadata.TTLFor(status))), Valid: true}
+		return sql.NullString{String: store.FormatTimestamp(now.Add(-metadata.TTLFor(status, true))), Valid: true}
 	}
 	return s.store.Q.ListTitlesDueAiringSync(ctx, db.ListTitlesDueAiringSyncParams{
 		Provider:         sql.NullString{String: s.provider.Name(), Valid: true},

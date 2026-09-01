@@ -626,6 +626,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/titles/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create items 1..count for a title the provider published no episode count for */
+        post: operations["set-title-item-count"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/titles/{id}/pinned-group": {
         parameters: {
             query?: never;
@@ -1807,6 +1824,29 @@ export interface components {
              */
             title_id?: number;
             tracked: boolean;
+        };
+        SetItemCountInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetItemCountInputBody.json
+             */
+            readonly $schema?: string;
+            /**
+             * Format: int64
+             * @description How many items the title has; creates items 1..count
+             */
+            count: number;
+        };
+        SetItemCountOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetItemCountOutputBody.json
+             */
+            readonly $schema?: string;
+            /** Format: int64 */
+            created: number;
         };
         SetItemsMonitoredInputBody: {
             /**
@@ -3451,6 +3491,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TitleGrabsOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "set-title-item-count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetItemCountInputBody"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetItemCountOutputBody"];
                 };
             };
             /** @description Error */
