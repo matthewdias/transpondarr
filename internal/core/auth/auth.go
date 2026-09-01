@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/alexedwards/argon2id"
@@ -53,6 +54,19 @@ var argon2idParams = &argon2id.Params{
 	KeyLength:   32,
 }
 
+// countingMutex counts writer acquisitions, so a test can tell one uninterrupted
+// hold from two — which is the property #258 needs and which "was the lock free
+// during the write" cannot distinguish.
+type countingMutex struct {
+	sync.RWMutex
+	holds atomic.Uint64
+}
+
+func (m *countingMutex) Lock() {
+	m.RWMutex.Lock()
+	m.holds.Add(1)
+}
+
 // settingsWriter is the one store call persist makes, narrowed so a test can
 // observe whether the write runs with the writer lock held.
 type settingsWriter interface {
@@ -61,7 +75,7 @@ type settingsWriter interface {
 
 // Service holds the admin credentials and required-mode and manages sessions.
 type Service struct {
-	mu       sync.RWMutex
+	mu       countingMutex
 	store    *store.Store
 	settings settingsWriter
 	username string

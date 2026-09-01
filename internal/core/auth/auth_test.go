@@ -161,13 +161,14 @@ func TestChangePasswordRevokesSessions(t *testing.T) {
 	}
 }
 
-// lockProbe records the settings writes that ran while the writer lock was free.
-// A write outside it is not atomic with the field update, so two callers can land
-// in one order in SQLite and the other in memory (#258).
+// lockProbe records, per settings write, whether the writer lock was free and
+// which writer hold covered it. Both matter: a write outside the lock and a write
+// under a hold the field update does not share diverge the same way (#258).
 type lockProbe struct {
 	svc      *Service
 	inner    settingsWriter
 	unlocked []string
+	holds    []uint64
 }
 
 func (p *lockProbe) UpsertSetting(ctx context.Context, arg db.UpsertSettingParams) error {
@@ -175,6 +176,7 @@ func (p *lockProbe) UpsertSetting(ctx context.Context, arg db.UpsertSettingParam
 		p.svc.mu.Unlock()
 		p.unlocked = append(p.unlocked, arg.Key)
 	}
+	p.holds = append(p.holds, p.svc.mu.holds.Load())
 	return p.inner.UpsertSetting(ctx, arg)
 }
 
@@ -184,6 +186,24 @@ func newProbedAuth(t *testing.T) (*Service, *store.Store, *lockProbe) {
 	probe := &lockProbe{svc: svc, inner: svc.settings}
 	svc.settings = probe
 	return svc, st, probe
+}
+
+// assertOneHold reports that every settings write shared the single writer hold
+// still current when the call returned — the hold the field update ran under.
+func assertOneHold(t *testing.T, svc *Service, probe *lockProbe) {
+	t.Helper()
+	if len(probe.unlocked) > 0 {
+		t.Fatalf("settings written with the writer lock free: %v", probe.unlocked)
+	}
+	if len(probe.holds) == 0 {
+		t.Fatal("no settings write reached the store")
+	}
+	current := svc.mu.holds.Load()
+	for i, h := range probe.holds {
+		if h != current {
+			t.Fatalf("settings write %d ran under writer hold %d, but the call ended on hold %d: the store write and the field update are not one uninterrupted hold", i+1, h, current)
+		}
+	}
 }
 
 // The stored mode and the in-memory one must move together: divergence survives
@@ -196,9 +216,7 @@ func TestSetRequiredWritesSettingsUnderLock(t *testing.T) {
 	if err := svc.SetRequired(ctx, RequiredLocal); err != nil {
 		t.Fatalf("set required: %v", err)
 	}
-	if len(probe.unlocked) > 0 {
-		t.Fatalf("settings written with the writer lock free: %v", probe.unlocked)
-	}
+	assertOneHold(t, svc, probe)
 	if got := svc.Required(); got != RequiredLocal {
 		t.Fatalf("in-memory mode = %q, want %q", got, RequiredLocal)
 	}
@@ -221,9 +239,7 @@ func TestCreateUserWritesSettingsUnderLock(t *testing.T) {
 	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	if len(probe.unlocked) > 0 {
-		t.Fatalf("settings written with the writer lock free: %v", probe.unlocked)
-	}
+	assertOneHold(t, svc, probe)
 	if !svc.Verify("admin", "correcthorse") {
 		t.Fatal("credentials unusable after CreateUser")
 	}
