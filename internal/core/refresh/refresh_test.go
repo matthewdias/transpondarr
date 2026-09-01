@@ -70,6 +70,17 @@ func seedTitle(t *testing.T, st *store.Store, anilistID int64, episodes int) int
 	return id
 }
 
+// seedUnmonitoredTitle is the seedTitle a title-level unmonitor produces.
+func seedUnmonitoredTitle(t *testing.T, st *store.Store, anilistID int64, episodes int) int64 {
+	t.Helper()
+	id := seedTitle(t, st, anilistID, episodes)
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE series SET monitored = 0 WHERE id = ?`, id); err != nil {
+		t.Fatalf("unmonitor series: %v", err)
+	}
+	return id
+}
+
 // seedCache inserts a metadata_cache row; a zero episodes stores NULL, matching
 // how dbcache mirrors an unknown count.
 func seedCache(t *testing.T, st *store.Store, anilistID int64, status string, episodes int, fetchedAt time.Time) {
@@ -373,22 +384,74 @@ func TestRefreshHoldsAKnownCountTitleForTheLongCutoff(t *testing.T) {
 	}
 }
 
-func TestRefreshSkipsUnmonitoredTitles(t *testing.T) {
+// An unmonitored title's cached status would otherwise freeze at its add-time
+// value, and the airing sync reads that status to pick its TTL tier -- so one
+// added while RELEASING would ride the 6h tier forever, never reaching 30d (#183).
+func TestRefreshIncludesUnmonitoredTitles(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
-	id := seedTitle(t, st, 100, 0)
-	if _, err := st.DB.ExecContext(context.Background(),
-		`UPDATE series SET monitored = 0 WHERE id = ?`, id); err != nil {
-		t.Fatalf("unmonitor series: %v", err)
-	}
+	id := seedUnmonitoredTitle(t, st, 100, 0)
 
 	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
-	if len(prov.calls) != 0 {
-		t.Errorf("provider called %v, want unmonitored series skipped", prov.calls)
+	if len(prov.calls) != 1 {
+		t.Fatalf("provider called %v, want the unmonitored series refreshed once", prov.calls)
+	}
+	var items int
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT count(*) FROM wanted_items WHERE series_id = ?`, id).Scan(&items); err != nil {
+		t.Fatalf("count items: %v", err)
+	}
+	if items != 12 {
+		t.Errorf("items = %d, want 12 -- an unmonitored title still grows", items)
+	}
+}
+
+// The budget's priority is unchanged: an unmonitored title takes a slot only
+// once no monitored one wants it, however long it has gone unfetched.
+func TestRefreshGivesMonitoredTitlesEverySlot(t *testing.T) {
+	st := coretest.NewStore(t)
+	prov := newFakeProvider()
+	// Five stale monitored title fill the pass; the unmonitored one is
+	// never-fetched, so it outranks them on every key but monitoring.
+	for id := int64(1); id <= 5; id++ {
+		prov.episodes[id] = 12
+		seedTitle(t, st, id, 12)
+		seedCache(t, st, id, "RELEASING", 12, time.Now().Add(-24*time.Hour))
+	}
+	prov.episodes[10] = 12
+	seedUnmonitoredTitle(t, st, 10, 0)
+
+	svc := newService(t, st, prov)
+	if err := svc.RefreshOnce(context.Background()); err != nil {
+		t.Fatalf("RefreshOnce: %v", err)
+	}
+	if len(prov.calls) != 5 {
+		t.Fatalf("first pass fetched %v, want the 5-series bound", prov.calls)
+	}
+	for _, id := range prov.calls {
+		if id == 10 {
+			t.Fatal("the unmonitored series took a slot a monitored one wanted")
+		}
+	}
+
+	// The raw fake never stamps a cache row, so settle the five by hand the way
+	// the cached provider would -- without it no pass ever runs out of monitored
+	// work and "ordered last" would be indistinguishable from "starved forever".
+	if _, err := st.DB.ExecContext(context.Background(),
+		`UPDATE metadata_cache SET fetched_at = ? WHERE provider_id BETWEEN 1 AND 5`,
+		store.FormatTimestamp(time.Now())); err != nil {
+		t.Fatalf("settle the monitored cache rows: %v", err)
+	}
+
+	if err := svc.RefreshOnce(context.Background()); err != nil {
+		t.Fatalf("second RefreshOnce: %v", err)
+	}
+	if rest := prov.calls[5:]; len(rest) != 1 || rest[0] != 10 {
+		t.Fatalf("second pass fetched %v, want only the unmonitored series", rest)
 	}
 }
 

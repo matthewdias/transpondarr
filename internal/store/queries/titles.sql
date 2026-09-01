@@ -98,19 +98,22 @@ DELETE FROM series WHERE id = ?;
 UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?;
 
 -- name: ListTitlesDueAiringSync :many
--- Monitored series whose broadcast schedule has never been synced or has gone
--- stale. A finished title's aired times are immutable, so it waits on the long
--- cutoff while anything still moving waits on the short one. A series with no
--- cache row has unknown status and deliberately rides the short cutoff: unknown
--- is likelier a transient anomaly than a finished title, and the cost is one
--- tail request per short TTL. Never-synced series sort first; the limit bounds
--- how much of the request budget one pass can burn. Scoped to one provider
--- because the id this hands to it is only meaningful in that provider's space.
+-- Series whose broadcast schedule has never been synced or has gone stale. A
+-- finished title's aired times are immutable, so it waits on the long cutoff
+-- while anything still moving waits on the short one. A series with no cache
+-- row has unknown status and deliberately rides the short cutoff: unknown is
+-- likelier a transient anomaly than a finished title, and the cost is one tail
+-- request per short TTL. Unmonitored series are ordered last rather than
+-- filtered out (#183): monitoring gates what automation pursues, not what we
+-- know, and without a synced schedule the calendar drops their rows before its
+-- own unmonitored filter can include them. Among equals never-synced sort
+-- first; the limit bounds how much of the request budget one pass can burn.
+-- Scoped to one provider because the id this hands to it is only meaningful in
+-- that provider's space.
 SELECT s.*
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
-WHERE s.monitored = 1
-  AND s.provider = ?
+WHERE s.provider = ?
   AND (
       s.airing_synced_at IS NULL
       OR s.airing_synced_at < CASE
@@ -118,7 +121,7 @@ WHERE s.monitored = 1
              ELSE ?
          END
   )
-ORDER BY s.airing_synced_at IS NOT NULL, s.airing_synced_at
+ORDER BY s.monitored = 0, s.airing_synced_at IS NOT NULL, s.airing_synced_at
 LIMIT ?;
 
 -- name: SetTitleAiringSyncedAt :exec
@@ -155,18 +158,22 @@ LEFT JOIN wanted_items w ON w.id = (
 WHERE s.provider = ?;
 
 -- name: ListTitlesDueMetadataRefresh :many
--- Monitored series whose cached title snapshot is missing or stale under the
--- status-aware TTL policy. Only a finished title with a known episode count
--- earns the long cutoff; a finished one whose count the provider never
--- publishes takes a middle tier, and anything still moving rides the short
--- one, mirroring the freshness rule in metadata.Cached. Never-fetched series
--- sort first; the limit bounds how much of the request budget one pass burns.
--- Scoped to one provider for the same reason ListTitlesDueAiringSync is.
+-- Series whose cached title snapshot is missing or stale under the status-aware
+-- TTL policy. Only a finished title with a known episode count earns the long
+-- cutoff; a finished one whose count the provider never publishes takes a
+-- middle tier, and anything still moving rides the short one, mirroring the
+-- freshness rule in metadata.Cached. Unmonitored series are ordered last rather
+-- than filtered out, and had to stop being filtered when the airing sync did
+-- (#183): nothing else calls the provider's GetTitle for a series, so their
+-- status would freeze at its add-time value and one added while RELEASING would
+-- ride that query's short cutoff forever, never reaching the long one. Among
+-- equals never-fetched sort first; the limit bounds how much of the request
+-- budget one pass burns. Scoped to one provider for the same reason
+-- ListTitlesDueAiringSync is.
 SELECT s.*
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
-WHERE s.monitored = 1
-  AND s.provider = ?
+WHERE s.provider = ?
   AND (
       m.provider_id IS NULL
       OR m.fetched_at < CASE
@@ -175,5 +182,5 @@ WHERE s.monitored = 1
              ELSE ?
          END
   )
-ORDER BY m.fetched_at IS NOT NULL, m.fetched_at
+ORDER BY s.monitored = 0, m.fetched_at IS NOT NULL, m.fetched_at
 LIMIT ?;

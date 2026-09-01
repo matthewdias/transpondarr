@@ -63,12 +63,17 @@ WHERE w.airs_at IS NOT NULL AND w.airs_at >= ? AND w.airs_at < ?
 ORDER BY w.airs_at, s.title, w.number;
 
 -- name: ListUnscheduledTitles :many
--- Monitored series still missing an episode the provider gives no air date
--- for, so the calendar can surface them instead of silently omitting them.
-SELECT DISTINCT s.id, s.title
+-- Series still missing an episode the provider gives no air date for, so the
+-- calendar can surface them instead of silently omitting them. The first param
+-- mirrors the grid's own unmonitored filter: a footer explaining an absence
+-- must cover exactly the population the grid was asked to show (#183).
+-- schedule_checked separates the two absences the footer would otherwise assert
+-- as one: nothing writes airs_at but the airing sync, so an unstamped title is
+-- one we have not asked about rather than one the provider publishes nothing for.
+SELECT DISTINCT s.id, s.title, s.airing_synced_at IS NOT NULL AS schedule_checked
 FROM series s
 JOIN wanted_items w ON w.series_id = s.id
-WHERE s.monitored = 1 AND w.in_library = 0 AND w.airs_at IS NULL
+WHERE (? = 1 OR s.monitored = 1) AND w.in_library = 0 AND w.airs_at IS NULL
 ORDER BY s.title;
 
 -- name: SetWantedItemAirsAtIfNull :exec

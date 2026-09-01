@@ -26,8 +26,9 @@ type calendarItemDTO struct {
 }
 
 type unscheduledTitleDTO struct {
-	TitleID int64  `json:"title_id"`
-	Title   string `json:"title"`
+	TitleID         int64  `json:"title_id"`
+	Title           string `json:"title"`
+	ScheduleChecked bool   `json:"schedule_checked" doc:"Whether the provider has been asked; false means no air dates have been looked up yet, not that none exist"`
 }
 
 type calendarInput struct {
@@ -39,7 +40,7 @@ type calendarInput struct {
 type calendarOutput struct {
 	Body struct {
 		Items       []calendarItemDTO     `json:"items"`
-		Unscheduled []unscheduledTitleDTO `json:"unscheduled" doc:"Monitored titles missing episodes with no schedule data"`
+		Unscheduled []unscheduledTitleDTO `json:"unscheduled" doc:"Titles missing episodes the calendar cannot place, over the same monitored scope as items"`
 	}
 }
 
@@ -89,15 +90,16 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 			})
 		}
 
-		unscheduled, err := deps.store.Q.ListUnscheduledTitles(ctx)
+		unscheduled, err := deps.store.Q.ListUnscheduledTitles(ctx, boolParam(in.Unmonitored))
 		if err != nil {
 			return nil, huma.Error500InternalServerError("failed to load unscheduled series", err)
 		}
 		out.Body.Unscheduled = make([]unscheduledTitleDTO, 0, len(unscheduled))
 		for _, s := range unscheduled {
 			out.Body.Unscheduled = append(out.Body.Unscheduled, unscheduledTitleDTO{
-				TitleID: s.ID,
-				Title:   s.Title,
+				TitleID:         s.ID,
+				Title:           s.Title,
+				ScheduleChecked: s.ScheduleChecked,
 			})
 		}
 		return out, nil

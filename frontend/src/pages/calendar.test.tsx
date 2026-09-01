@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -78,7 +78,10 @@ function renderPage() {
 describe("CalendarPage", () => {
   it("renders today's episodes on the month grid and names unscheduled series", async () => {
     server.use(
-      calendarHandler([item({})], [{ title_id: 103, title: "Dusty Archive" }]),
+      calendarHandler(
+        [item({})],
+        [{ title_id: 103, title: "Dusty Archive", schedule_checked: true }],
+      ),
     );
 
     renderPage();
@@ -99,6 +102,37 @@ describe("CalendarPage", () => {
       "href",
       "/titles/103",
     );
+  });
+
+  it("does not claim a provider published nothing for a title it never asked about", async () => {
+    server.use(
+      calendarHandler(
+        [item({})],
+        [
+          { title_id: 103, title: "Dusty Archive", schedule_checked: true },
+          { title_id: 104, title: "Fresh Arrival", schedule_checked: false },
+        ],
+      ),
+    );
+
+    renderPage();
+
+    // The settled absence keeps its wording and names only the asked-about title.
+    const settled = await screen.findByText(/no schedule data/i);
+    const settledRow = settled.closest("div")!;
+    expect(
+      within(settledRow).getByRole("link", { name: "Dusty Archive" }),
+    ).toBeInTheDocument();
+    expect(
+      within(settledRow).queryByRole("link", { name: "Fresh Arrival" }),
+    ).not.toBeInTheDocument();
+
+    // The unasked one is surfaced too, but as pending rather than as a verdict.
+    const pending = screen.getByText(/not checked yet/i);
+    const pendingRow = pending.closest("div")!;
+    expect(
+      within(pendingRow).getByRole("link", { name: "Fresh Arrival" }),
+    ).toHaveAttribute("href", "/titles/104");
   });
 
   it("shows agenda rows with the status badge and import error", async () => {

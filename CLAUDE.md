@@ -695,6 +695,47 @@ Behaviour changes are test-driven. Work red → green → refactor:
   unmonitored fill must not put a narrowed long-runner back at the front of the
   search queue on every sync — while refresh still clears the airing stamp on
   *any* insert, since the air-date sync ignores monitoring.
+- **Monitoring gates what automation *pursues*, not what the app *knows*
+  (#183).** `series.monitored = 0` withholds a title from the sweep and the feed
+  — the paths that spend money and move files — but never from the two
+  background jobs that only *learn* about it. It used to gate all four, and
+  three predicates then composed into a hole: an unmonitored title got no
+  `airs_at`, so `ListCalendarItems` dropped its rows before the Calendar's own
+  monitored check could include them, and `ListUnscheduledTitles` filtered it
+  out of the very footer that exists to explain such absences. So the toggle
+  could only ever reveal a title that had been monitored, synced, and
+  unmonitored *afterwards* — the opposite of the case it is for, since a title
+  you are still deciding about is one you unmonitored early. The two due queries
+  therefore **order `s.monitored = 0` ahead of their never-synced key rather
+  than filtering on it**, so a monitored title still takes every slot before an
+  unmonitored one gets any and the request budget's priority is unchanged; that
+  the unmonitored tail is reached *at all* is what the second pass in each
+  `GivesMonitoredTitlesEverySlot` test pins, since ordering last and starving
+  forever are otherwise indistinguishable. **Both queries had to move
+  together**: nothing else calls the provider's `GetTitle` for a series (the
+  title-detail page reads `store.Q.GetTitle`, the DB), so an unmonitored title's
+  cached status freezes at its add-time value — and since the airing query picks
+  its TTL tier from that status, opening it alone would leave a title added
+  while `RELEASING` on the 6h tier permanently, never graduating to 30d. Fixing
+  the arm and not the class would have turned a bounded one-off cost into a
+  recurring one. Reaching instead for a per-job TTL override was declined:
+  `TTLFor` is deliberately one policy shared by both jobs, which is #151's rule
+  about the two halves not disagreeing.
+- **"We asked and got nothing" and "we have not asked" are different absences,
+  and the calendar footer states which (#183).** `internal/core/airing` is the
+  *only* writer of `wanted_items.airs_at` — `catalog` never writes one, since
+  #152's in-band page carries episode numbers alone — so **every** title is
+  briefly undated between being added and its first sync, and the footer was
+  telling the user AniList publishes no air dates for titles nobody had asked
+  AniList about. That predated unmonitored titles being synced at all and was
+  merely widened by it. `ListUnscheduledTitles` therefore selects
+  `airing_synced_at IS NOT NULL AS schedule_checked` and the page renders two
+  notes off it, because the sync stamps that column **even when the provider
+  returns nothing** — which is exactly what makes it the discriminator rather
+  than a proxy for one. Only the checked half may state a verdict; the unchecked
+  half says the lookup is still pending, so a wrong claim degrades into a
+  temporary one. The footer is *not* the place to hide either: dropping the
+  unchecked titles would restore the silent omission the footer exists to end.
 - **Format is the discriminator everywhere; item count never is (#208).** Movie
   treatment — title+year matching (#209), movie naming (#198), no episodes table
   (#212) — keys on `domain.FormatMovie` alone, never on `len(items) == 1`. A
