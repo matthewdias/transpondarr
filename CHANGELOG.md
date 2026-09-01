@@ -28,6 +28,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **Two auth changes made at once can no longer disagree with what was saved.**
+  Changing the authentication mode from two places at the same moment could
+  leave the running server enforcing one mode while the database held the other,
+  so the mode changed on its own at the next restart with nothing having said
+  so. Changing the admin credentials had the same gap.
 - **The Calendar's *Unmonitored* filter can now actually reveal a title.** An
   unmonitored title never received broadcast times, so the filter could only
   surface one that had been monitored at some point — and the *No schedule data*

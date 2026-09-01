@@ -160,3 +160,94 @@ func TestChangePasswordRevokesSessions(t *testing.T) {
 		t.Fatal("old session survived a password change")
 	}
 }
+
+// lockProbe records, per settings write, whether the writer lock was free and
+// which writer hold covered it. Both matter: a write outside the lock and a write
+// under a hold the field update does not share diverge the same way (#258).
+type lockProbe struct {
+	svc      *Service
+	inner    settingsWriter
+	unlocked []string
+	holds    []uint64
+}
+
+func (p *lockProbe) UpsertSetting(ctx context.Context, arg db.UpsertSettingParams) error {
+	if p.svc.mu.TryLock() {
+		p.svc.mu.Unlock()
+		p.unlocked = append(p.unlocked, arg.Key)
+	}
+	p.holds = append(p.holds, p.svc.mu.holds.Load())
+	return p.inner.UpsertSetting(ctx, arg)
+}
+
+func newProbedAuth(t *testing.T) (*Service, *store.Store, *lockProbe) {
+	t.Helper()
+	svc, st := newTestAuth(t)
+	probe := &lockProbe{svc: svc, inner: svc.settings}
+	svc.settings = probe
+	return svc, st, probe
+}
+
+// assertOneHold reports that every settings write shared the single writer hold
+// still current when the call returned — the hold the field update ran under.
+func assertOneHold(t *testing.T, svc *Service, probe *lockProbe) {
+	t.Helper()
+	if len(probe.unlocked) > 0 {
+		t.Fatalf("settings written with the writer lock free: %v", probe.unlocked)
+	}
+	if len(probe.holds) == 0 {
+		t.Fatal("no settings write reached the store")
+	}
+	current := svc.mu.holds.Load()
+	for i, h := range probe.holds {
+		if h != current {
+			t.Fatalf("settings write %d ran under writer hold %d, but the call ended on hold %d: the store write and the field update are not one uninterrupted hold", i+1, h, current)
+		}
+	}
+}
+
+// The stored mode and the in-memory one must move together: divergence survives
+// until the next restart, which resolves to the DB, so a runtime "enabled" over a
+// stored "local" silently stops enforcing auth at the next boot.
+func TestSetRequiredWritesSettingsUnderLock(t *testing.T) {
+	svc, st, probe := newProbedAuth(t)
+	ctx := context.Background()
+
+	if err := svc.SetRequired(ctx, RequiredLocal); err != nil {
+		t.Fatalf("set required: %v", err)
+	}
+	assertOneHold(t, svc, probe)
+	if got := svc.Required(); got != RequiredLocal {
+		t.Fatalf("in-memory mode = %q, want %q", got, RequiredLocal)
+	}
+	stored, err := st.Q.GetSetting(ctx, keyRequired)
+	if err != nil {
+		t.Fatalf("read stored mode: %v", err)
+	}
+	if stored != RequiredLocal {
+		t.Fatalf("stored mode = %q, want %q", stored, RequiredLocal)
+	}
+}
+
+// CreateUser has the same divergence with a wider window: two settings writes and
+// then one lock, so a concurrent pair can leave the stored hash and the live one
+// disagreeing.
+func TestCreateUserWritesSettingsUnderLock(t *testing.T) {
+	svc, st, probe := newProbedAuth(t)
+	ctx := context.Background()
+
+	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	assertOneHold(t, svc, probe)
+	if !svc.Verify("admin", "correcthorse") {
+		t.Fatal("credentials unusable after CreateUser")
+	}
+	stored, err := st.Q.GetSetting(ctx, keyUsername)
+	if err != nil {
+		t.Fatalf("read stored username: %v", err)
+	}
+	if stored != "admin" {
+		t.Fatalf("stored username = %q, want %q", stored, "admin")
+	}
+}
