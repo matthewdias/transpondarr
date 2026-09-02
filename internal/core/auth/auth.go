@@ -58,12 +58,12 @@ var argon2idParams = &argon2id.Params{
 // hold from two — which is the property #258 needs and which "was the lock free
 // during the write" cannot distinguish.
 type countingMutex struct {
-	sync.RWMutex
+	sync.Mutex
 	holds atomic.Uint64
 }
 
 func (m *countingMutex) Lock() {
-	m.RWMutex.Lock()
+	m.Mutex.Lock()
 	m.holds.Add(1)
 }
 
@@ -73,38 +73,47 @@ type settingsWriter interface {
 	UpsertSetting(ctx context.Context, arg db.UpsertSettingParams) error
 }
 
-// Service holds the admin credentials and required-mode and manages sessions.
-type Service struct {
-	mu       countingMutex
-	store    *store.Store
-	settings settingsWriter
+// state is the credentials-and-mode triple, immutable once published: readers
+// load it lock-free, so a write cannot queue the request path behind it (#264).
+type state struct {
 	username string
 	hash     string
 	required string
 }
 
+// Service holds the admin credentials and required-mode and manages sessions.
+type Service struct {
+	mu       countingMutex // serializes writers; readers never take it
+	store    *store.Store
+	settings settingsWriter
+	state    atomic.Pointer[state]
+}
+
 // New loads auth state from the store and, when no user exists yet, bootstraps
 // one from TRANSPONDARR_AUTH_USERNAME/PASSWORD if both are provided.
 func New(ctx context.Context, st *store.Store, cfg *config.Config) (*Service, error) {
-	s := &Service{store: st, settings: st.Q, required: normalizeRequired(cfg.AuthRequired)}
+	s := &Service{store: st, settings: st.Q}
+	loaded := state{required: normalizeRequired(cfg.AuthRequired)}
 
 	if v, err := getSetting(ctx, st, keyUsername); err != nil {
 		return nil, err
 	} else {
-		s.username = v
+		loaded.username = v
 	}
 	if v, err := getSetting(ctx, st, keyPassword); err != nil {
 		return nil, err
 	} else {
-		s.hash = v
+		loaded.hash = v
 	}
 	if v, err := getSetting(ctx, st, keyRequired); err != nil {
 		return nil, err
 	} else if v != "" {
-		s.required = normalizeRequired(v)
+		loaded.required = normalizeRequired(v)
 	}
+	// Published before the bootstrap below, which reads the snapshot it replaces.
+	s.state.Store(&loaded)
 
-	if s.username == "" && cfg.AuthUsername != "" && cfg.AuthPassword != "" {
+	if loaded.username == "" && cfg.AuthUsername != "" && cfg.AuthPassword != "" {
 		if err := s.CreateUser(ctx, cfg.AuthUsername, cfg.AuthPassword); err != nil {
 			return nil, fmt.Errorf("bootstrap auth user: %w", err)
 		}
@@ -143,35 +152,29 @@ func ValidRequired(m string) bool {
 
 // Configured reports whether an admin account exists.
 func (s *Service) Configured() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.username != "" && s.hash != ""
+	cur := s.state.Load()
+	return cur.username != "" && cur.hash != ""
 }
 
 // Username returns the admin username (empty when unconfigured).
 func (s *Service) Username() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.username
+	return s.state.Load().username
 }
 
 // Required returns the current required-mode.
 func (s *Service) Required() string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.required
+	return s.state.Load().required
 }
 
 // Verify checks a username/password pair against the stored credentials.
 func (s *Service) Verify(username, password string) bool {
-	s.mu.RLock()
-	u, h := s.username, s.hash
-	s.mu.RUnlock()
-	if u == "" || h == "" {
+	// One snapshot, so the hash always belongs to the username checked against it.
+	cur := s.state.Load()
+	if cur.username == "" || cur.hash == "" {
 		return false
 	}
-	userOK := subtle.ConstantTimeCompare([]byte(username), []byte(u)) == 1
-	passOK := verifyPassword(password, h)
+	userOK := subtle.ConstantTimeCompare([]byte(username), []byte(cur.username)) == 1
+	passOK := verifyPassword(password, cur.hash)
 	return userOK && passOK
 }
 
@@ -207,7 +210,7 @@ func (s *Service) storeCredentials(ctx context.Context, username, hash string) e
 	if err := s.persist(ctx, keyPassword, hash); err != nil {
 		return err
 	}
-	s.username, s.hash = username, hash
+	s.publish(func(next *state) { next.username, next.hash = username, hash })
 	return nil
 }
 
@@ -215,14 +218,24 @@ func (s *Service) storeCredentials(ctx context.Context, username, hash string) e
 func (s *Service) SetRequired(ctx context.Context, mode string) error {
 	mode = normalizeRequired(mode)
 	// Persisting outside the lock lets two callers commit to the store in one
-	// order and to the field in the other, diverging until the next restart (#258).
+	// order and to the snapshot in the other, diverging until the next restart (#258).
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.persist(ctx, keyRequired, mode); err != nil {
 		return err
 	}
-	s.required = mode
+	// Publishing after the persist means a tightening takes effect a write later:
+	// local admits its last requests rather than parking them until it is stored.
+	s.publish(func(next *state) { next.required = mode })
 	return nil
+}
+
+// publish swaps in a modified copy of the snapshot, so a writer carries the
+// fields it does not touch by construction. Callers hold s.mu.
+func (s *Service) publish(mutate func(*state)) {
+	next := *s.state.Load()
+	mutate(&next)
+	s.state.Store(&next)
 }
 
 func (s *Service) persist(ctx context.Context, k, v string) error {

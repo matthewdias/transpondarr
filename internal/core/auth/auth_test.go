@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -249,5 +250,114 @@ func TestCreateUserWritesSettingsUnderLock(t *testing.T) {
 	}
 	if stored != "admin" {
 		t.Fatalf("stored username = %q, want %q", stored, "admin")
+	}
+}
+
+// blockingWriter parks the first settings write until released, so a test can
+// observe the service while a write is in flight.
+type blockingWriter struct {
+	inner   settingsWriter
+	once    sync.Once
+	started chan struct{}
+	release chan struct{}
+}
+
+func (w *blockingWriter) UpsertSetting(ctx context.Context, arg db.UpsertSettingParams) error {
+	w.once.Do(func() { close(w.started) })
+	<-w.release
+	return w.inner.UpsertSetting(ctx, arg)
+}
+
+// authorized() calls Required() on every request, so a lock held across the
+// settings write would queue the whole request path behind one admin action (#264).
+func TestReadsDoNotWaitForAWriteInFlight(t *testing.T) {
+	svc, _ := newTestAuth(t)
+	ctx := context.Background()
+	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	w := &blockingWriter{inner: svc.settings, started: make(chan struct{}), release: make(chan struct{})}
+	svc.settings = w
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(w.release) }) }
+	t.Cleanup(release)
+
+	done := make(chan error, 1)
+	go func() { done <- svc.SetRequired(ctx, RequiredLocal) }()
+	<-w.started
+
+	read := make(chan string, 1)
+	go func() { read <- svc.Required() }()
+	select {
+	case got := <-read:
+		if got != RequiredEnabled {
+			t.Fatalf("read %q while the write was in flight, want the pre-write %q: the mode was published before it was persisted", got, RequiredEnabled)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Required() blocked while a settings write was in flight")
+	}
+
+	release()
+	if err := <-done; err != nil {
+		t.Fatalf("set required: %v", err)
+	}
+	if got := svc.Required(); got != RequiredLocal {
+		t.Fatalf("mode after the write = %q, want %q", got, RequiredLocal)
+	}
+}
+
+// A writer publishes a whole snapshot, so the fields it does not touch have to
+// survive the swap (#264).
+func TestAWriteKeepsTheFieldsItDoesNotTouch(t *testing.T) {
+	svc, _ := newTestAuth(t)
+	ctx := context.Background()
+
+	if err := svc.SetRequired(ctx, RequiredLocal); err != nil {
+		t.Fatalf("set required: %v", err)
+	}
+	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if got := svc.Required(); got != RequiredLocal {
+		t.Fatalf("mode after a credentials write = %q, want the untouched %q", got, RequiredLocal)
+	}
+
+	if err := svc.SetRequired(ctx, RequiredEnabled); err != nil {
+		t.Fatalf("set required back: %v", err)
+	}
+	if got := svc.Username(); got != "admin" {
+		t.Fatalf("username after a mode write = %q, want the untouched %q", got, "admin")
+	}
+	if !svc.Verify("admin", "correcthorse") {
+		t.Fatal("credentials did not survive a mode write")
+	}
+}
+
+// The env bootstrap runs inside New, before anything else has published a
+// snapshot for it to read (#264).
+func TestNewBootstrapsAUserFromEnv(t *testing.T) {
+	st := coretest.NewStore(t)
+	ctx := context.Background()
+
+	svc, err := New(ctx, st, &config.Config{AuthUsername: "admin", AuthPassword: "correcthorse"})
+	if err != nil {
+		t.Fatalf("new auth: %v", err)
+	}
+	if !svc.Configured() {
+		t.Fatal("service unconfigured after an env bootstrap")
+	}
+	if !svc.Verify("admin", "correcthorse") {
+		t.Error("bootstrapped credentials rejected")
+	}
+	if got := svc.Required(); got != RequiredEnabled {
+		t.Errorf("required mode = %q, want the default %q", got, RequiredEnabled)
+	}
+	stored, err := st.Q.GetSetting(ctx, keyUsername)
+	if err != nil {
+		t.Fatalf("read stored username: %v", err)
+	}
+	if stored != "admin" {
+		t.Errorf("stored username = %q, want %q", stored, "admin")
 	}
 }
