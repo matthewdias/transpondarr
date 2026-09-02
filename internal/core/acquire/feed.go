@@ -165,6 +165,11 @@ func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) err
 		return fmt.Errorf("list series with wanted items: %w", err)
 	}
 
+	// Nothing due means nothing to parse for: a caught-up library must not start
+	// paying a page of parses it previously skipped entirely.
+	if len(due) == 0 {
+		return nil
+	}
 	// One page is matched against every due title, so its names are parsed once
 	// here rather than once per title: the parse is ~113x the scoring it feeds.
 	parses := pageParses(releases)
