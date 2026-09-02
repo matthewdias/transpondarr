@@ -25,6 +25,10 @@ All notable changes to this project are documented here. The format is based on
 - **"Future only" is now "Only unaired"**, and the choice is no longer offered
   for a title that has not started airing, where both answers mean the same
   thing.
+- **Changing the admin password or authentication mode no longer holds up other
+  requests.** Saving either wrote to the database with every incoming request
+  waiting behind it, so on a busy install one settings save could stall the
+  whole app for a moment.
 
 ### Fixed
 
