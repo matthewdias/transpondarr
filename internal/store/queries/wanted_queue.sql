@@ -106,13 +106,21 @@ LIMIT ?;
 -- Every rateable held item behind one page of candidate groups; scoring and the
 -- cutoff test happen in Go under the one profile snapshot per series. The grab
 -- join is inner and its status set matches the series page's, so a group's
--- items are exactly what made its series a candidate.
+-- items are exactly what made its series a candidate. The parse join carries
+-- the title and the parser version it was made under, so neither a superseded
+-- release nor a parser that has since changed can match, and the caller parses
+-- afresh.
 SELECT w.*,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
-       g.last_error    AS grab_last_error
+       g.last_error    AS grab_last_error,
+       p.parsed        AS held_release_parsed
 FROM wanted_items w
 JOIN grabs g ON g.wanted_item_id = w.id
+LEFT JOIN held_release_parses p
+       ON p.wanted_item_id = w.id
+      AND p.release_title = w.held_release_title
+      AND p.parser_version = ?
 WHERE w.series_id IN (sqlc.slice('title_ids'))
   AND w.in_library = 1
   AND (? = 1 OR w.monitored = 1)
@@ -136,3 +144,15 @@ GROUP BY series_id;
 -- How many of these ids are real series, so a bulk action can reject an unknown
 -- one in a single round trip rather than a lookup per id.
 SELECT COUNT(*) FROM series WHERE id IN (sqlc.slice('ids'));
+
+-- name: UpsertHeldReleaseParse :exec
+-- Remembers the parse of what an item holds, so the next Cutoff Unmet request
+-- scores it instead of parsing it again. Keyed on the item, so a changed held
+-- release overwrites its own row rather than accumulating one per release ever
+-- held.
+INSERT INTO held_release_parses (wanted_item_id, release_title, parser_version, parsed)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (wanted_item_id) DO UPDATE
+SET release_title  = excluded.release_title,
+    parser_version = excluded.parser_version,
+    parsed         = excluded.parsed;

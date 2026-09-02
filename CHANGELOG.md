@@ -33,6 +33,13 @@ All notable changes to this project are documented here. The format is based on
   leave the running server enforcing one mode while the database held the other,
   so the mode changed on its own at the next restart with nothing having said
   so. Changing the admin credentials had the same gap.
+- **The Wanted page's *Cutoff Unmet* tab no longer slows down as a library gets
+  healthier.** It works out which held episodes fall below their profile's
+  cutoff every time it is opened, and did so from scratch each time — so the
+  more of a library that had reached its cutoff, the more work it did to show
+  nothing. It now remembers what it read from each release name, and only the
+  cutoff itself is worked out afresh, so editing a quality profile still moves
+  the list straight away.
 - **The Calendar's *Unmonitored* filter can now actually reveal a title.** An
   unmonitored title never received broadcast times, so the filter could only
   surface one that had been monitored at some point — and the *No schedule data*

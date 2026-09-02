@@ -2,11 +2,14 @@ package acquire_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
+	"github.com/matthewdias/transpondarr/internal/core/parser"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -322,5 +325,248 @@ func TestCutoffUnmetCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	}
 	if g.Items[0].Number != 1 || g.Items[49].Number != 50 {
 		t.Errorf("cap kept %d..%d, want the front of the run", g.Items[0].Number, g.Items[49].Number)
+	}
+}
+
+// plantParse writes a remembered parse for an item, under the release title it
+// claims to be the parse of. Tests plant one that disagrees with the held title
+// because agreeing with it would prove nothing about which one was scored.
+func plantParse(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string, parsed parser.Parsed) {
+	t.Helper()
+	blob, err := json.Marshal(parsed)
+	if err != nil {
+		t.Fatalf("encode parse: %v", err)
+	}
+	plantRawParse(t, st, titleID, number, releaseTitle, parser.Version, string(blob))
+}
+
+// plantRawParse is plantParse without the encoding, for the rows a parser
+// change or a corrupted write leaves behind.
+func plantRawParse(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string, version int64, blob string) {
+	t.Helper()
+	ctx := context.Background()
+	var id int64
+	if err := st.DB.QueryRowContext(ctx,
+		`SELECT id FROM wanted_items WHERE series_id = ? AND number = ?`, titleID, number).Scan(&id); err != nil {
+		t.Fatalf("look up item %d: %v", number, err)
+	}
+	if err := st.Q.UpsertHeldReleaseParse(ctx, db.UpsertHeldReleaseParseParams{
+		WantedItemID: id, ReleaseTitle: releaseTitle, ParserVersion: version, Parsed: blob,
+	}); err != nil {
+		t.Fatalf("plant parse for item %d: %v", number, err)
+	}
+}
+
+// storedParses reads back what the listing remembered, keyed by item id.
+func storedParses(t *testing.T, st *store.Store) map[int64]db.HeldReleaseParse {
+	t.Helper()
+	rows, err := st.DB.QueryContext(context.Background(),
+		`SELECT wanted_item_id, release_title, parser_version, parsed FROM held_release_parses`)
+	if err != nil {
+		t.Fatalf("read held_release_parses: %v", err)
+	}
+	defer rows.Close() //nolint:errcheck // test cleanup
+	out := map[int64]db.HeldReleaseParse{}
+	for rows.Next() {
+		var r db.HeldReleaseParse
+		if err := rows.Scan(&r.WantedItemID, &r.ReleaseTitle, &r.ParserVersion, &r.Parsed); err != nil {
+			t.Fatalf("scan held_release_parses: %v", err)
+		}
+		out[r.WantedItemID] = r
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate held_release_parses: %v", err)
+	}
+	return out
+}
+
+// A remembered parse is what the request scores, which is the whole point:
+// parsing a title costs ~113x scoring the parse, so a request that re-parsed
+// would be paying the cost this cache exists to remove. Observed by planting a
+// parse that disagrees with the title it is stored under -- the score follows
+// the stored parse, so nothing re-read the title.
+func TestCutoffUnmetScoresTheStoredParse(t *testing.T) {
+	st := coretest.NewStore(t)
+	ctx := context.Background()
+	titleID := seedTitle(t, st, "Placeholder Saga", 1)
+	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
+	held := "[TopSubs] Placeholder Saga - 01 [1080p]" // 2400: met, so unlisted
+	hold(t, st, titleID, 1, held)
+	plantParse(t, st, titleID, 1, held, parser.Parsed{Group: "MidSubs", Resolution: "720p"}) // 2200
+
+	page, err := cutoffService(t, st).CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20})
+	if err != nil {
+		t.Fatalf("CutoffUnmet: %v", err)
+	}
+	if len(page.Groups) != 1 || len(page.Groups[0].Items) != 1 {
+		t.Fatalf("groups = %+v, want the item listed on the stored parse's score", page.Groups)
+	}
+	if got := page.Groups[0].Items[0].Score; got != 2200 {
+		t.Errorf("score = %d, want 2200 from the stored parse (a re-parse of the title scores 2400)", got)
+	}
+}
+
+// A parse stored under a release the item no longer holds is not its parse.
+// The join carries the title, so an upgrade replacing what an item holds
+// invalidates its remembered parse without any writer knowing the table exists.
+func TestCutoffUnmetIgnoresAParseOfAnotherRelease(t *testing.T) {
+	st := coretest.NewStore(t)
+	ctx := context.Background()
+	titleID := seedTitle(t, st, "Placeholder Saga", 1)
+	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
+	hold(t, st, titleID, 1, "[TopSubs] Placeholder Saga - 01 [1080p]") // 2400: met
+	plantParse(t, st, titleID, 1, "[MidSubs] Placeholder Saga - 01 [720p]",
+		parser.Parsed{Group: "MidSubs", Resolution: "720p"})
+
+	page, err := cutoffService(t, st).CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20})
+	if err != nil {
+		t.Fatalf("CutoffUnmet: %v", err)
+	}
+	if len(page.Groups) != 0 {
+		t.Fatalf("groups = %+v, want none: the stored parse is of a release the item does not hold", page.Groups)
+	}
+}
+
+// The scan remembers every held item it examined, not just the ones it listed.
+// The healthy library the cost curve is about lists nothing at all, so a cache
+// filled only from listed items would never make that case cheaper.
+func TestCutoffUnmetStoresTheParsesItScanned(t *testing.T) {
+	st := coretest.NewStore(t)
+	ctx := context.Background()
+	profileID := upgradingProfile(t, st, "Upgrading", 2300)
+	metID := seedTitle(t, st, "Placeholder At Cutoff", 1)
+	putOnProfile(t, st, metID, profileID)
+	metTitle := "[TopSubs] Placeholder At Cutoff - 01 [1080p]" // 2400: met, unlisted
+	hold(t, st, metID, 1, metTitle)
+	belowID := seedTitle(t, st, "Placeholder Below Cutoff", 1)
+	putOnProfile(t, st, belowID, profileID)
+	belowTitle := "[MidSubs] Placeholder Below Cutoff - 01 [720p]" // 2200: listed
+	hold(t, st, belowID, 1, belowTitle)
+
+	svc := cutoffService(t, st)
+	first, err := svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20})
+	if err != nil {
+		t.Fatalf("CutoffUnmet: %v", err)
+	}
+
+	stored := storedParses(t, st)
+	if len(stored) != 2 {
+		t.Fatalf("stored %d parses, want one per held item scanned including the title that listed nothing", len(stored))
+	}
+	for _, want := range []string{metTitle, belowTitle} {
+		found := false
+		for _, r := range stored {
+			if r.ReleaseTitle != want {
+				continue
+			}
+			found = true
+			var got parser.Parsed
+			if err := json.Unmarshal([]byte(r.Parsed), &got); err != nil {
+				t.Fatalf("stored parse for %q does not decode: %v", want, err)
+			}
+			if got != parser.Parse(want) {
+				t.Errorf("stored parse for %q = %+v, want %+v", want, got, parser.Parse(want))
+			}
+		}
+		if !found {
+			t.Errorf("no stored parse for %q", want)
+		}
+	}
+
+	second, err := svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20})
+	if err != nil {
+		t.Fatalf("second CutoffUnmet: %v", err)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Errorf("second page = %+v, want the same page as the first %+v", second, first)
+	}
+}
+
+// A parse made by a parser that has since changed is not this parser's parse.
+// The title alone would match forever, so a held release read differently after
+// an upgrade would be scored on the old reading and never re-examined.
+func TestCutoffUnmetIgnoresAParseFromAnotherParserVersion(t *testing.T) {
+	st := coretest.NewStore(t)
+	ctx := context.Background()
+	titleID := seedTitle(t, st, "Placeholder Saga", 1)
+	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
+	held := "[TopSubs] Placeholder Saga - 01 [1080p]" // 2400: met
+	hold(t, st, titleID, 1, held)
+	stale, err := json.Marshal(parser.Parsed{Group: "MidSubs", Resolution: "720p"}) // 2200
+	if err != nil {
+		t.Fatalf("encode parse: %v", err)
+	}
+	plantRawParse(t, st, titleID, 1, held, parser.Version+1, string(stale))
+
+	page, err := cutoffService(t, st).CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20})
+	if err != nil {
+		t.Fatalf("CutoffUnmet: %v", err)
+	}
+	if len(page.Groups) != 0 {
+		t.Fatalf("groups = %+v, want none: the stored parse was made by a different parser", page.Groups)
+	}
+	if got := storedParses(t, st); len(got) != 1 || got[page1ItemID(t, st, titleID, 1)].ParserVersion != parser.Version {
+		t.Errorf("stored = %+v, want the stale row replaced at version %d", got, parser.Version)
+	}
+}
+
+// An unreadable stored parse is treated as absent rather than as an error: the
+// parse is derived, so re-deriving it always succeeds, and the row it overwrites
+// stops being unreadable.
+func TestCutoffUnmetReparsesAnUnreadableStoredParse(t *testing.T) {
+	st := coretest.NewStore(t)
+	ctx := context.Background()
+	titleID := seedTitle(t, st, "Placeholder Saga", 1)
+	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
+	held := "[MidSubs] Placeholder Saga - 01 [720p]" // 2200: below cutoff
+	hold(t, st, titleID, 1, held)
+	plantRawParse(t, st, titleID, 1, held, parser.Version, "{not json")
+
+	page, err := cutoffService(t, st).CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20})
+	if err != nil {
+		t.Fatalf("CutoffUnmet: %v", err)
+	}
+	if len(page.Groups) != 1 || len(page.Groups[0].Items) != 1 || page.Groups[0].Items[0].Score != 2200 {
+		t.Fatalf("groups = %+v, want the item listed on a fresh parse of its title", page.Groups)
+	}
+	stored := storedParses(t, st)[page1ItemID(t, st, titleID, 1)]
+	var got parser.Parsed
+	if err := json.Unmarshal([]byte(stored.Parsed), &got); err != nil {
+		t.Fatalf("the unreadable row survived: %v", err)
+	}
+	if got != parser.Parse(held) {
+		t.Errorf("stored parse = %+v, want %+v", got, parser.Parse(held))
+	}
+}
+
+// page1ItemID is the wanted item's id, which the cache table is keyed on.
+func page1ItemID(t *testing.T, st *store.Store, titleID int64, number int) int64 {
+	t.Helper()
+	var id int64
+	if err := st.DB.QueryRowContext(context.Background(),
+		`SELECT id FROM wanted_items WHERE series_id = ? AND number = ?`, titleID, number).Scan(&id); err != nil {
+		t.Fatalf("look up item %d: %v", number, err)
+	}
+	return id
+}
+
+// The write-back is chunked, so it must not lose a row at a chunk boundary: a
+// first traversal of a large library is exactly where the cache has to land
+// whole, and it is the only pass that pays the parser.
+func TestCutoffUnmetStoresEveryParseAcrossChunks(t *testing.T) {
+	const items = 600 // more than one parseFillBatch, so a chunk boundary falls inside
+	st := coretest.NewStore(t)
+	ctx := context.Background()
+	titleID := seedTitle(t, st, "Placeholder Long Runner", items)
+	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
+	for n := 1; n <= items; n++ {
+		hold(t, st, titleID, n, fmt.Sprintf("[MidSubs] Placeholder Long Runner - %04d [720p]", n))
+	}
+
+	if _, err := cutoffService(t, st).CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20}); err != nil {
+		t.Fatalf("CutoffUnmet: %v", err)
+	}
+	if got := storedParses(t, st); len(got) != items {
+		t.Errorf("stored %d parses, want all %d", len(got), items)
 	}
 }

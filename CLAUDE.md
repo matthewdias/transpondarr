@@ -472,6 +472,35 @@ Behaviour changes are test-driven. Work red → green → refactor:
   candidate on the feed's hot path); they agree by invariant, tested rather than
   merged. Only a sweep that ran to the end writes `no_match`: a hard return never
   saw the rest of the candidates, and a feed poll saw a page, not a search.
+- **Cutoff Unmet caches the parse and never the score (#185).** Membership is
+  re-derived per request so editing a profile moves the list, and the scan walks
+  its whole budget precisely when a library is healthy and nothing qualifies —
+  so the cost had to come off without recording the answer. Measured, the split
+  is lopsided: `parser.Parse` is ~103µs per held release against ~0.9µs for
+  `decide.Score` plus `decide.UnmetGoals`, so **the expensive half is the one no
+  profile can change** and the cheap half is the one that would need
+  invalidating. Hence `held_release_parses` stores what a release name said and
+  nothing about what it is worth; a `held_score` column is the regression this
+  bullet exists to prevent, since it would put a version counter on
+  `quality_profiles` and a bump obligation on every profile mutation. Two things
+  follow. The row is **keyed on the release title it parsed and on
+  `parser.Version`**, so the read joins on both: a superseded release's parse
+  cannot match, which is why `SetWantedItemHeld`, the one writer of
+  `held_release_title`, needs no knowledge of the table — and neither can a
+  parse the current parser would no longer make, which the title alone could
+  never express, since a held title does not change when the parser under it
+  does. That is the one obligation the design does not remove: bump
+  `parser.Version` whenever `Parse`, `Parsed` or anitogo can read the same title
+  differently, or Cutoff Unmet scores the old reading forever while
+  `decide.Match` parses fresh, and the two disagree. A stale row is replaced
+  rather than migrated, so the bump is the whole of it. And the fill is a
+  **write from a read**, accepted because it is derived and idempotent (the
+  worst a bad row costs is one re-parse), bounded to once per held release ever,
+  and unreachable any other way: SQL cannot run the parser, so no migration can
+  backfill it, and filling at import time would never reach the healthy library
+  that is the whole case, where nothing is ever re-imported. The sweep parses
+  held titles too (`decide.Match`) and would benefit from the same table, which
+  is #97's path and a `decide.Item` change, so it is deliberately still parsing.
 - **The automation toggle is three-state (#116): `off` / `notify_only` / `on` —
   one settings key (`automation.enabled`) whose value domain widened, so legacy
   stored/env bools still parse.** Notify-only rehearses: both entry points run

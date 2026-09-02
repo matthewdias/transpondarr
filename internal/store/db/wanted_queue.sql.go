@@ -95,9 +95,14 @@ const listCutoffItemsByTitle = `-- name: ListCutoffItemsByTitle :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
-       g.last_error    AS grab_last_error
+       g.last_error    AS grab_last_error,
+       p.parsed        AS held_release_parsed
 FROM wanted_items w
 JOIN grabs g ON g.wanted_item_id = w.id
+LEFT JOIN held_release_parses p
+       ON p.wanted_item_id = w.id
+      AND p.release_title = w.held_release_title
+      AND p.parser_version = ?
 WHERE w.series_id IN (/*SLICE:title_ids*/?)
   AND w.in_library = 1
   AND (? = 1 OR w.monitored = 1)
@@ -107,32 +112,38 @@ ORDER BY w.series_id, w.number
 `
 
 type ListCutoffItemsByTitleParams struct {
-	TitleIds []int64     `json:"title_ids"`
-	Column2  interface{} `json:"column_2"`
+	ParserVersion int64       `json:"parser_version"`
+	TitleIds      []int64     `json:"title_ids"`
+	Column3       interface{} `json:"column_3"`
 }
 
 type ListCutoffItemsByTitleRow struct {
-	ID               int64          `json:"id"`
-	SeriesID         int64          `json:"series_id"`
-	Kind             string         `json:"kind"`
-	Number           sql.NullInt64  `json:"number"`
-	Title            sql.NullString `json:"title"`
-	InLibrary        int64          `json:"in_library"`
-	AirsAt           sql.NullString `json:"airs_at"`
-	HeldReleaseTitle string         `json:"held_release_title"`
-	Monitored        int64          `json:"monitored"`
-	GrabStatus       string         `json:"grab_status"`
-	GrabReleaseTitle string         `json:"grab_release_title"`
-	GrabLastError    sql.NullString `json:"grab_last_error"`
+	ID                int64          `json:"id"`
+	SeriesID          int64          `json:"series_id"`
+	Kind              string         `json:"kind"`
+	Number            sql.NullInt64  `json:"number"`
+	Title             sql.NullString `json:"title"`
+	InLibrary         int64          `json:"in_library"`
+	AirsAt            sql.NullString `json:"airs_at"`
+	HeldReleaseTitle  string         `json:"held_release_title"`
+	Monitored         int64          `json:"monitored"`
+	GrabStatus        string         `json:"grab_status"`
+	GrabReleaseTitle  string         `json:"grab_release_title"`
+	GrabLastError     sql.NullString `json:"grab_last_error"`
+	HeldReleaseParsed sql.NullString `json:"held_release_parsed"`
 }
 
 // Every rateable held item behind one page of candidate groups; scoring and the
 // cutoff test happen in Go under the one profile snapshot per series. The grab
 // join is inner and its status set matches the series page's, so a group's
-// items are exactly what made its series a candidate.
+// items are exactly what made its series a candidate. The parse join carries
+// the title and the parser version it was made under, so neither a superseded
+// release nor a parser that has since changed can match, and the caller parses
+// afresh.
 func (q *Queries) ListCutoffItemsByTitle(ctx context.Context, arg ListCutoffItemsByTitleParams) ([]ListCutoffItemsByTitleRow, error) {
 	query := listCutoffItemsByTitle
 	var queryParams []interface{}
+	queryParams = append(queryParams, arg.ParserVersion)
 	if len(arg.TitleIds) > 0 {
 		for _, v := range arg.TitleIds {
 			queryParams = append(queryParams, v)
@@ -141,7 +152,7 @@ func (q *Queries) ListCutoffItemsByTitle(ctx context.Context, arg ListCutoffItem
 	} else {
 		query = strings.Replace(query, "/*SLICE:title_ids*/?", "NULL", 1)
 	}
-	queryParams = append(queryParams, arg.Column2)
+	queryParams = append(queryParams, arg.Column3)
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
 		return nil, err
@@ -163,6 +174,7 @@ func (q *Queries) ListCutoffItemsByTitle(ctx context.Context, arg ListCutoffItem
 			&i.GrabStatus,
 			&i.GrabReleaseTitle,
 			&i.GrabLastError,
+			&i.HeldReleaseParsed,
 		); err != nil {
 			return nil, err
 		}
@@ -485,4 +497,34 @@ func (q *Queries) ListMissingTitlesPage(ctx context.Context, arg ListMissingTitl
 		return nil, err
 	}
 	return items, nil
+}
+
+const upsertHeldReleaseParse = `-- name: UpsertHeldReleaseParse :exec
+INSERT INTO held_release_parses (wanted_item_id, release_title, parser_version, parsed)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (wanted_item_id) DO UPDATE
+SET release_title  = excluded.release_title,
+    parser_version = excluded.parser_version,
+    parsed         = excluded.parsed
+`
+
+type UpsertHeldReleaseParseParams struct {
+	WantedItemID  int64  `json:"wanted_item_id"`
+	ReleaseTitle  string `json:"release_title"`
+	ParserVersion int64  `json:"parser_version"`
+	Parsed        string `json:"parsed"`
+}
+
+// Remembers the parse of what an item holds, so the next Cutoff Unmet request
+// scores it instead of parsing it again. Keyed on the item, so a changed held
+// release overwrites its own row rather than accumulating one per release ever
+// held.
+func (q *Queries) UpsertHeldReleaseParse(ctx context.Context, arg UpsertHeldReleaseParseParams) error {
+	_, err := q.db.ExecContext(ctx, upsertHeldReleaseParse,
+		arg.WantedItemID,
+		arg.ReleaseTitle,
+		arg.ParserVersion,
+		arg.Parsed,
+	)
+	return err
 }
