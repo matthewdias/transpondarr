@@ -12,6 +12,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/decide"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
+	"github.com/matthewdias/transpondarr/internal/core/parser"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
@@ -164,27 +165,48 @@ func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) err
 		return fmt.Errorf("list series with wanted items: %w", err)
 	}
 
+	// Nothing due means nothing to parse for: a caught-up library must not start
+	// paying a page of parses it previously skipped entirely.
+	if len(due) == 0 {
+		return nil
+	}
+	// One page is matched against every due title, so its names are parsed once
+	// here rather than once per title: the parse is ~113x the scoring it feeds.
+	parses := pageParses(releases)
+
 	var errs []error
 	for _, title := range due {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if err := s.pollOneTitle(ctx, title, releases, now); err != nil {
+		if err := s.pollOneTitle(ctx, title, releases, parses, now); err != nil {
 			errs = append(errs, fmt.Errorf("series %d: %w", title.ID, err))
 		}
 	}
 	return errors.Join(errs...)
 }
 
+// pageParses parses each distinct release name on the page once. decide only
+// reads the result, so the one map is safe to share across every title.
+func pageParses(releases []indexer.Release) decide.ReleaseParses {
+	out := make(decide.ReleaseParses, len(releases))
+	for _, rel := range releases {
+		if _, ok := out[rel.Title]; !ok {
+			out[rel.Title] = parser.Parse(rel.Title)
+		}
+	}
+	return out
+}
+
 // pollOneTitle runs the shared decision path over the feed page. It writes no
 // search cadence: nothing was searched, and a grab settles its item, so the
 // sweep's due query drops the title on its own.
-func (s *Service) pollOneTitle(ctx context.Context, title db.Series, releases []indexer.Release, now time.Time) error {
+func (s *Service) pollOneTitle(ctx context.Context, title db.Series, releases []indexer.Release, parses decide.ReleaseParses, now time.Time) error {
 	sweep, err := s.loadSweepItems(ctx, title.ID, now)
 	if err != nil {
 		return err
 	}
-	m, err := s.evaluate(ctx, title, passItems(sweep), s.cachedVariants(ctx, title), "", releases)
+	m, err := s.evaluate(ctx, title, passItems(sweep), s.cachedVariants(ctx, title), "", releases, parses)
 	if err != nil {
 		return err
 	}

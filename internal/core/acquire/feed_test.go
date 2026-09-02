@@ -1000,3 +1000,29 @@ func TestFeedPollDoesNotRewindOnAnOlderPage(t *testing.T) {
 		t.Errorf("the older page rewound the window: re-grabbed %+v", h.dl.Adds)
 	}
 }
+
+// One page is parsed once and matched against every due title, so the shared
+// lookup must not let one title's entry reach another's items.
+func TestFeedPollSharesOnePageAcrossTitles(t *testing.T) {
+	past := time.Now().Add(-2 * time.Hour)
+	recent := time.Now().Add(-10 * time.Minute)
+	h := newFeedPoll(t, []indexer.FeedEntry{
+		feedEntry("Placeholder Saga", 3, recent),
+		feedEntry("Sample Chronicle", 7, recent),
+	}, fakeConfig{})
+	saga := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
+	chronicle := seedSweep(t, h.st, "Sample Chronicle", true, sweepItem{number: 7, airsAt: &past})
+
+	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+		t.Fatalf("PollFeedOnce: %v", err)
+	}
+	if got := grabbedItemNumbers(t, h.st, saga); len(got) != 1 || got[0] != 3 {
+		t.Errorf("Placeholder Saga grabbed %v, want [3]", got)
+	}
+	if got := grabbedItemNumbers(t, h.st, chronicle); len(got) != 1 || got[0] != 7 {
+		t.Errorf("Sample Chronicle grabbed %v, want [7]", got)
+	}
+	if h.feed.Polls != 1 {
+		t.Errorf("Recent called %d times, want 1", h.feed.Polls)
+	}
+}

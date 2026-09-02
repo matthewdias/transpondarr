@@ -40,6 +40,11 @@ All notable changes to this project are documented here. The format is based on
   nothing. It now remembers what it read from each release name, and only the
   cutoff itself is worked out afresh, so editing a quality profile still moves
   the list straight away.
+- **Checking the release feed does much less work on a large library.** Every
+  release on the feed was being read once per tracked title rather than once,
+  and episodes already in the library were being examined even when the quality
+  profile has upgrades switched off. Neither happens now, so each check costs a
+  fraction of what it did.
 - **The Calendar's *Unmonitored* filter can now actually reveal a title.** An
   unmonitored title never received broadcast times, so the filter could only
   surface one that had been monitored at some point — and the *No schedule data*

@@ -82,7 +82,13 @@ type MatchOpts struct {
 	// Year is the title's release year; 0 is "no year on record", which movie
 	// matching reports as an ineligible reason rather than a refusal (#209).
 	Year int
+	// Parses lets a caller matching one page against many titles parse it once.
+	Parses ReleaseParses
 }
+
+// ReleaseParses maps a release title to its parse. Read-only here, so one map is
+// shareable without a lock; a miss is parsed, making it a cache never a filter.
+type ReleaseParses map[string]parser.Parsed
 
 // BlockedSet is the title's active release blocklist as plain data, so decide
 // stays pure. A release matches on either axis: Torznab often omits the infohash.
@@ -160,6 +166,12 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 		}
 		itemSet[it.Number] = true
 		if it.HeldTitle == "" {
+			continue
+		}
+		// Only the upgrade comparison reads the value, so a profile refusing every
+		// upgrade keeps the membership the reasons need and skips the parse.
+		if !profile.UpgradesEnabled {
+			held[it.Number] = heldRelease{}
 			continue
 		}
 		p := parser.Parse(it.HeldTitle)
@@ -373,7 +385,13 @@ func applyUpgradePolicy(c *Candidate, held map[int]heldRelease, profile domain.Q
 		if !ok {
 			continue
 		}
-		if reason := upgradeRefusal(*c, h, profile); reason != "" {
+		// Hoisted out of upgradeRefusal so the only path reading h's value is the
+		// one that computed it; with upgrades off h is deliberately the zero value.
+		reason := upgradesDisabled
+		if profile.UpgradesEnabled {
+			reason = upgradeRefusal(*c, h, profile)
+		}
+		if reason != "" {
 			if c.UpgradeBlocked == nil {
 				c.UpgradeBlocked = make(map[int]string, 1)
 			}
@@ -384,12 +402,12 @@ func applyUpgradePolicy(c *Candidate, held map[int]heldRelease, profile domain.Q
 	}
 }
 
+// upgradesDisabled is worded exactly as before, so the Releases tab is unchanged.
+const upgradesDisabled = "upgrades are not enabled for this profile"
+
 // upgradeRefusal reports why this candidate may not replace a held release, or
-// "" when it may.
+// "" when it may. Only called with upgrades enabled, which is what lets it read h.
 func upgradeRefusal(c Candidate, h heldRelease, profile domain.QualityProfile) string {
-	if !profile.UpgradesEnabled {
-		return "upgrades are not enabled for this profile"
-	}
 	if isFixOf(c.Parsed, h.parsed, profile) {
 		return ""
 	}
@@ -436,7 +454,10 @@ func indexFold(list []string, v string) int {
 }
 
 func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSet map[int]bool, maxItem int, held map[int]heldRelease, o MatchOpts) Candidate {
-	p := parser.Parse(rel.Title)
+	p, ok := o.Parses[rel.Title]
+	if !ok {
+		p = parser.Parse(rel.Title)
+	}
 	// Enrich the release with parsed attributes (the fields the indexer left blank).
 	rel.ReleaseGroup = p.Group
 	rel.Resolution = p.Resolution

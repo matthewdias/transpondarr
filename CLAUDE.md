@@ -498,9 +498,35 @@ Behaviour changes are test-driven. Work red → green → refactor:
   worst a bad row costs is one re-parse), bounded to once per held release ever,
   and unreachable any other way: SQL cannot run the parser, so no migration can
   backfill it, and filling at import time would never reach the healthy library
-  that is the whole case, where nothing is ever re-imported. The sweep parses
-  held titles too (`decide.Match`) and would benefit from the same table, which
-  is #97's path and a `decide.Item` change, so it is deliberately still parsing.
+  that is the whole case, where nothing is ever re-imported. The table stays
+  Cutoff Unmet's alone: #266 proposed reusing it from `decide.Match` and that was
+  declined (see below).
+- **The automation loop parses once per poll, not once per title — and not at all
+  for a held release no profile will rate (#266).** Measured, reusing
+  `held_release_parses` from `decide.Match` was the smallest of three effects in
+  the one loop and the only one costing a `decide.Item` change, so the two that
+  were taken are both about **not doing the work** rather than remembering it. A
+  feed poll matches one ~100-entry page against *every* due title, so
+  `MatchOpts.Parses` carries the page's parses, built once in `pageParses`; it is
+  **read-only inside `decide`**, which is what makes one map shareable across
+  titles without a lock, and a miss is parsed normally so it is a cache and never
+  a filter. The sweep deliberately passes nil — it searches per title, so its
+  releases differ and there is nothing to share. And `Match` stores a held item's
+  **membership without its parse** when `profile.UpgradesEnabled` is false (the
+  schema default), because every read of the parsed value sits behind that flag
+  while the reason wording at the batch, single and movie arms only ever asks
+  `_, ok := held[n]`. Two things a reader would otherwise break. **The membership
+  write is load-bearing**: leaving `held` empty instead trips
+  `applyUpgradePolicy`'s `len(held) == 0` early return, so covered items never
+  reach `UpgradeBlocked`, stay in `TakeItems()`, and the sweep grabs an upgrade on
+  a profile that has upgrades switched off — deleting that one line is the
+  mutation that proves it. And the `UpgradesEnabled` check is **hoisted into
+  `applyUpgradePolicy` on purpose**, so the only path reading a `heldRelease`'s
+  parse and score is the one that computed them; pushing it back down into
+  `upgradeRefusal` is behaviour-preserving today and makes the zero value
+  reachable by the next edit. The cost of the feed half is untestable by
+  construction — the memo agrees with a fresh parse, so dropping it changes no
+  behaviour and only an allocation assertion could catch it.
 - **The automation toggle is three-state (#116): `off` / `notify_only` / `on` —
   one settings key (`automation.enabled`) whose value domain widened, so legacy
   stored/env bools still parse.** Notify-only rehearses: both entry points run
