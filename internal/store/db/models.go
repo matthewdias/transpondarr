@@ -33,6 +33,13 @@ type GrabEvent struct {
 	CreatedAt    string `json:"created_at"`
 }
 
+type HeldReleaseParse struct {
+	WantedItemID  int64  `json:"wanted_item_id"`
+	ReleaseTitle  string `json:"release_title"`
+	ParserVersion int64  `json:"parser_version"`
+	Parsed        string `json:"parsed"`
+}
+
 type MetadataCache struct {
 	Provider     string         `json:"provider"`
 	ProviderID   int64          `json:"provider_id"`

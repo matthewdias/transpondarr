@@ -52,6 +52,11 @@ type Parsed struct {
 	Repack   bool   // REPACK / PROPER re-release
 }
 
+// Version identifies what Parse's output means. Bump it whenever a change here,
+// to Parsed, or to anitogo can make Parse read the same title differently: a
+// stored parse is reusable only while the parser that made it still agrees.
+const Version = 1
+
 // Parse extracts structured fields from a release title.
 func Parse(title string) Parsed {
 	e := anitogo.Parse(title, anitogo.DefaultOptions)
