@@ -220,7 +220,7 @@ func (s *Service) match(ctx context.Context, idx indexer.Indexer, title db.Serie
 	if err != nil {
 		return Match{}, err
 	}
-	return s.evaluate(ctx, title, items, variants, term, releases)
+	return s.evaluate(ctx, title, items, variants, term, releases, nil)
 }
 
 // variants are the names the matcher will accept for a title (romaji/english/
@@ -290,7 +290,7 @@ func (s *Service) search(ctx context.Context, idx indexer.Indexer, variants []st
 // evaluate ranks already-fetched releases against a title. It is split from the
 // search so the feed poll (#101) drives exactly this decision layer — profile,
 // blocklist, eligibility — over one page it fetched once for every title.
-func (s *Service) evaluate(ctx context.Context, title db.Series, items []passItem, variants []string, term string, releases []indexer.Release) (Match, error) {
+func (s *Service) evaluate(ctx context.Context, title db.Series, items []passItem, variants []string, term string, releases []indexer.Release, parses decide.ReleaseParses) (Match, error) {
 	profile, err := s.profile(ctx, title)
 	if err != nil {
 		return Match{}, err
@@ -310,6 +310,7 @@ func (s *Service) evaluate(ctx context.Context, title db.Series, items []passIte
 				Blocked:     blocked,
 				Format:      domain.Format(title.Format),
 				Year:        int(title.Year),
+				Parses:      parses,
 			}),
 	}, nil
 }

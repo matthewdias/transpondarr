@@ -82,7 +82,13 @@ type MatchOpts struct {
 	// Year is the title's release year; 0 is "no year on record", which movie
 	// matching reports as an ineligible reason rather than a refusal (#209).
 	Year int
+	// Parses lets a caller matching one page against many titles parse it once.
+	Parses ReleaseParses
 }
+
+// ReleaseParses maps a release title to its parse. Read-only here, so one map is
+// shareable without a lock; a miss is parsed, making it a cache never a filter.
+type ReleaseParses map[string]parser.Parsed
 
 // BlockedSet is the title's active release blocklist as plain data, so decide
 // stays pure. A release matches on either axis: Torznab often omits the infohash.
@@ -436,7 +442,10 @@ func indexFold(list []string, v string) int {
 }
 
 func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSet map[int]bool, maxItem int, held map[int]heldRelease, o MatchOpts) Candidate {
-	p := parser.Parse(rel.Title)
+	p, ok := o.Parses[rel.Title]
+	if !ok {
+		p = parser.Parse(rel.Title)
+	}
 	// Enrich the release with parsed attributes (the fields the indexer left blank).
 	rel.ReleaseGroup = p.Group
 	rel.Resolution = p.Resolution
