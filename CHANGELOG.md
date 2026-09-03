@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Security
+
+- **A stored password or API key is now only ever sent to the host it was saved
+  for.** Testing or saving a connection with the secret field left blank fills it in
+  from storage, and it then connected to whatever address the request carried — so
+  anything that can reach the API could have Transpondarr hand your qBittorrent
+  password, indexer key or ntfy token to an address of its choosing. Pointing at a
+  different host now asks for that host's own credentials.
+
 ### Added
 
 - **A title AniList publishes no episode count for can now be given one.** Some

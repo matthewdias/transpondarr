@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -433,9 +434,18 @@ func (h *settingsHandler) updateDownload(ctx context.Context, in *downloadInput)
 		Category:   in.Body.Category,
 		StallHours: in.Body.StallHours,
 	}); err != nil {
-		return nil, huma.Error500InternalServerError("failed to save download settings", err)
+		return nil, settingsError(err, huma.Error500InternalServerError, "failed to save download settings")
 	}
 	return h.respond(), nil
+}
+
+// settingsError maps a service failure onto a status. A refused secret inheritance
+// is the caller's to fix by sending the secret, so it is a 422 rather than ours (#259).
+func settingsError(err error, wrap func(string, ...error) huma.StatusError, msg string) error {
+	if errors.Is(err, settings.ErrSecretRequired) {
+		return huma.Error422UnprocessableEntity(err.Error())
+	}
+	return wrap(msg, err)
 }
 
 func (h *settingsHandler) testDownload(ctx context.Context, in *downloadInput) (*testOutput, error) {
@@ -444,7 +454,7 @@ func (h *settingsHandler) testDownload(ctx context.Context, in *downloadInput) (
 		User:     in.Body.User,
 		Password: in.Body.Password,
 	}); err != nil {
-		return nil, huma.Error502BadGateway("download client test failed", err)
+		return nil, settingsError(err, huma.Error502BadGateway, "download client test failed")
 	}
 	out := &testOutput{}
 	out.Body.Status = "ok"
@@ -461,7 +471,7 @@ func (h *settingsHandler) updateIndexer(ctx context.Context, in *indexerInput) (
 		APIKey:     in.Body.APIKey,
 		Categories: in.Body.Categories,
 	}); err != nil {
-		return nil, huma.Error500InternalServerError("failed to save indexer settings", err)
+		return nil, settingsError(err, huma.Error500InternalServerError, "failed to save indexer settings")
 	}
 	return h.respond(), nil
 }
@@ -476,7 +486,7 @@ func (h *settingsHandler) testIndexer(ctx context.Context, in *indexerInput) (*t
 		APIKey:     in.Body.APIKey,
 		Categories: in.Body.Categories,
 	}); err != nil {
-		return nil, huma.Error502BadGateway("indexer test failed", err)
+		return nil, settingsError(err, huma.Error502BadGateway, "indexer test failed")
 	}
 	out := &testOutput{}
 	out.Body.Status = "ok"
@@ -545,7 +555,7 @@ func notifyConfigFrom(in *notificationsInput) settings.NotifyConfig {
 
 func (h *settingsHandler) updateNotifications(ctx context.Context, in *notificationsInput) (*settingsOutput, error) {
 	if err := h.settings.UpdateNotify(ctx, notifyConfigFrom(in)); err != nil {
-		return nil, huma.Error500InternalServerError("failed to save notification settings", err)
+		return nil, settingsError(err, huma.Error500InternalServerError, "failed to save notification settings")
 	}
 	return h.respond(), nil
 }
@@ -573,7 +583,7 @@ func (h *settingsHandler) testNotifyNtfy(ctx context.Context, in *notificationsI
 
 func notifyTestResult(err error) (*testOutput, error) {
 	if err != nil {
-		return nil, huma.Error502BadGateway("notification test failed", err)
+		return nil, settingsError(err, huma.Error502BadGateway, "notification test failed")
 	}
 	out := &testOutput{}
 	out.Body.Status = "ok"

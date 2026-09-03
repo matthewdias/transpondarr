@@ -28,7 +28,9 @@ func newTestService(t *testing.T) (*Service, *clients.Registry, *store.Store) {
 }
 
 // A save persists to the DB and swaps the live client; a follow-up save with a
-// blank password inherits the stored secret rather than wiping it.
+// blank password inherits the stored secret rather than wiping it. The follow-up
+// stays on the saved host, which the trailing slash exercises: the URL is stored
+// as written but is the same destination, so the inheritance still applies (#259).
 func TestUpdateDownloadPersistsAndKeepsBlankPassword(t *testing.T) {
 	svc, reg, st := newTestService(t)
 	ctx := context.Background()
@@ -43,15 +45,18 @@ func TestUpdateDownloadPersistsAndKeepsBlankPassword(t *testing.T) {
 		t.Fatalf("password not persisted, got %q", got)
 	}
 
-	if err := svc.UpdateDownload(ctx, DownloadConfig{URL: "http://qb:9090", User: "admin"}); err != nil {
+	if err := svc.UpdateDownload(ctx, DownloadConfig{URL: "http://qb:8080/", User: "operator"}); err != nil {
 		t.Fatalf("update 2: %v", err)
 	}
 	snap := svc.Snapshot()
 	if snap.Download.Password != "secret" {
 		t.Fatalf("blank password should keep the stored secret, got %q", snap.Download.Password)
 	}
-	if snap.Download.URL != "http://qb:9090" {
+	if snap.Download.URL != "http://qb:8080/" {
 		t.Fatalf("url not updated, got %q", snap.Download.URL)
+	}
+	if snap.Download.User != "operator" {
+		t.Fatalf("user not updated, got %q", snap.Download.User)
 	}
 }
 
