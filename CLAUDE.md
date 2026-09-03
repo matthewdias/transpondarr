@@ -655,7 +655,17 @@ Behaviour changes are test-driven. Work red → green → refactor:
   after**: a blank server means the public ntfy.sh, so defaulting afterwards makes it
   read as "no destination", takes that empty-destination branch, and hands a custom
   server's token to ntfy.sh — a live mutation, which is why
-  `TestBlankNtfyServerDoesNotInheritACustomServersToken` exists. The **save** paths
+  `TestBlankNtfyServerDoesNotInheritACustomServersToken` exists. **The guard is
+  per-request, so a request it lets through must not move the baseline the next one
+  is compared against**: ntfy is the one integration whose disable signal (topic) is
+  a *different field* from its destination (server), so a blank-topic save persisting
+  the caller's server would rebind the inherited token to it and the follow-up would
+  match — #259 reinstated in two ordinary requests. `UpdateNotify` therefore keeps the
+  stored server on that branch, and only while a stored token is actually being
+  carried forward, so staging a server before choosing a topic still saves. Download
+  and indexer cannot have this shape: their disable signal *is* the destination, so
+  clearing the URL stores an empty one and `sameDestination`'s hostless fallback
+  refuses every later host. The **save** paths
   carry the rule too, not just the tests: a save rebuilds the live client against the
   new URL and it authenticates on the next poll, so fixing only the tests would leave
   the same exfiltration one `PUT` away. Deliberately **not** an access-control fix —

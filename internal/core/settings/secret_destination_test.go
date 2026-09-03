@@ -316,6 +316,88 @@ func TestDisablingNtfyDoesNotDemandItsToken(t *testing.T) {
 	}
 }
 
+// The guard is per-request, so a request it lets through must not move the baseline
+// the next request is compared against. A blank topic means "no destination", which
+// is why the token is inherited — but persisting the caller's server beside it would
+// rebind the token to that server, and the follow-up would then match (#259).
+func TestABlankNtfyTopicCannotMoveTheServerTheTokenIsBoundTo(t *testing.T) {
+	svc, _, _ := newTestService(t)
+	ctx := context.Background()
+
+	var seen string
+	attacker := stubNtfy(t, &seen)
+
+	if err := svc.UpdateNotify(ctx, NotifyConfig{
+		NtfyServer: "https://ntfy.custom", NtfyTopic: "transpondarr", NtfyToken: "tk_secret",
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	// Step 1: names no destination, so it is accepted — but it must not relocate
+	// the stored server.
+	if err := svc.UpdateNotify(ctx, NotifyConfig{NtfyServer: attacker.URL}); err != nil {
+		t.Fatalf("blank-topic save: %v", err)
+	}
+	if got := svc.Snapshot().Notify.NtfyServer; got != "https://ntfy.custom" {
+		t.Errorf("server = %q after a save naming no destination, want the stored one", got)
+	}
+
+	// Step 2: the same server, now with a topic. It is a different destination from
+	// the one the token was saved for, so it must still be refused.
+	err := svc.UpdateNotify(ctx, NotifyConfig{NtfyServer: attacker.URL, NtfyTopic: "pwn"})
+	if !errors.Is(err, ErrSecretRequired) {
+		t.Errorf("follow-up save at the caller's server = %v, want ErrSecretRequired", err)
+	}
+	if err := svc.TestNotifyNtfy(ctx, NotifyConfig{NtfyServer: attacker.URL, NtfyTopic: "pwn"}); !errors.Is(err, ErrSecretRequired) {
+		t.Errorf("follow-up test at the caller's server = %v, want ErrSecretRequired", err)
+	}
+	if seen != "" {
+		t.Errorf("the stored token reached a caller-supplied host: %q", seen)
+	}
+}
+
+// The same seam without an attacker: turning ntfy off by clearing both fields must
+// not leave the custom server's token attached to the defaulted ntfy.sh, or the next
+// save that sets a topic ships it there.
+func TestDisablingNtfyKeepsTheTokenBoundToItsOwnServer(t *testing.T) {
+	svc, _, _ := newTestService(t)
+	ctx := context.Background()
+
+	if err := svc.UpdateNotify(ctx, NotifyConfig{
+		NtfyServer: "https://ntfy.custom", NtfyTopic: "transpondarr", NtfyToken: "tk_secret",
+	}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if err := svc.UpdateNotify(ctx, NotifyConfig{}); err != nil {
+		t.Fatalf("disabling ntfy: %v", err)
+	}
+
+	snap := svc.Snapshot().Notify
+	if snap.NtfyServer != "https://ntfy.custom" {
+		t.Errorf("server = %q after disabling ntfy, want the token's own server", snap.NtfyServer)
+	}
+	if snap.NtfyToken != "tk_secret" {
+		t.Errorf("token = %q after disabling ntfy, want it kept", snap.NtfyToken)
+	}
+	if snap.NtfyTopic != "" {
+		t.Errorf("topic = %q, want it cleared", snap.NtfyTopic)
+	}
+}
+
+// The freeze above is exactly as wide as the thing it protects: with no token
+// stored there is nothing to rebind, so staging a server before choosing a topic
+// must still save rather than be silently discarded.
+func TestABlankNtfyTopicStillSavesTheServerWhenNoTokenIsStored(t *testing.T) {
+	svc, _, _ := newTestService(t)
+
+	if err := svc.UpdateNotify(context.Background(), NotifyConfig{NtfyServer: "https://ntfy.custom"}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	if got := svc.Snapshot().Notify.NtfyServer; got != "https://ntfy.custom" {
+		t.Errorf("server = %q, want the one just saved", got)
+	}
+}
+
 // A self-hosted ntfy still fills its own blank token on a save — the save path's
 // inheritance was only ever covered with a blank server, so nothing caught a rule
 // that refused every custom server.

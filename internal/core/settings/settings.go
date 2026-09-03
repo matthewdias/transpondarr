@@ -633,6 +633,12 @@ func (s *Service) UpdateNotify(ctx context.Context, in NotifyConfig) error {
 	if err != nil {
 		return err
 	}
+	// A request naming no destination must not move the destination either: the
+	// server persisted beside an inherited token has to be the one that token was
+	// saved for, or the next request finds them matching and sends it (#259).
+	if dest == "" && in.NtfyToken == "" && cur.ntf.NtfyToken != "" {
+		in.NtfyServer = cur.ntf.NtfyServer
+	}
 	in.NtfyToken = tok
 
 	kv := map[string]string{
