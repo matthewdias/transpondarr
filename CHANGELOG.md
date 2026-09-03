@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **A `.env.local` file, read ahead of `.env`.** A development convenience for
+  running from a checkout: what is true of one working copy alone — a port, a
+  local endpoint — goes there, leaving `.env` for what every checkout shares. A
+  deployment should keep configuring through environment variables; neither file
+  is committed, and neither reaches the Docker image.
 - **A title AniList publishes no episode count for can now be given one.** Some
   older OVAs and specials have neither a count nor a broadcast schedule on
   record, which left them sitting in the library with no episodes, never

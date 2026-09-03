@@ -85,6 +85,40 @@ A `.env` file in the working directory is loaded on startup (see
 [`.env.example`](.env.example)); real environment variables override it. Copy it
 to `.env` to pin a dev API key and integration values.
 
+`.env.local` is read first and so outranks `.env`. It is the per-checkout tier:
+put anything true of *this* working copy alone there — a port, a stub endpoint —
+and keep `.env` for what every checkout shares. Neither file is committed. This
+matters most in a git worktree, where `.env` is often shared with the main
+checkout, so editing it would change every checkout at once.
+
+## Seeding a dev database
+
+A library that has been running for weeks is the population that shows layout
+bugs; two hand-added titles and a lot of empty states is not. `make seed` builds
+one, and serves the stubs the two live-fetching screens need:
+
+```
+make seed                      # seed ./data and serve the stubs until ctrl-c
+go run ./cmd/devseed --reset   # wipe and reseed an existing database
+go run ./cmd/devseed --seed-only
+```
+
+It prints the endpoints its stubs bound to — they take port 0, so several
+worktrees can run their own at once — along with the environment lines that
+point the server at them. Put those in `.env.local`, or pass
+`--write-env-local` to have the command write the file itself. Then run the
+server as usual; every screen including Releases and Discovery has something on
+it, with no network access and no real credentials.
+
+The fixtures live in `internal/devdata` and are shared by the seeder and both
+stubs, so a search for a seeded title returns releases that fit its run. Release
+names are synthetic. There is deliberately no fake download client: seeded grab
+rows already produce every status the Activity screen renders.
+
+Seeding refuses to write over an existing database unless you pass `--reset`,
+and `--reset` refuses a database outside the working directory unless you also
+pass `--force`.
+
 ## Architecture
 
 - **Content-type-agnostic core** (`internal/core/domain`): the pipeline is keyed
