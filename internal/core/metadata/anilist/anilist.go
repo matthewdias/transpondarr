@@ -50,14 +50,31 @@ type Client struct {
 	retryAt time.Time
 }
 
+// Option configures a Client.
+type Option func(*Client)
+
+// WithEndpoint points the client at a different GraphQL endpoint. Empty is
+// ignored, so an unset config value leaves the default rather than breaking it.
+func WithEndpoint(url string) Option {
+	return func(c *Client) {
+		if url != "" {
+			c.endpoint = url
+		}
+	}
+}
+
 // New constructs an AniList client with sane defaults.
-func New(log *slog.Logger) *Client {
-	return &Client{
+func New(log *slog.Logger, opts ...Option) *Client {
+	c := &Client{
 		http:     &http.Client{Timeout: 20 * time.Second},
 		limiter:  rate.NewLimiter(rate.Every(minInterval), 1), // burst 1 ≈ spacing
 		endpoint: defaultEndpoint,
 		log:      log,
 	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
 }
 
 func (c *Client) Name() string { return "anilist" }

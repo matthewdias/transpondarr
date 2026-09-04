@@ -6,7 +6,7 @@ LDFLAGS := -s -w -X github.com/matthewdias/transpondarr/internal/version.Version
 SQLC_VERSION := $(shell sed -n 's/^sqlc = "\([^"]*\)".*/\1/p' mise.toml)
 GO_BUILD := CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/transpondarrd
 
-.PHONY: build server web web-deps hooks gen gen-api lint go-lint web-lint test go-test web-test dev run migrate tidy notices clean
+.PHONY: build server web web-deps hooks gen gen-api lint go-lint web-lint test go-test web-test dev seed run migrate tidy notices clean
 
 build: web ## Build frontend + server into ./$(BIN)
 	$(GO_BUILD)
@@ -71,6 +71,9 @@ web-test: web-deps ## Run the frontend tests (vitest)
 
 dev: ## Run the API with live reload (air)
 	air
+
+seed: ## Seed a dev database and serve the AniList/Torznab stubs (see CONTRIBUTING.md)
+	go run ./cmd/devseed
 
 run: build ## Build then run the server
 	./$(BIN)

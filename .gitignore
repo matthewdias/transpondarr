@@ -1,5 +1,6 @@
 # Binaries
 /transpondarrd
+/devseed
 /tmp/
 
 # GoReleaser / build output
@@ -11,8 +12,11 @@
 *.db-wal
 *.db-shm
 
-# Local dev env (committed template is .env.example)
+# Local dev env (committed template is .env.example). .env.local is the
+# per-checkout tier and outranks .env, so a worktree sharing one .env can still
+# point itself at its own ports and stubs.
 /.env
+/.env.local
 
 # Local Claude Code dev-server config
 /.claude/launch.json

@@ -24,6 +24,11 @@ type Config struct {
 	AuthPassword string
 	AuthRequired string
 
+	// AnilistEndpoint overrides the AniList GraphQL endpoint. Empty means the
+	// client's own default; it exists so a local stub can stand in for AniList in
+	// development, and nothing in production should set it (#184).
+	AnilistEndpoint string
+
 	// qBittorrent download client (optional). When QbitURL is empty no download
 	// client is wired, and the download endpoints report it as unconfigured.
 	QbitURL      string // WebUI root, e.g. "http://localhost:8080"
@@ -78,6 +83,10 @@ type Config struct {
 // directory (if present) is loaded first as a local-dev convenience, without
 // overriding variables already set in the real environment.
 func Load() (*Config, error) {
+	// .env.local first: loadDotEnv never overwrites, so reading it before .env is
+	// what makes it the higher-precedence tier. It is the per-checkout file, which
+	// a worktree sharing one .env with the main checkout has no other way to get.
+	loadDotEnv(".env.local")
 	loadDotEnv(".env")
 
 	c := &Config{
@@ -115,6 +124,8 @@ func Load() (*Config, error) {
 	c.AuthUsername = os.Getenv("TRANSPONDARR_AUTH_USERNAME")
 	c.AuthPassword = os.Getenv("TRANSPONDARR_AUTH_PASSWORD")
 	c.AuthRequired = getenv("TRANSPONDARR_AUTH_REQUIRED", "enabled")
+
+	c.AnilistEndpoint = os.Getenv("TRANSPONDARR_ANILIST_ENDPOINT")
 
 	return c, nil
 }

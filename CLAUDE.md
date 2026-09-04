@@ -120,6 +120,24 @@ Behaviour changes are test-driven. Work red → green → refactor:
   wrong — and say so in the commit if it is.
 - Use the shared `internal/coretest` harness (temp store + fake indexer/download/
   library) for pipeline-level tests instead of hand-rolling fixtures.
+- **`internal/devdata` is keyed on vocabularies, so a new value in one of them
+  needs a fixture (#184).** It is the other harness, and the two are easy to
+  confuse: `coretest` builds a temp world per test, where `devdata` seeds the
+  persistent one `make seed` leaves behind. What a screen can show is a closed set
+  each time — `deriveItemState`'s five item statuses, the four grab statuses, the
+  outcomes `passReason` surfaces, the two values `schedule_checked` takes — and
+  the seed covers only the values whoever wrote it listed. Four of #271's review
+  findings were one shape: a named constant that no fixture created, hidden
+  because the test counted rows in the table a value is stored in instead of
+  running the query the screen runs. So adding a value to one of those sets, or
+  reading them in a new combination, means seeding a fixture and asserting
+  through the real query. Two things follow. A fixture must not pair values the
+  code cannot pair either: a `failed` grab row with a `last_error` is
+  unreachable, because settling clears it, and that pairing is why #273 went
+  unnoticed for a round. And where a value is left unseeded on purpose, say so
+  where its fixture would have been, because an unstated decision is
+  indistinguishable from an oversight — which is how these four findings got past
+  a review and fourteen mutations.
 - **Test interval loops with `testing/synctest`, not sleeps** (see
   `internal/core/jobs/jobs_test.go`). Inside a bubble the clock is virtual, so
   "the first run waits a full interval" and "the schedule does not drift" become
@@ -449,10 +467,12 @@ Behaviour changes are test-driven. Work red → green → refactor:
   (#181).** `walkCandidates` writes one `pass_outcomes` row per wanted item,
   upserted in place, so the table is bounded by `wanted_items` rather than by
   pass count. Three constants are load-bearing. **The stored set is wider than
-  the surfaced set** — seven outcomes stored, five reach a row: `grabbed` exists
+  the surfaced set** — eight outcomes stored, five reach a row: `grabbed` exists
   only as the tombstone that invalidates an older refusal (a listed item's grab
-  plainly did not hold, and `grab_failed` owns that row), and `contended`'s
-  honest message is "the queue is working", which the group tier already says.
+  plainly did not hold, and `grab_failed` owns that row), while `contended` and
+  `deferred` both mean a later pass will take the item — another grab has its
+  items, or this pass took an overlapping release first — so neither adds
+  anything the title group's own reason does not.
   Item monitoring only *narrows* the write set, so the guard below still holds —
   but it introduces a second, permanent staleness source, since a pass never
   writes for an unmonitored item and nothing later invalidates what it wrote

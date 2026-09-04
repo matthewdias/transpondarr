@@ -85,6 +85,57 @@ A `.env` file in the working directory is loaded on startup (see
 [`.env.example`](.env.example)); real environment variables override it. Copy it
 to `.env` to pin a dev API key and integration values.
 
+`.env.local` is read first and so outranks `.env`. It is the per-checkout tier:
+put anything true of *this* working copy alone there — a port, a stub endpoint —
+and keep `.env` for what every checkout shares. Neither file is committed. This
+matters most in a git worktree, where `.env` is often shared with the main
+checkout, so editing it would change every checkout at once.
+
+## Seeding a dev database
+
+A library that has been running for weeks is the population that shows layout
+bugs; two hand-added titles and a lot of empty states is not. `make seed` builds
+one, and serves the stubs the two live-fetching screens need:
+
+```
+make seed                      # seed ./data and serve the stubs until ctrl-c
+go run ./cmd/devseed --reset   # wipe and reseed an existing database
+go run ./cmd/devseed --seed-only
+```
+
+It prints the endpoints its stubs bound to — they take port 0, so several
+worktrees can run their own at once — along with the environment lines that
+point the server at them. Put those in `.env.local`, or pass
+`--write-env-local` to have the command write the file itself. Then run the
+server as usual; every screen including Releases and Discovery has something on
+it, with no network access and no real credentials.
+
+The fixtures live in `internal/devdata`. The seeder and both stubs read one set,
+so a search for a seeded title returns release names that fit its run; those
+release names are synthetic. Three further titles are served by the stubs and
+deliberately not seeded, so the add dialog still has something to add offline.
+
+There is deliberately no fake download client. The seeded grab rows produce
+every status the Activity queue derives — downloading, stuck and deferred — and
+every status the History tab lists. They can't produce the queue's live columns:
+progress, client state and the abandon countdown are all read from a download
+client, so those stay empty. For the same reason the printed environment block
+sets `TRANSPONDARR_QBIT_URL` to nothing. If the importer connected to a real
+qBittorrent it would find none of the seeded info hashes and fail every seeded
+grab row after five minutes. If your `.env.local` already sets that variable,
+blank it yourself — devseed won't overwrite an existing `.env.local`.
+
+Seeding refuses to write over an existing database unless you pass `--reset`,
+and `--reset` refuses a database outside the working directory unless you also
+pass `--force`.
+
+One seeded state doesn't survive the server starting. The calendar footer
+separates a title nobody has asked the provider about from one the provider
+publishes no dates for, and `airing-sync` runs at startup and stamps the first
+kind, so within a tick every seeded title reads as asked. That's the job doing
+its work, not a gap in the fixtures: `--seed-only` leaves the unasked title in
+place. That is where `TestSeedProducesBothCalendarAbsences` reads it.
+
 ## Architecture
 
 - **Content-type-agnostic core** (`internal/core/domain`): the pipeline is keyed
