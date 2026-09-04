@@ -95,7 +95,7 @@ func run() error {
 	}
 	defer stopAnilist()
 
-	env := fmt.Sprintf("TRANSPONDARR_TORZNAB_URL=%s\nTRANSPONDARR_TORZNAB_APIKEY=dev\nTRANSPONDARR_ANILIST_ENDPOINT=%s\n", torznabURL, anilistURL)
+	env := stubEnv(torznabURL, anilistURL)
 	if *writeEnvFile {
 		if err := writeEnvLocal(env); err != nil {
 			return err
@@ -110,6 +110,14 @@ func run() error {
 	defer stop()
 	<-ctx.Done()
 	return nil
+}
+
+// stubEnv is the block the command prints or writes. It blanks the download
+// client deliberately, because .env.local outranks .env: otherwise the importer
+// scans a real qBittorrent, finds none of the seeded info hashes, and fails
+// every seeded grab row after the five-minute grace period.
+func stubEnv(torznabURL, anilistURL string) string {
+	return fmt.Sprintf("TRANSPONDARR_TORZNAB_URL=%s\nTRANSPONDARR_TORZNAB_APIKEY=dev\nTRANSPONDARR_ANILIST_ENDPOINT=%s\nTRANSPONDARR_QBIT_URL=\n", torznabURL, anilistURL)
 }
 
 // serve binds and reports the address it got, because port 0 is what lets two

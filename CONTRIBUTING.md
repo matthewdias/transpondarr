@@ -110,14 +110,31 @@ point the server at them. Put those in `.env.local`, or pass
 server as usual; every screen including Releases and Discovery has something on
 it, with no network access and no real credentials.
 
-The fixtures live in `internal/devdata` and are shared by the seeder and both
-stubs, so a search for a seeded title returns releases that fit its run. Release
-names are synthetic. There is deliberately no fake download client: seeded grab
-rows already produce every status the Activity screen renders.
+The fixtures live in `internal/devdata`. The seeder and both stubs read one set,
+so a search for a seeded title returns release names that fit its run; those
+release names are synthetic. Three further titles are served by the stubs and
+deliberately not seeded, so the add dialog still has something to add offline.
+
+There is deliberately no fake download client. The seeded grab rows produce
+every status the Activity queue derives — downloading, stuck and deferred — and
+every status the History tab lists. They can't produce the queue's live columns:
+progress, client state and the abandon countdown are all read from a download
+client, so those stay empty. For the same reason the printed environment block
+sets `TRANSPONDARR_QBIT_URL` to nothing. If the importer connected to a real
+qBittorrent it would find none of the seeded info hashes and fail every seeded
+grab row after five minutes. If your `.env.local` already sets that variable,
+blank it yourself — devseed won't overwrite an existing `.env.local`.
 
 Seeding refuses to write over an existing database unless you pass `--reset`,
 and `--reset` refuses a database outside the working directory unless you also
 pass `--force`.
+
+One seeded state doesn't survive the server starting. The calendar footer
+separates a title nobody has asked the provider about from one the provider
+publishes no dates for, and `airing-sync` runs at startup and stamps the first
+kind, so within a tick every seeded title reads as asked. That's the job doing
+its work, not a gap in the fixtures: `--seed-only` leaves the unasked title in
+place. That is where `TestSeedProducesBothCalendarAbsences` reads it.
 
 ## Architecture
 

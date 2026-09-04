@@ -43,7 +43,7 @@ type feedEntry struct {
 func buildEntries(now time.Time, rngSeed int64) []feedEntry {
 	rng := rand.New(rand.NewPCG(uint64(rngSeed)+11, uint64(rngSeed)+13)) //nolint:gosec // fixture variety, not security
 	var out []feedEntry
-	for _, t := range fixtures() {
+	for _, t := range served() {
 		names := append([]string{t.name}, t.altNames...)
 		for i, rel := range t.releases {
 			size := int64(len(rel.covers)) * (900 + rng.Int64N(700)) << 20

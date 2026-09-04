@@ -37,8 +37,13 @@ func Seed(ctx context.Context, st *store.Store, opts Options) error {
 	if err != nil {
 		return err
 	}
-	cache := dbcache.New(st.Q)
-	for _, t := range fixtures() {
+	return seedTitles(ctx, st, dbcache.New(st.Q), fixtures(), profileIDs, now, rng)
+}
+
+// seedTitles takes its titles as an argument so a test can seed a fixture the
+// set does not contain.
+func seedTitles(ctx context.Context, st *store.Store, cache *dbcache.Cache, titles []title, profileIDs map[string]int64, now time.Time, rng *rand.Rand) error {
+	for _, t := range titles {
 		if err := seedTitle(ctx, st, cache, t, profileIDs, now, rng); err != nil {
 			return fmt.Errorf("seed %s: %w", t.name, err)
 		}
@@ -92,7 +97,13 @@ func seedTitle(ctx context.Context, st *store.Store, cache *dbcache.Cache, t tit
 	if err != nil {
 		return fmt.Errorf("create title: %w", err)
 	}
-	if id, ok := profileIDs[t.profile]; ok {
+	if t.profile != "" {
+		// Skipping an unknown name would leave the title on the built-in Default
+		// profile, and no screen would show that the fixture's axes went unapplied.
+		id, ok := profileIDs[t.profile]
+		if !ok {
+			return fmt.Errorf("unknown quality profile %q", t.profile)
+		}
 		if _, err := st.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{QualityProfileID: id, ID: row.ID, ID_2: id}); err != nil {
 			return fmt.Errorf("set profile: %w", err)
 		}
@@ -178,6 +189,32 @@ func seedItems(ctx context.Context, st *store.Store, t title, titleID int64, now
 				return fmt.Errorf("seed grab %d: %w", it.number, err)
 			}
 		}
+		if it.pass != nil {
+			if err := seedPassOutcome(ctx, st, *it.pass, row.ID, now); err != nil {
+				return fmt.Errorf("seed pass outcome %d: %w", it.number, err)
+			}
+		}
+	}
+	return nil
+}
+
+// seedPassOutcome records what the last pass decided, which is the one reason
+// the Missing screen reads from storage rather than deriving per request (#181).
+func seedPassOutcome(ctx context.Context, st *store.Store, p passOutcome, itemID int64, now time.Time) error {
+	held := sql.NullString{}
+	if p.heldFor > 0 {
+		held = sql.NullString{String: store.FormatTimestamp(now.Add(p.heldFor)), Valid: true}
+	}
+	if err := st.Q.UpsertPassOutcome(ctx, db.UpsertPassOutcomeParams{
+		WantedItemID: itemID,
+		Outcome:      p.outcome,
+		Source:       p.source,
+		ReleaseTitle: p.release,
+		Detail:       p.detail,
+		HeldUntil:    held,
+		RecordedAt:   store.FormatTimestamp(now.Add(-p.agedBy)),
+	}); err != nil {
+		return fmt.Errorf("upsert pass outcome: %w", err)
 	}
 	return nil
 }

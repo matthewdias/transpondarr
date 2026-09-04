@@ -68,6 +68,19 @@ type item struct {
 	dated  bool
 	held   string
 	grab   *grab
+	pass   *passOutcome
+}
+
+// passOutcome is what the last pass decided about this item (#181), which is
+// what the Missing screen's reason column reads.
+type passOutcome struct {
+	outcome string
+	source  string
+	release string
+	detail  string
+	// heldFor is a pin delay still running; 0 leaves held_until null.
+	heldFor time.Duration
+	agedBy  time.Duration
 }
 
 type grab struct {
@@ -160,18 +173,26 @@ func fixtures() []title {
 
 func partlyFilled() title {
 	t := title{
-		providerID: 101, name: "Placeholder Frontier",
+		providerID: 990101, name: "Placeholder Frontier",
 		altNames: []string{"Placeholder Frontier Season 1"},
 		format:   domain.FormatTV, year: 2026, status: "RELEASING", episodes: 12,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-101.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990101.jpg",
 		monitored: true, profile: "Anime 1080p", pinnedGroup: "SubGroupA",
 		scheduleChecked: true,
 	}
 	for n := 1; n <= 12; n++ {
-		it := item{number: n, airsIn: time.Duration(n-5)*week + 6*time.Hour, dated: true}
+		it := item{number: n, airsIn: time.Duration(n-7)*week + 6*time.Hour, dated: true}
 		switch {
 		case n <= 4:
 			it.inLibrary = true
+		case n == 6:
+			// SubGroupA is pinned, so the pin delay is still running against a
+			// rival release group's release.
+			it.pass = &passOutcome{
+				outcome: "pin_held", source: "sweep",
+				release: "[SubGroupB] Placeholder Frontier - 06 [1080p]",
+				heldFor: 5 * time.Hour, agedBy: 40 * time.Minute,
+			}
 		case n == 5:
 			it.grab = &grab{
 				status: "grabbed", hash: "aa01000000000000000000000000000000000001",
@@ -195,9 +216,9 @@ func partlyFilled() title {
 
 func complete() title {
 	t := title{
-		providerID: 102, name: "Placeholder Chronicle",
+		providerID: 990102, name: "Placeholder Chronicle",
 		format: domain.FormatTV, year: 2025, status: "FINISHED", episodes: 24,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-102.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990102.jpg",
 		monitored: true, profile: "Anime 1080p", scheduleChecked: true,
 	}
 	for n := 1; n <= 24; n++ {
@@ -225,23 +246,35 @@ func complete() title {
 
 func nothingYet() title {
 	t := title{
-		providerID: 103, name: "Placeholder Horizon",
+		providerID: 990103, name: "Placeholder Horizon",
 		format: domain.FormatTV, year: 2026, status: "RELEASING", episodes: 12,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-103.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990103.jpg",
 		monitored: true, profile: "Everything", scheduleChecked: true,
 	}
 	for n := 1; n <= 12; n++ {
 		it := item{number: n, airsIn: time.Duration(n-3)*week + 12*time.Hour, dated: true}
-		if n == 1 {
+		switch n {
+		case 1:
+			// Settling a grab row sets last_error to NULL, so a failed one never has
+			// a reason attached; it is in the event row and the blocklist entry below.
 			it.grab = &grab{
 				status: "failed", hash: "aa03000000000000000000000000000000000003",
-				release:   "[RipCrew] Placeholder Horizon - 01 [1080p].mkv",
-				agedBy:    2 * day,
-				lastError: "torrent reported an error: files missing from the download client",
+				release: "[RipCrew] Placeholder Horizon - 01 [1080p].mkv",
+				agedBy:  2 * day,
 				events: []event{
 					{kind: "grabbed", detail: "RipCrew 1080p", agedBy: 2*day + time.Hour},
 					{kind: "failed", detail: "download client reported an error", agedBy: 2 * day},
 				},
+			}
+		case 2:
+			// The only shape that renders stuck: still grabbed, with the error the
+			// importer writes when a completed payload will not import.
+			it.grab = &grab{
+				status: "grabbed", hash: "aa04000000000000000000000000000000000004",
+				release:   "[SubGroupA] Placeholder Horizon - 02 [1080p][HEVC].mkv",
+				agedBy:    9 * time.Hour,
+				lastError: "import failed: link into the library: permission denied",
+				events:    []event{{kind: "grabbed", detail: "SubGroupA 1080p", agedBy: 9 * time.Hour}},
 			}
 		}
 		t.items = append(t.items, it)
@@ -264,13 +297,17 @@ func nothingYet() title {
 // at all, which the calendar footer must be able to say.
 func undatedRun() title {
 	t := title{
-		providerID: 104, name: "Placeholder Drift",
+		providerID: 990104, name: "Placeholder Drift",
 		format: domain.FormatTV, year: 2014, status: "FINISHED", episodes: 13,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-104.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990104.jpg",
 		monitored: true, profile: "Archive 720p", scheduleChecked: true,
 	}
 	for n := 1; n <= 13; n++ {
-		t.items = append(t.items, item{number: n, inLibrary: n <= 9})
+		it := item{number: n, inLibrary: n <= 9}
+		if n == 10 {
+			it.pass = &passOutcome{outcome: "no_match", source: "sweep", agedBy: 6 * time.Hour}
+		}
+		t.items = append(t.items, it)
 	}
 	t.releases = []release{
 		{title: "[ArchiveGrp] Placeholder Drift - 10 [720p][BD]", group: "ArchiveGrp", covers: []int{10}, ageDays: 30},
@@ -283,14 +320,19 @@ func undatedRun() title {
 // shared a broadcast slot, so it exists undated and nothing else creates it (#152).
 func gapFilledRun() title {
 	t := title{
-		providerID: 105, name: "Placeholder Ember",
+		providerID: 990105, name: "Placeholder Ember",
 		format: domain.FormatTV, year: 2026, status: "RELEASING", episodes: 0,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-105.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990105.jpg",
 		monitored: true, profile: "Anime 1080p", scheduleChecked: true,
 		items: []item{
 			{number: 1, inLibrary: true, airsIn: -2 * week, dated: true},
 			{number: 2},
-			{number: 3, airsIn: -1 * day, dated: true},
+			{number: 3, airsIn: -1 * day, dated: true, pass: &passOutcome{
+				outcome: "declined", source: "sweep",
+				release: "[SubGroupA] Placeholder Ember - 03 [1080p][HEVC]",
+				detail:  "scores 1400, below the profile minimum of 1600",
+				agedBy:  2 * time.Hour,
+			}},
 			{number: 4, airsIn: 6 * day, dated: true},
 		},
 	}
@@ -301,21 +343,27 @@ func gapFilledRun() title {
 }
 
 // neverSynced has been added but not yet reached by the airing job, which is the
-// footer's other absence and is briefly true of every title.
+// footer's other absence and is briefly true of every title. Its item rows are
+// what make it reachable: ListUnscheduledTitles joins wanted_items, so a title
+// with none is never returned, whatever its airing stamp is set to.
 func neverSynced() title {
-	return title{
-		providerID: 106, name: "Placeholder Vigil",
-		format: domain.FormatTV, year: 2026, status: "NOT_YET_RELEASED", episodes: 0,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-106.jpg",
+	t := title{
+		providerID: 990106, name: "Placeholder Vigil",
+		format: domain.FormatTV, year: 2026, status: "NOT_YET_RELEASED", episodes: 12,
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990106.jpg",
 		monitored: true, profile: "Anime 1080p",
 	}
+	for n := 1; n <= 12; n++ {
+		t.items = append(t.items, item{number: n})
+	}
+	return t
 }
 
 func unmonitoredWithDates() title {
 	t := title{
-		providerID: 107, name: "Placeholder Solace",
+		providerID: 990107, name: "Placeholder Solace",
 		format: domain.FormatTV, year: 2024, status: "FINISHED", episodes: 12,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-107.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990107.jpg",
 		monitored: false, profile: "Archive 720p", scheduleChecked: true,
 	}
 	for n := 1; n <= 12; n++ {
@@ -326,9 +374,9 @@ func unmonitoredWithDates() title {
 
 func singleEpisodeOVA() title {
 	return title{
-		providerID: 108, name: "Placeholder Cadence",
+		providerID: 990108, name: "Placeholder Cadence",
 		format: domain.FormatOVA, year: 2019, status: "FINISHED", episodes: 1,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-108.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990108.jpg",
 		monitored: true, profile: "Archive 720p", scheduleChecked: true,
 		items: []item{{number: 1, inLibrary: true}},
 		releases: []release{
@@ -339,10 +387,10 @@ func singleEpisodeOVA() title {
 
 func movie() title {
 	return title{
-		providerID: 109, name: "Placeholder Legend: The Final",
+		providerID: 990109, name: "Placeholder Legend: The Final",
 		altNames: []string{"Placeholder Legend Movie"},
 		format:   domain.FormatMovie, year: 2021, status: "FINISHED", episodes: 1,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-109.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990109.jpg",
 		monitored: true, profile: "Everything", scheduleChecked: true,
 		items: []item{{number: 1, inLibrary: true, airsIn: -80 * week, dated: true}},
 		releases: []release{
@@ -356,9 +404,9 @@ func movie() title {
 // it, while a manual grab still can (#209).
 func nullYearMovie() title {
 	return title{
-		providerID: 110, name: "Placeholder Requiem",
+		providerID: 990110, name: "Placeholder Requiem",
 		format: domain.FormatMovie, year: 0, status: "NOT_YET_RELEASED", episodes: 1,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-110.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990110.jpg",
 		monitored: true, profile: "Everything", scheduleChecked: true,
 		items: []item{{number: 1}},
 		releases: []release{
@@ -371,9 +419,9 @@ func nullYearMovie() title {
 // run, and a grab missing from the download client inside its grace period.
 func longRunner() title {
 	t := title{
-		providerID: 111, name: "Placeholder Odyssey",
+		providerID: 990111, name: "Placeholder Odyssey",
 		format: domain.FormatTV, year: 2003, status: "RELEASING", episodes: 0,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-111.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990111.jpg",
 		monitored: true, profile: "Archive 720p", monitorNewFrom: 1046, scheduleChecked: true,
 	}
 	for n := 1040; n <= 1052; n++ {
@@ -406,9 +454,9 @@ func longRunner() title {
 // episode is inside an archive nobody has extracted (#135).
 func deferredImport() title {
 	t := title{
-		providerID: 112, name: "Placeholder Tide",
+		providerID: 990112, name: "Placeholder Tide",
 		format: domain.FormatONA, year: 2026, status: "RELEASING", episodes: 12,
-		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-112.jpg",
+		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990112.jpg",
 		monitored: true, profile: "Anime 1080p", scheduleChecked: true,
 	}
 	for n := 1; n <= 12; n++ {
@@ -417,15 +465,23 @@ func deferredImport() title {
 		case 1:
 			it.inLibrary = true
 		case 2:
+			// The deferral reason is stored in the event row: settling to
+			// import_deferred sets last_error back to NULL.
 			it.grab = &grab{
 				status: "import_deferred", hash: "aa12000000000000000000000000000000000012",
-				release:   "[SubGroupB] Placeholder Tide - 02 [1080p].mkv",
-				agedBy:    36 * time.Hour,
-				lastError: "extract Placeholder.Tide.02.part1.rar to import this episode",
+				release: "[SubGroupB] Placeholder Tide - 02 [1080p].mkv",
+				agedBy:  36 * time.Hour,
 				events: []event{
 					{kind: "grabbed", detail: "SubGroupB 1080p", agedBy: 37 * time.Hour},
-					{kind: "import_deferred", detail: "unextracted archive", agedBy: 36 * time.Hour},
+					{kind: "import_deferred", detail: "extract Placeholder.Tide.02.part1.rar to import this episode", agedBy: 36 * time.Hour},
 				},
+			}
+		case 3:
+			// What notify-only records instead of grabbing.
+			it.pass = &passOutcome{
+				outcome: "would_grab", source: "feed",
+				release: "[SubGroupA] Placeholder Tide - 03 [1080p][HEVC][Dual Audio]",
+				agedBy:  25 * time.Minute,
 			}
 		}
 		t.items = append(t.items, it)
@@ -435,4 +491,58 @@ func deferredImport() title {
 		{title: "[SubGroupA] Placeholder Tide - 03 [1080p][HEVC][Dual Audio]", group: "SubGroupA", covers: []int{3}},
 	}
 	return t
+}
+
+// addable is served by the stubs and deliberately not seeded, so there is a
+// title left to add offline; nothing else distinguishes the two sets. The ids
+// are above AniList's own range, so a forgotten TRANSPONDARR_ANILIST_ENDPOINT
+// makes the lookup fail instead of returning someone else's real title.
+func addable() []title {
+	return []title{
+		{
+			providerID: 990201, name: "Placeholder Beacon",
+			altNames: []string{"Placeholder Beacon Season 1"},
+			format:   domain.FormatTV, year: 2026, status: "RELEASING", episodes: 12,
+			cover: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990201.jpg",
+			items: datedRun(12, -3*week+9*time.Hour, week),
+			releases: []release{
+				{title: "[SubGroupA] Placeholder Beacon - 03 [1080p][HEVC][Dual Audio]", group: "SubGroupA", covers: []int{3}},
+				{title: "[SubGroupB] Placeholder Beacon - 03 [720p]", group: "SubGroupB", covers: []int{3}, ageDays: 1},
+				{title: "[SubGroupA] Placeholder Beacon - 01-03 [1080p][Batch]", group: "SubGroupA", covers: []int{1, 2, 3}, ageDays: 2},
+			},
+		},
+		{
+			providerID: 990202, name: "Placeholder Sonata",
+			format: domain.FormatMovie, year: 2023, status: "FINISHED", episodes: 1,
+			cover: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990202.jpg",
+			items: datedRun(1, -60*week, 0),
+			releases: []release{
+				{title: "Placeholder Sonata 2023 1080p BluRay x264-GRP", group: "GRP", covers: []int{1}, ageDays: 9},
+			},
+		},
+		{
+			// A null count, so the add exercises #151's "no episodes on record" path.
+			providerID: 990203, name: "Placeholder Lantern",
+			format: domain.FormatONA, year: 2022, status: "FINISHED", episodes: 0,
+			cover: "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990203.jpg",
+			items: datedRun(6, -80*week, week),
+			releases: []release{
+				{title: "[ArchiveGrp] Placeholder Lantern - 01-06 [1080p][Batch]", group: "ArchiveGrp", covers: []int{1, 2, 3, 4, 5, 6}, ageDays: 50},
+			},
+		},
+	}
+}
+
+// served is every title the stubs answer for. The seeder reads fixtures()
+// alone. That is what leaves the addable set unseeded.
+func served() []title {
+	return append(fixtures(), addable()...)
+}
+
+func datedRun(n int, first, interval time.Duration) []item {
+	out := make([]item, 0, n)
+	for i := range n {
+		out = append(out, item{number: i + 1, airsIn: first + time.Duration(i)*interval, dated: true})
+	}
+	return out
 }

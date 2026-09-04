@@ -9,15 +9,15 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/domain"
 )
 
-// AnilistHandler answers the client's four GraphQL operations from the seeder's
-// own fixtures, so a title can be added and Discovery rendered with no network.
-// It discriminates on the operation's variables, which survive edits to the
-// selection sets that matching on query text would not.
+// AnilistHandler answers the client's four GraphQL operations from the fixture
+// set, so a title can be added and Discovery rendered with no network. It
+// discriminates on the operation's variables, which survive edits to the
+// selection sets that matching on query text would not: only the paged schedule
+// query sends id and page together.
 func AnilistHandler(now time.Time) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
-			Query     string         `json:"query"`
 			Variables map[string]any `json:"variables"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -25,12 +25,12 @@ func AnilistHandler(now time.Time) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(respond(req.Query, req.Variables, now))
+		_ = json.NewEncoder(w).Encode(respond(req.Variables, now))
 	})
 	return mux
 }
 
-func respond(query string, vars map[string]any, now time.Time) map[string]any {
+func respond(vars map[string]any, now time.Time) map[string]any {
 	switch {
 	case vars["search"] != nil:
 		term, _ := vars["search"].(string)
@@ -41,7 +41,7 @@ func respond(query string, vars map[string]any, now time.Time) map[string]any {
 			"pageInfo": map[string]any{"hasNextPage": false},
 			"media":    browseMedia(page, now),
 		})
-	case vars["id"] != nil && strings.Contains(query, "airingSchedule(page: $page"):
+	case vars["id"] != nil && vars["page"] != nil:
 		return byID(vars, now, scheduleMedia)
 	case vars["id"] != nil:
 		return byID(vars, now, titleMedia)
@@ -143,7 +143,7 @@ func scheduleNodes(t title, now time.Time, withTimes bool) []any {
 func searchMedia(term string, now time.Time) []any {
 	needle := strings.ToLower(strings.TrimSpace(term))
 	var out []any
-	for _, t := range fixtures() {
+	for _, t := range served() {
 		for _, name := range append([]string{t.name}, t.altNames...) {
 			if needle == "" || strings.Contains(strings.ToLower(name), needle) {
 				out = append(out, mediaJSON(t, now))
@@ -161,14 +161,14 @@ func browseMedia(page float64, now time.Time) []any {
 		return nil
 	}
 	var out []any
-	for _, t := range fixtures() {
+	for _, t := range served() {
 		out = append(out, mediaJSON(t, now))
 	}
 	return out
 }
 
 func findTitle(id int64) (title, bool) {
-	for _, t := range fixtures() {
+	for _, t := range served() {
 		if t.providerID == id {
 			return t, true
 		}

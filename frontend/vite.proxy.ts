@@ -18,8 +18,6 @@ export function apiProxyTarget(addr: string | undefined): string {
   if (port === "" || !/^\d+$/.test(port)) return DEFAULT_API_TARGET;
   // A wildcard bind is an address to listen on, never one a browser can dial.
   const dialable =
-    host === "" || host === "0.0.0.0" || host === "[::]" || host === "::"
-      ? "localhost"
-      : host;
+    host === "" || host === "0.0.0.0" || host === "[::]" ? "localhost" : host;
   return `http://${dialable}:${port}`;
 }

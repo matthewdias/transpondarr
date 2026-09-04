@@ -2,12 +2,14 @@ package devdata
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/core/indexer/torznab"
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
@@ -135,7 +137,7 @@ func TestAnilistStubAnswersSearchTitleBrowseAndSchedule(t *testing.T) {
 		t.Errorf("search row = %+v, want a name and a cover", found[0])
 	}
 
-	meta, items, err := c.GetTitle(ctx, 101)
+	meta, items, err := c.GetTitle(ctx, 990101)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -147,12 +149,12 @@ func TestAnilistStubAnswersSearchTitleBrowseAndSchedule(t *testing.T) {
 	}
 
 	// A null episode count is a normal state the stub must be able to publish.
-	nullCount, _, err := c.GetTitle(ctx, 105)
+	nullCount, _, err := c.GetTitle(ctx, 990105)
 	if err != nil {
-		t.Fatalf("GetTitle(105): %v", err)
+		t.Fatalf("GetTitle(990105): %v", err)
 	}
 	if nullCount.Episodes != 0 {
-		t.Errorf("GetTitle(105).Episodes = %d, want 0 for a title whose count the provider does not publish", nullCount.Episodes)
+		t.Errorf("GetTitle(990105).Episodes = %d, want 0 for a title whose count the provider does not publish", nullCount.Episodes)
 	}
 
 	entries, err := c.BrowseSeason(ctx, metadata.SeasonSpring, 2026)
@@ -167,7 +169,7 @@ func TestAnilistStubAnswersSearchTitleBrowseAndSchedule(t *testing.T) {
 	if !ok {
 		t.Fatal("anilist client no longer implements AiringProvider")
 	}
-	airing, err := sched.GetSchedule(ctx, 101, false)
+	airing, err := sched.GetSchedule(ctx, 990101, false)
 	if err != nil {
 		t.Fatalf("GetSchedule: %v", err)
 	}
@@ -180,5 +182,49 @@ func TestAnilistStubReportsAnUnknownTitleRatherThanInventingOne(t *testing.T) {
 	c := anilistStub(t)
 	if _, _, err := c.GetTitle(context.Background(), 999999); err == nil {
 		t.Error("GetTitle for an unseeded id returned no error; the stub invented a title")
+	}
+}
+
+// Every id the stub served used to be one the seeder had already written, so
+// AddTitle answered ErrAlreadyExists for all of them and there was nothing to
+// add offline. The add runs end to end here because search returning a row
+// proves only that the dialog lists something.
+func TestATitleCanBeAddedOfflineThroughTheStub(t *testing.T) {
+	st := seeded(t)
+	svc := catalog.NewService(st, anilistStub(t))
+	ctx := context.Background()
+
+	unseeded := addable()
+	if len(unseeded) == 0 {
+		t.Fatal("no addable fixture; every id the stub serves is one the seeder already wrote")
+	}
+	for _, want := range unseeded {
+		title, err := svc.AddTitle(ctx, svc.ProviderName(), want.providerID, true, catalog.MonitorAll, 0)
+		if err != nil {
+			t.Fatalf("AddTitle(%d): %v", want.providerID, err)
+		}
+		if title.Name != want.name {
+			t.Errorf("AddTitle(%d) added %q, want %q", want.providerID, title.Name, want.name)
+		}
+	}
+	// Adding it is only half of it: the Releases tab on the new title reads the
+	// indexer, which serves entries built from the same fixture set.
+	got, err := torznabStub(t).Search(ctx, indexer.Query{Term: unseeded[0].name})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(got) == 0 {
+		t.Errorf("no releases for %q; a title added offline has an empty Releases tab", unseeded[0].name)
+	}
+}
+
+// A seeded id must stay unaddable, or the split between the two sets is not
+// doing anything.
+func TestASeededTitleCannotBeAddedTwice(t *testing.T) {
+	st := seeded(t)
+	svc := catalog.NewService(st, anilistStub(t))
+	_, err := svc.AddTitle(context.Background(), svc.ProviderName(), fixtures()[0].providerID, true, catalog.MonitorAll, 0)
+	if !errors.Is(err, catalog.ErrAlreadyExists) {
+		t.Errorf("AddTitle for a seeded id = %v, want ErrAlreadyExists", err)
 	}
 }
