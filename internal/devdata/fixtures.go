@@ -282,6 +282,10 @@ func nothingYet() title {
 		}
 		t.items = append(t.items, it)
 	}
+	// add_failed, the fifth outcome passReason surfaces, would belong on this
+	// title, whose grabs are the ones that go wrong. It is left unseeded because
+	// the other four already show the reason column, so a fifth row would be one
+	// more fixture to keep true for nothing a reader has not already seen.
 	t.blocklist = []blockEntry{
 		{release: "[RipCrew] Placeholder Horizon - 01 [1080p]", hash: "aa03000000000000000000000000000000000003", reason: "download client reported an error", failures: 1, expiresIn: day},
 		{release: "[RipCrew] Placeholder Horizon - 02 [1080p]", reason: "no peers had the data", failures: 2, expiresIn: week},

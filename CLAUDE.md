@@ -467,10 +467,12 @@ Behaviour changes are test-driven. Work red → green → refactor:
   (#181).** `walkCandidates` writes one `pass_outcomes` row per wanted item,
   upserted in place, so the table is bounded by `wanted_items` rather than by
   pass count. Three constants are load-bearing. **The stored set is wider than
-  the surfaced set** — seven outcomes stored, five reach a row: `grabbed` exists
+  the surfaced set** — eight outcomes stored, five reach a row: `grabbed` exists
   only as the tombstone that invalidates an older refusal (a listed item's grab
-  plainly did not hold, and `grab_failed` owns that row), and `contended`'s
-  honest message is "the queue is working", which the group tier already says.
+  plainly did not hold, and `grab_failed` owns that row), while `contended` and
+  `deferred` both mean a later pass will take the item — another grab has its
+  items, or this pass took an overlapping release first — so neither adds
+  anything the title group's own reason does not.
   Item monitoring only *narrows* the write set, so the guard below still holds —
   but it introduces a second, permanent staleness source, since a pass never
   writes for an unmonitored item and nothing later invalidates what it wrote
