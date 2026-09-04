@@ -1094,6 +1094,11 @@ deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest
 
 ## Comments
 
+How to word a comment, a doc, a CHANGELOG entry or a PR body is
+[`docs/style.md`](docs/style.md) — including the 15 words this codebase uses
+twice, which prose has to qualify and identifiers already do. This section owns
+the budget; that file owns the English.
+
 Code carries the *what*; comments carry only what the code cannot. Default to
 none, and prefer a better name or a small helper over an explanation.
 
