@@ -21,3 +21,12 @@ export function apiProxyTarget(addr: string | undefined): string {
     host === "" || host === "0.0.0.0" || host === "[::]" ? "localhost" : host;
   return `http://${dialable}:${port}`;
 }
+
+/**
+ * The dev proxy's options. changeOrigin is pinned off: the string shorthand turns
+ * it on, which rewrites Host to the API's port and makes every write from
+ * `npm run dev` look cross-origin to the check #269 added.
+ */
+export function apiProxyOptions(addr: string | undefined) {
+  return { target: apiProxyTarget(addr), changeOrigin: false };
+}

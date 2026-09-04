@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { apiProxyTarget, DEFAULT_API_TARGET } from "./vite.proxy.ts";
+import config from "./vite.config.ts";
+import {
+  apiProxyOptions,
+  apiProxyTarget,
+  DEFAULT_API_TARGET,
+} from "./vite.proxy.ts";
 
 describe("apiProxyTarget", () => {
   it("falls back to the historical target when nothing is set", () => {
@@ -35,5 +40,34 @@ describe("apiProxyTarget", () => {
     expect(apiProxyTarget("http://box.local:9797")).toBe(
       "http://box.local:9797",
     );
+  });
+});
+
+describe("apiProxyOptions", () => {
+  // The shorthand `"/api": target` turns changeOrigin on, which rewrites Host to
+  // the API's port. The browser's Origin stays on the dev server's port, so the
+  // #269 check reads every write from `npm run dev` as cross-origin and 403s it
+  // while reads carry on working.
+  it("pins changeOrigin off so dev-server writes are not cross-origin", () => {
+    expect(apiProxyOptions(undefined).changeOrigin).toBe(false);
+  });
+
+  it("resolves the target the same way", () => {
+    expect(apiProxyOptions(":9898").target).toBe(apiProxyTarget(":9898"));
+    expect(apiProxyOptions(undefined).target).toBe(DEFAULT_API_TARGET);
+  });
+});
+
+// Asserting apiProxyOptions alone would leave the shorthand -- which is what a
+// later edit reaches for -- reachable from the config, so read the config itself.
+describe("the dev server's proxy config", () => {
+  it("uses the pinned options rather than the string shorthand", async () => {
+    const resolved = await (
+      config as (env: {
+        mode: string;
+        command: "serve";
+      }) => Promise<{ server: { proxy: Record<string, unknown> } }>
+    )({ mode: "development", command: "serve" });
+    expect(resolved.server.proxy["/api"]).toEqual(apiProxyOptions(undefined));
   });
 });

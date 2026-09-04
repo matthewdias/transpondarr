@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format is based on
 
 ### Security
 
+- **A website you visit can no longer drive Transpondarr without you knowing.** With
+  `TRANSPONDARR_AUTH_REQUIRED=local`, any page open in a browser on your network could
+  send the API requests at its address and act as you. It needed no login, and nothing
+  appeared on screen. It could create the admin account with a password it chose,
+  rotate your API key, add titles or start jobs. Transpondarr now rejects a request
+  that changes something and comes from another website. Scripts, dashboards and
+  anything using the API key work as before.
+
 - **A stored password or API key is now only ever sent to the host it was saved
   for.** Testing or saving a connection with the secret field left blank fills it in
   from storage, and it then connected to whatever address the request carried — so
@@ -113,6 +121,15 @@ All notable changes to this project are documented here. The format is based on
   anything had been missed, and the episodes that slipped past waited for the
   scheduled search to come round to them, up to a day later. Those series go back
   to the front of the search queue as soon as the poll notices.
+
+### Upgrade notes
+
+- **If the web UI starts saying *cross-origin request refused*, your reverse proxy is
+  sending Transpondarr the wrong address.** In a normal browser only that produces it.
+  Set `X-Forwarded-Host` to the address you type in the browser, or leave it unset and
+  pass the `Host` header through unchanged. Transpondarr skips whatever the proxy
+  leaves out, so a missing port or scheme is fine. `curl` and dashboards work either
+  way.
 
 ## [0.9.0] — 2026-08-15
 
