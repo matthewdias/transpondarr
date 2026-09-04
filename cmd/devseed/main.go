@@ -39,7 +39,7 @@ func run() error {
 		seedOnly     = flag.Bool("seed-only", false, "seed and exit instead of serving the stubs")
 		torznabAddr  = flag.String("torznab-addr", "127.0.0.1:0", "listen address for the Torznab stub")
 		anilistAddr  = flag.String("anilist-addr", "127.0.0.1:0", "listen address for the AniList stub")
-		rngSeed      = flag.Int64("rng-seed", 1, "seed for the generated part of the fixtures")
+		rngSeed      = flag.Int64("rng-seed", 1, "seed for the Torznab stub's generated sizes and seeder counts")
 		writeEnvFile = flag.Bool("write-env-local", false, "write the stub endpoints to ./.env.local instead of printing them")
 	)
 	flag.Parse()
@@ -76,10 +76,10 @@ func run() error {
 	defer func() { _ = st.DB.Close() }()
 
 	now := time.Now()
-	if err := devdata.Seed(context.Background(), st, devdata.Options{Now: now, RNGSeed: *rngSeed}); err != nil {
+	if err := devdata.Seed(context.Background(), st, devdata.Options{Now: now}); err != nil {
 		return fmt.Errorf("seed: %w", err)
 	}
-	fmt.Printf("seeded %s (rng seed %d)\n", cfg.DBPath, *rngSeed)
+	fmt.Printf("seeded %s\n", cfg.DBPath)
 	if *seedOnly {
 		return nil
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"math/rand/v2"
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/decide"
@@ -15,11 +14,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// Options configures a seed run. Both fields exist for reproducibility: a bug
-// found against a seeded library has to be reachable again from the same seed.
+// Options configures a seed run. Now exists for reproducibility: a bug found
+// against a seeded library has to be reachable again from the same clock.
 type Options struct {
-	Now     time.Time
-	RNGSeed int64
+	Now time.Time
 }
 
 const providerName = "anilist"
@@ -31,20 +29,18 @@ func Seed(ctx context.Context, st *store.Store, opts Options) error {
 	if now.IsZero() {
 		now = time.Now()
 	}
-	rng := rand.New(rand.NewPCG(uint64(opts.RNGSeed), uint64(opts.RNGSeed)+1)) //nolint:gosec // fixture variety, not security
-
 	profileIDs, err := seedProfiles(ctx, st)
 	if err != nil {
 		return err
 	}
-	return seedTitles(ctx, st, dbcache.New(st.Q), fixtures(), profileIDs, now, rng)
+	return seedTitles(ctx, st, dbcache.New(st.Q), fixtures(), profileIDs, now)
 }
 
 // seedTitles takes its titles as an argument so a test can seed a fixture the
 // set does not contain.
-func seedTitles(ctx context.Context, st *store.Store, cache *dbcache.Cache, titles []title, profileIDs map[string]int64, now time.Time, rng *rand.Rand) error {
+func seedTitles(ctx context.Context, st *store.Store, cache *dbcache.Cache, titles []title, profileIDs map[string]int64, now time.Time) error {
 	for _, t := range titles {
-		if err := seedTitle(ctx, st, cache, t, profileIDs, now, rng); err != nil {
+		if err := seedTitle(ctx, st, cache, t, profileIDs, now); err != nil {
 			return fmt.Errorf("seed %s: %w", t.name, err)
 		}
 	}
@@ -85,7 +81,7 @@ func seedProfiles(ctx context.Context, st *store.Store) (map[string]int64, error
 	return ids, nil
 }
 
-func seedTitle(ctx context.Context, st *store.Store, cache *dbcache.Cache, t title, profileIDs map[string]int64, now time.Time, rng *rand.Rand) error {
+func seedTitle(ctx context.Context, st *store.Store, cache *dbcache.Cache, t title, profileIDs map[string]int64, now time.Time) error {
 	row, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Provider:   sql.NullString{String: providerName, Valid: true},
 		ProviderID: sql.NullInt64{Int64: t.providerID, Valid: true},
@@ -137,13 +133,13 @@ func seedTitle(ctx context.Context, st *store.Store, cache *dbcache.Cache, t tit
 	if err := seedItems(ctx, st, t, row.ID, now); err != nil {
 		return err
 	}
-	if err := seedBlocklist(ctx, st, t, row.ID, now, rng); err != nil {
+	if err := seedBlocklist(ctx, st, t, row.ID, now); err != nil {
 		return err
 	}
 	return cache.Put(ctx, providerName, t.providerID, metadata.CachedTitle{
 		Title: metadata.TitleMeta{
 			ProviderID: t.providerID,
-			Titles:     metadata.Titles{Romaji: t.name},
+			Titles:     metadata.Titles{Romaji: t.name, English: firstAlt(t)},
 			Format:     t.format,
 			Episodes:   t.episodes,
 			Status:     t.status,
@@ -267,7 +263,7 @@ func seedGrab(ctx context.Context, st *store.Store, g grab, titleID, itemID, num
 	return nil
 }
 
-func seedBlocklist(ctx context.Context, st *store.Store, t title, titleID int64, now time.Time, rng *rand.Rand) error {
+func seedBlocklist(ctx context.Context, st *store.Store, t title, titleID int64, now time.Time) error {
 	for _, b := range t.blocklist {
 		var row db.ReleaseBlocklist
 		// The upsert is what increments failures, so a rung is reached by
@@ -276,7 +272,7 @@ func seedBlocklist(ctx context.Context, st *store.Store, t title, titleID int64,
 			var err error
 			row, err = st.Q.UpsertBlocklistEntry(ctx, db.UpsertBlocklistEntryParams{
 				SeriesID:        titleID,
-				InfoHash:        fmt.Sprintf("bb%038x", rng.Uint64()%0xffff),
+				InfoHash:        b.hash,
 				ReleaseTitle:    b.release,
 				NormalizedTitle: decide.NormalizeReleaseTitle(b.release),
 				Reason:          b.reason,
@@ -314,6 +310,15 @@ func backdateEvent(ctx context.Context, st *store.Store, itemID int64, kind stri
 		return fmt.Errorf("backdate grab event: %w", err)
 	}
 	return nil
+}
+
+// firstAlt is the title's second accepted name, which the metadata snapshot
+// stores as the English one so catalog.TitleVariants has more than one to return.
+func firstAlt(t title) string {
+	if len(t.altNames) == 0 {
+		return ""
+	}
+	return t.altNames[0]
 }
 
 func boolInt(b bool) int64 {

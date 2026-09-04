@@ -74,7 +74,7 @@ func data(key string, body any) map[string]any {
 func mediaJSON(t title, now time.Time) map[string]any {
 	m := map[string]any{
 		"id":           t.providerID,
-		"title":        map[string]any{"romaji": t.name, "english": t.name, "native": t.name},
+		"title":        map[string]any{"romaji": t.name, "english": firstAlt(t), "native": t.name},
 		"description":  "A synthetic title seeded for local development.",
 		"format":       providerFormat(t.format),
 		"status":       t.status,

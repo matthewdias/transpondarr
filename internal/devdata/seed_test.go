@@ -3,14 +3,15 @@ package devdata
 import (
 	"context"
 	"database/sql"
-	"math/rand/v2"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/matthewdias/transpondarr/internal/core/acquire"
+	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/decide"
 	"github.com/matthewdias/transpondarr/internal/core/domain"
 	"github.com/matthewdias/transpondarr/internal/core/metadata/dbcache"
@@ -28,7 +29,7 @@ func seeded(t *testing.T) *store.Store {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = st.DB.Close() })
-	if err := Seed(context.Background(), st, Options{Now: fixedNow, RNGSeed: 1}); err != nil {
+	if err := Seed(context.Background(), st, Options{Now: fixedNow}); err != nil {
 		t.Fatalf("Seed: %v", err)
 	}
 	return st
@@ -203,6 +204,21 @@ func TestSeedProducesBlocklistAtEveryRungIncludingExpired(t *testing.T) {
 				t.Errorf("blocklist entry %q is not in what the screen lists", b.release)
 				continue
 			}
+			// blocklist.Record is given the failed grab row's own info hash, so an
+			// entry naming a hash no grab row holds is a pairing no install writes;
+			// empty is the case where Torznab published none.
+			if row.InfoHash != "" && count(t, st, `SELECT count(*) FROM grabs WHERE info_hash = ?`, row.InfoHash) == 0 {
+				t.Errorf("blocklist entry %q names info hash %q, which no grab row holds", b.release, row.InfoHash)
+			}
+			// remember() passes one grab row's hash and its release name together,
+			// so an entry naming a hash must name that row's release too.
+			if row.InfoHash != "" {
+				for _, got := range queryStrings(t, st, `SELECT release_title FROM grabs WHERE info_hash = ?`, row.InfoHash) {
+					if decide.NormalizeReleaseTitle(got) != row.NormalizedTitle {
+						t.Errorf("blocklist entry %q shares a hash with grab row %q but not its release name", b.release, got)
+					}
+				}
+			}
 			if int(row.Failures) != b.failures {
 				t.Errorf("blocklist entry %q reports %d failures, want %d; the stored failure count is not the one the fixture asked for",
 					b.release, row.Failures, b.failures)
@@ -332,7 +348,7 @@ func TestSeedIsDeterministic(t *testing.T) {
 			t.Fatalf("open: %v", err)
 		}
 		defer func() { _ = st.DB.Close() }()
-		if err := Seed(context.Background(), st, Options{Now: fixedNow, RNGSeed: 7}); err != nil {
+		if err := Seed(context.Background(), st, Options{Now: fixedNow}); err != nil {
 			t.Fatalf("Seed: %v", err)
 		}
 		var b strings.Builder
@@ -350,7 +366,7 @@ func TestSeedIsDeterministic(t *testing.T) {
 		return b.String()
 	}
 	if a, b := dump(), dump(); a != b {
-		t.Error("two seed runs with the same RNG seed and clock disagree; a bug found against a seeded library is not reproducible")
+		t.Error("two seed runs on the same clock disagree; a bug found against a seeded library is not reproducible")
 	}
 }
 
@@ -405,7 +421,7 @@ func TestSeedRefusesAFixtureNamingAnUnknownProfile(t *testing.T) {
 		t.Fatalf("seedProfiles: %v", err)
 	}
 	bad := []title{{providerID: 1, name: "Nonexistent Profile", format: domain.FormatTV, profile: "Nope"}}
-	err = seedTitles(context.Background(), st, dbcache.New(st.Q), bad, profileIDs, fixedNow, rand.New(rand.NewPCG(1, 2)))
+	err = seedTitles(context.Background(), st, dbcache.New(st.Q), bad, profileIDs, fixedNow)
 	if err == nil {
 		t.Fatal("seedTitles accepted a fixture naming an unknown profile; the title would run on the default instead")
 	}
@@ -459,5 +475,67 @@ func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 		if !got[want] {
 			t.Errorf("no listed missing item stores the %q outcome; the reason column cannot render it", want)
 		}
+	}
+}
+
+// Variants are Romaji, English and Native deduped (catalog.dedupeNonEmpty), so a
+// fixture altName that reaches none of them leaves #107's variant-fallback
+// search unexercisable and makes altNames look load-bearing when it is not.
+func TestASeededTitleHasMoreThanOneNameVariant(t *testing.T) {
+	svc := catalog.NewService(seeded(t), anilistStub(t))
+	ctx := context.Background()
+
+	var withAlts int
+	for _, ti := range fixtures() {
+		if len(ti.altNames) == 0 {
+			continue
+		}
+		withAlts++
+		got, err := svc.TitleVariants(ctx, ti.providerID)
+		if err != nil {
+			t.Fatalf("TitleVariants(%d): %v", ti.providerID, err)
+		}
+		if len(got) < 2 {
+			t.Errorf("TitleVariants(%d) = %v, want the fixture's alt name too", ti.providerID, got)
+		}
+	}
+	if withAlts == 0 {
+		t.Error("no fixture declares an alt name; the variant fallback has nothing to search with")
+	}
+}
+
+// A stored pass detail is a snapshot of what decide once said, so a number in it
+// that disagrees with the profile puts a threshold on the Missing screen that the
+// profile editor contradicts.
+func TestAStoredRefusalDetailAgreesWithItsOwnProfile(t *testing.T) {
+	minScores := map[string]int64{}
+	for _, p := range profiles() {
+		minScores[p.name] = p.minScore
+	}
+	pattern := regexp.MustCompile(`below the profile minimum (\d+)`)
+
+	var checked int
+	for _, ti := range fixtures() {
+		for _, it := range ti.items {
+			if it.pass == nil {
+				continue
+			}
+			m := pattern.FindStringSubmatch(it.pass.detail)
+			if m == nil {
+				continue
+			}
+			checked++
+			got, err := strconv.ParseInt(m[1], 10, 64)
+			if err != nil {
+				t.Fatalf("detail %q: %v", it.pass.detail, err)
+			}
+			if want := minScores[ti.profile]; got != want {
+				t.Errorf("%s item %d stores %q, but its profile %q sets a minimum of %d",
+					ti.name, it.number, it.pass.detail, ti.profile, want)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Error("no stored refusal names a profile minimum; the screen has no threshold to be wrong about")
 	}
 }

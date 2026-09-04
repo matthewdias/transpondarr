@@ -101,7 +101,10 @@ type event struct {
 }
 
 type blockEntry struct {
-	release   string
+	release string
+	// hash is the failed grab row's own info hash, which is what
+	// blocklist.Record is given; empty is a Torznab that published none.
+	hash      string
 	reason    string
 	failures  int
 	expiresIn time.Duration // 0 with permanent false means already expired
@@ -196,7 +199,7 @@ func partlyFilled() title {
 		case n == 5:
 			it.grab = &grab{
 				status: "grabbed", hash: "aa01000000000000000000000000000000000001",
-				release: "[SubGroupA] Placeholder Frontier - 05 [1080p][HEVC][Dual Audio].mkv",
+				release: "[SubGroupA] Placeholder Frontier - 05 [1080p][HEVC][Dual Audio]",
 				agedBy:  4 * time.Hour, stalledFor: 3 * time.Hour,
 				events: []event{{kind: "grabbed", detail: "SubGroupA 1080p", agedBy: 4 * time.Hour}},
 			}
@@ -228,7 +231,7 @@ func complete() title {
 			it.held = "[SubGroupB] Placeholder Chronicle - 24 [720p]"
 			it.grab = &grab{
 				status: "imported", hash: "aa02000000000000000000000000000000000002",
-				release: "[SubGroupB] Placeholder Chronicle - 24 [720p].mkv",
+				release: "[SubGroupB] Placeholder Chronicle - 24 [720p]",
 				agedBy:  6 * week,
 				events: []event{
 					{kind: "grabbed", detail: "SubGroupB 720p", agedBy: 6*week + time.Hour},
@@ -259,7 +262,7 @@ func nothingYet() title {
 			// a reason attached; it is in the event row and the blocklist entry below.
 			it.grab = &grab{
 				status: "failed", hash: "aa03000000000000000000000000000000000003",
-				release: "[RipCrew] Placeholder Horizon - 01 [1080p].mkv",
+				release: "[RipCrew] Placeholder Horizon - 01 [1080p]",
 				agedBy:  2 * day,
 				events: []event{
 					{kind: "grabbed", detail: "RipCrew 1080p", agedBy: 2*day + time.Hour},
@@ -271,7 +274,7 @@ func nothingYet() title {
 			// importer writes when a completed payload will not import.
 			it.grab = &grab{
 				status: "grabbed", hash: "aa04000000000000000000000000000000000004",
-				release:   "[SubGroupA] Placeholder Horizon - 02 [1080p][HEVC].mkv",
+				release:   "[SubGroupA] Placeholder Horizon - 02 [1080p][HEVC]",
 				agedBy:    9 * time.Hour,
 				lastError: "import failed: link into the library: permission denied",
 				events:    []event{{kind: "grabbed", detail: "SubGroupA 1080p", agedBy: 9 * time.Hour}},
@@ -280,7 +283,7 @@ func nothingYet() title {
 		t.items = append(t.items, it)
 	}
 	t.blocklist = []blockEntry{
-		{release: "[RipCrew] Placeholder Horizon - 01 [1080p]", reason: "download client reported an error", failures: 1, expiresIn: day},
+		{release: "[RipCrew] Placeholder Horizon - 01 [1080p]", hash: "aa03000000000000000000000000000000000003", reason: "download client reported an error", failures: 1, expiresIn: day},
 		{release: "[RipCrew] Placeholder Horizon - 02 [1080p]", reason: "no peers had the data", failures: 2, expiresIn: week},
 		{release: "[LowSeed] Placeholder Horizon - 01-12 [480p][Batch]", reason: "payload did not contain what it claimed", failures: 3, permanent: true},
 		{release: "[OldGrp] Placeholder Horizon - 03 [1080p]", reason: "download client reported an error", failures: 1, expiresIn: -2 * day},
@@ -330,7 +333,7 @@ func gapFilledRun() title {
 			{number: 3, airsIn: -1 * day, dated: true, pass: &passOutcome{
 				outcome: "declined", source: "sweep",
 				release: "[SubGroupA] Placeholder Ember - 03 [1080p][HEVC]",
-				detail:  "scores 1400, below the profile minimum of 1600",
+				detail:  "score 700 is below the profile minimum 800",
 				agedBy:  2 * time.Hour,
 			}},
 			{number: 4, airsIn: 6 * day, dated: true},
@@ -433,7 +436,7 @@ func longRunner() title {
 			it.airsIn, it.dated = -3*day, true
 			it.grab = &grab{
 				status: "grabbed", hash: "aa11000000000000000000000000000000000011",
-				release:    "[ArchiveGrp] Placeholder Odyssey - 1047 [720p].mkv",
+				release:    "[ArchiveGrp] Placeholder Odyssey - 1047 [720p]",
 				agedBy:     3 * day,
 				missingFor: 2 * time.Minute,
 				events:     []event{{kind: "grabbed", detail: "ArchiveGrp 720p", agedBy: 3 * day}},
@@ -469,7 +472,7 @@ func deferredImport() title {
 			// import_deferred sets last_error back to NULL.
 			it.grab = &grab{
 				status: "import_deferred", hash: "aa12000000000000000000000000000000000012",
-				release: "[SubGroupB] Placeholder Tide - 02 [1080p].mkv",
+				release: "[SubGroupB] Placeholder Tide - 02 [1080p]",
 				agedBy:  36 * time.Hour,
 				events: []event{
 					{kind: "grabbed", detail: "SubGroupB 1080p", agedBy: 37 * time.Hour},
