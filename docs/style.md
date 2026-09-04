@@ -60,24 +60,29 @@ literally, and put each example beside the claim it proves.
     outside `acquire.passItem` may".
 14. **"We" beats an abstract noun as the subject.** "We can use that to solve
     this" beats "adoption will close it".
-15. **Don't invent specifics that aren't load-bearing.** No durations, counts or
+15. **Cut a sentence that could move to another project unchanged.** If it would
+    read the same about any codebase, it's filler. Replace it with the fact,
+    mechanism or consequence specific to this one. Every other rule here makes a
+    sentence clear; this one makes it worth reading, and a rewrite that satisfies
+    all of them can still smooth a load-bearing detail into generic clarity.
+16. **Don't invent specifics that aren't load-bearing.** No durations, counts or
     examples added as texture. An example that instantiates the claim is
     different, and rule 11 asks for it.
 
 ## Shape
 
-16. **Split a `, which …` clause that is a separate claim** into its own
+17. **Split a `, which …` clause that is a separate claim** into its own
     sentence. This isn't general chopping: a 35-word sentence making one point
     stays as it is.
-17. **State a condition as "If X, …"** rather than as a participle hanging off the
+18. **State a condition as "If X, …"** rather than as a participle hanging off the
     subject. Not "An agent working on the importer reads…" but "If an agent is
     working on the importer, it reads…".
-18. **List for three or more parallel items a reader checks independently. Table
+19. **List for three or more parallel items a reader checks independently. Table
     when each item has two or more attributes. Prose for a chain where each step
     depends on the one before.** Two items usually read fine as prose.
-19. **Median sentence about 24 words, ceiling about 33.** A guardrail, not a
+20. **Median sentence about 24 words, ceiling about 33.** A guardrail, not a
     target — don't chop to reach it.
-20. **The comment budget doesn't change: one line, why-only.** `CLAUDE.md` owns
+21. **The comment budget doesn't change: one line, why-only.** `CLAUDE.md` owns
     that rule. These rules govern the wording inside it.
 
 ## Words this codebase uses twice
@@ -114,22 +119,42 @@ delay, name, key, format, queue, outcome, order.
 ## What review asks
 
 Review is the check — we don't lint prose. So a reviewer produces a list rather
-than a verdict, because "the style looks fine" isn't evidence. For every prose
-change in a diff:
+than a verdict, because "the style looks fine" isn't evidence.
 
-1. **Body and mind verbs.** Quote every sentence where something without a body or
-   a mind does a body or mind verb (holds, carries, owns, says, refuses, claims,
-   remembers, wants, watches, travels, spends, escapes, reaches). Give the literal
-   operation for each.
-2. **Words used twice.** For every word in the table above, say which meaning is
+**Quoted examples are exempt.** This file, and any doc explaining these rules,
+quotes bad prose on purpose — *"a library doesn't hold a file"*, *"the feed owns
+releases"*. Flag an author's own sentences, never an example cited as wrong, and
+never the wordlists in the questions themselves.
+
+**Cite rule numbers that exist here.** There are 21. An invented number is a
+known failure of this kind of review.
+
+Answer these in order, because the order is the priority. A quick pass answers
+P0 and P1 and stops.
+
+### P0 — the reader ends up missing something
+
+1. **Claim preservation, for a rewrite.** Enumerate the claims in each rewritten
+   paragraph before and after, then list anything present before and absent
+   after. This is the check that matters most, and the only one that catches a
+   correctness defect rather than a slow read. The two real failures so far were
+   a dropped issue reference and an example attached to the wrong clause.
+2. **Portability.** Quote any sentence that would read the same about another
+   codebase, and name the specific fact it should carry instead.
+
+### P1 — the reader ends up wrong
+
+3. **Words used twice.** For every word in the table above, say which meaning is
    intended and whether a reader arriving cold at that sentence could tell.
-3. **House metaphors.** Quote every use of arm, gate, ladder, tier, floor and give
-   the plain word.
 4. **Unresolvable terms.** List every term the diff uses that a reader can't
    resolve from the diff itself or from a linked identifier.
-5. **Claim preservation, for a rewrite.** Enumerate the claims in each rewritten
-   paragraph before and after, then list anything present before and absent after.
-   This is the check that matters most: the two real failures we've had were a
-   dropped issue reference and an example attached to the wrong clause, and
-   nothing mechanical would have caught either.
-6. **Ceiling.** Quote any sentence over about 33 words.
+
+### P2 — the reader ends up slow
+
+5. **Body and mind verbs.** Quote every sentence where something without a body
+   or a mind does a body or mind verb (holds, carries, owns, says, refuses,
+   claims, remembers, wants, watches, travels, spends, escapes, reaches). Give
+   the literal operation for each.
+6. **House metaphors.** Quote every use of arm, gate, ladder, tier and floor, and
+   give the plain word.
+7. **Ceiling.** Quote any sentence over about 33 words.
