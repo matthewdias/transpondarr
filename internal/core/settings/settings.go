@@ -470,9 +470,11 @@ func (s *Service) UpdateDownload(ctx context.Context, in DownloadConfig) error {
 	defer s.updateMu.Unlock()
 
 	cur := s.cur.Load()
-	if in.Password == "" {
-		in.Password = cur.dl.Password
+	pw, err := inheritSecret(in.Password, cur.dl.Password, in.URL, cur.dl.URL, "qBittorrent password")
+	if err != nil {
+		return err
 	}
+	in.Password = pw
 	in.applyDefaults()
 	// Clamped before persisting, so a reload agrees with the live state rather
 	// than re-clamping (the UpdateAutomation rule).
@@ -511,9 +513,11 @@ func (s *Service) UpdateIndexer(ctx context.Context, in IndexerConfig) error {
 	defer s.updateMu.Unlock()
 
 	cur := s.cur.Load()
-	if in.APIKey == "" {
-		in.APIKey = cur.idx.APIKey
+	key, err := inheritSecret(in.APIKey, cur.idx.APIKey, in.URL, cur.idx.URL, "indexer API key")
+	if err != nil {
+		return err
 	}
+	in.APIKey = key
 	in.applyDefaults()
 
 	if err := s.persist(ctx, map[string]string{
@@ -616,10 +620,26 @@ func (s *Service) UpdateNotify(ctx context.Context, in NotifyConfig) error {
 	defer s.updateMu.Unlock()
 
 	cur := s.cur.Load()
-	if in.NtfyToken == "" {
-		in.NtfyToken = cur.ntf.NtfyToken
-	}
+	// Defaulted before the comparison, so a blank server and the literal ntfy.sh
+	// are one destination rather than a move.
 	in.applyDefaults()
+	// A blank topic builds no route, so turning ntfy off is no destination at all
+	// rather than a move to the default server.
+	dest := in.NtfyServer
+	if strings.TrimSpace(in.NtfyTopic) == "" {
+		dest = ""
+	}
+	tok, err := inheritSecret(in.NtfyToken, cur.ntf.NtfyToken, dest, cur.ntf.NtfyServer, "ntfy access token")
+	if err != nil {
+		return err
+	}
+	// A request naming no destination must not move the destination either: the
+	// server persisted beside an inherited token has to be the one that token was
+	// saved for, or the next request finds them matching and sends it (#259).
+	if dest == "" && in.NtfyToken == "" && cur.ntf.NtfyToken != "" {
+		in.NtfyServer = cur.ntf.NtfyServer
+	}
+	in.NtfyToken = tok
 
 	kv := map[string]string{
 		keyNotifyDiscordURL: in.DiscordURL,
@@ -706,11 +726,13 @@ func (s *Service) TestNotifyNtfy(ctx context.Context, in NotifyConfig) error {
 	if strings.TrimSpace(in.NtfyTopic) == "" {
 		return errors.New("an ntfy topic is required")
 	}
-	if in.NtfyToken == "" {
-		in.NtfyToken = s.cur.Load().ntf.NtfyToken
-	}
 	in.applyDefaults()
-	return ntfy.New(in.NtfyServer, in.NtfyTopic, in.NtfyToken).Send(ctx, notify.Event{Kind: notify.KindTest})
+	cur := s.cur.Load().ntf
+	tok, err := inheritSecret(in.NtfyToken, cur.NtfyToken, in.NtfyServer, cur.NtfyServer, "ntfy access token")
+	if err != nil {
+		return err
+	}
+	return ntfy.New(in.NtfyServer, in.NtfyTopic, tok).Send(ctx, notify.Event{Kind: notify.KindTest})
 }
 
 // TestDownload verifies connectivity for the given (unsaved) values, filling in
@@ -719,10 +741,12 @@ func (s *Service) TestDownload(ctx context.Context, in DownloadConfig) error {
 	if strings.TrimSpace(in.URL) == "" {
 		return errors.New("a qBittorrent URL is required")
 	}
-	if in.Password == "" {
-		in.Password = s.cur.Load().dl.Password
+	cur := s.cur.Load().dl
+	pw, err := inheritSecret(in.Password, cur.Password, in.URL, cur.URL, "qBittorrent password")
+	if err != nil {
+		return err
 	}
-	return qbittorrent.New(in.URL, in.User, in.Password).Test(ctx)
+	return qbittorrent.New(in.URL, in.User, pw).Test(ctx)
 }
 
 // TestIndexer verifies the given (unsaved) indexer values by issuing a probe
@@ -731,8 +755,10 @@ func (s *Service) TestIndexer(ctx context.Context, in IndexerConfig) error {
 	if strings.TrimSpace(in.URL) == "" {
 		return errors.New("a Torznab URL is required")
 	}
-	if in.APIKey == "" {
-		in.APIKey = s.cur.Load().idx.APIKey
+	cur := s.cur.Load().idx
+	key, err := inheritSecret(in.APIKey, cur.APIKey, in.URL, cur.URL, "indexer API key")
+	if err != nil {
+		return err
 	}
 	cats, err := NormalizeCategories(in.Categories)
 	if err != nil {
@@ -740,7 +766,7 @@ func (s *Service) TestIndexer(ctx context.Context, in IndexerConfig) error {
 	}
 	in.applyDefaults()
 	// The probe carries the categories so it exercises the request a sweep issues.
-	_, err = torznab.New(in.Name, in.URL, in.APIKey, cats).Search(ctx, indexer.Query{Term: "test"})
+	_, err = torznab.New(in.Name, in.URL, key, cats).Search(ctx, indexer.Query{Term: "test"})
 	return err
 }
 
