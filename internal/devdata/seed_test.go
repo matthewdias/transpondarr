@@ -14,6 +14,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/catalog"
 	"github.com/matthewdias/transpondarr/internal/core/decide"
 	"github.com/matthewdias/transpondarr/internal/core/domain"
+	"github.com/matthewdias/transpondarr/internal/core/metadata"
 	"github.com/matthewdias/transpondarr/internal/core/metadata/dbcache"
 	"github.com/matthewdias/transpondarr/internal/store"
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -482,8 +483,13 @@ func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 // fixture altName that reaches none of them leaves #107's variant-fallback
 // search unexercisable and makes altNames look load-bearing when it is not.
 func TestASeededTitleHasMoreThanOneNameVariant(t *testing.T) {
-	svc := catalog.NewService(seeded(t), anilistStub(t))
+	st := seeded(t)
 	ctx := context.Background()
+	// Two services, because the two readers answer from different places and the
+	// cache decorator is read-through: through it, TitleVariants would return the
+	// seeded snapshot and never ask the stub at all.
+	fromCache := catalog.NewService(st, metadata.Cached(anilistStub(t), dbcache.New(st.Q)))
+	fromStub := catalog.NewService(st, anilistStub(t))
 
 	var withAlts int
 	for _, ti := range fixtures() {
@@ -491,12 +497,19 @@ func TestASeededTitleHasMoreThanOneNameVariant(t *testing.T) {
 			continue
 		}
 		withAlts++
-		got, err := svc.TitleVariants(ctx, ti.providerID)
+		cached, hit, err := fromCache.CachedTitleVariants(ctx, ti.providerID)
+		if err != nil || !hit {
+			t.Fatalf("CachedTitleVariants(%d) hit=%v err=%v, want the seeded snapshot", ti.providerID, hit, err)
+		}
+		if len(cached) < 2 {
+			t.Errorf("CachedTitleVariants(%d) = %v, want the fixture's alt name too", ti.providerID, cached)
+		}
+		live, err := fromStub.TitleVariants(ctx, ti.providerID)
 		if err != nil {
 			t.Fatalf("TitleVariants(%d): %v", ti.providerID, err)
 		}
-		if len(got) < 2 {
-			t.Errorf("TitleVariants(%d) = %v, want the fixture's alt name too", ti.providerID, got)
+		if len(live) < 2 {
+			t.Errorf("TitleVariants(%d) = %v, want the fixture's alt name too", ti.providerID, live)
 		}
 	}
 	if withAlts == 0 {
