@@ -4,7 +4,7 @@ import { loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-import { apiProxyTarget } from "./vite.proxy.ts";
+import { apiProxyOptions } from "./vite.proxy.ts";
 
 // Local-day logic (src/lib/calendar) is only testable against a known zone, and
 // New York exercises the interesting case: a UTC evening instant belongs to the
@@ -49,7 +49,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        "/api": apiProxyTarget(env.TRANSPONDARR_ADDR),
+        "/api": apiProxyOptions(env.TRANSPONDARR_ADDR),
       },
     },
     test: {

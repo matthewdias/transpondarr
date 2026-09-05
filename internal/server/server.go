@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -59,6 +60,9 @@ func New(d Deps) http.Handler {
 	r := chi.NewMux()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
+	// Ahead of auth, so one check applies to the plain-chi auth routes and the Huma
+	// ones alike, whichever credential the request would otherwise have used.
+	r.Use(crossOriginGuard())
 	r.Use(authMiddleware(d.Auth, d.Settings.APIKey))
 
 	d.Logger.Info("auth: forms login", "required", d.Auth.Required(), "configured", d.Auth.Configured())
@@ -200,14 +204,19 @@ var proxyHeaders = []string{
 	"X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Server", "Via",
 }
 
+// proxied reports whether a reverse proxy handled the request.
+func proxied(req *http.Request) bool {
+	return slices.ContainsFunc(proxyHeaders, func(h string) bool {
+		return req.Header.Get(h) != ""
+	})
+}
+
 // isLocalRequest reports whether the request came from a loopback or private
 // address with no proxy-forwarding headers. Note: in "local" mode this trusts the
 // whole private range, not just the host — see SECURITY.md before exposing it.
 func isLocalRequest(req *http.Request) bool {
-	for _, h := range proxyHeaders {
-		if req.Header.Get(h) != "" {
-			return false
-		}
+	if proxied(req) {
+		return false
 	}
 	// DNS-rebinding guard: a private RemoteAddr only proves the TCP peer is on the
 	// LAN, not that the browser meant to reach a local host. A rebinding page
