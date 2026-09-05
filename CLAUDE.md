@@ -56,12 +56,15 @@ reproduce it locally — run what the change touched.
   one test. Use the direct binary rather than `npx` throughout — `npx` adds ~1.5s to
   vitest and ~0.8s to oxlint, on commands you run dozens of times a session.
 - **vitest does not typecheck** — it strips types, so a file with a hard type error runs
-  green. `tsc -b` runs only inside `npm run build`, leaving the error invisible to vitest
-  and `make lint` both. After a frontend type change run `./node_modules/.bin/tsc -b`
-  from `frontend/`. It covers `*.test.ts(x)` too
-  (`tsconfig.app.json` includes all of `src`), and re-checks the whole program every run
-  (~4.5s; `noEmit` without `composite` makes the tsbuildinfo near-useless), so run it
-  once before committing rather than per edit.
+  green, and `make lint` doesn't check types either. Otherwise `tsc -b` runs only inside
+  `npm run build`, which is why CI is normally the first to report the error. After a
+  frontend type change run `make typecheck`; it depends on `web-deps`, so a fresh worktree
+  installs `frontend/node_modules` first. Without that install neither spelling reports on
+  this project's TypeScript: `./node_modules/.bin/tsc -b` exits 127 on the missing binary,
+  and `npm run typecheck` falls back to whatever `tsc` is on `PATH`.
+  It covers `*.test.ts(x)` too (`tsconfig.app.json` includes all of `src`), and re-checks
+  the whole program every run (~4.5s; `noEmit` without `composite` makes the tsbuildinfo
+  near-useless), so run it once before committing rather than per edit.
 - **Before committing, run `go vet ./...`** — 0.6s idle, ~2s after a change to a core
   package, and it type-checks `_test.go` files too, so it catches a broken test in a
   package you never ran. Don't scope it; the packages you didn't touch are the whole

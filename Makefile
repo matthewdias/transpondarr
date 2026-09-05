@@ -6,7 +6,7 @@ LDFLAGS := -s -w -X github.com/matthewdias/transpondarr/internal/version.Version
 SQLC_VERSION := $(shell sed -n 's/^sqlc = "\([^"]*\)".*/\1/p' mise.toml)
 GO_BUILD := CGO_ENABLED=0 go build -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/transpondarrd
 
-.PHONY: build server web web-deps hooks gen gen-api lint go-lint web-lint test go-test web-test dev seed run migrate tidy notices clean
+.PHONY: build server web web-deps hooks gen gen-api lint go-lint web-lint typecheck test go-test web-test dev seed run migrate tidy notices clean
 
 build: web ## Build frontend + server into ./$(BIN)
 	$(GO_BUILD)
@@ -56,6 +56,11 @@ go-lint: ## Lint the Go tree (golangci-lint)
 web-lint: web-deps ## Lint the frontend (oxlint + prettier check)
 	cd frontend && npm run lint
 	cd frontend && npm run format:check
+
+# web-deps first: with no node_modules, npm resolves tsc from PATH, so the check
+# reports on whatever TypeScript is installed globally rather than the pinned one.
+typecheck: web-deps ## Typecheck the frontend (tsc -b; vitest and the linters don't)
+	cd frontend && npm run typecheck
 
 test: go-test web-test ## Run tests (Go + frontend)
 
