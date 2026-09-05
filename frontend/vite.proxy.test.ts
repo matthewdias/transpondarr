@@ -58,8 +58,11 @@ describe("apiProxyOptions", () => {
   });
 });
 
-// Asserting apiProxyOptions alone would leave the shorthand -- which is what a
-// later edit reaches for -- reachable from the config, so read the config itself.
+// Asserting apiProxyOptions alone would leave the shorthand reachable from the
+// config, and the shorthand is what a later edit reverts to, so read the config
+// itself. It asserts the shape and not the target: comparing against
+// apiProxyOptions(undefined) failed for anyone whose .env set TRANSPONDARR_ADDR,
+// and CI passed only because it has no .env.
 describe("the dev server's proxy config", () => {
   it("uses the pinned options rather than the string shorthand", async () => {
     const resolved = await (
@@ -68,6 +71,9 @@ describe("the dev server's proxy config", () => {
         command: "serve";
       }) => Promise<{ server: { proxy: Record<string, unknown> } }>
     )({ mode: "development", command: "serve" });
-    expect(resolved.server.proxy["/api"]).toEqual(apiProxyOptions(undefined));
+    const entry = resolved.server.proxy["/api"];
+    expect(typeof entry).toBe("object");
+    expect(entry).toMatchObject({ changeOrigin: false });
+    expect((entry as { target: string }).target).toMatch(/^http:\/\//);
   });
 });

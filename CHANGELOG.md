@@ -127,9 +127,9 @@ All notable changes to this project are documented here. The format is based on
 - **If the web UI starts saying *cross-origin request refused*, your reverse proxy is
   sending Transpondarr the wrong address.** In a normal browser only that produces it.
   Set `X-Forwarded-Host` to the address you type in the browser, or leave it unset and
-  pass the `Host` header through unchanged. Transpondarr skips whatever the proxy
-  leaves out, so a missing port or scheme is fine. `curl` and dashboards work either
-  way.
+  pass the `Host` header through unchanged. Transpondarr leaves out whatever the proxy
+  does not send, so a missing port or scheme is fine. `curl` and dashboards work
+  either way.
 
 ## [0.9.0] — 2026-08-15
 

@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/danielgtaylor/huma/v2"
@@ -201,6 +202,13 @@ func requiresAuth(p string) bool {
 var proxyHeaders = []string{
 	"X-Forwarded-For", "X-Real-IP", "Forwarded",
 	"X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Server", "Via",
+}
+
+// proxied reports whether a reverse proxy handled the request.
+func proxied(req *http.Request) bool {
+	return slices.ContainsFunc(proxyHeaders, func(h string) bool {
+		return req.Header.Get(h) != ""
+	})
 }
 
 // isLocalRequest reports whether the request came from a loopback or private

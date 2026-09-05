@@ -46,6 +46,30 @@ describe("typed client (openapi-fetch)", () => {
     await expect(api.listTitles()).resolves.toEqual(titles);
   });
 
+  // The cross-origin check (#269) is middleware, not a Huma handler, so it writes
+  // its own body. A text/plain one reaches the operator as "HTTP 403" with no
+  // cause, which is what the changelog's upgrade note tells them to look for.
+  it("surfaces the reason a cross-origin write was refused", async () => {
+    server.use(
+      http.get("/api/v1/titles", () =>
+        HttpResponse.json(
+          {
+            title: "Forbidden",
+            status: 403,
+            detail: "cross-origin request refused",
+          },
+          {
+            status: 403,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+      ),
+    );
+    const err = (await api.listTitles().catch((e: unknown) => e)) as ApiError;
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.message).toBe("cross-origin request refused");
+  });
+
   it("maps problem+json failures to a thrown ApiError carrying the detail", async () => {
     server.use(
       http.get("/api/v1/titles", () =>

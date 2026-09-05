@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,7 +21,7 @@ func crossOriginGuard() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			if crossOriginWrite(req) {
-				http.Error(w, "cross-origin request refused", http.StatusForbidden)
+				writeForbidden(w, "cross-origin request refused")
 				return
 			}
 			next.ServeHTTP(w, req)
@@ -73,20 +74,12 @@ type origin struct {
 func expectedOrigin(req *http.Request) (origin, bool) {
 	host, portStated := firstValue(req.Header.Get("X-Forwarded-Host")), true
 	if host == "" {
-		if proxied(req) {
-			// A proxy rewrote Host and didn't send X-Forwarded-Host, so a 403 here
-			// would stop that install writing anything.
-			return origin{}, false
-		}
 		host = req.Host
 	} else if _, _, err := net.SplitHostPort(host); err != nil {
-		// nginx's $host excludes the port, so use X-Forwarded-Port when it is set and
-		// otherwise treat the port as unstated rather than as the scheme's default.
-		if port := firstValue(req.Header.Get("X-Forwarded-Port")); port != "" {
-			host = net.JoinHostPort(host, port)
-		} else {
-			portStated = false
-		}
+		// nginx's $host excludes the port ($http_host keeps it). X-Forwarded-Port
+		// can't fill it in: it names the port the proxy listens on, which differs
+		// from the published one whenever a container maps ports.
+		portStated = false
 	}
 	// The scheme-relative spelling, so an unstated scheme still parses.
 	spelling := "//" + host
@@ -101,8 +94,12 @@ func expectedOrigin(req *http.Request) (origin, bool) {
 // statedScheme is the scheme the client used, empty when nothing states one: a proxy
 // that terminates TLS without X-Forwarded-Proto forwards the request over plain http.
 func statedScheme(req *http.Request) string {
-	if p := firstValue(req.Header.Get("X-Forwarded-Proto")); p != "" {
-		return strings.ToLower(p)
+	// Only the two this server can be reached over, so a header holding anything
+	// else reads as unstated rather than building a spelling that won't parse,
+	// which would switch the whole check off.
+	switch p := strings.ToLower(firstValue(req.Header.Get("X-Forwarded-Proto"))); p {
+	case "http", "https":
+		return p
 	}
 	if req.TLS != nil {
 		return "https"
@@ -115,14 +112,6 @@ func statedScheme(req *http.Request) string {
 func firstValue(header string) string {
 	v, _, _ := strings.Cut(header, ",")
 	return strings.TrimSpace(v)
-}
-
-// proxied reports whether a reverse proxy handled the request, using the same headers
-// that disable the local-address bypass.
-func proxied(req *http.Request) bool {
-	return slices.ContainsFunc(proxyHeaders, func(h string) bool {
-		return req.Header.Get(h) != ""
-	})
 }
 
 // parseOrigin reduces an origin to its comparable parts, as settings.destination does
@@ -157,4 +146,16 @@ func impliedPort(scheme, port string) bool {
 		return port == "80" || port == "443"
 	}
 	return false
+}
+
+// writeForbidden sends problem+json, not http.Error's text/plain: the SPA reads
+// `detail`, and a plain body reaches the operator as "HTTP 403" with no reason.
+func writeForbidden(w http.ResponseWriter, detail string) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(http.StatusForbidden)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"title":  "Forbidden",
+		"status": http.StatusForbidden,
+		"detail": detail,
+	})
 }

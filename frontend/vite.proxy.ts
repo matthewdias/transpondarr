@@ -25,7 +25,9 @@ export function apiProxyTarget(addr: string | undefined): string {
 /**
  * The dev proxy's options. changeOrigin is pinned off: the string shorthand turns
  * it on, which rewrites Host to the API's port and makes every write from
- * `npm run dev` look cross-origin to the check #269 added.
+ * `npm run dev` look cross-origin to the check #269 added. The cost is that
+ * `npm run dev -- --host` reached by hostname forwards that hostname, which the
+ * local-address bypass rejects, so local auth mode wants a login there.
  */
 export function apiProxyOptions(addr: string | undefined) {
   return { target: apiProxyTarget(addr), changeOrigin: false };

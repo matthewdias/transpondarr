@@ -167,6 +167,49 @@ func TestCrossOriginSetupIsRefusedInEveryMode(t *testing.T) {
 	}
 }
 
+// TestCrossOriginSetupIsRefusedBehindAProxy is the review's HIGH finding as an
+// end-to-end assertion. cloudflared, Tailscale Serve and any nginx that sets only
+// For and Proto send a forwarding header without X-Forwarded-Host, and the check
+// used to allow those outright -- which handed a hostile page the admin account on
+// a fresh enabled install, the one thing this whole change exists to stop.
+func TestCrossOriginSetupIsRefusedBehindAProxy(t *testing.T) {
+	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredEnabled})
+	body := []byte(`{"username":"attacker","password":"attackerchosen"}`)
+
+	code, out := write(t, ts, http.MethodPost, "/api/v1/auth/setup", body, map[string]string{
+		"Content-Type":    "text/plain;charset=UTF-8",
+		"Origin":          hostileOrigin,
+		"X-Forwarded-For": "203.0.113.9",
+	})
+	if code != http.StatusForbidden {
+		t.Fatalf("proxied cross-origin setup: status = %d, want 403 (%s)", code, out)
+	}
+	if authSvc.Configured() {
+		t.Fatal("proxied cross-origin setup created the admin account")
+	}
+}
+
+// TestRefusalCarriesItsReason: http.Error would send text/plain, which the SPA
+// cannot read a reason out of, so the operator saw "HTTP 403" and no cause.
+func TestRefusalCarriesItsReason(t *testing.T) {
+	h := newHarness(t, nil, nil)
+	code, body := write(t, h.ts, http.MethodPost, "/api/v1/settings/apikey/regenerate", nil,
+		map[string]string{"Origin": hostileOrigin})
+	if code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", code)
+	}
+	var problem struct {
+		Detail string `json:"detail"`
+		Status int    `json:"status"`
+	}
+	if err := json.Unmarshal([]byte(body), &problem); err != nil {
+		t.Fatalf("refusal body is not JSON (%s): %v", body, err)
+	}
+	if problem.Detail == "" || problem.Status != http.StatusForbidden {
+		t.Fatalf("refusal body = %s, want a problem+json detail and status", body)
+	}
+}
+
 // TestSameOriginWriteSucceeds is the SPA's own case: this server serves it, so its
 // Origin is this server's, including on the two POSTs it sends with no body.
 func TestSameOriginWriteSucceeds(t *testing.T) {

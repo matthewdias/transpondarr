@@ -48,13 +48,18 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   `curl`, dashboards and the `X-Api-Key` path working; a browser can't leave the
   header off. Two limits are worth knowing. Reads are not checked, so a page on
   another website can still start a search you didn't ask for and use part of the
-  AniList request budget, though it changes nothing on disk. And behind a reverse
-  proxy that rewrites `Host` without sending `X-Forwarded-Host`, Transpondarr can't
-  determine what address the browser used, so it skips the check. Set a standard
-  forwarding header — the `local`-mode advice above already asks for one — and the
-  check applies again. Whatever the proxy leaves out is left out of the comparison
-  rather than guessed at, so an `X-Forwarded-Host` with no port (nginx's `$host`) is
-  compared by hostname alone unless `X-Forwarded-Port` gives one.
+  AniList request budget, though it changes nothing on disk. And the check compares
+  hostnames, so a page that reaches Transpondarr under its own address — by DNS
+  rebinding, which the `Host` rule above already blocks for everything that needs a
+  login — still looks same-origin here. That leaves first-run setup as the one thing
+  such a page can still reach, and only until you have created the admin account.
+
+  Behind a reverse proxy, tell Transpondarr the address your browser uses: set
+  `X-Forwarded-Host`, or leave it unset and pass `Host` through unchanged. Whatever
+  the proxy leaves out is left out of the comparison rather than guessed at, so
+  `X-Forwarded-Host` with no port (nginx's `$host`) is compared by hostname alone.
+  `X-Forwarded-Port` is deliberately ignored: it names the port the proxy listens
+  on, which is not the published one whenever a container maps ports.
 
 - **Run as the data owner, not root.** The container image is distroless and does not
   remap UID/GID; set `user:` to the account that owns your media volume.
