@@ -26,8 +26,11 @@ literally, and put each example beside the claim it proves.
    a file; hands hold things. Name the literal operation instead: contains,
    stores, returns an error, doesn't match. This is the most common violation in
    the repo, so it's the first thing to check.
-3. **Most ordinary construction.** Contractions are fine, "doesn't use extra disk
-   space" beats "uses no extra disk space", and "instead of" beats "rather than".
+3. **Most ordinary construction.** Contractions are fine, and "doesn't use extra
+   disk space" beats "uses no extra disk space". "instead of" beats "rather than"
+   when the two sides are actions you're choosing between; keep "rather than" for
+   a corrective identification, as in "length is the symptom rather than the
+   test".
 4. **Numerals and full forms.** Write "a 2-digit and 3-digit pair of episode
    numbers", not "a two- against three-digit pair". No suspended hyphens.
 5. **Cut intensifiers and reflexives** — *at all*, *itself*, *simply*, *just*,
@@ -46,10 +49,10 @@ literally, and put each example beside the claim it proves.
    search sweep spends one query per title — describe it, because that behaviour
    covers 13 identifiers and no single one means it. Pair the two at first use in
    a section, and anchor the identifier again when it returns after intervening
-   material rather than assuming the first anchor still carries.
+   material instead of assuming the first anchor still carries.
 9. **Every section defines the terms it uses.** Docs get read alone, so a
    shorthand that a neighbouring paragraph explains is undefined here. Reuse the
-   earlier wording rather than coining a synonym for it.
+   earlier wording instead of coining a synonym for it.
 10. **Never point at something with a bare pronoun or demonstrative.** Not "is
     none of these" — say "doesn't match any of the three causes above". A
     sentence must not open with a pronoun standing for the whole of the sentence
@@ -91,10 +94,10 @@ literally, and put each example beside the claim it proves.
 18. **Split a `, which …` clause that is a separate claim** into its own
     sentence. This isn't general chopping: a 35-word sentence making one point
     stays as it is.
-19. **State a condition as "If X, …"** rather than as a participle hanging off the
+19. **State a condition as "If X, …"** instead of as a participle hanging off the
     subject. Not "An agent working on the importer reads…" but "If an agent is
     working on the importer, it reads…".
-20. **State a two-case rule with both cases together**, rather than asserting one
+20. **State a two-case rule with both cases together**, instead of asserting one
     and negating the other. "While file age protects a `.partial`, an `.upgrade`
     is protected by the in-flight registry instead" beats "the registry protects
     a live transfer, not the age" with the other half arriving three sentences
