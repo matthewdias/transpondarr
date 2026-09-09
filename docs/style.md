@@ -162,8 +162,23 @@ never the wordlists in the questions themselves.
 **Cite rule numbers that exist here.** There are 24. An invented number is a
 known failure of this kind of review.
 
-Answer these in order, because the order is the priority. A quick pass answers
-P0 and P1 and stops.
+Answer the unit-shape question first, then the tiers in order, because the
+order is the priority. A quick pass answers unit shape, P0 and P1, and stops.
+
+### First — unit shape
+
+Ask this before reading any sentence, because it's about the shape of the change
+rather than its wording, and none of the questions below can catch it.
+
+If the change adds a bullet or a section, or grows one past a couple of
+paragraphs, name the subjects it covers. More than one subject with no heading
+per subject is the finding (rule 22). The test is navigational: a reader arriving
+with a specific question should be able to tell which paragraph answers it.
+
+This one sits outside the tiers because its failure is a reader giving up, which
+costs everything the unit had to say, and no individual sentence is at fault.
+Treat it as something to moderate. Length is the symptom rather than the test, so
+report the subject count and let the author decide.
 
 ### P0 — the reader ends up missing something
 
