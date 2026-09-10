@@ -12,7 +12,7 @@ import (
 
 // Each reason tier is a ranking, not a set: a slot states the one fact that
 // most explains its scope, so the order between reasons is the whole contract.
-// The tiers never compete with each other -- the page shows all three at once.
+// The tiers never replace one another -- the page shows all three at once.
 
 func TestGlobalReasonRanking(t *testing.T) {
 	cases := []struct {
@@ -92,7 +92,7 @@ func TestItemReasonRanking(t *testing.T) {
 		{"would grab", itemFacts{AirsAt: aired, Pass: pass(acquire.OutcomeWouldGrab)}, reasonWouldGrab, true},
 		{"add failed", itemFacts{AirsAt: aired, Pass: pass(acquire.OutcomeAddFailed)}, reasonAddFailed, true},
 		// A decline is standing and user-actionable; a failure has already been
-		// handled -- the item reverted to wanted and the group says blocklisted.
+		// handled -- the item reverted to wanted and the group reads blocklisted.
 		{"a pass answer outranks a failed grab", itemFacts{
 			AirsAt: aired, GrabFailed: true, GrabbedAt: now.Add(-6 * time.Hour),
 			Pass: pass(acquire.OutcomeDeclined),
@@ -125,8 +125,8 @@ func TestItemReasonRanking(t *testing.T) {
 
 // The stored set and the surfaced set differ on purpose. grabbed is only the
 // tombstone that invalidates an older refusal -- a listed item's grab plainly
-// did not hold, and grab_failed owns that row -- and contention's honest
-// message is "the queue is working", which the group tier already says.
+// did not last, and grab_failed is what that row shows -- and contention's honest
+// message is "the queue is working", which the group tier already reports.
 func TestGrabbedAndContendedSurfaceNothing(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
 	for _, outcome := range []string{acquire.OutcomeGrabbed, acquire.OutcomeContended} {
@@ -144,7 +144,7 @@ func TestGrabbedAndContendedSurfaceNothing(t *testing.T) {
 // The suppression guard, which is exactly equivalent to ranking on recency: a
 // pass only writes for a grabbable item and an item is not grabbable while its
 // grab is live, so an outcome older than the grab beside it can only be a
-// refusal the grab has already answered.
+// refusal the grab has already superseded.
 func TestAPassAnswerOlderThanItsGrabIsSuppressed(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
 	stale := itemFacts{
@@ -181,8 +181,8 @@ func TestItemReasonTreatsNoAirDateAsSearchable(t *testing.T) {
 }
 
 // The DTO's enum is the contract the generated frontend types are built from,
-// so a new outcome that surfaces must reach it or the UI gets a reason it has
-// no label for.
+// so a new outcome that surfaces must be added to it or the UI receives a reason
+// it has no label for.
 func TestEveryPassReasonIsInTheDTOEnum(t *testing.T) {
 	field, ok := reflect.TypeOf(missingItemDTO{}).FieldByName("Reason")
 	if !ok {

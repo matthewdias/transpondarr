@@ -9,7 +9,7 @@ import (
 // The category is the entire safety boundary, so a blank one keeps nothing:
 // without it our torrents are indistinguishable from the user's, and the
 // endpoint reports scoped: false rather than guessing. In-package because
-// settings.applyDefaults means a live service can never hand out a blank one.
+// settings.applyDefaults means a live service can never return a blank one.
 func TestPickUnmatchedKeepsNothingWithoutACategory(t *testing.T) {
 	statuses := []download.Status{
 		{Hash: "aaaa1111", Category: ""},

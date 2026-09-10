@@ -115,7 +115,7 @@ func TestBrowseSeasonDefaultsToCurrent(t *testing.T) {
 		t.Errorf("entries = %+v, want the cached current-season chart", out.Entries)
 	}
 
-	// The schema promises a non-nullable array, so an entry cached with no
+	// The schema declares a non-nullable array, so an entry cached with no
 	// genres must still serve "genres": [] — never omit it or emit null.
 	var raw struct {
 		Entries []map[string]json.RawMessage `json:"entries"`

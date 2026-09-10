@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// Air dates must reach the episodes table, and reach it as an unambiguous
+// Air dates must be written to the episodes table, and written as an unambiguous
 // timestamp: the stored form is SQLite's zone-less UTC, which a browser would
 // otherwise read as local time and shift the row by hours.
 func TestTitleDetailSurfacesAirDates(t *testing.T) {

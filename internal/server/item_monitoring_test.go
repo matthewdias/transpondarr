@@ -130,7 +130,7 @@ func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
 	}
 }
 
-// A selection straddling both states resets once, on the strength of the item
+// A selection covering both states resets once, on the strength of the item
 // that actually moved.
 func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 	h := wantedHarness(t)
@@ -157,9 +157,9 @@ func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 	}
 }
 
-// A hand-built selection must survive a title deleted in another tab: for a
-// state-setter a missing id is vacuous -- the item is gone, so "stop wanting it"
-// is already true -- which is why this diverges from resetSelected's 404.
+// A hand-built selection must still work when a title was deleted in another tab:
+// for a state-setter a missing id is vacuous -- the item is gone, so "stop wanting
+// it" is already true -- which is why this diverges from resetSelected's 404.
 func TestSetItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 	h := wantedHarness(t)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 2)

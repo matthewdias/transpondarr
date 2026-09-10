@@ -57,7 +57,7 @@ func TestExistingInstallKeepsSeasonFoldersWithNoLayoutStored(t *testing.T) {
 	}
 }
 
-// The setting reaching the live target without a restart is the whole point.
+// The setting applying to the live target without a restart is the whole point.
 func TestUpdateLibraryWiresTheFlatLayoutIntoTheLiveTarget(t *testing.T) {
 	svc, reg, st := newTestService(t)
 	ctx := context.Background()
@@ -103,8 +103,8 @@ func TestLibrarySeriesLayoutFromEnvBaseline(t *testing.T) {
 	}
 }
 
-// An unrecognised layout is refused rather than silently defaulted: the stored
-// value is what the next start reads, so accepting it would hide the typo.
+// An unrecognised layout is rejected rather than silently defaulted: the stored
+// value is what the next start reads, so accepting it would leave the typo unreported.
 func TestUpdateLibraryRejectsAnUnknownSeriesLayout(t *testing.T) {
 	svc, _, _ := newTestService(t)
 	err := svc.UpdateLibrary(context.Background(), LibraryConfig{Dir: t.TempDir(), SeriesLayout: "seasons"})

@@ -48,7 +48,7 @@ func TestSearchRanksByAssignedProfile(t *testing.T) {
 	}
 }
 
-// A blocked group must survive the store -> domain conversion too: its release
+// A blocked group must persist through the store -> domain conversion too: its release
 // sorts below an unknown group's despite far more seeders.
 func TestSearchDemotesBlockedGroup(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
@@ -165,7 +165,7 @@ func TestSearchPinnedIneligibleStaysRankedBelow(t *testing.T) {
 }
 
 // #19: the profile informs, never blocks — an ineligible manual grab succeeds
-// in one request, and the response says why it fell outside the profile.
+// in one request, and the response reports why it fell outside the profile.
 func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:cccc"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
@@ -206,9 +206,9 @@ func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 	}
 }
 
-// A client already holding this torrent with its data gone refuses the add
+// A client that already has this torrent with its data gone rejects the add
 // (#241), so the manual grab reports it rather than returning a 201 whose grab
-// fails moments later. Not a PR #57 gate: eligibility never refuses, and this is
+// fails moments later. Not a PR #57 gate: eligibility never blocks a grab, and this is
 // the client rejecting the add, exactly as a dead download URL does.
 func TestGrabReportsARefusalWhenTheClientHasLostTheData(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:eeee"

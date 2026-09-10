@@ -43,7 +43,7 @@ type harness struct {
 	idx      *coretest.FakeIndexer
 	dl       *coretest.FakeDownload
 	lib      *coretest.FakeLibrary
-	// importer is the very one the API holds, so a test drives the scan and the
+	// importer is the very one the API uses, so a test drives the scan and the
 	// retry routes against one instance, as the daemon does.
 	importer *importer.Importer
 }
@@ -89,7 +89,7 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 	blocklistSvc := blocklist.New(st, discardLogger())
 	acquireSvc := acquire.New(st, reg, catalog.NewService(st, provider), settingsSvc, discardLogger(), blocklistSvc)
 	// The API shares the scan's importer, so a retry through the routes takes the
-	// same mutex the scan does — the harness must not hand it a second one.
+	// same mutex the scan does — the harness must not build it a second one.
 	importSvc := importer.New(st, reg, discardLogger(), blocklistSvc, acquireSvc)
 	h := server.New(server.Deps{
 		Store:     st,
@@ -111,7 +111,7 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
 // stubProvider stands in for AniList. Every method but Name errors: these tests
-// seed title with no provider id precisely so the provider is never reached,
+// seed title with no provider id precisely so the provider is never called,
 // and a loud failure is what proves that still holds. Name is real, because it
 // is the id space the handlers pair a provider id with.
 type stubProvider struct{}
@@ -193,7 +193,7 @@ type candidateDTO struct {
 }
 
 // TestSearchAndGrabPipeline drives the whole acquisition glue over HTTP: the
-// indexer search feeds the decider, the matched release is grabbed via the
+// indexer search drives the decider, the matched release is grabbed via the
 // download client, and a grab row is recorded against the covered wanted item.
 func TestSearchAndGrabPipeline(t *testing.T) {
 	const matchURL = "magnet:?xt=urn:btih:0000000000000000000000000000000000000003"
@@ -237,7 +237,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 		t.Errorf("matched download_url = %q, want %q", matched.DownloadURL, matchURL)
 	}
 
-	// --- grab: the chosen release is handed to the download client ------------
+	// --- grab: the chosen release is sent to the download client -------------
 	var grabOut struct {
 		InfoHash string `json:"infohash"`
 		Outcome  string `json:"outcome"`
@@ -256,7 +256,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 		t.Errorf("grabbed items = %v, want [3]", grabOut.Items)
 	}
 
-	// The download client saw exactly one Add for the chosen release, tagged with
+	// The download client received exactly one Add for the chosen release, tagged with
 	// the default category.
 	if len(dl.Adds) != 1 {
 		t.Fatalf("download Add called %d times, want 1", len(dl.Adds))
@@ -295,7 +295,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 
 // TestGrabUnknownReleaseIsRejected covers the guard that a grab must name a
 // release from the current search: an unknown download_url is a 404, and nothing
-// is handed to the download client or recorded.
+// is sent to the download client or recorded.
 func TestGrabUnknownReleaseIsRejected(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga S1E03 [1080p]", DownloadURL: "magnet:?xt=urn:btih:3", Seeders: 100},

@@ -98,7 +98,7 @@ type itemFacts struct {
 
 // Stored outcomes and surfaced reasons differ deliberately: acquire records
 // seven, a row shows five. grabbed exists only as the tombstone that
-// invalidates an older rejection -- a listed item's grab plainly did not last,
+// invalidates an older refusal -- a listed item's grab plainly did not last,
 // and grab_failed is what that row shows. contended is silent too, because its
 // honest message is "the queue is working", which the group tier already reports.
 func passReason(outcome string) string {
@@ -118,7 +118,7 @@ func passReason(outcome string) string {
 }
 
 // itemReason is the reason specific to this row, or "" when the group and page
-// cover it all; fromPass reports whether the stored tier applied, which is the
+// cover it all; fromPass reports whether the stored tier won, which is the
 // one that may show an "as of" date.
 //
 // A pass answer outranks a failed grab because the two differ in kind. A

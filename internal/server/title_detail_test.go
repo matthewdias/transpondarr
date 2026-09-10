@@ -80,7 +80,7 @@ func TestAddTitleTakesTheProviderPair(t *testing.T) {
 	}
 }
 
-// The profile travels in the add request, so the add is atomic: the alternative
+// The profile is sent in the add request, so the add is atomic: the alternative
 // is a client-side add-then-assign whose second half can fail on its own.
 func TestAddTitleTakesTheQualityProfile(t *testing.T) {
 	provider := variantProvider{meta: metadata.TitleMeta{
@@ -120,7 +120,7 @@ func TestAddTitleTakesTheQualityProfile(t *testing.T) {
 	}
 }
 
-// The year reaches every title surface: decide matches on it (#209) and Place
+// The year appears on every title surface: decide matches on it (#209) and Place
 // names the folder with it (#198), so a client can show what was stored.
 func TestTitleYearOnEveryTitleSurface(t *testing.T) {
 	provider := variantProvider{meta: metadata.TitleMeta{

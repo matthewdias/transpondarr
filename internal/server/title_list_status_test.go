@@ -33,7 +33,7 @@ func listedTitles(t *testing.T, h *harness) map[int64]listedTitleJSON {
 }
 
 // The defect (#229): a film downloading, deferred or import-blocked had only
-// in_library and monitored to read from, so every one of them said "Wanted".
+// in_library and monitored to read from, so every one of them read "Wanted".
 func TestTitleListCarriesAFilmsItemState(t *testing.T) {
 	h := newHarness(t, nil, nil)
 
@@ -86,9 +86,9 @@ func TestTitleListReadsAFailedGrabAsWanted(t *testing.T) {
 
 // #208 guarantees one item only for a film added since it. 00022 re-keys a
 // legacy movie's episodes to kind 'movie' without collapsing them, so a
-// pre-#208 add of a film whose shorts shipped as one entry survives upgrade as
-// several -- and the list must then say what the detail page says, which is
-// items[0] (ListWantedItems orders by number).
+// pre-#208 add of a film whose shorts shipped as one entry persists through the
+// upgrade as several -- and the list must then report what the detail page
+// reports, which is items[0] (ListWantedItems orders by number).
 func TestTitleListReadsTheFirstItemOfALegacyMultiItemFilm(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	movieID := seedMovie(t, h.store, "Placeholder Shorts", 2019)

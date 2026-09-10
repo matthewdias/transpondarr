@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// restoreEnv puts keys back the way it found them, because loadDotEnv writes to
+// restoreEnv resets keys to their original values, because loadDotEnv writes to
 // the real process environment and would otherwise leak into the next test.
 func restoreEnv(t *testing.T, keys ...string) {
 	t.Helper()

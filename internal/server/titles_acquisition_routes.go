@@ -34,7 +34,7 @@ type candidateReleaseDTO struct {
 	UpgradeBlocked []upgradeBlockedDTO `json:"upgrade_blocked,omitempty" doc:"Covered items automation would not replace, and why; a manual grab is not gated by it"`
 }
 
-// upgradeBlockedDTO is one item in the library the upgrade policy rejected (#97).
+// upgradeBlockedDTO is one held item the upgrade policy rejected (#97).
 type upgradeBlockedDTO struct {
 	Item   int    `json:"item"`
 	Reason string `json:"reason"`
@@ -139,7 +139,7 @@ func (h *titleHandler) searchReleases(ctx context.Context, in *searchTitleInput)
 	return out, nil
 }
 
-// upgradeBlockedDTOs renders the rejections in item order, since a map has none.
+// upgradeBlockedDTOs renders the refusals in item order, since a map has none.
 func upgradeBlockedDTOs(blocked map[int]string) []upgradeBlockedDTO {
 	if len(blocked) == 0 {
 		return nil

@@ -182,8 +182,8 @@ func settingsSnapshot(t *testing.T, h *harness) map[string]any {
 	return out
 }
 
-// without deep-copies body with one field dropped, a dotted path reaching into a
-// section (ntfy.server). A name not in the body is fatal rather than a no-op, or
+// without deep-copies body with one field dropped, a dotted path naming a field
+// inside a section (ntfy.server). A name not in the body is fatal rather than a no-op, or
 // a typo'd field would make the omission case pass without omitting anything.
 func without(t *testing.T, body map[string]any, path string) map[string]any {
 	t.Helper()

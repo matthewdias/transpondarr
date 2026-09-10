@@ -15,9 +15,9 @@ import (
 )
 
 // Issue #107: AniList typography (×, ・, ☆, …) never appears in release names,
-// so it must not reach the indexer. All fixtures are invented titles.
+// so it must not be sent to the indexer. All fixtures are invented titles.
 
-// The stored title is sanitized before it hits the indexer: × becomes "x" and
+// The stored title is sanitized before it is sent to the indexer: × becomes "x" and
 // the parenthesized year loses its parens, or the full-text search finds nothing.
 func TestSearchSanitizesTitleTypography(t *testing.T) {
 	const sanitized = "RANGER x RANGER 2013"
@@ -81,7 +81,7 @@ func TestSearchFallsBackToVariantOnZeroResults(t *testing.T) {
 }
 
 // An indexer error during a fallback query surfaces as a 502 immediately — it
-// must not be swallowed into a zero-result response.
+// must not be folded into a zero-result response.
 func TestSearchIndexerErrorMidFallback502(t *testing.T) {
 	const english = "Fixture of the Sky Side Story"
 	idx := &coretest.FakeIndexer{
@@ -117,7 +117,7 @@ func (p variantProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, [
 	return p.meta, nil, nil
 }
 
-// seedAnilistTitle is seedTitle plus an AniList id, so the handler consults
+// seedAnilistTitle is seedTitle plus an AniList id, so the handler calls
 // the metadata provider for title variants.
 func seedAnilistTitle(t *testing.T, h *harness, title string, anilistID int64, count int) int64 {
 	t.Helper()

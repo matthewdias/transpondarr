@@ -97,7 +97,7 @@ func TestASupersededGrabsTorrentBecomesUnmatched(t *testing.T) {
 			t.Fatalf("grab %s = %d, want 201", url, code)
 		}
 	}
-	// Both are in the client; only the second is still spoken for.
+	// Both are in the client; only the second is still referenced.
 	dl.Statuses = []download.Status{
 		{Hash: "aaaa1111", Name: "the superseded one", Category: "transpondarr", State: download.StateDownloading},
 		{Hash: "bbbb2222", Name: "the one that replaced it", Category: "transpondarr", State: download.StateDownloading},
@@ -113,7 +113,7 @@ func TestASupersededGrabsTorrentBecomesUnmatched(t *testing.T) {
 }
 
 // An unmatched torrent has no grab row behind it, so the listing is the only
-// place a human can identify it from — which takes size and age, not just a name
+// place a human can identify it from — which needs size and age, not just a name
 // and a hash (#131).
 func TestUnmatchedDownloadsCarrySizeAndAddedTime(t *testing.T) {
 	added := time.Date(2025, 8, 7, 12, 0, 0, 0, time.UTC)
@@ -165,7 +165,7 @@ func TestUnmatchedDownloadsMatchHashesCaseInsensitively(t *testing.T) {
 
 // Client trouble degrades to an empty list, matching the queue's stance that it
 // answers even when the client cannot. Guessing would be worse than silence: an
-// unanswered client cannot say whose torrents these are.
+// unanswered client cannot report whose torrents these are.
 func TestUnmatchedDownloadsDegradeWhenTheClientCannotAnswer(t *testing.T) {
 	t.Run("no client configured", func(t *testing.T) {
 		h := newHarness(t, nil, nil)
@@ -190,7 +190,7 @@ func TestUnmatchedDownloadsDegradeWhenTheClientCannotAnswer(t *testing.T) {
 	})
 }
 
-// The removal is opt-in on the data, and the flag reaches the client unchanged.
+// The removal is opt-in on the data, and the flag is sent to the client unchanged.
 func TestRemoveUnmatchedDownloadPassesDeleteDataThrough(t *testing.T) {
 	for _, c := range []struct {
 		name  string
@@ -245,7 +245,7 @@ func TestRemoveUnmatchedDownloadRefusesAHashThatBecameReferenced(t *testing.T) {
 }
 
 // The category is the entire safety boundary: a torrent outside it is the
-// user's, and this endpoint cannot touch it whatever hash it is handed.
+// user's, and this endpoint cannot remove it whatever hash it is sent.
 func TestRemoveUnmatchedDownloadRefusesATorrentOutsideOurCategory(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "ffff6666", Name: "the user's own torrent", Category: "movies", State: download.StateComplete},
@@ -263,8 +263,8 @@ func TestRemoveUnmatchedDownloadRefusesATorrentOutsideOurCategory(t *testing.T) 
 	}
 }
 
-// A client that refuses the delete is a 502, as the title removal is: the
-// request was fine, the client said no.
+// A client that rejects the delete is a 502, as the title removal is: the
+// request was fine, the failure is the client's.
 func TestRemoveUnmatchedDownloadReportsAClientRefusal(t *testing.T) {
 	dl := &coretest.FakeDownload{
 		Statuses:  []download.Status{{Hash: "eeee5555", Category: "transpondarr", State: download.StateDownloading}},
@@ -278,7 +278,7 @@ func TestRemoveUnmatchedDownloadReportsAClientRefusal(t *testing.T) {
 }
 
 // With no client there is nothing to enumerate, so the delete cannot establish
-// that the hash is ours — a 503, not a blind removal.
+// that the hash is ours — a 503, not an unchecked removal.
 func TestRemoveUnmatchedDownloadWithoutAClient(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	if code := do(t, h, http.MethodDelete, "/api/v1/activity/unmatched/eeee5555", nil, nil); code != http.StatusServiceUnavailable {

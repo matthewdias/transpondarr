@@ -74,7 +74,7 @@ func TestAutomationSettingsRejectsUnknownMode(t *testing.T) {
 }
 
 // An hour count this size wraps int64 into a negative duration when multiplied
-// out, so the write path clamps rather than trusting the client.
+// out, so the write path clamps rather than using the client's value.
 func TestAutomationSettingsClampsPinDelay(t *testing.T) {
 	h := newHarness(t, nil, nil)
 
@@ -150,7 +150,7 @@ func TestLibraryMoviesRootRoundTrip(t *testing.T) {
 }
 
 // The layout is edited through the same section as the roots (#129), and an
-// unrecognised one is refused rather than stored for the next start to read.
+// unrecognised one is rejected rather than stored for the next start to read.
 func TestLibrarySeriesLayoutRoundTrip(t *testing.T) {
 	h := newHarness(t, nil, nil)
 

@@ -99,8 +99,8 @@ func TestListJobsReportsLastRunDurationAndError(t *testing.T) {
 	}
 }
 
-// #122's acceptance criterion: the endpoint queues the run and says so at once,
-// rather than holding the request open for the job's duration.
+// #122's acceptance criterion: the endpoint queues the run and reports it at once,
+// rather than keeping the request open for the job's duration.
 func TestRunJobTriggersTheJob(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	ran := make(chan struct{}, 1)

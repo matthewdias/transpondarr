@@ -10,8 +10,8 @@ import (
 	"github.com/matthewdias/transpondarr/internal/coretest"
 )
 
-// #125 showed a pack as matched-but-ineligible; #126's per-file import lifts the
-// refusal, so it is now matched *and* eligible over the API — the Releases tab
+// #125 showed a pack as matched-but-ineligible; #126's per-file import removes
+// the refusal, so it is now matched *and* eligible over the API — the Releases tab
 // still names the episodes it covers, and one request still grabs it.
 func TestSeasonPackIsMatchedAndEligibleAndGrabs(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:seasonpack"

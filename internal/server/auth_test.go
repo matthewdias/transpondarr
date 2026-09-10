@@ -132,14 +132,14 @@ func TestAuthSessionPath(t *testing.T) {
 	if !hasSessionCookie(client, ts) {
 		t.Fatal("login did not set a session cookie")
 	}
-	// The jar-carried cookie now authorizes the protected route.
+	// The cookie from the jar now authorizes the protected route.
 	if code := getWith(t, ts, client, nil); code != http.StatusOK {
 		t.Errorf("with session: status = %d, want 200", code)
 	}
 }
 
 // TestAuthLocalModeBypassAndGuards covers the local-address admission path and
-// the two things that must defeat it: a non-literal Host (DNS-rebinding guard)
+// the two things that must block it: a non-literal Host (DNS-rebinding guard)
 // and any proxy-forwarding header.
 func TestAuthLocalModeBypassAndGuards(t *testing.T) {
 	ts, _ := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredLocal})
@@ -202,7 +202,7 @@ func TestAuthModeRequiresTheModeItSets(t *testing.T) {
 		t.Errorf("mode after an unknown mode = %q, want the stored %q", got, auth.RequiredLocal)
 	}
 	// Case-sensitive, so this body answers on the same terms as the Huma enums
-	// the rule reaches: {"mode":"COPY"} is a 422.
+	// the rule covers: {"mode":"COPY"} is a 422.
 	if code := setAuthMode(t, ts, map[string]string{"required": "ENABLED"}); code != http.StatusBadRequest {
 		t.Errorf("POST /auth/mode with a case variant = %d, want 400", code)
 	}
@@ -252,8 +252,8 @@ func TestAuthPasswordChangeIsRateLimited(t *testing.T) {
 }
 
 // TestAuthPasswordLimiterSharesBucket pins the deliberate choice of one bucket for
-// both password-verifying endpoints: spending the budget on login must leave none
-// for change-password, since both guess at the same admin credential.
+// both password-verifying endpoints: consuming the budget on login must leave none
+// for change-password, since both verify the same admin credential.
 func TestAuthPasswordLimiterSharesBucket(t *testing.T) {
 	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredLocal})
 	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {
@@ -272,7 +272,7 @@ func TestAuthPasswordLimiterSharesBucket(t *testing.T) {
 
 // TestAuthPasswordLimiterIsAtomic guards the limiter's check-then-act step against
 // concurrent attempts: httprate holds its mutex across the read and the increment,
-// so a burst must not slip more than the budget through to verification.
+// so a burst must not pass more than the budget through to verification.
 func TestAuthPasswordLimiterIsAtomic(t *testing.T) {
 	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredEnabled})
 	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {

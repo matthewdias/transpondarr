@@ -175,8 +175,8 @@ func TestQueueItemPayloadRefusesRowsWithNothingToFix(t *testing.T) {
 	}
 }
 
-// A torrent the client forgot has no payload to fix, and saying so is more
-// useful than an empty file list.
+// A torrent missing from the client has no payload to fix, and reporting that is
+// more useful than an empty file list.
 func TestQueueItemPayloadReportsAVanishedTorrent(t *testing.T) {
 	h := newHarness(t, nil, &coretest.FakeDownload{})
 	_, deferredID, _ := deferredRelease(t, h)
@@ -222,7 +222,7 @@ func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 	}
 }
 
-// An assignment the importer could not carry out is refused whole, so the
+// An assignment the importer could not apply is rejected whole, so the
 // dialog reports it rather than half-applying and leaving a mess.
 func TestRetryImportRejectsAnUnusableAssignment(t *testing.T) {
 	h := newHarness(t, nil, &coretest.FakeDownload{})
@@ -238,7 +238,7 @@ func TestRetryImportRejectsAnUnusableAssignment(t *testing.T) {
 }
 
 // A retry against a row that already settled is the same 409 the payload read
-// gives: there is nothing left to reopen.
+// returns: there is nothing left to reopen.
 func TestRetryImportRefusesASettledRow(t *testing.T) {
 	h := newHarness(t, nil, &coretest.FakeDownload{})
 	_, _, importedID := deferredRelease(t, h)

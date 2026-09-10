@@ -21,7 +21,7 @@ import (
 const sweepJobName = "wanted-search"
 
 // lastPassDTO dates the one stored reason a row can show (#181). It is emitted
-// only when the pass tier applied: everything else is computed at request time,
+// only when the pass tier won: everything else is computed at request time,
 // and an "as of" on a fresh answer would misreport how it was derived.
 type lastPassDTO struct {
 	ReleaseTitle string `json:"release_title,omitempty" doc:"The release the pass acted on or turned down; absent when nothing matched"`

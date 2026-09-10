@@ -56,7 +56,7 @@ func TestSetItemCountEndpointRefusesAnUnknownTitle(t *testing.T) {
 }
 
 // Required with no default, per #227: an omitted count must not be able to
-// choose a value, and a zero one must not create an itemless title's nothing.
+// set a value, and a zero one must not create an itemless title's nothing.
 func TestSetItemCountEndpointRejectsAnAbsentOrZeroCount(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 0)

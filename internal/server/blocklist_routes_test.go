@@ -103,7 +103,7 @@ func TestListAndClearTitleBlocklist(t *testing.T) {
 	}
 
 	// Assert the status: an error body decodes into blocklistJSON as zero entries,
-	// which would misreport a broken endpoint as an over-eager delete.
+	// which would misreport a broken endpoint as a successful bulk delete.
 	var after blocklistJSON
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", titleID), &after); code != http.StatusOK {
 		t.Fatalf("re-list status = %d, want 200", code)
@@ -114,8 +114,8 @@ func TestListAndClearTitleBlocklist(t *testing.T) {
 }
 
 // The visibility win the blocklist buys by reusing ineligible_reason: the
-// Releases tab says why a release was passed over, and a manual grab of it still
-// succeeds (PR #57) rather than being refused.
+// Releases tab reports why a release was passed over, and a manual grab of it
+// still succeeds (PR #57) rather than being rejected.
 func TestBlocklistedReleaseSurfacesAsIneligibleButStillGrabs(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:blocked"
 	const title = "[TopSubs] Placeholder Saga - 03 [1080p]"
@@ -225,7 +225,7 @@ func TestClearTitleBlocklistInBulk(t *testing.T) {
 	}
 }
 
-// The incident affordance: a fault does not respect title boundaries, so
+// The incident affordance: a fault does not stop at title boundaries, so
 // neither the summary an operator reads nor the clear they reach for is scoped
 // to one.
 func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {

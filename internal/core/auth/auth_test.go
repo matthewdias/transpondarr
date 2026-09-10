@@ -129,7 +129,7 @@ func TestCleanupExpiredRemovesOnlyExpiredSessions(t *testing.T) {
 	}
 }
 
-// The sweep must report failure rather than swallow it: it is the only thing
+// The sweep must report failure rather than discard it: it is the only thing
 // bounding the sessions table on a long-lived instance, so a silent failure
 // would reproduce issue #4. The job runner logs what this returns.
 func TestCleanupExpiredReportsStoreFailure(t *testing.T) {
@@ -207,7 +207,7 @@ func assertOneHold(t *testing.T, svc *Service, probe *lockProbe) {
 	}
 }
 
-// The stored mode and the in-memory one must move together: divergence survives
+// The stored mode and the in-memory one must move together: divergence persists
 // until the next restart, which resolves to the DB, so a runtime "enabled" over a
 // stored "local" silently stops enforcing auth at the next boot.
 func TestSetRequiredWritesSettingsUnderLock(t *testing.T) {
@@ -231,8 +231,8 @@ func TestSetRequiredWritesSettingsUnderLock(t *testing.T) {
 }
 
 // CreateUser has the same divergence with a wider window: two settings writes and
-// then one lock, so a concurrent pair can leave the stored hash and the live one
-// disagreeing.
+// then one lock, so a concurrent pair can leave the stored hash different from
+// the live one.
 func TestCreateUserWritesSettingsUnderLock(t *testing.T) {
 	svc, st, probe := newProbedAuth(t)
 	ctx := context.Background()
@@ -253,7 +253,7 @@ func TestCreateUserWritesSettingsUnderLock(t *testing.T) {
 	}
 }
 
-// blockingWriter parks the first settings write until released, so a test can
+// blockingWriter blocks the first settings write until released, so a test can
 // observe the service while a write is in flight.
 type blockingWriter struct {
 	inner   settingsWriter
@@ -307,8 +307,8 @@ func TestReadsDoNotWaitForAWriteInFlight(t *testing.T) {
 	}
 }
 
-// A writer publishes a whole snapshot, so the fields it does not touch have to
-// survive the swap (#264).
+// A writer publishes a whole snapshot, so the fields it does not change have to
+// persist across the swap (#264).
 func TestAWriteKeepsTheFieldsItDoesNotTouch(t *testing.T) {
 	svc, _ := newTestAuth(t)
 	ctx := context.Background()

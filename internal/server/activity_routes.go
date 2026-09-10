@@ -212,8 +212,8 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 			return nil, huma.Error500InternalServerError("failed to list open grabs", err)
 		}
 
-		// Client trouble degrades to grab state, never a 5xx: the queue must still
-		// respond even when the client cannot.
+		// Client trouble degrades to grab state, never a 5xx: the queue's job is
+		// to answer even when the client cannot.
 		byHash := map[string]download.Status{}
 		clientOk := false
 		if dl := deps.clients.Download(); dl != nil {

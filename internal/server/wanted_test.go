@@ -122,7 +122,7 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 	h := wantedHarness(t)
 	ctx := context.Background()
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 4)
-	// 1 is held, 2 is downloading, 3 failed and is wanted again, 4 untouched.
+	// 1 is held, 2 is downloading, 3 failed and is wanted again, 4 unchanged.
 	if err := h.store.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
 		InLibrary: 1, HeldReleaseTitle: "[ExampleSubs] Placeholder Saga - 01 [1080p]", ID: itemID(t, h.store, titleID, 1),
 	}); err != nil {
@@ -160,9 +160,9 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 	}
 }
 
-// The Calendar owns the forward-looking view, so an unaired item is withheld
-// until asked for; an item with no schedule at all is not unaired and always
-// shows, matching how the sweep reads a null air date.
+// The Calendar is responsible for the forward-looking view, so an unaired item
+// is withheld until asked for; an item with no schedule at all is not unaired
+// and always shows, matching how the sweep reads a null air date.
 func TestMissingUnairedToggle(t *testing.T) {
 	h := wantedHarness(t)
 	titleID := seedTitle(t, h.store, "Airing Show", 3)
@@ -232,7 +232,7 @@ func recordPassOutcome(t *testing.T, st *store.Store, titleID int64, number int,
 	}
 }
 
-// #181's tier: what the last pass decided reaches the row, dated, with the
+// #181's tier: what the last pass decided appears on the row, dated, with the
 // release it acted on -- and only when that tier actually won, since an
 // "as of" stamped on a freshly derived answer would misrepresent it.
 func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
@@ -495,7 +495,7 @@ func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
 	}
 }
 
-// The page-level tier: what stops any search running at all is said once, not
+// The page-level tier: what stops any search running at all is reported once, not
 // stamped on every row.
 func TestMissingReportsTheGlobalReason(t *testing.T) {
 	h := wantedHarness(t) // automation on, indexer set
@@ -532,7 +532,7 @@ func TestMissingReportsTheGlobalReason(t *testing.T) {
 }
 
 // The pagination unit is the group, so a title never splits across a page
-// boundary: every group appears exactly once, whole, and the last page carries
+// boundary: every group appears exactly once, whole, and the last page has
 // no cursor.
 func TestMissingPaginatesByGroup(t *testing.T) {
 	h := wantedHarness(t)
@@ -585,7 +585,7 @@ func TestMissingPaginatesByGroup(t *testing.T) {
 }
 
 // Cutoff Unmet is queried from stored state: the held release is re-scored under
-// the title's current profile, so the row carries the numbers behind the claim.
+// the title's current profile, so the row reports the numbers behind the claim.
 func TestCutoffUnmetRoute(t *testing.T) {
 	h := wantedHarness(t)
 	ctx := context.Background()
@@ -623,8 +623,8 @@ func TestCutoffUnmetRoute(t *testing.T) {
 	if g.TitleID != titleID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
 		t.Errorf("group = %+v, want the profile and cutoff hoisted to the header", g)
 	}
-	// Format rides the group so the page can word a film's row without calling
-	// it an episode (#215); it travels through acquire.CutoffGroup, not the
+	// Format is on the group so the page can word a film's row without labelling
+	// it an episode (#215); it comes through acquire.CutoffGroup, not the
 	// row's own struct, which is the join this asserts.
 	if g.Format != "TV" {
 		t.Errorf("group format = %q, want TV", g.Format)
@@ -643,7 +643,7 @@ func TestCutoffUnmetRoute(t *testing.T) {
 		t.Error("want the held release title carried through")
 	}
 	// The held [MidSubs] 720p under TopSubs>MidSubs at 1080p>720p leaves the top
-	// group and top resolution unearned, 100 points each.
+	// group and top resolution unawarded, 100 points each.
 	goals := map[string]int{}
 	for _, g := range got.UnmetGoals {
 		goals[g.Label] = g.Points
@@ -659,7 +659,7 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	h := wantedHarness(t)
 	ctx := context.Background()
 	// The daemon registers this job; the harness runner is empty, so the route's
-	// trigger has nothing to reach until the test supplies it.
+	// trigger has nothing to trigger until the test supplies it.
 	h.jobs.Add(jobs.Job{Name: "wanted-search", Interval: time.Hour,
 		Run: func(context.Context) error { return nil }})
 	one := seedTitle(t, h.store, "One", 1)
@@ -724,7 +724,7 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 }
 
 // Notify-only is reported rather than hidden: the run happens and rehearses, so
-// the caller can say nothing will reach the download client.
+// the response states that nothing will be sent to the download client.
 func TestQueueSearchReportsNotifyOnly(t *testing.T) {
 	h := wantedHarness(t)
 	if err := h.settings.UpdateAutomation(context.Background(), settings.AutomationConfig{
