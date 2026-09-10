@@ -74,7 +74,7 @@ func TestImportDispatchesImportedEvent(t *testing.T) {
 	}
 }
 
-// A pack landing six episodes is one arrival, not six: one event carrying the
+// A pack landing six episodes is one arrival, not six: one event listing the
 // numbers, so a season import cannot spam a phone.
 func TestMultiItemImportDispatchesOneEvent(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -206,7 +206,7 @@ func TestFailedDownloadNotifiesOncePerRelease(t *testing.T) {
 }
 
 // The vanished-from-client path fires the same event as an in-client error, and
-// a nil blocklist must not silence it.
+// a nil blocklist must not suppress it.
 func TestVanishedDownloadNotifiesGrabFailed(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")

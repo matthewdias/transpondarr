@@ -124,7 +124,7 @@ func TestRetryImportAfterExtractionImports(t *testing.T) {
 	}
 }
 
-// Retrying before extracting is the likely misclick, and the archive still holds
+// Retrying before extracting is the likely misclick, and the archive still contains
 // the episode: the row must stay deferred rather than fail and revert its item.
 func TestRetryImportWithNothingExtractedStaysDeferred(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -183,7 +183,7 @@ func TestListPayloadRefusesANonDeferredGrab(t *testing.T) {
 }
 
 // A torrent the client no longer reports has no payload to walk, and the retry
-// must say so rather than reporting an empty file list.
+// must report that rather than an empty file list.
 func TestListPayloadReportsAVanishedPayload(t *testing.T) {
 	st := coretest.NewStore(t)
 	dir := writeTree(t,
@@ -274,7 +274,7 @@ func TestRetryImportWithoutAssignmentsRemaps(t *testing.T) {
 	}
 }
 
-// Assignment validation refuses the whole retry rather than half-applying it.
+// Assignment validation errors on the whole retry rather than half-applying it.
 func TestRetryImportRejectsInvalidAssignments(t *testing.T) {
 	st := coretest.NewStore(t)
 	dir := writeTree(t,
@@ -321,7 +321,7 @@ func TestRetryImportRejectsDuplicateAssignments(t *testing.T) {
 }
 
 // Only a settled row reopens: a row still downloading under the same release
-// stays the scan's business, so a retry never disturbs it.
+// is left to the scan, so a retry never disturbs it.
 func TestRetryImportLeavesGrabbedRowsAlone(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()

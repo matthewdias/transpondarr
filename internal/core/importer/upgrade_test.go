@@ -11,7 +11,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// seedHeldGrab is seedGrab for an item the library already holds: an upgrade in
+// seedHeldGrab is seedGrab for an item the library already has: an upgrade in
 // flight over the release named by heldTitle.
 func seedHeldGrab(t *testing.T, st *store.Store, hash, heldTitle string) (itemID, titleID int64) {
 	t.Helper()
@@ -24,7 +24,7 @@ func seedHeldGrab(t *testing.T, st *store.Store, hash, heldTitle string) (itemID
 	return itemID, titleID
 }
 
-// heldTitleOf reads what the store says holds an item.
+// heldTitleOf reads the release name the store has for an item.
 func heldTitleOf(t *testing.T, st *store.Store, itemID int64) (int64, string) {
 	t.Helper()
 	var inLibrary int64
@@ -48,9 +48,9 @@ func completedSource(t *testing.T, hash string) *coretest.FakeDownload {
 	}}
 }
 
-// An import onto an item we already hold is a replacement, and it is the single
-// place held identity is written: the library and the name of what is in it move
-// together.
+// An import onto an item already in the library is a replacement, and it is the
+// single place held identity is written: the library and the name of what is in
+// it change together.
 func TestImportOfAHeldItemReplacesAndRecordsTheNewRelease(t *testing.T) {
 	st := coretest.NewStore(t)
 	itemID, _ := seedHeldGrab(t, st, "abc", "[ExampleSubs] Placeholder Saga - 05 [480p]")

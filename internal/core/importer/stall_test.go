@@ -36,20 +36,20 @@ func backdateStalledSince(t *testing.T, st *store.Store, hash string, ago time.D
 }
 
 // stalled is what the client reports for a torrent announcing fine with nothing
-// coming in: present, so every other reconciliation path passes it over.
+// coming in: present, so every other reconciliation path skips it.
 func stalled(hash string, progress float64) download.Status {
 	return download.Status{Hash: hash, State: download.StateStalled, Progress: progress, ContentPath: "/whatever"}
 }
 
 // fetchingMetadata is what the client reports for a magnet whose swarm never
-// answered: qBittorrent's metaDL and forcedMetaDL both map here (#246), so this
-// is the "Downloading metadata" torrent the timeout could not previously reach.
+// responded: qBittorrent's metaDL and forcedMetaDL both map here (#246), so this
+// is the "Downloading metadata" torrent the timeout previously never applied to.
 func fetchingMetadata(hash string, progress float64) download.Status {
 	return download.Status{Hash: hash, State: download.StateDownloading, Progress: progress, ContentPath: "/whatever"}
 }
 
 // A magnet parked at "Downloading metadata" is never reported stalled, so before
-// #246 it sat open forever. The client says it is trying and nothing has arrived,
+// #246 it sat open forever. The client reports it as downloading and nothing has arrived,
 // which is the same fact the stall timeout acts on.
 func TestFailsGrabFetchingMetadataAtZeroPastTimeout(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -68,7 +68,7 @@ func TestFailsGrabFetchingMetadataAtZeroPastTimeout(t *testing.T) {
 		t.Errorf("status = %q, want failed: a download that never started is the stall the timeout is for", g.Status)
 	}
 	assertItemFreed(t, st, titleID, 5)
-	// Blame is inherited from #242's arm rather than re-decided: the client holds
+	// Blame is inherited from #242's arm rather than re-decided: the client still manages
 	// the torrent and reports no swarm, which is observed, not inferred (#241).
 	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
 	if err != nil {
@@ -79,7 +79,7 @@ func TestFailsGrabFetchingMetadataAtZeroPastTimeout(t *testing.T) {
 	}
 }
 
-// A download that has moved is never abandoned, whichever state carries it: the
+// A download that has moved is never abandoned, whichever state it is in: the
 // widened predicate reads progress, not just the state name.
 func TestLeavesAFetchingMetadataDownloadWithProgressAlone(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -103,8 +103,8 @@ func TestLeavesAFetchingMetadataDownloadWithProgressAlone(t *testing.T) {
 
 // The clearing loop and the switch arm must read the *same* predicate. If only
 // the arm widened, a metadata stall would have its clock cleared and restarted
-// every scan, so the timeout would never accumulate and the grab would sit open
-// forever -- the bug being fixed, surviving the fix.
+// every scan, so the timeout would never accumulate and the grab would stay open
+// forever -- the bug being fixed, still there after the fix.
 func TestKeepsMetadataStallClockAcrossScans(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -125,8 +125,8 @@ func TestKeepsMetadataStallClockAcrossScans(t *testing.T) {
 	}
 }
 
-// A stall that outlives the timeout with nothing downloaded settles the grab, so
-// the item is wanted again instead of sitting open forever (#242).
+// A stall lasting longer than the timeout with nothing downloaded settles the
+// grab, so the item is wanted again instead of staying open forever (#242).
 func TestFailsGrabStalledAtZeroPastTimeout(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, titleID := seedGrab(t, st, "abc")
@@ -149,7 +149,7 @@ func TestFailsGrabStalledAtZeroPastTimeout(t *testing.T) {
 }
 
 // Nobody seeding this release is a fact about the release, so unlike an absence
-// it is remembered and the title is re-fronted in the search queue (#241).
+// it is recorded and the title is re-fronted in the search queue (#241).
 func TestStalledGrabRecordsBlocklistEntry(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, titleID := seedGrab(t, st, "abc")
@@ -173,7 +173,7 @@ func TestStalledGrabRecordsBlocklistEntry(t *testing.T) {
 	if len(entries) != 1 {
 		t.Fatalf("recorded %d entries, want 1: a release nobody seeds is the release's failure", len(entries))
 	}
-	// Not an existing reason: the client reported no error, so borrowing that
+	// Not an existing reason: the client reported no error, so reusing that
 	// wording would misattribute it the way #241 and #244 both had to correct.
 	if !strings.Contains(entries[0].Reason, "stalled at 0%") {
 		t.Errorf("reason = %q, want it to name the stall", entries[0].Reason)
@@ -183,7 +183,7 @@ func TestStalledGrabRecordsBlocklistEntry(t *testing.T) {
 	}
 }
 
-// The timeout runs from a stall that persisted, so the first sighting only
+// The timeout runs from a stall that persisted, so the first scan only
 // starts the clock.
 func TestWatchesStallOnFirstObservation(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -226,7 +226,7 @@ func TestKeepsStallClockAcrossScans(t *testing.T) {
 }
 
 // A torrent that moved at all proves a peer had the data, so the bytes on disk
-// are the user's to discard however long it then sits.
+// are the user's to discard however long it then stays stalled.
 func TestLeavesStallWithProgressAlone(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -276,10 +276,10 @@ func TestStallThatResumesClearsTheClock(t *testing.T) {
 	}
 }
 
-// Only a client that says it is trying qualifies. A pause is deliberate user
-// intent, StateUnknown is a gap in our own mapping, and a queued torrent is one
-// the client is holding back on purpose -- blaming a release for any of them is
-// wrong, however long it sits (#246).
+// Only a client reporting a download in progress qualifies. A pause is deliberate
+// user intent, StateUnknown is a gap in our own mapping, and a queued torrent is
+// one the client is deliberately not downloading yet -- blaming a release for any
+// of them is wrong, however long it stays there (#246).
 func TestStatesTheClientIsNotTryingAreNeverGivenUpOn(t *testing.T) {
 	for _, state := range []download.State{
 		download.StatePaused,
@@ -311,9 +311,9 @@ func TestStatesTheClientIsNotTryingAreNeverGivenUpOn(t *testing.T) {
 	}
 }
 
-// An upgrade holds an item the library already has (#97). Failing its grab must
-// free the grab and nothing else -- the file we hold is untouched by a download
-// that never started.
+// An upgrade is for an item the library already has (#97). Failing its grab must
+// free the grab and nothing else -- the file already in the library is untouched
+// by a download that never started.
 func TestStalledUpgradeLeavesTheHeldFileAlone(t *testing.T) {
 	st := coretest.NewStore(t)
 	itemID, titleID := seedGrab(t, st, "abc")
@@ -349,7 +349,7 @@ func TestStalledUpgradeLeavesTheHeldFileAlone(t *testing.T) {
 
 // A VPN drop or a closed port stalls every torrent at 0% at once, and they all
 // cross the timeout in one scan. #120's breaker is the containment, and it is
-// only containment if this path feeds it: four distinct items are blamed and
+// only containment if this path runs through it: four distinct items are blamed and
 // everything after is suppressed, however many dropped.
 func TestStallFanOutIsContainedByTheBreaker(t *testing.T) {
 	const titles = 8
@@ -379,7 +379,7 @@ func TestStallFanOutIsContainedByTheBreaker(t *testing.T) {
 		recorded += len(entries)
 	}
 	// Every item is freed either way: freeing is self-healing, blaming is the
-	// judgement the breaker withholds.
+	// judgement the breaker suppresses.
 	for _, id := range titleIDs {
 		assertItemFreed(t, st, id, 1)
 	}
@@ -416,10 +416,10 @@ func TestStallTimeoutIsReadEachScan(t *testing.T) {
 	}
 }
 
-// Zero disables the timeout rather than making it instant, so an install that
-// wants today's behaviour keeps it -- and it banks no time while off, or
-// restoring a timeout would fail on the next scan what it was set to 0 to hold.
-// Holding a download by pausing it and by turning the timeout off must agree.
+// Zero disables the timeout rather than making it instant, so an install on
+// today's behaviour keeps it -- and it banks no time while off, or restoring a
+// timeout would fail on the next scan what it was set to 0 to hold. Holding a
+// download by pausing it and by turning the timeout off must behave the same.
 func TestStallTimeoutZeroNeverGivesUpAndBanksNoTime(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")

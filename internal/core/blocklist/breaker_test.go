@@ -67,7 +67,7 @@ func TestBreakerTripsWhenManyDistinctItemsFail(t *testing.T) {
 	}
 }
 
-// The other direction, and the one that matters more: one item working through
+// The other direction, and the one that matters more: one item cycling through
 // its candidate pool is exactly what the ladder exists for. However fast it
 // churns, it is one item, so it must never trip the breaker.
 func TestBreakerIgnoresOneItemExhaustingItsCandidates(t *testing.T) {
@@ -88,7 +88,7 @@ func TestBreakerIgnoresOneItemExhaustingItsCandidates(t *testing.T) {
 // The mirror of the depth rule, and the one that is easy to miss: one release's
 // breadth is not evidence about that release either. A season batch is the
 // standard anime backfill shape, so counting its own items against it would
-// refuse to remember every dead batch URL -- #118 all over again, for the case
+// suppress the record for every dead batch URL -- #118 all over again, for the case
 // that covers the most episodes.
 func TestBreakerRemembersABatchCoveringEnoughItemsToTripIt(t *testing.T) {
 	svc, _, title := newService(t)
@@ -106,7 +106,7 @@ func TestBreakerRemembersABatchCoveringEnoughItemsToTripIt(t *testing.T) {
 	}
 }
 
-// The same batch reaching the breaker the way the importer delivers it: a grab
+// The same batch arriving at the breaker the way the importer delivers it: a grab
 // row per covered item, so one dead release arrives as many single-item calls
 // that only its identity ties together.
 func TestBreakerRemembersABatchFailingItemByItem(t *testing.T) {
@@ -153,7 +153,7 @@ func TestBreakerForgetsFailuresOlderThanTheWindow(t *testing.T) {
 		record(t, svc, title.ID, item, fmt.Sprintf("[SynthSubs] Placeholder Saga - %02d", item))
 	}
 
-	// Far enough on that items 1 and 2 have left the window, leaving 3 and 4.
+	// Far enough on that items 1 and 2 are older than the window, leaving 3 and 4.
 	at(svc, start.Add(breakerWindow+2*time.Minute))
 	if st := svc.BreakerState(); st.Items != 2 {
 		t.Fatalf("items in window = %d, want the 2 still inside it", st.Items)

@@ -54,8 +54,8 @@ func seedOneItemGrab(t *testing.T, st *store.Store, title, hash string, format d
 	return s.ID
 }
 
-// movieLibrary is a real media-server target over both roots, so these tests see
-// the layout a movie lands in rather than a fake's canned destination.
+// movieLibrary is a real media-server target over both roots, so these tests
+// assert the layout a movie lands in rather than a fake's canned destination.
 func movieLibrary(t *testing.T) (target *mediaserver.Target, series, movies string) {
 	t.Helper()
 	series, movies = t.TempDir(), t.TempDir()
@@ -86,7 +86,7 @@ func heldByTitle(t *testing.T, st *store.Store, titleID int64) bool {
 // grow pads a payload file, so a test states which video is the feature rather
 // than leaving every candidate the same size and the choice to a tie. The
 // content is stamped with the file's own name, so two equally sized videos are
-// still tellable apart once one of them is in the library.
+// still distinguishable once one of them is in the library.
 func grow(t *testing.T, dir, rel string, size int) {
 	t.Helper()
 	body := make([]byte, size)
@@ -96,7 +96,7 @@ func grow(t *testing.T, dir, rel string, size int) {
 	}
 }
 
-// wantPlacedFrom asserts which payload file the library ended up holding.
+// wantPlacedFrom asserts which payload file ended up in the library.
 func wantPlacedFrom(t *testing.T, dest, rel string) {
 	t.Helper()
 	body, err := os.ReadFile(dest)
@@ -169,7 +169,7 @@ func wantFiles(t *testing.T, root string, want ...string) {
 	}
 }
 
-// The target routes on format and names on year, so both have to reach Place —
+// The target routes on format and names on year, so both have to be passed to Place —
 // neither is derivable from the wanted item.
 func TestImportPassesFormatAndYearToTheLibrary(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -192,7 +192,7 @@ func TestImportPassesFormatAndYearToTheLibrary(t *testing.T) {
 }
 
 // The missing-root decision, end to end: a movie grabbed with no movies root
-// configured holds with a legible error instead of landing in the title root,
+// configured stays grabbed with a legible error instead of landing in the title root,
 // and imports on the next scan once the root is set.
 func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -222,7 +222,7 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 	}
 
 	// The cause is a path-mapping gap, not a bad release: nothing may be
-	// remembered against the release or spent from the failure ladder.
+	// recorded against the release or spent from the failure ladder.
 	if blocked, _ := st.Q.ListBlocklistByTitle(ctx, titleID); len(blocked) != 0 {
 		t.Errorf("blocklisted %d release(s); an unconfigured root says nothing about the release", len(blocked))
 	}
@@ -257,7 +257,7 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 
 // --- the payload shapes a movie arrives in ----------------------------------
 
-// The lone-file rule is what carries a movie: nothing in its filename names an
+// The lone-file rule is what maps a movie: nothing in its filename names an
 // item, so the only thing that can identify it is that we chose this release for
 // this one item. It lands in the movie layout, with no season folder anywhere.
 func TestMovieSingleVideoPlacesByTheLoneFileRule(t *testing.T) {
@@ -315,7 +315,7 @@ func TestMoviePayloadPicksTheFeatureOverSamplesAndExtras(t *testing.T) {
 	}
 }
 
-// A sample is a truncated copy of the film, never the film, so it is held out of
+// A sample is a truncated copy of the film, never the film, so it is excluded from
 // the sole-video relaxation before the video is counted at all. The payload
 // yields nothing and the grab settles as a deferral a human can look at.
 func TestMovieSampleIsNeverTheFeature(t *testing.T) {
@@ -350,7 +350,7 @@ func TestMovieSampleIsNeverTheFeature(t *testing.T) {
 
 // The yield itself: one video and nothing to confuse it with means an extras
 // token in its name is a word in the title, which is how a "Bonus Edition"
-// release imports instead of parking with the file sitting right there.
+// release imports instead of parking with the file present the whole time.
 func TestMovieSoleVideoWithAnExtrasTokenIsStillTheFeature(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedMovieGrab(t, st, "Placeholder Film Bonus Edition", "abc", 2019)
@@ -369,7 +369,7 @@ func TestMovieSoleVideoWithAnExtrasTokenIsStillTheFeature(t *testing.T) {
 
 // Nothing unpacks an archive, so a movie shipped as one defers naming what to
 // extract — the same settled deferral an episode gets, and never a failure,
-// because the film is sitting inside it.
+// because the film is inside it.
 func TestMovieArchivePayloadDefersWithTheExtractionAdvice(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
@@ -463,9 +463,9 @@ func TestMovieArchiveRetryStaysDeferredUntilItIsExtracted(t *testing.T) {
 
 // The bug this rule exists to stop: a numbered non-feature ("Deleted Scene 1")
 // claimed the film's only item, hardlinked a clip as the movie and dropped the
-// feature as a leftover — silently, with the grab settled and the item held. A
-// film is the biggest thing in its payload, so size decides and numbering does
-// not get a say.
+// feature as a leftover — silently, with the grab settled and the item marked
+// had. A film is the biggest thing in its payload, so size decides and numbering
+// has no part in it.
 func TestMovieTakesTheLargestVideoAsTheFeature(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
@@ -500,7 +500,7 @@ func TestMovieTakesTheLargestVideoAsTheFeature(t *testing.T) {
 
 // An exact size tie is a conflict rather than a coin flip, exactly as for
 // same-number claimants: taking either would silently drop the other. It is the
-// one deferral a movie payload holding videos can reach, and a human resolves it
+// one deferral a movie payload containing videos can produce, and a human resolves it
 // from Activity by naming the file — an override still overrules every rule.
 func TestMovieSizeTieDefersAndIsFixableByNamingTheFile(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -551,7 +551,7 @@ func TestMovieSizeTieDefersAndIsFixableByNamingTheFile(t *testing.T) {
 }
 
 // A failed movie grab settles the same way an episode's does: the item reverts
-// to wanted and the release is remembered, so the sweep does not re-derive it.
+// to wanted and the release is recorded, so the sweep does not re-derive it.
 func TestMovieGrabFailureRevertsTheItemAndRemembersTheRelease(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
@@ -597,11 +597,11 @@ func TestSingleItemOVAKeepsTheEpisodicImportPath(t *testing.T) {
 	wantFiles(t, movies)
 }
 
-// --- what a movie's settled reasons say -------------------------------------
+// --- the wording of a movie's settled reasons -------------------------------
 
 // These reasons are read in the Activity queue by someone deciding what to do
-// next, and a movie reaches them: calling its one item "episode 1" names
-// something the user never asked for. A movie holding videos can only ever
+// next, and a movie can produce them: calling its one item "episode 1" names
+// something the user never asked for. A movie payload containing videos can only ever
 // defer on a size tie — the largest-video rule answers every other shape — so
 // that and the archive advice below are the two reasons to get right.
 func TestMovieConflictReasonNamesTheMovieRatherThanAnEpisode(t *testing.T) {
@@ -622,7 +622,7 @@ func TestMovieConflictReasonNamesTheMovieRatherThanAnEpisode(t *testing.T) {
 	}
 }
 
-// The archive advice reaches a movie through the retry, which is where a human
+// The archive advice applies to a movie through the retry, which is where a human
 // clicking Fix import before extracting lands.
 func TestMovieArchiveRetryReasonNamesTheMovie(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -645,8 +645,8 @@ func TestMovieArchiveRetryReasonNamesTheMovie(t *testing.T) {
 	}
 }
 
-// The importer is where a notification learns what its item is, so a movie's
-// import carries the kind that keeps "Episode 1" out of the push.
+// The importer is where a notification gets its item kind, so a movie's
+// import sets the kind that keeps "Episode 1" out of the push.
 func TestMovieImportDispatchesTheMovieItemKind(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
@@ -665,7 +665,7 @@ func TestMovieImportDispatchesTheMovieItemKind(t *testing.T) {
 	}
 }
 
-// The retry endpoint's refusals are reachable by a direct API call rather than
+// The retry endpoint's errors are reachable by a direct API call rather than
 // from the Fix import dialog, and they name a number the caller chose — which a
 // movie's one item makes nonsense of if it is called an episode.
 func TestMovieRetryRefusalsNameItemsRatherThanEpisodes(t *testing.T) {

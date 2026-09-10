@@ -106,7 +106,7 @@ func buildV1OnlyMeta(t *testing.T, name string) (meta, rawInfo []byte) {
 	return meta, rawInfo
 }
 
-// buildHybridMeta returns metainfo carrying both formats. The payload is exactly
+// buildHybridMeta returns metainfo containing both formats. The payload is exactly
 // two 16 KiB pieces, so v1 pieces and v2 blocks already align and BEP47 padding
 // files — the fiddly part of a hybrid — are not needed.
 func buildHybridMeta(t *testing.T, name string) (meta, rawInfo []byte) {
@@ -143,12 +143,12 @@ func buildHybridMeta(t *testing.T, name string) (meta, rawInfo []byte) {
 }
 
 // TestInfoHashFromMetaHybrid is the guard against over-rejecting: anime trackers
-// publish v1 and hybrid essentially universally, so refusing a hybrid would break
+// publish v1 and hybrid essentially universally, so erroring on a hybrid would break
 // the common case in the name of one nobody has yet observed.
 func TestInfoHashFromMetaHybrid(t *testing.T) {
 	meta, rawInfo := buildHybridMeta(t, spikeV2Name)
 
-	// The fixture is only a guard if it really carries both shapes.
+	// The fixture is only a guard if it really contains both shapes.
 	var info map[string]bencode.RawMessage
 	if err := bencode.DecodeBytes(rawInfo, &info); err != nil {
 		t.Fatalf("decode fixture info dict: %v", err)
@@ -175,11 +175,11 @@ func TestInfoHashFromMetaHybrid(t *testing.T) {
 
 // TestInfoHashFromMetaV2Only pins #165's fix: the SHA-1 we would derive for a
 // v2-only torrent is neither form BEP52 lets a client key it by, and qBittorrent
-// reports no v1 hash at all for one, so the release is refused instead.
+// reports no v1 hash at all for one, so the release errors instead.
 func TestInfoHashFromMetaV2Only(t *testing.T) {
 	meta, rawInfo := buildV2OnlyMeta(t, spikeV2Name)
 
-	// The fixture is only evidence if it really carries no v1 shape.
+	// The fixture is only evidence if it really contains no v1 shape.
 	var info map[string]bencode.RawMessage
 	if err := bencode.DecodeBytes(rawInfo, &info); err != nil {
 		t.Fatalf("decode fixture info dict: %v", err)
@@ -212,8 +212,8 @@ func TestInfoHashFromMetaV2Only(t *testing.T) {
 	}
 }
 
-// TestInfoHashFromMagnetV2Only pins the contrast #165 draws: the same torrent
-// named by a v2 magnet is refused loudly, where the .torrent path is silent.
+// TestInfoHashFromMagnetV2Only pins the contrast in #165: the same torrent
+// named by a v2 magnet errors loudly, where the .torrent path is silent.
 func TestInfoHashFromMagnetV2Only(t *testing.T) {
 	_, rawInfo := buildV2OnlyMeta(t, spikeV2Name)
 	v2 := sha256.Sum256(rawInfo)

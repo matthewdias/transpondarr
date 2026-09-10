@@ -34,7 +34,7 @@ func (noRecorder) Record(context.Context, int64, []int64, string, string, string
 type fakeRecorder struct {
 	calls []recorded
 	err   error
-	// suppress models the breaker: the record is refused, not failed.
+	// suppress models the breaker: the record is suppressed, not failed.
 	suppress bool
 }
 
@@ -44,7 +44,7 @@ func (f *fakeRecorder) Record(_ context.Context, titleID int64, itemIDs []int64,
 }
 
 // backdateSearchState puts a title behind an accumulated backoff, so a test can
-// see the reset a failure is supposed to trigger.
+// assert the reset a failure is supposed to trigger.
 func backdateSearchState(t *testing.T, st *store.Store, titleID int64) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
@@ -67,7 +67,7 @@ func readSearchBackoff(t *testing.T, st *store.Store, titleID int64) (int64, boo
 }
 
 // A download the client reports as errored is the release's failure, so it is
-// remembered and the title is put back at the front of the search queue.
+// recorded and the title is put back at the front of the search queue.
 func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, titleID := seedGrab(t, st, "abc")
@@ -102,9 +102,9 @@ func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 }
 
 // Re-fronting the search queue is justified by the failure being news about
-// this release. Once the breaker judges it news about the environment instead,
+// this release. Once the breaker treats it as news about the environment instead,
 // the reset would only tighten a retry loop around the same fault (#120) -- but
-// the item must still be freed, or a fault would strand every grab it touched.
+// the item must still be freed, or a fault would strand every grab it caused.
 func TestSuppressedRecordLeavesTheSearchQueueAlone(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, titleID := seedGrab(t, st, "abc")
@@ -161,7 +161,7 @@ func seedBatchGrab(t *testing.T, st *store.Store, hash string, items int) (title
 
 // One failure is one step on the ladder, however many episodes the release
 // covered. A batch is N grab rows, and recording each separately walked
-// 24h -> 7d -> permanent in a single incident, so one transient client hiccup
+// 24h -> 7d -> permanent in a single incident, so one transient client error
 // blocklisted a healthy 3-episode release forever (#124).
 func TestBatchFailingOnceEscalatesOneStep(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -292,8 +292,8 @@ func TestDistinctReleasesFailingAcrossItemsStillTripTheBreaker(t *testing.T) {
 }
 
 // The breaker half of #124: a batch wide enough to reach the threshold on its
-// own must still be remembered. It holds because the breaker credits a release
-// once, however many calls carry it -- so it does not depend on one Record call
+// own must still be recorded. It holds because the breaker credits a release
+// once, however many calls report it -- so it does not depend on one Record call
 // meaning one release.
 func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -343,7 +343,7 @@ func assertItemFreed(t *testing.T, st *store.Store, titleID int64, number int) {
 
 // Absence is not a verdict (#241): every cause is external to the release — a
 // hand-removed torrent, a reset client, a hash the client never had — so the
-// grace period frees the item and remembers nothing.
+// grace period frees the item and records nothing.
 func TestGrabGoneFromClientRecordsNoBlocklistEntry(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, titleID := seedGrab(t, st, "abc")
@@ -379,7 +379,7 @@ func TestGrabGoneFromClientRecordsNoBlocklistEntry(t *testing.T) {
 	}
 }
 
-// The client holds the torrent and its data is gone from disk (#241). Nothing
+// The client still manages the torrent and its data is gone from disk (#241). Nothing
 // there is about the release, and a dropped mount reports it for every torrent
 // on the mount at once -- which is what recording it used to blocklist.
 func TestDataMissingRecordsNoBlocklistEntry(t *testing.T) {
@@ -466,7 +466,7 @@ func TestBlocklistWriteFailureStillFailsTheGrab(t *testing.T) {
 }
 
 // A deferral is a settled status that is not a release failure: the bytes
-// arrived fine and one file could not be told apart from the rest. Only failGrab
+// arrived fine and one file could not be distinguished from the rest. Only failGrab
 // records, so this holds by construction — pinned here because a later refactor
 // routing deferral through failGrab would blocklist every fixable payload.
 func TestDeferredBatchDoesNotRecordBlocklistEntry(t *testing.T) {

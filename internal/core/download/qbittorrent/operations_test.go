@@ -58,7 +58,7 @@ func TestAddSendsCategoryAndStopped(t *testing.T) {
 	}
 }
 
-// Add reports AddAlreadyExists (without re-adding) when the hash is already known.
+// Add reports AddAlreadyExists (without re-adding) when the client already has the hash.
 func TestAddAlreadyExists(t *testing.T) {
 	var addCalled bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -91,9 +91,9 @@ func TestAddAlreadyExists(t *testing.T) {
 	}
 }
 
-// Converging on a duplicate assumes the duplicate can still deliver. One whose
-// data is gone never will: a re-add is a no-op, so reporting it as a grab would
-// re-grab the same release every pass and never reach the next-best one (#241).
+// Converging on a duplicate is only safe if the duplicate can still deliver. One
+// whose data is gone never will: a re-add is a no-op, so reporting it as a grab
+// would re-grab the same release every pass and never try the next-best one (#241).
 func TestAddRefusesADuplicateWhoseDataIsMissing(t *testing.T) {
 	var addCalled bool
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +131,7 @@ func TestAddRefusesADuplicateWhoseDataIsMissing(t *testing.T) {
 // Duplicate detection is check-then-act, so two concurrent adds of one hash both
 // pass the empty check and one loses at the client. Re-checking after a failed
 // add turns that loser back into convergence rather than an error the caller
-// would answer by grabbing a different release for the same item.
+// would handle by grabbing a different release for the same item.
 func TestAddConvergesWhenAFailedAddWasADuplicate(t *testing.T) {
 	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
 	var added bool
@@ -169,10 +169,10 @@ func TestAddConvergesWhenAFailedAddWasADuplicate(t *testing.T) {
 	}
 }
 
-// The refusal stops at the pre-check arm. Here our own add may be what landed, so
-// refusing would leave a torrent no grab row references -- the orphan this arm
-// exists to prevent (#134). The loop still ends: the next pass finds the torrent
-// pre-existing and refuses there, so converging costs one cycle, not a loop.
+// Only the pre-check arm errors. Here our own add may be what landed, so erroring
+// would leave a torrent no grab row references -- the orphan this arm exists to
+// prevent (#134). The loop still ends: the next pass finds the torrent
+// pre-existing and errors there, so converging costs one cycle, not a loop.
 func TestAddConvergesOnADataMissingDuplicateFoundByTheRecheck(t *testing.T) {
 	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
 	var added bool
@@ -211,7 +211,7 @@ func TestAddConvergesOnADataMissingDuplicateFoundByTheRecheck(t *testing.T) {
 }
 
 // A genuine add failure must still surface: the recheck only converges when the
-// hash actually turned up, never by swallowing the error.
+// hash actually turned up, never by discarding the error.
 func TestAddSurfacesAFailureThatWasNotADuplicate(t *testing.T) {
 	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
 	srv := qbitStub(t, http.StatusInternalServerError)
@@ -226,7 +226,7 @@ func TestAddSurfacesAFailureThatWasNotADuplicate(t *testing.T) {
 	}
 }
 
-// qbitStub answers the endpoints Add probes, so a test only has to say how the
+// qbitStub serves the endpoints Add probes, so a test only has to set how the
 // add itself behaves.
 func qbitStub(t *testing.T, addStatus int) *httptest.Server {
 	t.Helper()
@@ -249,8 +249,8 @@ func qbitStub(t *testing.T, addStatus int) *httptest.Server {
 }
 
 // Only what the release itself is responsible for is reported as ErrBadRelease:
-// the caller remembers those and must not remember a sick client's refusals,
-// which say nothing about which release was asked for (#120).
+// the caller blocklists those and must not blocklist a broken client's errors,
+// which are no evidence about which release was asked for (#120).
 func TestAddClassifiesReleaseFaultsSeparatelyFromClientFaults(t *testing.T) {
 	torrentSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -293,7 +293,7 @@ func TestAddClassifiesReleaseFaultsSeparatelyFromClientFaults(t *testing.T) {
 	}
 }
 
-// The filter has to reach qBittorrent, not just the result: listing unmatched
+// The filter has to be applied at qBittorrent, not just to the result: listing unmatched
 // downloads otherwise pulls the user's entire client every poll (#131).
 func TestStatusByCategoryFiltersAtTheClient(t *testing.T) {
 	var gotCategory, gotFilter string
@@ -321,7 +321,7 @@ func TestStatusByCategoryFiltersAtTheClient(t *testing.T) {
 	if gotCategory != "transpondarr" {
 		t.Errorf("category sent to qBittorrent = %q, want transpondarr", gotCategory)
 	}
-	// A hash filter would contradict the category one; nothing must narrow it further.
+	// A hash filter would conflict with the category one; nothing must narrow it further.
 	if gotFilter != "" && gotFilter != "all" {
 		t.Errorf("filter sent to qBittorrent = %q, want none", gotFilter)
 	}
@@ -334,7 +334,7 @@ func TestStatusByCategoryFiltersAtTheClient(t *testing.T) {
 // mapping every field the import pipeline relies on — most importantly
 // content_path and the normalized state — and forwards the requested hashes
 // (lowercased) as the filter. TestMapState covers the state vocabulary in
-// isolation; this covers the full response parse the importer actually consumes.
+// isolation; this covers the full response parse the importer actually runs.
 func TestStatusParsesTorrentsInfo(t *testing.T) {
 	var gotHashesFilter string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -355,7 +355,7 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "u", "p")
-	// A mixed-case hash must reach qBittorrent lowercased (identity is keyed on the
+	// A mixed-case hash must be sent to qBittorrent lowercased (identity is keyed on the
 	// lowercase info hash throughout the pipeline).
 	got, err := c.Status(context.Background(), "AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111")
 	if err != nil {
@@ -386,7 +386,7 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 	}
 
 	// The category is the whole safety boundary for the unmatched-downloads view,
-	// so it has to survive the parse verbatim, other people's torrents included.
+	// so the parse must preserve it verbatim, other people's torrents included.
 	if first.Category != "transpondarr" {
 		t.Errorf("category = %q, want transpondarr", first.Category)
 	}
@@ -400,7 +400,7 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 		t.Errorf("added_at = %q, want 2025-08-07T00:00:00Z", got)
 	}
 	// A client that reports no add time leaves the zero value, never the epoch:
-	// the DTO omits it rather than claiming the torrent arrived in 1970.
+	// the DTO omits it rather than reporting the torrent as arriving in 1970.
 	if !got[1].AddedAt.IsZero() {
 		t.Errorf("second added_at = %v, want the zero time when unreported", got[1].AddedAt)
 	}
@@ -419,7 +419,7 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 }
 
 // Remove forwards the hashes lowercased (identity is the lowercase info hash
-// throughout the pipeline) and asks qBittorrent to delete the payload data too.
+// throughout the pipeline) and requests that qBittorrent delete the payload data too.
 func TestRemoveDeletesTorrentsWithData(t *testing.T) {
 	var gotHashes, gotDeleteFiles string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -480,7 +480,7 @@ func TestMapState(t *testing.T) {
 	}
 }
 
-// A download URL's query string carries the indexer's API key, and this error is
+// A download URL's query string contains the indexer's API key, and this error is
 // logged, stored on the item's pass outcome and rendered in a tooltip (#181), so
 // no path may put the raw URL in it.
 func TestAddNeverLeaksTheDownloadURLQueryString(t *testing.T) {

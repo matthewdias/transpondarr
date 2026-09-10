@@ -14,7 +14,7 @@ import (
 // A title delete landing between the grab-row read and the post-Place writes
 // still places the file — the same outcome as the import finishing one tick
 // before the delete — and then no-ops the cascaded-away rows: both writes are
-// :exec, so zero rows is silent, nothing survives, and nothing retries.
+// :exec, so zero rows is silent, no row remains, and nothing retries.
 func TestScanSurvivesTitleDeletedMidImport(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, titleID := seedGrab(t, st, "abc")

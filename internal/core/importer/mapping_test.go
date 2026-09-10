@@ -9,7 +9,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/parser"
 )
 
-// files builds candidates from bare filenames, the form the mapper reasons about.
+// files builds candidates from bare filenames, the form the mapper takes.
 func files(names ...string) []candidate {
 	out := make([]candidate, 0, len(names))
 	for _, n := range names {
@@ -57,7 +57,7 @@ func TestMapsLoneFileToLoneItem(t *testing.T) {
 }
 
 // The other half of #135's relaxation: a video the walk kept only because it was
-// the sole one still has to reach the library, not sit as a leftover.
+// the sole one still has to be placed in the library, not left over.
 func TestMapsSoleVideoCarryingAnExtrasToken(t *testing.T) {
 	name := "[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv"
 	res := mapFiles(files(name), coverage(5), nil, domain.FormatTV)
@@ -67,7 +67,7 @@ func TestMapsSoleVideoCarryingAnExtrasToken(t *testing.T) {
 	}
 }
 
-// Solo identity is exactly that: two covered items means the name has to answer.
+// Solo identity is exactly that: two covered items means the name has to supply it.
 func TestDoesNotGuessALoneFileAcrossTwoItems(t *testing.T) {
 	res := mapFiles(files("b1946ac92492d2347c6235b4d2611184.mkv"), coverage(4, 5), nil, domain.FormatTV)
 
@@ -100,7 +100,7 @@ func TestMapsEachFileOfAPackToItsItem(t *testing.T) {
 }
 
 // An absolute-numbered file still lands when the entry's own numbering does not
-// reach it -- the degrade-to-absolute rule the parser exists for.
+// extend that far -- the degrade-to-absolute rule the parser exists for.
 func TestMapsByAbsoluteNumberWhenSeasonRelativeMisses(t *testing.T) {
 	res := mapFiles(files("[SynthSubs] Placeholder Saga S3 - 01 (51) [1080p].mkv"), coverage(50, 51), nil, domain.FormatTV)
 
@@ -118,7 +118,7 @@ func TestPrefersSeasonRelativeOverAbsolute(t *testing.T) {
 	}
 }
 
-// A v2 supersedes the v1 it re-releases; the loser is consumed, not reported as
+// A v2 supersedes the v1 it re-releases; the loser is dropped, not reported as
 // an unmatched file, or every pack with a fix in it would read as incomplete.
 func TestVersionTwoBeatsVersionOne(t *testing.T) {
 	res := mapFiles(files(
@@ -146,7 +146,7 @@ func TestRepackBreaksAVersionTie(t *testing.T) {
 	}
 }
 
-// Two indistinguishable claims on one episode: guessing here silently drops the
+// Two indistinguishable claims on one episode: picking either silently drops the
 // other file, so the row defers and a human picks.
 func TestIndistinguishableClaimsConflict(t *testing.T) {
 	res := mapFiles(files(
@@ -162,7 +162,7 @@ func TestIndistinguishableClaimsConflict(t *testing.T) {
 	}
 }
 
-// A file for an episode this release never claimed is a leftover carrying its
+// A file for an episode this release never claimed is a leftover with its own
 // number, which is what lets the importer place it against the item if one exists.
 func TestUncoveredFileIsALeftoverKeepingItsNumber(t *testing.T) {
 	res := mapFiles(files(
@@ -192,7 +192,7 @@ func TestRangeFileClaimsNothing(t *testing.T) {
 }
 
 // An override is a human answering "this file is episode 5"; it overrules the
-// filename, and the rules never get a say.
+// filename, and the rules do not apply.
 func TestOverrideAssignsUnconditionally(t *testing.T) {
 	res := mapFiles(files(
 		"b1946ac92492d2347c6235b4d2611184.mkv",
