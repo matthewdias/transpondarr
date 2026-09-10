@@ -29,7 +29,7 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 	if existing, err := c.Status(ctx, hash); err != nil {
 		return download.AddResult{}, err
 	} else if len(existing) > 0 {
-		// Refused only here, where the torrent demonstrably pre-existed our add:
+		// Only this branch errors, where the torrent demonstrably pre-existed our add:
 		// reporting a grab it can never deliver re-grabs the release forever (#241).
 		if existing[0].State == download.StateDataMissing {
 			return download.AddResult{}, fmt.Errorf("qbittorrent: add: %w", download.ErrDataMissing)
@@ -46,8 +46,8 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 	if err != nil {
 		// The duplicate check above is check-then-act, so a concurrent add of the
 		// same hash can land between it and here and this one loses. Converge
-		// unconditionally: our own add may have landed, and refusing here would
-		// orphan it (#134) — a data-missing one is refused by the next pass instead.
+		// unconditionally: our own add may have landed, and erroring here would
+		// orphan it (#134) — a data-missing one errors on the next pass instead.
 		if existing, rerr := c.Status(ctx, hash); rerr == nil && len(existing) > 0 {
 			return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
 		}
@@ -56,7 +56,7 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 	return download.AddResult{Hash: hash, Outcome: download.AddSuccess}, nil
 }
 
-// resolveAdd derives the info hash and decides how to hand the torrent to
+// resolveAdd derives the info hash and decides how to send the torrent to
 // qBittorrent: as a magnet URL (returned in magnet) or as raw .torrent bytes
 // (returned in content). Exactly one of the two is non-empty on success.
 func (c *Client) resolveAdd(ctx context.Context, opts download.AddOptions) (hash, magnet string, content []byte, err error) {
@@ -86,7 +86,7 @@ func (c *Client) resolveAdd(ctx context.Context, opts download.AddOptions) (hash
 	}
 }
 
-// safeURL drops a download URL's query string: Torznab links carry the indexer's
+// safeURL drops a download URL's query string: Torznab links put the indexer's
 // API key there, and this text is logged, stored and rendered in a tooltip (#181).
 func safeURL(raw string) string {
 	u, err := url.Parse(raw)
@@ -108,7 +108,7 @@ func withoutURL(err error) error {
 }
 
 // badRelease attributes a failure to the release rather than to us, which is
-// what decides whether the caller remembers it (#120).
+// what decides whether the caller blocklists it (#120).
 func badRelease(err error) error {
 	if err == nil {
 		return nil
@@ -168,8 +168,8 @@ func (c *Client) fetchTorrent(ctx context.Context, rawURL string) (content []byt
 		return nil, magnet, nil
 	}
 	if resp.StatusCode != http.StatusOK {
-		// The host answered and refused this URL. A transport error above is left
-		// unattributed: it is as likely to be our network as the release's host.
+		// The host returned an error status for this URL. A transport error above is
+		// left unattributed: it is as likely to be our network as the release's host.
 		return nil, "", badRelease(fmt.Errorf("qbittorrent: fetch torrent %s: %s", safeURL(rawURL), resp.Status))
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20)) // 32 MiB cap
@@ -206,7 +206,7 @@ func mapTorrents(torrents []qbt.Torrent) []download.Status {
 			Size:        t.Size,
 		}
 		// Left zero when unreported, so the caller can omit it rather than
-		// claiming the torrent was added at the epoch.
+		// reporting the torrent as added at the epoch.
 		if t.AddedOn > 0 {
 			s.AddedAt = time.Unix(t.AddedOn, 0).UTC()
 		}
@@ -243,7 +243,7 @@ func (c *Client) Remove(ctx context.Context, hashes []string, deleteData bool) e
 func mapState(s string) download.State {
 	switch s {
 	case "downloading", "forcedDL", "metaDL", "forcedMetaDL":
-		// A magnet fetching metadata is trying, which is what the stall timeout
+		// A magnet fetching metadata is downloading, which is what the stall timeout
 		// reads; qBittorrent tests isQueued() first, so it is never also queued.
 		return download.StateDownloading
 	case "queuedDL":

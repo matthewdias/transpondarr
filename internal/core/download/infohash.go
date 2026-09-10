@@ -15,14 +15,14 @@ import (
 // Info-hash derivation is pure BitTorrent protocol, shared by every client: a
 // torrent is keyed by its v1 (BTIH) info hash, and deriving it locally before
 // adding gives Add a deterministic ID with no post-add polling or list-diffing.
-// A magnet already carries the hash (xt=urn:btih:...); a .torrent file's hash is
+// A magnet already contains the hash (xt=urn:btih:...); a .torrent file's hash is
 // the SHA-1 of the bencoded value of its top-level "info" key.
 //
 // Magnet parsing (below) is trivial and stays hand-rolled. The .torrent path uses
 // zeebo/bencode to capture the raw "info" bytes — the one part that is genuinely
 // fiddly to scan by hand — and hashes those exact bytes.
 
-// ErrNoV1InfoHash marks metainfo carrying no v1 info hash: qBittorrent reports
+// ErrNoV1InfoHash marks metainfo without a v1 info hash: qBittorrent reports
 // none for such a torrent, so any hash we derived would match nothing (#165).
 var ErrNoV1InfoHash = errors.New("torrent has no v1 info hash")
 
@@ -69,8 +69,8 @@ func normalizeBTIH(s string) (string, error) {
 // InfoHashFromMeta computes the v1 info hash of a bencoded .torrent file: the
 // SHA-1 of the raw bytes of its top-level "info" dictionary value. bencode.RawMessage
 // captures those bytes verbatim, so the hash is over the original encoding (a
-// re-encode could reorder keys and change the hash). Metainfo carrying no v1
-// "pieces" is refused rather than hashed, matching the magnet path's stance on v2.
+// re-encode could reorder keys and change the hash). Metainfo without v1
+// "pieces" returns an error instead of a hash, as the magnet path does for v2.
 func InfoHashFromMeta(meta []byte) (string, error) {
 	var torrent struct {
 		Info bencode.RawMessage `bencode:"info"`

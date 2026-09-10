@@ -32,8 +32,8 @@ var continuationExt = regexp.MustCompile(`^\.(?:[rz][0-9]{2}|[0-9]{3})$`)
 // .rar and the head is the one numbered 1.
 var partVolume = regexp.MustCompile(`(?i)\.part([0-9]+)$`)
 
-// skipDirs never hold the episode itself; descending into them is how a sample
-// becomes a second candidate and makes an obvious payload look ambiguous.
+// skipDirs never contain the episode itself; descending into them is how a
+// sample becomes a second candidate and makes an obvious payload ambiguous.
 var skipDirs = map[string]bool{
 	"sample": true, "samples": true, "extra": true, "extras": true,
 	"featurette": true, "featurettes": true, "bonus": true, "menu": true,
@@ -50,16 +50,16 @@ var nonEpisodeTokens = map[string]bool{
 	"bonus": true,
 }
 
-// sampleTokens are the subset never plausible as a word in a title, so they hold
-// their file out of the sole-video relaxation below rather than merely losing to
-// a better candidate.
+// sampleTokens are the subset never plausible as a word in a title, so they
+// exclude their file from the sole-video relaxation below rather than merely
+// losing to a better candidate.
 var sampleTokens = map[string]bool{"sample": true, "samples": true}
 
 // candidate is one payload file that could be an episode.
 type candidate struct {
-	path   string // absolute, as handed to the library target
+	path   string // absolute, as passed to the library target
 	rel    string // payload-relative, the identity a retry assignment names
-	size   int64  // what identifies a movie, where numbering says nothing
+	size   int64  // what identifies a movie, where numbering is no evidence
 	parsed parser.Parsed
 }
 
@@ -69,8 +69,8 @@ type archive struct {
 	parts int
 }
 
-// payload is what one walk found. Archives ride beside the candidates rather than
-// among them, so nothing downstream can place one in the library.
+// payload is what one walk found. Archives are listed beside the candidates
+// rather than among them, so nothing downstream can place one in the library.
 type payload struct {
 	files    []candidate
 	archives []archive
@@ -152,8 +152,8 @@ func collectPayloadFiles(root string) (payload, error) {
 	return payload{files: cands, archives: sets.list()}, nil
 }
 
-// noVideoReason names why a payload yielded nothing, so a settled deferral says
-// what to do rather than only what failed.
+// noVideoReason names why a payload yielded nothing, so a settled deferral
+// reports what to do rather than only what failed.
 func noVideoReason(archives []archive) string {
 	const prefix = "the payload holds no video file"
 	if len(archives) == 0 {
@@ -247,7 +247,7 @@ func (s *archiveSets) add(key, rel string, first bool) {
 		s.sets[key], s.order = set, append(s.order, key)
 	}
 	set.parts++
-	// Without a head volume — a folder holding only .r00, .r01 — the smallest
+	// Without a head volume — a folder containing only .r00, .r01 — the smallest
 	// name stands in, so the set is always named by something that exists.
 	switch {
 	case first:
@@ -268,7 +268,7 @@ func (s *archiveSets) list() []archive {
 // hasNonEpisodeToken reports whether a filename is marked as an extra.
 func hasNonEpisodeToken(name string) bool { return hasToken(name, nonEpisodeTokens) }
 
-// hasToken reports whether a filename carries any of tokens as a whole word.
+// hasToken reports whether a filename contains any of tokens as a whole word.
 func hasToken(name string, tokens map[string]bool) bool {
 	base := strings.TrimSuffix(name, filepath.Ext(name))
 	for _, tok := range strings.FieldsFunc(base, func(r rune) bool {
