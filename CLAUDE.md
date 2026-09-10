@@ -7,27 +7,25 @@ setup detail; the high-level product roadmap lives outside the repo.
 
 ## Stack
 
-- **Go**: `chi` + [Huma](https://huma.rocks/) (typed REST, OpenAPI 3.1); SQLite via
-  `modernc.org/sqlite` (pure-Go) + `sqlc` + `goose`.
-- **Frontend**: React + TypeScript (Vite), embedded via `embed.FS`.
-- Toolchain pinned in `mise.toml` (mise is optional). Builds are `CGO_ENABLED=0`.
+The manifests name the dependencies; two constraints they don't explain:
+
+- **SQLite is `modernc.org/sqlite` (pure-Go) and builds are `CGO_ENABLED=0`** — the
+  single static binary is the shipping constraint, so a cgo-linked driver is not a
+  drop-in swap.
+- Toolchain versions are pinned in `mise.toml`, but mise is optional: the `Makefile`
+  works with plain tools on `PATH`.
 
 ## Build & run
 
-The `Makefile` is the canonical interface (works with plain tools on `PATH`; mise
-just pins their versions):
+The `Makefile` is the canonical interface — `make help` lists the targets. What it
+can't tell you:
 
-- `make build` — frontend (`web/dist`) + backend → `./transpondarrd`
-- `make dev` — live-reload API (`air`)
-- `make gen` — regenerate the sqlc layer after editing `internal/store/queries`
-- `make gen-api` — regenerate `frontend/src/lib/api-types.ts` from the OpenAPI spec
-- `make notices` — regenerate `THIRD-PARTY-NOTICES.md` after a dependency change; CI
-  fails on drift, mirroring the `api-types.ts` rule. The trigger is narrower than
-  "touched `go.mod`": the file covers Go modules *linked into the binary*
-  (`go version -m`, not the module graph) and frontend *production* deps, so a
-  devDependency bump needs nothing.
-- `make lint`, `make test` — the full suite CI runs; locally prefer the scoped
-  commands below
+- **`make notices` has a narrower trigger than "touched `go.mod`."** The file covers
+  Go modules *linked into the binary* (`go version -m`, not the module graph) and
+  frontend *production* deps, so a devDependency bump needs nothing. CI fails on
+  drift, mirroring the `api-types.ts` rule.
+- `make lint` and `make test` are the full suite CI runs; locally prefer the scoped
+  commands below.
 
 Server listens on `:9797`; on first run it logs a generated API key (set
 `TRANSPONDARR_API_KEY` to persist one). Health check is public: `GET /api/v1/health`.
@@ -74,20 +72,6 @@ reproduce it locally — run what the change touched.
   way to learn it.
 - **Run the full `make test` anyway** for cross-cutting work: `domain` or `store`
   signature changes, dependency bumps, a refactor spanning packages, or a release tag.
-
-## Layout
-
-```
-cmd/transpondarrd      entrypoint (graceful shutdown)
-internal/config        env config (TRANSPONDARR_*)
-internal/server        chi + Huma API, API-key auth, embedded SPA
-internal/store         SQLite: goose migrations + sqlc layer (internal/store/db)
-internal/core/domain   content-agnostic model (Title / WantedItem)
-internal/core/indexer  Indexer iface + torznab adapter
-internal/core/download  download.Client iface + qbittorrent adapter
-internal/core/library  library.Target iface + mediaserver adapter
-web/                   embeds web/dist; frontend/ is the Vite source
-```
 
 ## Architecture — the two boundaries
 
@@ -167,72 +151,18 @@ Behaviour changes are test-driven. Work red → green → refactor:
 
 ## Conventions
 
-- **Grab lifecycle (`internal/core/importer`): every status but `grabbed` is
-  settled.** `grabbed` → `imported`, `failed` (errored, or absent from the
-  download client past the grace period — the item reverts to wanted), or
-  `import_deferred`. The scan iterates **per info hash, not per row** (#126): a
-  pack is a row per covered episode, and its payload only means anything
-  examined as a whole. `collectPayloadFiles` walks it once and the pure
-  `mapFiles` maps files onto the items the release claimed, so
-  `library.Target.Place` stays file-only while a pack imports episode by
-  episode. `import_deferred` therefore narrows to "*this item's* file could not
-  be picked out". Deferred grabs are never re-imported by the scan (the
-  no-infinite-retry property) but stay in it for missing-from-client
-  reconciliation, so a vanished payload still frees its item; only an explicit
-  `RetryImport` reopens one, optionally naming the file.
-- **The walk's extras filter yields to a sole video (#135).** A payload whose
-  only video carries an extras token is collected anyway — identity by
-  construction again: one video and nothing to confuse it with means the token
-  is a word in the title, and dropping it parked the episode with the file
-  sitting right there. `sampleTokens` is the exception that does not qualify (a
-  sample is a truncated copy, never the episode) and so is excluded before the
-  video is counted at all. Downstream the relaxation needs no special case: a
-  one-item group takes it by the lone-file rule, a multi-item group leaves it
-  over and defers.
-- **Nothing unpacks an archive; the walk names one instead (#135).** Declined
-  deliberately: there is no Usenet client here (qBittorrent only) and RAR
-  packaging is a Usenet/scene convention that anime groups do not use, so a
-  decoder would be the first dependency in the import path and its tests would
-  need committed binary fixtures. So `collectPayloadFiles` returns a `payload`
-  whose `archives` ride *beside* `[]candidate`, never inside it — `mapFiles`
-  stays pure and a `.rar` is unassignable by construction rather than by a guard
-  someone can miss. Volumes are grouped into sets keyed on **dir + stem**, so a
-  12-volume set is one thing to extract and two discs sharing a naming scheme
-  stay two; the deferral reason and the Fix import dialog then say what to
-  extract, and re-importing after extracting in place already works with no new
-  code. **An archive keeps its item deferred on every path**, including a retry
-  clicked before extracting and a mixed payload whose loose file covers only some
-  items — failing there would revert the item, blocklist the release and drop the
-  row from the queue, with the episode sitting in the payload the whole time.
-  Password-protected and corrupt archives are indistinguishable from healthy ones
-  without the reader we declined, and all three defer identically — sound,
-  because deferral is settled either way. A single-file `.rar` payload is an
-  archive too: identity by construction stops here, since hardlinking it into
-  the library as the episode is worse than deferring.
-- **The mapping rules are narrow on purpose, because a wrong answer moves a
-  file.** A lone file for a lone item is identity by construction (we chose this
-  release); a file claims a number only when it names exactly one, with
-  season-relative beating absolute when both land inside the release, matching
-  decide's stance; among same-number claimants the higher `Version` wins and
-  `Repack` breaks the tie, and an exact tie is a *conflict* rather than a coin
-  flip, since taking either silently drops the other. Retry overrides are keyed
-  on the payload-relative path and overrule every rule above — being wrong about
-  a filename is the whole reason the escape hatch exists.
-- **A covered item with no file splits by whether a human could fix it.** Files
-  still loose in the payload → defer with the detail naming what is unmatched,
-  fixable from the Activity queue. **An unextracted archive counts as still
-  loose** — it holds the episode, so it is a human's to fix — which is why
-  `settleGroup` takes the whole `payload` rather than its files. Nothing left
-  over at all → `failGrab`, so the item reverts to wanted and the sweep
-  self-heals with a single; it flows through the same `remember()` grouping, so
-  one payload is one step on the blocklist ladder. A file for an item the
-  release never claimed is placed too,
-  guarded on the item existing, not being had, and carrying no unsettled grab,
-  and **holding the `acquire` claim** (`TryClaimItems`/`ReleaseClaims`) so a
-  concurrent grab cannot race a copy-mode `Place` that runs for minutes. One
-  registry is the point. `ScanOnce`, `ListPayload` and `RetryImport` share the
-  importer's mutex, which is why `main.go` builds one importer and hands it to
-  both the job runner and `server.New`.
+Four subsystems carry their own rules in a nested `CLAUDE.md`, loaded when you work
+under that directory — read the one you are in, not all four:
+[`internal/core/importer`](internal/core/importer/CLAUDE.md) (grab lifecycle, file
+mapping), [`internal/core/library`](internal/core/library/CLAUDE.md) (placement,
+layout), [`internal/server`](internal/server/CLAUDE.md) (routes, the cross-origin
+write guard, settings-body encoding) and
+[`internal/core/settings`](internal/core/settings/CLAUDE.md) (config precedence,
+stored secrets). Two are security rationale and worth naming here so nobody
+rediscovers them the hard way: **a write whose `Origin` names another origin is
+rejected** (#269), and **a stored secret is only ever sent to the host it was saved
+for** (#259).
+
 - **`failed` also means "this release is remembered" (`internal/core/blocklist`,
   #118).** Both `failed` paths record a per-series blocklist entry, because the
   grab row is per wanted item and the next attempt overwrites it — without that
@@ -286,7 +216,7 @@ Behaviour changes are test-driven. Work red → green → refactor:
   on its own, because the download client is the user's disk and their ratio.
 - **A stall at exactly 0% is the one absence-shaped thing that is the release's
   fault (#242).** Long enough to need its own section — see
-  [Design notes](#design-notes) below.
+  [`docs/design-notes.md`](docs/design-notes.md).
 - **Both timers are the info-hash group's, not the row's (#247).** A pack is one
   torrent, so `sharedSince` gives every row of a group its earliest stamp and
   `stalled_since`/`missing_since` are stamped and cleared per group. Per-row
@@ -571,117 +501,6 @@ Behaviour changes are test-driven. Work red → green → refactor:
   the sqlc layer for a column `internal/core/airing` already owns. A gap-filled
   item does reset the search cadence (`ResetTitleSearchState`, as `refresh`
   does): it carries no air date, so it is exactly what `airedSince` cannot see.
-- **Auth is forms-based** (`internal/core/auth`): the web UI logs in (username +
-  argon2id password) and gets an httpOnly session cookie; the **API key** is for
-  machine clients only (`X-Api-Key`). A request to `/api/*` is authorized by a
-  valid session cookie, a valid API key, or — in `local` required-mode — a
-  loopback/private request with no forwarding headers. The key is resolved as
-  `TRANSPONDARR_API_KEY` env → DB-persisted → generate-and-persist (`resolveAPIKey`
-  in `cmd/transpondarrd`); it survives restarts.
-- **We reject a write whose `Origin` names another origin, and `Origin` is the only
-  header that can show that (#269).** `local` auth mode authorizes on peer address
-  alone. A hostile page
-  addresses the server by its IP, so `Host` is an IP literal and `RemoteAddr` is
-  private — the same shape `rebinding_test.go` names the legitimate LAN case. The
-  rebinding check is correct and answers a different question. `crossOriginGuard`
-  therefore runs ahead of `authMiddleware`, so one check applies to the Huma routes
-  and the hand-rolled auth ones alike. The hand-rolled ones matter most: `decodeJSON`
-  ignores `Content-Type`, so `/auth/setup` accepts a `text/plain` body, and its only
-  other check is `Configured()`. In `local` auth mode `Configured()` stays false,
-  because `auth-gate.tsx` renders the setup screen only when `!authenticated` and a
-  LAN browser always is. Nobody creates the admin account, so a hostile page can
-  create it with a password it chose — which is why we don't scope the check to
-  `local` auth mode.
-  **`Sec-Fetch-Site` can't do this job, and choosing it is the trap.** A browser
-  appends those headers only to potentially trustworthy URLs, and `192.168/16` is not
-  one, so on the deployment this is about they never arrive. Such a check would still
-  pass its own mutation test, because `httptest` listens on `127.0.0.1`. `Origin` has
-  no trustworthiness condition and browsers append it to every request but `GET` and
-  `HEAD`. So it discriminates all three shapes a browser sends without a preflight:
-  bodyless, `text/plain`, and a JSON body with the header omitted — the last being
-  the one content type Huma accepts by default.
-  Three constants. **Absent means allowed**, which is what keeps `curl`,
-  dashboards and the API key working, and is safe because a browser can't omit
-  `Origin` on a cross-site write. **`null` means rejected**, since an https page
-  posting to an http target sends that rather than its own origin; treating the two
-  alike would admit the likeliest attacker setup. And **we don't compare a part
-  nobody stated**, which never applies to the host but applies to the scheme and
-  the port. A proxy that terminates TLS without setting `X-Forwarded-Proto`
-  forwards over plain http against an https `Origin`. Separately, nginx's
-  `X-Forwarded-Host $host` excludes the port (`$http_host` is the spelling that
-  keeps it), so an install published on `:8443` gives a portless expected host
-  against an `Origin` that includes `:8443`. Comparing either would 403 that
-  install's own UI. **`X-Forwarded-Port` does not fill that in**: nginx's
-  `$server_port` and a Traefik entrypoint both name the port the proxy listens on,
-  which differs from the published one whenever a container maps ports.
-  **What we do not do is fail open when a proxy names no host**, which an earlier
-  round of this change did, on the reasoning that a proxied install is
-  authenticated anyway. `requiresAuth` exempts `/auth/setup`, `/auth/login` and
-  `/auth/logout` in every auth required-mode, so that reasoning was false exactly
-  where it mattered. cloudflared, Tailscale Serve and any nginx setting only `For`
-  and `Proto` send a forwarding header and no `X-Forwarded-Host`, and a hostile
-  page got the admin account on a fresh `enabled` install. `Host` is the fallback,
-  because a proxy that forwards anything usually forwards `Host` unchanged too, and
-  one that rewrites it gets a diagnosable 403 rather than a silent hole.
-  `statedScheme` takes only `http` and `https` for the same class of reason: any
-  other value built a spelling `url.Parse` rejects, and an unparseable expected
-  origin allowed everything.
-  The refusal is **problem+json, not `http.Error`'s text/plain**, because
-  `throwApiError` reads `detail` and from a plain body the operator gets
-  "HTTP 403" and no cause — the string the upgrade note names. Reads stay unchecked, a
-  stated residual risk: four `GET`s make outbound
-  calls and use the AniList request budget. A rebinding page is *same-origin* by
-  construction, so this check does not apply to one. `isLocalRequest` stops it
-  everywhere
-  that needs a login, which leaves the pre-setup window, named in SECURITY.md.
-  **`apiProxyOptions` pins the Vite dev proxy's `changeOrigin` off** for the same
-  reason the port rule exists. The string shorthand turns it on, which rewrites
-  `Host` to the API's port and adds no forwarding header, so `make dev` plus
-  `npm run dev` would 403 every write while reads kept working. That is why
-  `apiProxyTarget` (a string) is wrapped rather than changed: a later edit reverts
-  to the shorthand. It costs one thing: `npm run dev -- --host` reached by hostname
-  now forwards that hostname, which `isLocalRequest` rejects, so `local` auth mode
-  needs a login there.
-- **Config precedence: env (or a dev `.env`) → DB `settings` overrides → defaults.**
-  Integrations (qBit/indexer/library) are editable live via the Settings UI;
-  `internal/core/settings.Service` persists the change, rebuilds the client, and
-  swaps it into `internal/core/clients.Registry`, which handlers and the importer
-  read through — so edits apply without a restart.
-- **A stored secret only ever goes to the host it was saved for (#259).** Three
-  `Test*` and three `Update*` paths fill a blank secret field from storage — which is
-  what lets the Settings **Test** button work without retyping a password the read
-  path deliberately redacts — and then connect to the URL the *caller* supplied, so
-  the substitution handed the secret to whatever host a request named.
-  `inheritSecret` is now the single way a stored secret is read back, and it refuses
-  rather than substituting when the destination differs. Three constants are
-  load-bearing. The comparison is **scheme + host + port**, because the host is what
-  receives the secret: a path edit (a different Jackett indexer on the same Jackett)
-  must not cost a retype, and a default port written out explicitly is not a move.
-  **An empty destination inherits rather than refusing** — nothing is ever connected
-  to, so clearing a URL to disable an integration keeps the secret instead of wiping
-  it or 422-ing. And **ntfy applies its defaults before the comparison, never
-  after**: a blank server means the public ntfy.sh, so defaulting afterwards makes it
-  read as "no destination", takes that empty-destination branch, and hands a custom
-  server's token to ntfy.sh — a live mutation, which is why
-  `TestBlankNtfyServerDoesNotInheritACustomServersToken` exists. **The guard is
-  per-request, so a request it lets through must not move the baseline the next one
-  is compared against**: ntfy is the one integration whose disable signal (topic) is
-  a *different field* from its destination (server), so a blank-topic save persisting
-  the caller's server would rebind the inherited token to it and the follow-up would
-  match — #259 reinstated in two ordinary requests. `UpdateNotify` therefore keeps the
-  stored server on that branch, and only while a stored token is actually being
-  carried forward, so staging a server before choosing a topic still saves. Download
-  and indexer cannot have this shape: their disable signal *is* the destination, so
-  clearing the URL stores an empty one and `sameDestination`'s hostless fallback
-  refuses every later host. The **save** paths
-  carry the rule too, not just the tests: a save rebuilds the live client against the
-  new URL and it authenticates on the next poll, so fixing only the tests would leave
-  the same exfiltration one `PUT` away. Deliberately **not** an access-control fix —
-  the cross-origin hole that makes it reachable without a credential is #269, and in
-  `enabled` mode the caller is authenticated anyway. What it protects is the secret
-  *leaving* the app (an indexer key is a private-tracker account credential, a qBit
-  password is often reused) and the coherence of the `GET /settings` redaction, which
-  asserts that API access does not hand you the secrets.
 - A DB change = a goose migration under `internal/store/migrations` + queries in
   `internal/store/queries` + `make gen`.
   - **`make gen` refuses to run on any sqlc but the `mise.toml` pin.** The generated
@@ -865,32 +684,6 @@ Behaviour changes are test-driven. Work red → green → refactor:
   silently re-enabled notification; and the `series_layout` settings key and
   API field. A SELECT alias is ours and renamed with the queries, which is why
   `s.title AS title_name` and a schema `SeriesID` now sit in the same struct.
-- **A movie's file is identified by size; numbering never gets a say (#210).**
-  `mapMovie` takes the payload's largest surviving video, because a film is the
-  biggest thing shipped with it — a property of the payload rather than of how a
-  releaser named it, which is the same reason `decide` stopped trusting numbers
-  on the movie path (#218). The number-driven mapping was actively unsafe here:
-  a movie's `covers` is always `{1}`, so a numbered extra (`Deleted Scene 1`)
-  claimed the film's only item, hardlinked a clip as the movie and dropped the
-  feature as a leftover — settled, held, and self-healing never. Note the
-  asymmetry it had: *two* claimants deferred safely as a conflict while *one*
-  imported. Keyed on `domain.FormatMovie` and never on a one-item group, since a
-  series' single grabbed episode is one too and its number is genuine identity
-  there. The filter still runs first (a sample is never the feature, and is
-  often the small file anyway, so size must not re-admit it), an exact size tie
-  is a conflict rather than a coin flip, and a retry override still overrules
-  everything. One consequence worth knowing: with size always deciding, the
-  `unmatched file(s)` deferral is unreachable for a movie — a tie and an
-  unextracted archive are the only deferrals it has.
-- **User-facing copy follows the same rule, and only where a movie reaches it
-  (#210).** The importer's settled reasons and the notification adapters word
-  themselves off the item's kind (`itemLabel`, and the adapters' second condition
-  on `Event.ItemKind`), so a film is never "episode 1"; every string an episode
-  alone can reach keeps its wording byte-identical, which is what the series
-  assertions in `events_test.go` and `retry_test.go` pin. `Event.ItemKind` is
-  display-only — `webhook.go` must never map it, because `item_number: 1` is
-  *correct* for a movie and the payload is a contract (#207 broke it once,
-  deliberately and with an upgrade note).
 - **A batch token on a movie release is an eligibility rule, not a matching one
   (#211).** Movie mode's two numeric gates both read what a release *names*, and
   a numberless pack names neither an episode nor a year — so `[Grp] Placeholder
@@ -928,49 +721,6 @@ Behaviour changes are test-driven. Work red → green → refactor:
   title edit orphaning `<root>/<Old Name>/`, which the series branch has always
   had. Repaired by #213's placed-path memory, never by enumerating the library:
   `Place` only warns that its naming inputs moved.
-- **The library has a root per format, and a missing one is an error, never a
-  fallback (#198).** `mediaserver.Roots` splits Series from Movies because Plex
-  and Jellyfin want a Movies library separate from Shows, and `Place` picks
-  between them on `Format` alone — the same discriminator, so a one-item OVA
-  files under Shows with the rest. Placing a movie with no movies root returns
-  `ErrNoMoviesRoot` rather than falling back to the series root: an import
-  failure is the one settled-status exception (it stays `grabbed` and retries),
-  so the error holds the grab, surfaces as `last_error` in the Activity queue
-  plus one import-stuck notification, and the next scan imports it once the root
-  is set — where a file already hardlinked into the wrong library would need
-  hand cleanup. Root (destination) and layout (shape within a root) stay
-  different axes: #198 owns the root, #129 the shape.
-- **Layout parameterizes the shape inside a branch, never the branch itself
-  (#129).** `library.series_layout` (`season_folders` default, `flat`) is read
-  only by `destination`'s series arm, so format stays the sole discriminator and
-  a one-item OVA loses its season folder along with every other series — the
-  movie shape is identical under either layout. It is a string enum rather than
-  a bool for two reasons: `libraryInput` is `omitempty` throughout, where a bool
-  cannot distinguish "false" from "absent" (the trap `automationInput` documents),
-  and #168's per-format routing will need a value it can carry per format. The
-  default is the *current* behaviour, which is what lets an install that predates
-  the key keep the layout its files are already in — `ParseLayout` maps both
-  empty and unrecognized to `season_folders`, and the settings layer normalizes
-  through it so what is stored, displayed and joined into a path agree.
-  **Switching layouts moves nothing already placed**, so an upgrade writes the
-  new shape beside the old file. That is the same orphan class as a refreshed
-  title or year and is repaired the same way (#213's placed-path memory), never
-  by deleting from a computed path; but switched *to* flat the series folder
-  still exists, so the missing-directory warning cannot fire and `heldElsewhere`
-  is the only evidence. The two warnings are **independent `if`s, not a chain** —
-  they answer different questions, and one silencing the other is worse than
-  either alone. `heldElsewhere` therefore matches a *video* at the exact stem
-  rather than any stem-mate, or an interrupted copy's `.partial` would report a
-  layout switch that never happened and suppress the real warning.
-- **`removeStemMates`' trailing dot is load-bearing and only a two- against
-  three-digit pair tests it.** `seasonNumber` is hardcoded to 1, so every episode
-  of an entry already shares a directory and the flat layout adds no neighbours
-  to the one it scans — the blast radius is unchanged either way. But E03/E30
-  diverge at the first digit and pass with the guard removed; E10/E100 is the
-  pair that catches it.
-- **The staging sweep deletes using rules instead of enumerating the library
-  (#132).** Long enough to need its own section — see
-  [Design notes](#design-notes) below.
 - **A year is read the same way whichever form names it, and both are decided
   against the variants (#209).** anitogo fills `AnimeYear` only from a
   *bracket-isolated* token, so `[Grp] Film (2019)` yields a year while the scene
@@ -1014,263 +764,6 @@ Behaviour changes are test-driven. Work red → green → refactor:
   (`Sample Film 2` against `Sample Film 2nd Movie`) goes unmatched, and being a
   *matching* refusal that 422s the manual grab too — pinned by a named test so
   the strictness is not read as an oversight and loosened back.
-- **The library flag and the derived item status share one name, deliberately
-  (#84): `in_library`.** `wanted_items.in_library` sources the status
-  `deriveItemState` returns, so renaming either alone would hide the derivation.
-  The name is mechanism-agnostic on purpose — `imported` would name the importer
-  as the only route into the library, which pre-existing-library import and hash
-  identification (deferred, not rejected) would make a lie in the API contract.
-- **A settings body is its section's whole state, so `omitempty` is an argument
-  rather than a default (#227).** A field the service would fill in with a
-  default is required — the library mode and layout, the qBit category, the
-  stall hours, the ntfy server, every notify toggle — because omitting it
-  *selects* that default instead of leaving it alone, invisibly to the sender:
-  #129's flat library reverted to season folders on a save that never mentioned
-  the layout, and the DB row then outranked the env var permanently. A field is
-  `omitempty` only where absent and empty are the same instruction — a blank
-  secret keeps the stored one, a blank URL, root or topic switches that piece
-  off. Sending a required field empty still takes the default, and that *is* the
-  distinction: the client said so — **except where the field carries an `enum`
-  tag**, which refuses an empty value outright, so `mode`, `series_layout` and
-  automation's `mode` are 422 either way and the handler's `ValidImportMode` /
-  `ValidSeriesLayout` guards are unreachable defence in depth. The rule is about
-  the encoding, not about Huma, so it reaches the hand-rolled bodies too —
-  `POST /api/v1/auth/mode` validates the mode itself, where the service would
-  otherwise read an absent one as `enabled` and lock a `local` install out. It
-  validates *exactly*, matching those enums: `auth.ValidRequired` refuses a case
-  variant that `normalizeRequired` would have accepted, because that one reads
-  what a stored value or an env var may hold, not what a client sent.
-  `TestSettingsInputsRequireEveryDefaultedField` is the audit in runnable form:
-  a field moved back to `omitempty` fails it unless someone also takes it out of
-  the table, which is where the argument has to be made.
-  **The quality-profile body takes the same rule, and being one body for create
-  and update is why it has to.** A create that omitted a field did not take the
-  column's default — `CreateQualityProfile` writes every column explicitly, so
-  it wrote the *zero* over `resolution_order`'s three tiers and
-  `upgrade_v2_above_cutoff`'s on, which is the opposite of what both the schema
-  and the editor present as a new profile's starting point. So the usual "POST
-  defaults what it omits" idiom was never true here, and splitting create from
-  update would have meant inventing those defaults in Go to match the ones SQLite
-  already states. What stays `omitempty` is where empty is the value: no
-  preference, no excludes, no ranked groups. `blocked` on a group row is
-  required for the plain reason — under `omitempty` no client can say "not
-  blocked", which this repo's own Go and TypeScript test fixtures both
-  demonstrated by being unable to.
-- **Route handlers: group by resource; use a receiver when it earns its keep.**
-  Each resource gets a `*_routes.go` file with a `register<Resource>Routes(api,
-deps)` function; `registerRoutes` in `internal/server/routes.go` is the manifest.
-  Multi-route resources that share deps/helpers (titles, settings) hang handlers
-  off a per-resource receiver struct (`titleHandler`) built via
-  `new<Resource>Handler(deps)`, with shared logic as methods (e.g. `requireTitle`,
-  `respond`); single-route groups (system, download, metadata, indexer) keep
-  inline closures. The receiver earns its keep around 3+ routes or shared
-  helpers/state. Handlers stay thin — push business logic into `internal/core`.
-  Auth endpoints are plain-chi, not Huma.
-
-## Design notes
-
-Design rationale too long to read as a bullet. Each subsection answers one
-question, so a reader with a specific question can find the paragraph that
-answers it (rule 22 of [`docs/style.md`](docs/style.md)).
-
-### A stall at exactly 0% is the one absence-shaped thing that is the release's fault (#242)
-
-A `stalledDL` torrent is *present*, so it reached neither `reconcileMissing` nor
-`StateError` and sat open forever. That is the doomed release the blocklist was
-built for (#118), and the blocklist could not reach it.
-
-Progress is the discriminator, strictly `> 0`. A torrent that moved at all proves
-a peer had the data, so those bytes are the user's to discard. A percentage
-threshold would draw a line nothing supports.
-
-This is `blameRelease`, unlike a torrent that has simply vanished (#241). Nobody
-seeding a release we can see is a fact about that release, and without the
-blocklist entry the search sweep re-picks the same first-ranked release and loops.
-
-Two things bound how far a VPN drop can fan out. Every such failure runs through
-`blocklist.Record`, so the failure breaker (#120) blames four items and suppresses
-the rest. And only a torrent that never received a byte qualifies at all.
-
-#### Why `Progress`, and not a count of bytes received
-
-`Progress` is the right predicate and must not be swapped for a bytes-received
-count. The plausible "refinement" is a regression.
-
-It is not piece-granular. `sessionimpl.cpp` calls `post_torrent_updates()` with no
-arguments, so libtorrent's default `status_flags_t::all()` applies,
-`query_accurate_download_counters` included, and that counts *partial blocks* in
-`total_wanted_done`. `TorrentImpl::progress()` returns that unrounded, so progress
-moves on the first 16 KiB block. Over a six-hour timeout that is under a byte per
-second, which puts the slow-torrent false positive out of reach. The refinement
-solves nothing that needed solving.
-
-A second reason to distrust it is that it rests on reasoning instead of on traced
-fact, and is flagged here as such. libtorrent documents `all_time_download` only
-as an accumulated payload counter and describes `total_failed_bytes` separately,
-so the documentation does not settle whether a byte counter excludes what a hash
-check later discards. If it does not, a torrent failing every check would report
-bytes received and `progress == 0` forever, and "has received nothing" would never
-abandon it.
-
-#### The clock and the timeout
-
-`stalled_since` mirrors `missing_since`: stamped on the first qualifying
-observation, cleared the moment progress moves. The timeout is
-`download.stall_hours`, which is client-agnostic policy and therefore not
-`qbit.*`.
-
-Setting it to 0 both disables the timeout and **clears the stamp**, so the two
-ways of holding a download agree. Pausing and switching the timeout off both give
-a fresh window instead of banking the wait.
-
-#### Which client states qualify (#246)
-
-The trigger is the client reporting that it is *trying*, with progress 0. That
-means `StateStalled` or `StateDownloading`, so `metaDL` and `forcedMetaDL` are
-covered — the magnet parked at "Downloading metadata", which #242's own wording
-had to exclude.
-
-`StatePaused` is deliberate user intent and `StateUnknown` is a gap in `mapState`,
-so neither reaches the arm. `queuedDL` is excluded by having its own `StateQueued`
-instead of hiding inside `StateDownloading`, because a client holding a torrent
-back is not trying. Folding the two together is what made "widen the predicate"
-and "never abandon a queued download" look like opposites.
-
-`Status.StuckAtZero` names the predicate. `stalled_since` deliberately keeps a
-name it has outgrown, because the clock did not change — it still mirrors
-`missing_since`, and a migration for a column name is cosmetics.
-
-The stamp-clearing loop and the switch arm must read the one predicate. Widening
-only the arm clears the clock every scan while `sharedSince` re-derives it from
-the pre-clear rows. The database then keeps the cleared value, the timeout never
-accumulates, and the grab sits open — the bug, surviving its own fix. It is a
-mutation that lives, so `TestKeepsMetadataStallClockAcrossScans` exists to kill it.
-
-#### No fetching-metadata state, on purpose
-
-Queued is near-universal: five of six surveyed clients have it, rTorrent has no
-queue, and a missing state degrades cleanly because an adapter simply never emits
-it.
-
-Fetching-metadata is one client's taxonomy. qBittorrent and Deluge are both
-libtorrent and disagree in both directions, with qBit passing the metadata state
-through while Deluge does not expose it at all. The two are disjoint by
-construction in qBittorrent, whose `updateState()` tests `isQueued()` first inside
-the `!hasMetadata()` branch.
-
-If "Fetching metadata" is ever wanted in the UI it is a detail field beside
-`State`, never a state value. Sonarr renders it as a detail field, and
-Transmission's `metadata_percent_complete` and rTorrent's `d.is_meta` are shaped
-for the same use.
-
-#### An adapter maps the derived predicate, never a client's own "stalled" flag (#159)
-
-Ours is qBittorrent's instantaneous `download_payload_rate == 0`. Transmission's
-`is_stalled` is a 30-minute idle timer, so mapping that boolean would silently
-stack `stall_hours` on top of it and make the threshold mean something different
-per client. `stalled` stays instantaneous everywhere, and `stalled_since` is where
-the duration lives.
-
-#### Absence wins over the stall clock, and what the queue shows
-
-Between the two timers, absence wins by construction. The `!ok` branch
-`continue`s before the state switch, so a torrent that goes missing is settled on
-the 5-minute grace and the stall clock is never consulted.
-
-The queue's `abandon_at` is the part `client_state` could not say — that we are
-going to act, and when. It is therefore keyed on the *live* status as well as on
-the stamp, which outlives the stall by up to one scan.
-
-Widened, it now shows on a healthy grab too: for the scan or two before its first
-piece lands, and on a magnet for as long as metadata takes. That is accepted
-instead of hidden below some fraction of the timeout, which would invent a second
-threshold with nothing behind it.
-
-Its countdown is stale for as long as the tab is open, not for one poll. A queue
-of only stalled rows serializes byte-identically, so React Query's structural
-sharing re-renders nothing. That is the class #144 named, and `activity.tsx` is a
-third call site for that audit.
-
-### The staging sweep deletes using rules instead of enumerating the library (#132)
-
-Both transfer paths write a staging file beside the destination: `copyFile`
-writes `.partial`, and `replace` makes an `.upgrade` hardlink. Only another
-attempt at writing that destination will reclaim the staging files, so a file can
-get left over if that never happens.
-
-The predicate asserts the following clauses for the files it looks at:
-
-1. not currently in flight
-2. carries one of our own two suffixes
-3. sits over a known video extension
-4. sits under a configured root
-5. has an mtime older than 24 hours
-
-`SweepStaging` only removes files it finds, so an unmounted root means it finds
-nothing. It can't delete a library it can't see.
-
-#### What protects a live transfer
-
-While file age is relevant for protecting `.partial` files, `.upgrade` files are
-protected by the in-flight registry instead. `os.Link` shares the payload's
-inode, so an `.upgrade` link to a payload gets that payload's mtime.
-
-So the staging name is chosen in one place: `staged`, the helper both transfer
-paths run their write inside. It builds the name from the destination, registers
-it as in flight for the length of the write, and clears the registration when the
-write returns. Both paths are given the name instead of computing it, which means
-a staging file can't exist without being registered. `removeUnstaged` does the
-check and the unlink under one lock, so a transfer can't register between the two.
-
-The limitation we accepted on the other side: an `.upgrade` file orphaned by a
-crash isn't swept until its *payload's* mtime passes 24 hours, so it can sit
-there after it stops being useful. Late, never wrong.
-
-#### Resolving roots, and the order the sweep works in
-
-Roots are resolved before the enumeration starts. `WalkDir` won't descend a
-symlinked root, and `/media` pointing at `/mnt/user/media` is an ordinary NAS
-layout. `staged` keys on a `canonical` path so that the registry doesn't silently
-fail to match in that setup. Links inside the tree are still not followed, so the
-enumeration stays within a root.
-
-Every root is enumerated before anything is removed. `collectStale` builds the
-whole list first, and a second loop deletes from it. If one root sits inside the
-other, walking the outer one already descends into the inner one, so the same
-file lands in the list twice. The first delete succeeds and the second gets
-`ErrNotExist`, which `SweepStaging` treats as ordinary instead of as a fault.
-
-Deleting during the enumeration would hide the second sighting. The outer walk
-would remove the file, and the inner walk would never yield a path that no longer
-exists. The tolerance would then only be reached by a real race, where an import
-reclaims its own staging file while the sweep is running. Collecting first is what
-makes it happen in an ordinary configuration, which keeps the tolerance reachable
-and testable.
-
-The de-duplication and the tolerance do different jobs. `stagingRoots` drops two
-roots that resolve to the same path, which spares a second enumeration. It does
-nothing about one root nested inside another, and tolerating `ErrNotExist` is
-what keeps the sweep correct there.
-
-#### The videoExts dependency
-
-The video-extension check narrows the predicate to *our* staging files instead of
-any `.partial` on disk, and it is a third place that depends on `videoExts` being
-the importer's list. If the two lists drift, the cost is a missed sweep and never
-a wrong delete, and that is the only direction allowed to fail.
-
-#### Why it is an optional capability and its own job
-
-`library.StagingSweeper` is an optional capability found by type assertion, so
-`library.Target` is still just `Name()` and `Place()`, with no way to ask a target
-what it currently contains. A target without the capability is a supported
-configuration, not an error. That general read path is #170, and manual file
-adoption (#157) and library drift detection (#171) both need it. The issue has to
-settle the question this sweep already answered locally: whether listing belongs
-on `Target` itself, or stays an optional capability like this one.
-
-The sweep runs as its own slow job instead of inside the 15-second import scan,
-because it enumerates every root.
 
 ## Comments
 
