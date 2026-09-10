@@ -209,7 +209,7 @@ func TestSendRendersMultipleEpisodesAsOneField(t *testing.T) {
 	}
 }
 
-// A movie has one item, so its number would say nothing the title has not: the
+// A movie has one item, so its number would describe nothing the title has not: the
 // Episode field comes out entirely rather than being relabelled.
 func TestSendOmitsTheEpisodeFieldForAMovie(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)

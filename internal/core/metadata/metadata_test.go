@@ -255,7 +255,7 @@ func TestFresh(t *testing.T) {
 		t.Error("a RELEASING title fetched 7 hours ago should be stale (6h TTL)")
 	}
 	// Replaces "an unknown count rides the short TTL": a count AniList will never
-	// publish is not worth re-asking every 6 hours (#151).
+	// publish is not worth re-querying every 6 hours (#151).
 	if !fresh("FINISHED", 0, time.Now().Add(-7*time.Hour)) {
 		t.Error("a FINISHED title with an unknown count fetched 7 hours ago should be fresh")
 	}
@@ -286,8 +286,8 @@ func TestCachedGetTitleRefetchesAScheduledTitleWithAnUnknownCount(t *testing.T) 
 	}
 }
 
-// A snapshot past its TTL is still served: the caller wants names, which do not
-// go bad the way the episode count the TTL protects does.
+// A snapshot past its TTL is still served: names are what the caller reads, and
+// they do not go bad the way the episode count the TTL protects does.
 func TestTitleFromCacheServesStaleSnapshotWithoutProvider(t *testing.T) {
 	prov := &fakeProvider{meta: TitleMeta{ProviderID: 99}} // must NOT be returned
 	cache := &fakeCache{
@@ -347,7 +347,7 @@ func TestTitleFromCacheCacheErrorDoesNotFetch(t *testing.T) {
 	}
 }
 
-// Every wrapper shape genuinely holds a cache, so the capability must survive the
+// Every wrapper shape genuinely contains a cache, so the capability must survive the
 // embedding Cached picks per inner provider.
 func TestEveryCachedWrapperReadsTheCache(t *testing.T) {
 	for name, prov := range map[string]Provider{
@@ -446,7 +446,7 @@ func TestCachedDoesNotInventBrowseCapability(t *testing.T) {
 	}
 }
 
-// fakeFullProvider carries both optional capabilities, like the AniList adapter.
+// fakeFullProvider has both optional capabilities, like the AniList adapter.
 type fakeFullProvider struct {
 	fakeAiringProvider
 	fakeBrowseProvider

@@ -111,7 +111,7 @@ func TestDoneWaitsForInFlightJobs(t *testing.T) {
 	})
 }
 
-// A panicking job must not take down the process, its siblings, or — the part
+// A panicking job must not take down the process, the other jobs, or — the part
 // that is easy to get wrong — its own loop.
 func TestPanickingJobLeavesOtherJobsAndItsOwnLoopAlive(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
@@ -285,8 +285,8 @@ func TestStatusReportsLastRunDurationAndError(t *testing.T) {
 	})
 }
 
-// A settled state must never carry a stale error (issue #37's invariant, which
-// the importer learned the hard way).
+// A settled state must never have a stale error (issue #37's invariant, which
+// the importer got wrong once).
 func TestASuccessfulRunClearsThePreviousError(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var failing atomic.Bool
@@ -380,8 +380,8 @@ func TestTriggerRunsTheJobBeforeItsInterval(t *testing.T) {
 	})
 }
 
-// The marker a manually triggered run carries, which is how the automation
-// kill switch tells an operator's request apart from the schedule.
+// The marker on a manually triggered run, which is how the automation
+// kill switch distinguishes an operator's request from the schedule.
 func TestOnlyATriggeredRunIsMarkedManual(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		seen := make(chan bool, 4)

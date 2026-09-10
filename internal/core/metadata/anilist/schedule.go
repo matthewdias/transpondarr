@@ -45,7 +45,7 @@ func (c *Client) GetSchedule(ctx context.Context, id int64, notYetAired bool) ([
 			} `json:"Media"`
 		}
 		vars := map[string]any{"id": id, "page": page, "perPage": schedulePerPage}
-		// Omitted rather than sent as false, so nothing rests on the resolver
+		// Omitted rather than sent as false, so nothing depends on the resolver
 		// treating an explicit false as "no filter" rather than as a filter.
 		if notYetAired {
 			vars["notYetAired"] = true

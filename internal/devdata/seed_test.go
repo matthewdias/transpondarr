@@ -113,7 +113,7 @@ func TestSeedProducesEveryStateTheActivityQueueRenders(t *testing.T) {
 
 // SetGrabStatus writes last_error = NULL, and the only SetGrabLastError call
 // site runs on rows that stay grabbed, so any other pairing is a state the
-// seeder invented and no install can reach.
+// seeder invented and no install produces.
 func TestSeedNeverWritesALastErrorAStatusWouldClear(t *testing.T) {
 	st := seeded(t)
 	got := queryStrings(t, st, `
@@ -150,7 +150,7 @@ func TestSeedProducesNullAirDateItemsBesideDatedOnes(t *testing.T) {
 
 func TestSeedProducesAGapFilledRun(t *testing.T) {
 	st := seeded(t)
-	// A schedule reading 1, 3, 4: the gap-filled item exists but carries no date,
+	// A schedule reading 1, 3, 4: the gap-filled item exists but has no date,
 	// which is the shape #152 creates and nothing else would produce.
 	n := count(t, st, `
 		SELECT count(*) FROM wanted_items gap
@@ -206,7 +206,7 @@ func TestSeedProducesBlocklistAtEveryRungIncludingExpired(t *testing.T) {
 				continue
 			}
 			// blocklist.Record is given the failed grab row's own info hash, so an
-			// entry naming a hash no grab row holds is a pairing no install writes;
+			// entry naming a hash no grab row has is a pairing no install writes;
 			// empty is the case where Torznab published none.
 			if row.InfoHash != "" && count(t, st, `SELECT count(*) FROM grabs WHERE info_hash = ?`, row.InfoHash) == 0 {
 				t.Errorf("blocklist entry %q names info hash %q, which no grab row holds", b.release, row.InfoHash)
@@ -398,7 +398,7 @@ func TestCutoffUnmetListsAGroup(t *testing.T) {
 					g.TitleName, it.Number, it.Score, g.CutoffScore)
 			}
 			// Without this a profile with no axes at all would list everything
-			// while the screen had nothing to say about why.
+			// while the screen showed nothing about why.
 			if len(it.UnmetGoals) == 0 {
 				t.Errorf("%s item %d is listed with no unmet goals; the row has no reason to show",
 					g.TitleName, it.Number)
@@ -480,14 +480,14 @@ func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 }
 
 // Variants are Romaji, English and Native deduped (catalog.dedupeNonEmpty), so a
-// fixture altName that reaches none of them leaves #107's variant-fallback
+// fixture altName that matches none of them leaves #107's variant-fallback
 // search unexercisable and makes altNames look load-bearing when it is not.
 func TestASeededTitleHasMoreThanOneNameVariant(t *testing.T) {
 	st := seeded(t)
 	ctx := context.Background()
 	// Two services, because the two readers answer from different places and the
 	// cache decorator is read-through: through it, TitleVariants would return the
-	// seeded snapshot and never ask the stub at all.
+	// seeded snapshot and never query the stub at all.
 	fromCache := catalog.NewService(st, metadata.Cached(anilistStub(t), dbcache.New(st.Q)))
 	fromStub := catalog.NewService(st, anilistStub(t))
 
@@ -517,9 +517,9 @@ func TestASeededTitleHasMoreThanOneNameVariant(t *testing.T) {
 	}
 }
 
-// A stored pass detail is a snapshot of what decide once said, so a number in it
-// that disagrees with the profile puts a threshold on the Missing screen that the
-// profile editor contradicts.
+// A stored pass detail is a snapshot of what decide once reported, so a number in
+// it that differs from the profile puts a threshold on the Missing screen that the
+// profile editor shows differently.
 func TestAStoredRefusalDetailAgreesWithItsOwnProfile(t *testing.T) {
 	minScores := map[string]int64{}
 	for _, p := range profiles() {

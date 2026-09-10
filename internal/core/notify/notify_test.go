@@ -73,7 +73,7 @@ func TestDispatchFansOutOnlyToKindEnabledRoutes(t *testing.T) {
 		t.Fatalf("enabled route got %+v, want the imported event", ev)
 	}
 	// The disabled route must stay silent; the enabled one already ran, so a
-	// short grace is enough to catch a stray goroutine.
+	// short grace is enough to detect a stray goroutine.
 	select {
 	case <-off.got:
 		t.Fatal("route received an event for a kind it is not enabled for")

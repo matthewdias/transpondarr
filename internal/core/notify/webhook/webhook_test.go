@@ -118,7 +118,7 @@ func TestSendSerializesItemsAsAnArray(t *testing.T) {
 		t.Errorf("items = %s, want [1,2,3]", got)
 	}
 
-	// A single-item event still carries the key, as an empty array not null.
+	// A single-item event still includes the key, as an empty array not null.
 	if err := New(ts.URL).Send(context.Background(), notify.Event{
 		Kind: notify.KindImported, Title: "Placeholder Saga", ItemNumber: 5,
 	}); err != nil {
@@ -130,9 +130,9 @@ func TestSendSerializesItemsAsAnArray(t *testing.T) {
 }
 
 // The payload is machine-facing and item_number: 1 is correct for a movie — it
-// is item-scoped, with one item numbered 1. The rendering decision that hides
-// the number from humans must not reach the wire, so a movie's body is
-// byte-identical to the same event carrying no item kind at all.
+// is item-scoped, with one item numbered 1. The rendering decision that drops
+// the number for humans must not appear on the wire, so a movie's body is
+// byte-identical to the same event with no item kind at all.
 func TestMovieEventLeavesTheWireContractUntouched(t *testing.T) {
 	var bodies []string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

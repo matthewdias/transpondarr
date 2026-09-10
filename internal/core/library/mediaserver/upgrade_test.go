@@ -33,7 +33,7 @@ func seedLibraryFile(t *testing.T, root, name string, size int) string {
 }
 
 // The size check is what makes an ordinary import idempotent, and exactly what
-// an upgrade must not obey: a better release can be a smaller file.
+// an upgrade must not apply: a better release can be a smaller file.
 func TestReplaceOverwritesALargerDestination(t *testing.T) {
 	root := t.TempDir()
 	old := seedLibraryFile(t, root, "Placeholder Saga - S01E03.mkv", 4096)
@@ -57,7 +57,7 @@ func TestReplaceOverwritesALargerDestination(t *testing.T) {
 	}
 }
 
-// Without Replace the short-circuit stands: nothing re-copies a file already in
+// Without Replace the short-circuit applies: nothing re-copies a file already in
 // the library.
 func TestPlaceWithoutReplaceKeepsTheLargerDestination(t *testing.T) {
 	root := t.TempDir()

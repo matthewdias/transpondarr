@@ -208,7 +208,7 @@ func TestSearchURLPreservesBaseParams(t *testing.T) {
 }
 
 // Categories are indexer configuration, not query state, so every request
-// carries them; unconfigured leaves the request as it was before #142.
+// includes them; unconfigured leaves the request as it was before #142.
 func TestSearchURLCategories(t *testing.T) {
 	i := New("prowlarr", "http://prowlarr:9696/1/api", "k", "5070,127720")
 	raw, err := i.searchURL(indexer.Query{Term: "x"})

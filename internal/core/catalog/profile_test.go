@@ -75,7 +75,7 @@ func TestAddTitleWithoutAProfileKeepsTheDefault(t *testing.T) {
 }
 
 // The assignment shares the add's transaction, so a bad profile id leaves
-// nothing behind rather than a title on a profile the caller never asked for.
+// nothing behind rather than a title on a profile the caller never set.
 func TestAddTitleRejectsAnUnknownProfileAndPersistsNothing(t *testing.T) {
 	st, svc := profileService(t)
 
