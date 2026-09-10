@@ -8,8 +8,8 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// asciiPunct folds typography with a direct ASCII counterpart that NFKD leaves
-// alone; "×" gets spaces because releases write it as a standalone "x".
+// asciiPunct folds typography with a direct ASCII counterpart that NFKD does not
+// fold; "×" gets spaces because releases write it as a standalone "x".
 var asciiPunct = map[rune]string{
 	'×': " x ",
 	'’': "'", '‘': "'", '“': `"`, '”': `"`,
@@ -41,7 +41,7 @@ func foldTitle(s string) string {
 		}
 		for _, e := range d {
 			// Combining marks: an accent on a Latin base drops, but kana voicing
-			// marks (U+3099/309A) must survive for NFC to recompose ズ from ス.
+			// marks (U+3099/309A) must be kept for NFC to recompose ズ from ス.
 			if unicode.Is(unicode.Mn, e) {
 				if !latinBase {
 					b.WriteRune(e)
@@ -67,7 +67,7 @@ func isASCII(s string) bool {
 	return true
 }
 
-// searchWrappers is ASCII wrapper typography a release search never needs.
+// searchWrappers is ASCII wrapper typography a release search never uses.
 const searchWrappers = "()[]{}~"
 
 // SearchTerm sanitizes a stored title into an indexer query term: fold to

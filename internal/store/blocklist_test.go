@@ -25,7 +25,7 @@ func blocklistTitle(t *testing.T, st *Store, title string) db.Series {
 }
 
 // A repeat failure of the same release must land on the existing row so the
-// escalation ladder can see how many times it has failed.
+// escalation ladder counts how many times it has failed.
 func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
@@ -64,7 +64,7 @@ func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 	if second.Failures != 2 {
 		t.Errorf("failures after second record = %d, want 2", second.Failures)
 	}
-	// The latest attempt's hash is what the next decide pass will see.
+	// The latest attempt's hash is what the next decide pass reads.
 	if second.InfoHash != "bbbb2222" {
 		t.Errorf("info_hash = %q, want the latest attempt's bbbb2222", second.InfoHash)
 	}
@@ -81,8 +81,8 @@ func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 	}
 }
 
-// Expiry is a filter, never a delete: the row carries the failure count, so an
-// expired entry must survive to escalate on the next failure.
+// Expiry is a filter, never a delete: the row has the failure count, so an
+// expired entry must remain to escalate on the next failure.
 func TestListActiveBlocklistFiltersExpiredButKeepsPermanent(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()

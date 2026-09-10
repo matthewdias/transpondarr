@@ -1,16 +1,16 @@
 // Package decide is the "decide" stage of the pipeline: given a tracked Title's
-// wanted items and a set of raw indexer releases, it works out which release
+// wanted items and a set of raw indexer releases, it determines which release
 // satisfies which item. It parses each release (via the parser package), filters
 // to the ones that plausibly belong to this title, and maps episode numbers to
 // wanted-item numbers — surfacing a human-readable reason for every decision so
-// the matching can be eyeballed before it drives an automatic grab. Matched
+// the matching can be reviewed before it drives an automatic grab. Matched
 // candidates are then ranked by a pure, profile-driven score (group first — see
 // the weights), below an absolute tier for a title's pinned group; an explicit
 // floor lets the answer be "nothing yet".
 //
 // v1 is deliberately transparent rather than clever: reconciling absolute vs
 // season-relative numbering is genuinely ambiguous without per-episode metadata,
-// so releases it cannot confidently place are returned unmatched with the reason,
+// so releases it cannot place unambiguously are returned unmatched with the reason,
 // not silently mis-mapped.
 package decide
 
@@ -38,12 +38,12 @@ type Candidate struct {
 	IneligibleReason string // non-empty exactly when !Eligible
 	Pinned           bool   // release group equals the title's pinned group
 
-	UpgradeItems   []int          // covered items we hold that this release may replace
-	UpgradeBlocked map[int]string // covered held items the upgrade policy refused, by reason
+	UpgradeItems   []int          // covered items in the library this release may replace
+	UpgradeBlocked map[int]string // covered held items the upgrade policy blocked, by reason
 }
 
 // TakeItems is what automation may act on: Items minus the held items the
-// upgrade policy refused. Manual paths keep reading Items, mirroring how they
+// upgrade policy blocked. Manual paths keep reading Items, mirroring how they
 // read a candidate that is matched but ineligible (PR #57).
 func (c Candidate) TakeItems() []int {
 	if len(c.UpgradeBlocked) == 0 {
@@ -72,11 +72,11 @@ func (c Candidate) takeCount() int {
 	return n
 }
 
-// MatchOpts carries the per-title inputs that are neither profile nor item data.
+// MatchOpts contains the per-title inputs that are neither profile nor item data.
 type MatchOpts struct {
 	PinnedGroup string
 	Blocked     BlockedSet
-	// Format selects movie matching (#208). The zero value reads as non-movie, so
+	// Format selects movie matching (#208). The zero value is non-movie, so
 	// a caller that passes no opts is unaffected.
 	Format domain.Format
 	// Year is the title's release year; 0 is "no year on record", which movie
@@ -127,18 +127,18 @@ type ScorePart struct {
 	Points int
 }
 
-// Item is a wanted item as the matcher sees it. Grabbable is candidacy, not
-// library state — the sweep also withholds in-flight and unaired items — so a
-// caller derives it per pass, and #97 can set it for an item we already hold.
-// HeldTitle names what the library holds, making a grabbable item an upgrade.
+// Item is a wanted item as the matcher receives it. Grabbable is candidacy, not
+// library state — the sweep also excludes in-flight and unaired items — so a
+// caller derives it per pass, and #97 can set it for an item already in the
+// library. HeldTitle names what the library has, so a grabbable item is an upgrade.
 type Item struct {
 	Number    int
 	Grabbable bool
 	HeldTitle string
 }
 
-// heldRelease is what a held item holds, parsed and scored once per pass so the
-// incumbent and every candidate are rated under one profile snapshot.
+// heldRelease is a held item's library release, parsed and scored once per pass
+// so the incumbent and every candidate are rated under one profile snapshot.
 type heldRelease struct {
 	parsed parser.Parsed
 	score  int
@@ -168,8 +168,8 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 		if it.HeldTitle == "" {
 			continue
 		}
-		// Only the upgrade comparison reads the value, so a profile refusing every
-		// upgrade keeps the membership the reasons need and skips the parse.
+		// Only the upgrade comparison reads the value, so a profile that blocks every
+		// upgrade stores the membership the reasons read and skips the parse.
 		if !profile.UpgradesEnabled {
 			held[it.Number] = heldRelease{}
 			continue
@@ -185,7 +185,7 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 	variants := normalizeVariants(titleVariants)
 	// Which season this entry represents, derived from its own title (AniList
 	// models each season as a separate entry, e.g. "... 2nd Season"). Defaults to
-	// 1 when the title carries no marker. Releases that name a *different* season
+	// 1 when the title has no marker. Releases that name a *different* season
 	// are rejected — this is what stops S2E05 from matching item 5 of an S1 entry.
 	expectedSeason := expectedSeasonFrom(titleVariants)
 
@@ -246,8 +246,8 @@ const (
 )
 
 // UnmetGoals is Score's complement: the axes a release scores below the
-// profile's best on, each carrying the points still available. It lives here so
-// the gap and the earnings can never disagree about what an axis is worth
+// profile's best on, each with the points still available. It lives here so
+// the gap and the earnings can never differ on what an axis is worth
 // (#150's Cutoff Unmet reads it; the fix bonus is a repair, not a goal).
 func UnmetGoals(p parser.Parsed, profile domain.QualityProfile) []ScorePart {
 	var goals []ScorePart
@@ -297,7 +297,7 @@ func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) 
 	}
 	if i := indexFold(profile.ResolutionOrder, p.Resolution); i >= 0 {
 		// A folded resolution names the dimensions it was read from, so the tier
-		// never reads as something the release itself claimed.
+		// never reads as something the release itself contained.
 		if p.ResolutionRaw != "" {
 			add(fmt.Sprintf("resolution %s (from %s, rank %d)", p.Resolution, p.ResolutionRaw, i+1), stepped(scoreResBase, scoreResStep, scoreResMin, i))
 		} else {
@@ -331,9 +331,9 @@ func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) 
 
 // ineligibleReason is the floor from #16: the way the answer can be "nothing
 // yet" instead of the least-bad release available. "" means eligible. Scores
-// are never negative, so the zero-value MinScore expresses no floor.
+// are never negative, so the zero-value MinScore is no floor.
 func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.QualityProfile, o MatchOpts, score int) string {
-	// The blocklist first: when a release trips both, "this one already failed"
+	// The blocklist first: when a release matches both, "this one already failed"
 	// is the more actionable answer than a profile rule.
 	if r := o.Blocked.reason(rel); r != "" {
 		return r
@@ -342,7 +342,7 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 		return fmt.Sprintf("group %s is blocked by the profile", p.Group)
 	}
 	for _, tok := range profile.HardExcludes {
-		// Every axis Score rewards except group, which BlockedGroups owns.
+		// Every axis Score rewards except group, which BlockedGroups handles.
 		for _, v := range []string{p.Subs, p.Codec, p.Source, p.Resolution} {
 			if v != "" && strings.EqualFold(v, strings.TrimSpace(tok)) {
 				what := strings.ToLower(v)
@@ -356,15 +356,15 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 	if score < profile.MinScore {
 		return fmt.Sprintf("score %d is below the profile minimum %d", score, profile.MinScore)
 	}
-	// A numberless pack names no episode and carries no year, so both of movie
-	// mode's numeric gates are blind to it and the parent title's pack would be
+	// A numberless pack names no episode and has no year, so neither of movie
+	// mode's numeric gates applies to it and the parent title's pack would be
 	// placed as the film. Eligibility rather than matching, because a multi-part
-	// film release is indistinguishable from one: only automation is held back.
+	// film release is indistinguishable from one: only automation is blocked.
 	if o.Format == domain.FormatMovie && p.Batch {
 		return "the release is a batch or season pack, which may be the series rather than the film"
 	}
 	// Last, because it is a title-level fact identical on every row: when a
-	// release also refuses itself, that reason is the more actionable one.
+	// release also has a reason of its own, that reason is the more actionable one.
 	if o.Format == domain.FormatMovie && o.Year == 0 {
 		return "the movie has no year on record"
 	}
@@ -372,10 +372,10 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 }
 
 // applyUpgradePolicy splits a candidate's held coverage into what automation may
-// replace and what it must leave alone, first refusal winning. It is cutoff, not
-// chase: below the cutoff any strictly higher score is taken, and at or above it
-// only a v2/repack of the very release we hold gets through, that being a fix
-// for a broken file rather than a better one.
+// replace and what it must not, first refusal winning. It is cutoff, not chase:
+// below the cutoff any strictly higher score is taken, and at or above it only a
+// v2/repack of the very release in the library passes, that being a fix for a
+// broken file rather than a better one.
 func applyUpgradePolicy(c *Candidate, held map[int]heldRelease, profile domain.QualityProfile) {
 	if len(held) == 0 || !c.Matched {
 		return
@@ -422,8 +422,8 @@ func upgradeRefusal(c Candidate, h heldRelease, profile domain.QualityProfile) s
 }
 
 // isFixOf reports whether a release is the same group's re-release of the very
-// file we hold: a v2 or a repack, at the same resolution. Anything else is a
-// different release, and above the cutoff we are not chasing those.
+// file in the library: a v2 or a repack, at the same resolution. Anything else
+// is a different release, and above the cutoff we are not chasing those.
 func isFixOf(c, h parser.Parsed, profile domain.QualityProfile) bool {
 	if !profile.UpgradeV2AboveCutoff {
 		return false
@@ -466,8 +466,8 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 	c := Candidate{Release: rel, Parsed: p}
 
 	if !titleBelongs(p.Title, variants) {
-		// The gate runs before the movie branch below, so it is the one reason a
-		// film reaches that the movie path does not already word for itself.
+		// The gate runs before the movie branch below, so it is the one reason for a
+		// film that the movie path does not supply itself.
 		c.Reason = "title does not match this series"
 		if o.Format == domain.FormatMovie {
 			c.Reason = "title does not match this film"
@@ -490,7 +490,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 	// by file, so it is a candidate like any other.
 	if p.Batch {
 		if p.EpisodeEnd > maxItem {
-			// Same guess as the single-episode case below: a 01-48 pack against a
+			// Same ambiguity as the single-episode case below: a 01-48 pack against a
 			// 12-item entry is absolute numbering, or another season entirely.
 			c.Reason = "episode range exceeds this entry's range (possible absolute/season mismatch)"
 			return c
@@ -529,7 +529,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 		}
 		if p.EpisodeStart > maxItem {
 			// Very likely absolute numbering from a multi-season run, or a
-			// different season entirely — flag rather than guess.
+			// different season entirely — flag rather than pick one.
 			c.Reason = "episode number exceeds this entry's range (possible absolute/season mismatch)"
 			return c
 		}
@@ -542,8 +542,8 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 }
 
 // batchItems is what a pack covers: its explicit range, or every item still
-// wanted when it names no numbers at all, which is what a season pack holds. A
-// range past this entry is rejected by the caller, so what reaches here is
+// wanted when it names no numbers at all, which is what a season pack contains.
+// A range past this entry is rejected by the caller, so the input here is
 // either bounded by maxItem or numberless.
 func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {
 	start, end := p.EpisodeStart, p.EpisodeEnd
@@ -567,7 +567,7 @@ func titleBelongs(parsedTitle string, variants []string) bool {
 }
 
 // matchesVariant is titleBelongs over an already-normalized name, so the movie
-// path can ask about a name it rebuilt rather than one it parsed.
+// path can test a name it rebuilt rather than one it parsed.
 func matchesVariant(got string, variants []string) bool {
 	if got == "" {
 		return false
@@ -600,7 +600,7 @@ func matchesVariant(got string, variants []string) bool {
 const minFuzzyTitleLen = 5
 
 // expectedSeasonFrom derives the season an entry represents from its own title
-// variants (e.g. "Show 2nd Season" -> 2). Defaults to 1 when no variant carries
+// variants (e.g. "Show 2nd Season" -> 2). Defaults to 1 when no variant has
 // a season marker — the ordinary case for a first season or a single-cour show.
 func expectedSeasonFrom(variants []string) int {
 	season := 0

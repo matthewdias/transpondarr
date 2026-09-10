@@ -106,15 +106,15 @@ func TestParseResolutionNormalization(t *testing.T) {
 		// A non-tier height with a tier-naming width folds by the width table.
 		{title: "[OldRips] Placeholder Saga - 03 [704x396 XviD]", res: "480p", raw: "704x396"},
 		// anitogo extracts a glued standard tier itself; a glued non-tier height
-		// reaches us whole and folds to its suffix.
+		// is returned whole and folds to its suffix.
 		{title: "[FakeGroup] Placeholder Saga - 05 [BD1080p]", res: "1080p"},
 		{title: "[FakeGroup] Placeholder Saga - 05 [BD540p]", res: "540p", raw: "BD540p"},
 		// anitogo classes 4K as a video term, so it names the tier only when no
 		// digit form did.
 		{title: "[UHDGroup] Placeholder Saga - 01 [4K HEVC]", res: "2160p", raw: "4K"},
-		// anitogo's resolution pattern is unanchored, so junk can reach us carrying a
-		// separator (both found by the fuzzer); it must resolve to nothing rather
-		// than escape with the separator intact.
+		// anitogo's resolution pattern is unanchored, so junk with a separator can be
+		// returned (both found by the fuzzer); it must resolve to nothing rather
+		// than be reported with the separator intact.
 		{title: "000X000"},
 		{title: "A000X000"},
 		// Already canonical: nothing was inferred, so no raw form is reported.
@@ -179,13 +179,13 @@ func TestParseGroupRecovery(t *testing.T) {
 		// Nothing recoverable: clearing beats reporting the alt-title blob as a group.
 		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi AAC2.0 (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
 			group: ""},
-		// A WEB-DL suffix must never be mistaken for a trailing group.
+		// A WEB-DL suffix must never be parsed as a trailing group.
 		{title: "Phantom Courier S01E02 1080p NF WEB-DL (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
 			group: ""},
 		// A plausible short group in a parenthetical is kept, not overridden.
 		{title: "Placeholder Saga - 05 (1080p) (ExampleSubs)",
 			group: "ExampleSubs"},
-		// Bracket groups keep parsing untouched.
+		// Bracket groups keep parsing unchanged.
 		{title: "[ExampleSubs] Placeholder Saga S2E07 [1080p WEB-DL AAC][MultiSub][5A357DEE]",
 			group: "ExampleSubs"},
 		// HEVC/AVC spellings of the codec-dash form recover too.
@@ -201,11 +201,11 @@ func TestParseGroupRecovery(t *testing.T) {
 			group: ""},
 		{title: "Phantom Courier S01E02 2160p NF WEB-DL DV HDR10-Plus (Yuurei Haitatsunin, Multi-Audio, Multi-Subs)",
 			group: ""},
-		// A comma-free short alt-title looks plausible; a disagreeing codec-dash
+		// A comma-free short alt-title is plausible; a conflicting codec-dash
 		// group is the one signal strong enough to override it.
 		{title: "Phantom Courier S01E02 1080p NF WEB-DL H 264-FAKEGRP (Yuurei Haitatsunin)",
 			group: "FAKEGRP"},
-		// Without that signal the plausible-looking alt-title stays (deliberate:
+		// Without that signal the plausible alt-title stays (deliberate:
 		// the trailing-dash fallback is too weak to override a plausible group).
 		{title: "Phantom Courier S01E02 1080p NF WEB-DL DDP2.0-FAKEGRP (Yuurei Haitatsunin)",
 			group: "Yuurei Haitatsunin"},
@@ -261,16 +261,16 @@ func TestParseScoringAxes(t *testing.T) {
 			subs: "softsub"},
 		{title: "[SubCorp] Placeholder Saga - 09 [1080p][Multi-Sub]",
 			multiSub: true},
-		// A title containing "Web" must not read as Source=web.
+		// A title containing "Web" must not set Source=web.
 		{title: "[SpiderGroup] Ghost Web - 03 [1080p]"},
 		// The same guard must hold for scene dot-names, where anitogo's parsed
 		// title ("Ghost Web") no longer matches the raw text ("Ghost.Web").
 		{title: "Ghost.Web.S01E03.1080p.x264-FAKEGRP",
 			codec: "h264"},
-		// An episode title containing "Web" must not read as Source=web either.
+		// An episode title containing "Web" must not set Source=web either.
 		{title: "[SubCorp] Placeholder Saga - 05 - The Web of Fate [1080p]"},
 		// A dual-title scene release with no episode title: anitogo misfiles the
-		// tag run as EpisodeTitle, which must not blank the axes it carries.
+		// tag run as EpisodeTitle, which must not blank the axes it names.
 		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi AAC2.0 x265-FAKEGRP (Romaji Title, Multi-Audio, Multi-Subs)",
 			source: "web", codec: "h265", multiSub: true},
 		// The same shape without a codec token: WEB-DL alone marks the tag run.

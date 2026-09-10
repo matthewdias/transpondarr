@@ -33,7 +33,7 @@ func FuzzParseNoPanic(f *testing.F) {
 			t.Errorf("Parse(%q): episode range %d-%d but Batch is false", title, p.EpisodeStart, p.EpisodeEnd)
 		}
 		// decide matches resolutions by string, so the dimension form must never
-		// escape the parser.
+		// be returned by the parser.
 		if strings.ContainsAny(p.Resolution, "xX×") {
 			t.Errorf("Parse(%q): un-normalized resolution %q", title, p.Resolution)
 		}

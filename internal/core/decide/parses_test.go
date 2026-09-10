@@ -12,8 +12,8 @@ import (
 // test is real.
 
 // A supplied parse is used instead of parsing the release name again. The
-// supplied one deliberately disagrees with what Parse would return, because
-// agreement could not tell the two apart.
+// supplied one deliberately differs from what Parse would return, because
+// matching values could not distinguish the two.
 func TestMatchUsesSuppliedReleaseParses(t *testing.T) {
 	const title = "[ExampleSubs] Placeholder Saga - 03 [1080p]"
 	supplied := parser.Parse(title)
@@ -36,7 +36,7 @@ func TestMatchUsesSuppliedReleaseParses(t *testing.T) {
 	}
 }
 
-// A release the lookup does not carry is parsed as before, so a partial or nil
+// A release the lookup does not contain is parsed as before, so a partial or nil
 // map is a cache and never a filter.
 func TestMatchParsesAReleaseTheLookupMisses(t *testing.T) {
 	const known = "[ExampleSubs] Placeholder Saga - 03 [1080p]"

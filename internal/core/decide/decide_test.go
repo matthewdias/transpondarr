@@ -35,7 +35,7 @@ func TestAlreadyHadEpisodeNotMatched(t *testing.T) {
 }
 
 // A non-candidate item still counts toward the entry's range, so scoping a pass
-// cannot make an in-range release read as absolute numbering from another season.
+// cannot make an in-range release count as absolute numbering from another season.
 func TestNonCandidateItemStillSpansTheRange(t *testing.T) {
 	its := items(12)
 	its[11].Grabbable = false // the highest item is in flight, not a candidate
@@ -124,7 +124,7 @@ func TestBatchCoveringNothingWantedIsUnmatched(t *testing.T) {
 	}
 }
 
-// The inversion #126 buys: a pack covering six wanted items outranks a single
+// The inversion #126 introduces: a pack covering six wanted items outranks a single
 // covering one, so a back-catalog add is one grab instead of N.
 func TestBatchOutranksASingleItCovers(t *testing.T) {
 	rels := []indexer.Release{
@@ -167,7 +167,7 @@ func TestPinnedSingleStillOutranksAnUnpinnedPack(t *testing.T) {
 }
 
 // The guard the lift required: an absolute-numbered pack whose range runs past
-// this entry must not claim its items 1-12 as though it were a first season.
+// this entry must not match its items 1-12 as though it were a first season.
 func TestBatchRangeBeyondEntryRangeIsUnmatched(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[Batchers] Placeholder Saga (01-48) [1080p][Batch]", Seeders: 50},
@@ -182,7 +182,7 @@ func TestBatchRangeBeyondEntryRangeIsUnmatched(t *testing.T) {
 	}
 }
 
-// A pack naming no numbers carries no range to check, so it still fills the
+// A pack naming no numbers has no range to check, so it still fills the
 // entry -- which is what a season pack is.
 func TestNumberlessPackStillMatchesTheWholeEntry(t *testing.T) {
 	rels := []indexer.Release{
@@ -285,7 +285,7 @@ func TestAccentedTitleMatchesPlainASCIIRelease(t *testing.T) {
 }
 
 // The season-collision bug: a season-2 release must NOT match a season-1 entry
-// just because the episode numbers line up.
+// just because the episode numbers match.
 func TestSeasonTwoReleaseRejectedForSeasonOneEntry(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga 2nd Season S2E05 [1080p]", Seeders: 100},
@@ -302,7 +302,7 @@ func TestSeasonTwoReleaseRejectedForSeasonOneEntry(t *testing.T) {
 	}
 }
 
-// A season-2 entry (its title carries the marker) should match season-2 releases.
+// A season-2 entry (its title has the marker) should match season-2 releases.
 func TestSeasonTwoEntryMatchesSeasonTwoRelease(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga 2nd Season S2E05 [1080p]", Seeders: 100},
@@ -468,7 +468,7 @@ func TestResolutionHardExcludeMakesIneligible(t *testing.T) {
 }
 
 // A release that named its dimensions ranks on the same axis as one that named a
-// height, and the score part says which dimensions it was read from.
+// height, and the score part names which dimensions it was read from.
 func TestDimensionResolutionRanksByOrder(t *testing.T) {
 	prof := domain.QualityProfile{ResolutionOrder: []string{"1080p", "720p"}}
 	rels := []indexer.Release{
@@ -508,9 +508,9 @@ func TestDimensionResolutionHardExcludeMakesIneligible(t *testing.T) {
 }
 
 // Every axis Score rewards a token for must also be hard-excludable, or a
-// profile silently ignores a token the editor accepted. Group is the deliberate
-// exception, asserted the other way: BlockedGroups owns blocking a group, and a
-// hard-exclude reaching it would be a second, undocumented way to do it.
+// profile silently drops a token the editor accepted. Group is the deliberate
+// exception, asserted the other way: BlockedGroups is the only way to block a
+// group, and a hard-exclude doing it too would be a second, undocumented one.
 func TestEveryScoredAxisIsHardExcludable(t *testing.T) {
 	for _, tc := range []struct {
 		axis  string
@@ -592,7 +592,7 @@ func TestPreferenceBonusesContribute(t *testing.T) {
 }
 
 // Any listed group must outrank every unlisted one, even against a release
-// carrying every bonus the other axes can grant.
+// with every bonus the other axes can add.
 func TestLastRankedGroupBeatsUnlistedWithEveryBonus(t *testing.T) {
 	groups := make([]string, 15)
 	for i := range groups {
@@ -653,7 +653,7 @@ func TestScorePartsSumToScore(t *testing.T) {
 }
 
 // A pinned group is a tier, not points: an eligible pinned release outranks a
-// rank-1 listed group carrying every bonus the other axes can grant.
+// rank-1 listed group with every bonus the other axes can add.
 func TestPinnedGroupOutranksHigherScoringEligible(t *testing.T) {
 	prof := domain.QualityProfile{
 		Groups:          []string{"TrustedCorp"},
@@ -733,7 +733,7 @@ func TestPinMatchesCaseInsensitively(t *testing.T) {
 	}
 }
 
-// Without a pin (no opts, or a zero opts), profile order is untouched.
+// Without a pin (no opts, or a zero opts), profile order is unchanged.
 func TestNoPinRestoresProfileOrder(t *testing.T) {
 	prof := domain.QualityProfile{Groups: []string{"TrustedCorp"}}
 	rels := []indexer.Release{

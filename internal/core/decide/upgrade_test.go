@@ -23,7 +23,7 @@ func upgradeProfile(cutoff int) domain.QualityProfile {
 	}
 }
 
-// heldItems is a 12-item entry holding item 3, the only shape these cases need.
+// heldItems is a 12-item entry whose item 3 is held, the only shape these cases need.
 func heldItems(heldTitle string) []Item {
 	its := items(12)
 	its[2].HeldTitle = heldTitle
@@ -47,7 +47,7 @@ const held480 = "[TopSubs] Placeholder Saga - 03 [480p]"   // 2200
 const held1080 = "[TopSubs] Placeholder Saga - 03 [1080p]" // 2400
 
 // The upgrade policy is cutoff, not chase: below the cutoff any strictly better
-// release is taken, at or above it only the v2/repack carve-out gets through.
+// release is taken, at or above it only the v2/repack carve-out passes.
 func TestUpgradePolicy(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -165,7 +165,7 @@ func TestUpgradePolicy(t *testing.T) {
 }
 
 // A matched held item reads as an upgrade rather than as an ordinary wanted
-// episode, so the Releases tab does not claim we are missing it — on the batch
+// episode, so the Releases tab does not report we are missing it — on the batch
 // path as much as the single-episode one.
 func TestUpgradeMatchReason(t *testing.T) {
 	cases := []struct {
@@ -199,7 +199,7 @@ func TestUpgradeMatchReason(t *testing.T) {
 	}
 }
 
-// Held is only a candidate when the pass says so: an entry point that withholds
+// Held is only a candidate when the pass sets it: an entry point that excludes
 // the item (every one but the upgrade pool) matches exactly as it did before.
 func TestHeldItemOutsideThePassIsNotAnUpgrade(t *testing.T) {
 	its := heldItems(held480)

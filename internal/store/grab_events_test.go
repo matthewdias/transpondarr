@@ -57,7 +57,7 @@ func TestListGrabEventsPageNewestFirstWithTitleName(t *testing.T) {
 }
 
 // Paging through events sharing one created_at must visit every event exactly
-// once — the id tie-break is what the cursor's correctness rests on.
+// once — the id tie-break is what the cursor's correctness depends on.
 func TestListGrabEventsPageBeforeTieBreaksOnID(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()

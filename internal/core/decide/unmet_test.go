@@ -27,7 +27,7 @@ func goalSet(t *testing.T, goals []ScorePart) map[string]int {
 }
 
 // A goal is an axis the profile prefers that the release scores below its best
-// on, carrying the points still available -- the gap, not the earnings.
+// on, with the points still available -- the gap, not the earnings.
 func TestUnmetGoalsNamesTheGap(t *testing.T) {
 	got := goalSet(t, UnmetGoals(
 		parser.Parse("[MidSubs] Placeholder Saga - 03 [720p]"), unmetProfile()))
@@ -52,8 +52,8 @@ func TestUnmetGoalsEmptyAtTheTop(t *testing.T) {
 	}
 }
 
-// An axis the release misses entirely owes the whole axis, and a preference
-// axis the profile never stated is not a goal at all.
+// An axis the release scores nothing on leaves the whole axis available, and a
+// preference axis the profile never stated is not a goal at all.
 func TestUnmetGoalsUnrankedAndPreferenceAxes(t *testing.T) {
 	profile := unmetProfile()
 	profile.PreferredSource = "bd"

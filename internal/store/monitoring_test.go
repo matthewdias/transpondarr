@@ -35,7 +35,7 @@ func TestMonitorNew(t *testing.T) {
 	}
 }
 
-// Every row that existed before per-item monitoring must read as monitored, or
+// Every row that existed before per-item monitoring must be monitored, or
 // the migration silently stops the sweep for the whole library.
 func TestMonitoredColumnDefaultsToOn(t *testing.T) {
 	st := tempStore(t)
@@ -79,7 +79,7 @@ func TestUpsertsNeverClobberAStoredMonitoredFlag(t *testing.T) {
 		}
 	}
 
-	// Refresh's path: DO NOTHING, so the row is untouched and reports no growth.
+	// Refresh's path: DO NOTHING, so the row is unchanged and reports no growth.
 	rows, err := st.Q.UpsertWantedItem(ctx, db.UpsertWantedItemParams{
 		SeriesID: titleID, Kind: "episode",
 		Number:    sql.NullInt64{Int64: 1, Valid: true},

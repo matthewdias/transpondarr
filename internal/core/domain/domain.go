@@ -1,4 +1,4 @@
-// Package domain holds Transpondarr's content-type-agnostic core model.
+// Package domain contains Transpondarr's content-type-agnostic core model.
 //
 // The pipeline (search -> decide -> grab -> import) is keyed on WantedItem, never
 // on a hardcoded "episode". An episode is one WantedItem; a movie is a Title with
@@ -56,10 +56,10 @@ type WantedItem struct {
 	Kind      WantedKind
 	Number    int // absolute/episode number; typically 1 for a movie
 	Name      string
-	InLibrary bool // library state only: a file for it sits in the library
+	InLibrary bool // library state only: a file for it is in the library
 }
 
-// MaxPinDelayHours bounds the wait a pinned group can impose at a year. The
+// MaxPinDelayHours bounds the wait a pinned group can cause at a year. The
 // bound is not taste: time.Duration tops out near 2.6e6 hours, so an unclamped
 // multiply wraps int64 and a large wait silently becomes no wait at all.
 const MaxPinDelayHours = 24 * 365
@@ -82,17 +82,17 @@ func PinDelay(hours int64) time.Duration {
 	return time.Duration(ClampPinDelayHours(hours)) * time.Hour
 }
 
-// How long a download the client says it is trying may sit with nothing
-// downloaded before its grab is failed. Long enough not to punish a slow start,
-// short enough that a dead release does not hold its episode all day. The bound
-// is MaxPinDelayHours' for the same wrapping reason.
+// How long a download the client reports as trying may make no progress before
+// its grab is failed. Long enough not to fail a slow start, short enough that a
+// dead release does not block its episode all day. The bound is MaxPinDelayHours'
+// for the same wrapping reason.
 const (
 	DefaultStallHours = 6
 	MaxStallHours     = 24 * 365
 )
 
 // ClampStallHours bounds a stall hour count to [0, MaxStallHours]; 0 means a
-// stuck download is never given up on.
+// stuck download is never failed.
 func ClampStallHours(hours int64) int64 {
 	switch {
 	case hours <= 0:
@@ -123,13 +123,13 @@ type QualityProfile struct {
 	SubPref         string   // "softsub" or "hardsub"; "" for no preference
 	PreferDualAudio bool
 	CodecPref       string   // "h264", "h265" or "av1"; "" for no preference
-	HardExcludes    []string // axis tokens (e.g. "hardsub") a release must never carry
+	HardExcludes    []string // axis tokens (e.g. "hardsub") a release must never contain
 	MinScore        int      // floor: a candidate scoring below this is ineligible
 
 	// Upgrades are cutoff, not chase: automation re-grabs a held item only while
-	// what holds it scores below CutoffScore, whose zero value means "met" the way
-	// MinScore's means "no floor".
+	// the release in the library scores below CutoffScore, whose zero value means
+	// "met" the way MinScore's means "no floor".
 	UpgradesEnabled      bool
 	CutoffScore          int
-	UpgradeV2AboveCutoff bool // a v2/repack of what we hold is a fix, so it passes the cutoff
+	UpgradeV2AboveCutoff bool // a v2/repack of the held release is a fix, so it passes the cutoff
 }

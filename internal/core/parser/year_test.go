@@ -46,8 +46,8 @@ func TestParseYearAlongsideATitleNumber(t *testing.T) {
 	}
 }
 
-// A numbered sequel film reads as an episode number, which is why movie mode
-// ignores episode numbers entirely rather than trusting them.
+// A numbered sequel film parses as an episode number, which is why movie mode
+// never maps episode numbers rather than relying on them.
 func TestParseNumberedSequelFilmReadsAsAnEpisode(t *testing.T) {
 	p := Parse("[ExampleSubs] Sample Film 2 (2021) [1080p]")
 	if p.EpisodeStart != 2 {
