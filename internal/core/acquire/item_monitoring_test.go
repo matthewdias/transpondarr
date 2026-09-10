@@ -10,7 +10,7 @@ import (
 )
 
 // The headline of #188 on the sweep side: an unmonitored item is not a target,
-// even with an eligible release sitting in the results.
+// even with an eligible release in the results.
 func TestSweepNeverNewlyGrabsAnUnmonitoredItem(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{
@@ -78,7 +78,7 @@ func TestSweepDoesNotUpgradeAnUnmonitoredHeldItem(t *testing.T) {
 }
 
 // The feed is the other entry point through the same decision layer, so it must
-// refuse the same item without a second gate written for it.
+// exclude the same item without a second gate written for it.
 func TestFeedPollNeverNewlyGrabsAnUnmonitoredItem(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -95,7 +95,7 @@ func TestFeedPollNeverNewlyGrabsAnUnmonitoredItem(t *testing.T) {
 	}
 }
 
-// A grab already in flight when the item is unmonitored is untouched (decision
+// A grab already in flight when the item is unmonitored is unchanged (decision
 // 8): the criterion is "never *newly* grabs". Nothing revokes the claim, so the
 // payload still imports and the row still settles.
 func TestSweepLeavesAnInFlightGrabOnAnUnmonitoredItemAlone(t *testing.T) {
@@ -117,8 +117,8 @@ func TestSweepLeavesAnInFlightGrabOnAnUnmonitoredItemAlone(t *testing.T) {
 	}
 }
 
-// #100's next-broadcast clamp is the sweep's only forward-looking reach, and an
-// unwanted recap must not spend it: gating the clamp on grabbable rather than on
+// #100's next-broadcast clamp is the sweep's only forward-looking rule, and an
+// unwanted recap must not trigger it: gating the clamp on grabbable rather than on
 // monitored would delete it outright, since an unaired item is never grabbable.
 func TestSweepDoesNotClampToAnUnmonitoredUpcomingBroadcast(t *testing.T) {
 	now := time.Now()
@@ -136,7 +136,7 @@ func TestSweepDoesNotClampToAnUnmonitoredUpcomingBroadcast(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	// The empty pass backs off an hour; the monitored broadcast is further out
-	// than that, so the recap is the only thing that could have pulled it in.
+	// than that, so the recap is the only thing that could have brought it forward.
 	wantNextSearchNear(t, readSearchState(t, h.st, id).nextSearchAt, before.Add(time.Hour))
 }
 
@@ -181,9 +181,9 @@ func TestSweepDoesNotResetBackoffForAnUnmonitoredBroadcast(t *testing.T) {
 	}
 }
 
-// persistOutcomes already skips non-grabbable items, so an unmonitored one gets
-// no row -- which is why the read side suppresses the tier rather than waiting
-// for it to be invalidated (decision 9).
+// persistOutcomes already skips non-grabbable items, so an unmonitored one has
+// no row -- which is why the read side suppresses the tier rather than
+// invalidating it (decision 9).
 func TestSweepRecordsNoPassOutcomeForAnUnmonitoredItem(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, nil, fakeConfig{})

@@ -46,7 +46,7 @@ func grabFor(t *testing.T, st *store.Store, titleID int64, number int) (string, 
 	return release, status
 }
 
-// heldTitleOf reads what the store says holds a title's only item.
+// heldTitleOf reads the release name the store has for a title's only item.
 func heldTitleOf(t *testing.T, st *store.Store, titleID int64) string {
 	t.Helper()
 	var title string
@@ -57,8 +57,8 @@ func heldTitleOf(t *testing.T, st *store.Store, titleID int64) string {
 	return title
 }
 
-// The headline behaviour of #97: a complete title whose profile opts in takes a
-// better release off the feed, with no wanted item anywhere in sight.
+// The headline behaviour of #97: a complete title whose profile opts in grabs a
+// better release off the feed, with no wanted item anywhere.
 func TestFeedPollUpgradesAHeldItem(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
@@ -77,13 +77,13 @@ func TestFeedPollUpgradesAHeldItem(t *testing.T) {
 	if release != "[ExampleSubs] Placeholder Saga - 03 [1080p]" || status != "grabbed" {
 		t.Errorf("grab = %q/%q, want the upgrade release in flight", release, status)
 	}
-	// The library still holds the old file until the import replaces it.
+	// The library still has the old file until the import replaces it.
 	if got := heldTitleOf(t, h.st, id); got != heldSD {
 		t.Errorf("held release = %q, want it untouched until the import lands", got)
 	}
 }
 
-// Cutoff, not chase: past the cutoff the shelf is good enough, so a better
+// Cutoff, not chase: past the cutoff the held release is good enough, so a better
 // release changes nothing.
 func TestFeedPollLeavesACutoffMetItemAlone(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -101,7 +101,7 @@ func TestFeedPollLeavesACutoffMetItemAlone(t *testing.T) {
 	}
 }
 
-// Opt-in is per profile: an untouched install upgrades nothing.
+// Opt-in is per profile: a default install upgrades nothing.
 func TestFeedPollLeavesHeldItemsAloneWhenUpgradesAreOff(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
@@ -135,7 +135,7 @@ func TestFeedPollRetriesAfterAFailedUpgrade(t *testing.T) {
 	}
 }
 
-// An upgrade already in flight, or parked for a human, is settled: nothing
+// An upgrade already in flight, or deferred for a human, is settled: nothing
 // re-grabs it.
 func TestFeedPollLeavesUnsettledUpgradesAlone(t *testing.T) {
 	for _, status := range []string{"grabbed", "import_deferred"} {
@@ -157,8 +157,8 @@ func TestFeedPollLeavesUnsettledUpgradesAlone(t *testing.T) {
 	}
 }
 
-// The sweep spends no search on an upgrade, but a search it spent anyway hands
-// its page to the same decision layer, so a held item rides along for free.
+// The sweep issues no search for an upgrade, but a search it issued anyway passes
+// its page to the same decision layer, so a held item is evaluated for free.
 func TestSweepUpgradesHeldItemsItSearchedForAnyway(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{
@@ -185,7 +185,7 @@ func TestSweepUpgradesHeldItemsItSearchedForAnyway(t *testing.T) {
 }
 
 // A complete title is not worth a search of its own: the sweep's budget is one
-// search per title, so upgrades ride the flat-cost feed alone.
+// search per title, so upgrades use the flat-cost feed alone.
 func TestSweepDoesNotSearchForUpgradesAlone(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	enableUpgrades(t, h.st, 400)
@@ -204,7 +204,7 @@ func TestSweepDoesNotSearchForUpgradesAlone(t *testing.T) {
 }
 
 // Notify-only rehearses an upgrade like any other take: it reports, and nothing
-// reaches the download client.
+// is sent to the download client.
 func TestNotifyOnlyRehearsesAnUpgrade(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
@@ -230,7 +230,7 @@ func TestNotifyOnlyRehearsesAnUpgrade(t *testing.T) {
 	}
 }
 
-// A manual search offers releases for what we already hold: profiles inform
+// A manual search offers releases for what is already in the library: profiles inform
 // manual actions, they gate only automation (PR #57).
 func TestManualMatchOffersReleasesForHeldItems(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
@@ -272,8 +272,8 @@ func containsInt(list []int, n int) bool {
 
 // The feature end to end, over a real library layout: a held 480p file, a better
 // release off the feed, and the same file replaced in place with the store now
-// naming what holds it. The last poll proves it converges — the upgraded item
-// meets the cutoff, so a page offering the same release again buys nothing.
+// naming the release in the library. The last poll proves it converges — the
+// upgraded item meets the cutoff, so offering it again changes nothing.
 func TestUpgradeLifecycleReplacesTheHeldFile(t *testing.T) {
 	ctx := context.Background()
 	st := coretest.NewStore(t)
@@ -309,7 +309,7 @@ func TestUpgradeLifecycleReplacesTheHeldFile(t *testing.T) {
 	}
 
 	// The upgrade completes: a smaller file, which is exactly what the size check
-	// would otherwise refuse to import.
+	// would otherwise reject.
 	src := filepath.Join(t.TempDir(), "upgrade.mkv")
 	if err := os.WriteFile(src, make([]byte, 128), 0o644); err != nil {
 		t.Fatal(err)
@@ -341,8 +341,8 @@ func TestUpgradeLifecycleReplacesTheHeldFile(t *testing.T) {
 		t.Errorf("in_library = %d, want the item still in the library", inLibrary)
 	}
 
-	// Forget the page, so what stops a second grab is the cutoff rather than the
-	// feed's dedupe.
+	// Clear the feed mark, so what stops a second grab is the cutoff rather than
+	// the feed's dedupe.
 	if _, err := st.DB.ExecContext(ctx, `DELETE FROM settings WHERE key LIKE 'feed.seen.%'`); err != nil {
 		t.Fatalf("clear the feed mark: %v", err)
 	}

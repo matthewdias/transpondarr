@@ -6,9 +6,9 @@ import "sync"
 // by design and that is sufficient: Transpondarr is one binary, so the sweep,
 // the feed poll and every manual grab all run here.
 //
-// Holders are counted rather than flagged because the automation path nests —
-// AutoGrab takes a claim and then calls Grab, which takes it again — and because
-// two manual grabs may legitimately hold one item at once.
+// Claims are counted rather than flagged because the automation path nests —
+// AutoGrab acquires a claim and then calls Grab, which acquires it again — and
+// because two manual grabs may legitimately claim one item at once.
 type claims struct {
 	mu   sync.Mutex
 	held map[int64]int
@@ -17,7 +17,7 @@ type claims struct {
 func newClaims() *claims { return &claims{held: make(map[int64]int)} }
 
 // TryAcquire claims every id or none, reporting whether it did. Automation uses
-// it, so automation yields to anything already in flight.
+// it, so automation skips anything already in flight.
 func (c *claims) TryAcquire(ids []int64) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -33,7 +33,7 @@ func (c *claims) TryAcquire(ids []int64) bool {
 }
 
 // Acquire claims every id unconditionally. A manual grab is explicit user intent
-// and is never refused (PR #57), so it takes a claim rather than asking for one.
+// and always succeeds (PR #57), so it acquires a claim rather than trying for one.
 func (c *claims) Acquire(ids []int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -42,12 +42,12 @@ func (c *claims) Acquire(ids []int64) {
 	}
 }
 
-// TryClaimItems exposes the registry to a collaborator outside this package —
+// TryClaimItems exposes the registry to one caller outside this package —
 // the importer, placing a payload file for an item no grab row claimed (#126).
 // One registry is the point: a minutes-long copy must exclude a concurrent grab.
 func (s *Service) TryClaimItems(ids []int64) bool { return s.claims.TryAcquire(ids) }
 
-// ReleaseClaims releases what TryClaimItems took.
+// ReleaseClaims releases what TryClaimItems claimed.
 func (s *Service) ReleaseClaims(ids []int64) { s.claims.Release(ids) }
 
 func (c *claims) Release(ids []int64) {

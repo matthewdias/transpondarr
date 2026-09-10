@@ -18,7 +18,7 @@ func packRelease(title string) indexer.Release {
 }
 
 // The inversion #126 buys, and #125's case read the other way round: a
-// back-catalog title whose results carry both singles and a pack takes the
+// back-catalog title whose results contain both singles and a pack grabs the
 // pack, because the importer now places it file by file. One grab, six items.
 func TestSweepPrefersASeasonPackOverSingles(t *testing.T) {
 	h := newSweep(t, []indexer.Release{
@@ -45,8 +45,8 @@ func TestSweepPrefersASeasonPackOverSingles(t *testing.T) {
 	}
 }
 
-// A pack that is the only coverage is now simply taken; before #126 the sweep
-// skipped it, because a grabbed pack parked its whole season as deferred.
+// A pack that is the only coverage is now grabbed; before #126 the sweep
+// skipped it, because a grabbed pack left its whole season deferred.
 func TestSweepGrabsASeasonPackThatIsTheOnlyCoverage(t *testing.T) {
 	h := newSweep(t, []indexer.Release{packRelease("Placeholder Saga")}, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true,

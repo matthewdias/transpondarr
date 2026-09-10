@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// TryAcquire is all-or-nothing: a partial overlap takes nothing, so a caller
-// that loses cannot leave half a claim behind for the winner to trip over.
+// TryAcquire is all-or-nothing: a partial overlap claims nothing, so a caller
+// that fails cannot leave half a claim for the one that succeeds.
 func TestTryAcquireIsAllOrNothing(t *testing.T) {
 	c := newClaims()
 	if !c.TryAcquire([]int64{1, 2}) {
@@ -40,8 +40,8 @@ func TestClaimsCountHolders(t *testing.T) {
 	}
 }
 
-// Acquire never refuses — that is the manual path's never-gated rule (PR #57)
-// expressed in the registry itself.
+// Acquire always succeeds — that is the manual path's never-gated rule (PR #57)
+// expressed in the registry.
 func TestAcquireNeverBlocks(t *testing.T) {
 	c := newClaims()
 	c.Acquire([]int64{4})
@@ -53,7 +53,7 @@ func TestAcquireNeverBlocks(t *testing.T) {
 	}
 }
 
-// Exactly one of N racing automation callers may hold an item at a time. Run
+// Exactly one of N racing automation callers may claim an item at a time. Run
 // under -race: this is the shared mutable state the registry exists to guard.
 func TestTryAcquireIsExclusiveUnderConcurrency(t *testing.T) {
 	c := newClaims()

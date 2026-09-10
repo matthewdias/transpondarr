@@ -16,9 +16,9 @@ import (
 	"github.com/matthewdias/transpondarr/internal/coretest"
 )
 
-// A swept grab is an ordinary grab: the importer sees no difference between one
-// the sweep made and one a user clicked, so an unattended episode goes all the
-// way to the library.
+// A swept grab is an ordinary grab: the importer treats one the sweep made and
+// one a user clicked the same, so an unattended episode goes all the way to the
+// library.
 func TestSweepThenImportLifecycle(t *testing.T) {
 	aired := time.Now().Add(-2 * time.Hour)
 	st := coretest.NewStore(t)
@@ -65,9 +65,9 @@ func TestSweepThenImportLifecycle(t *testing.T) {
 }
 
 // The #118 loop, end to end: without failure memory the sweep re-derives the
-// same ranking every pass, re-grabs the release that just failed, and hammers
-// the indexer and the download client forever. With it, each failure demotes
-// one release and the pass degrades to the next best, then to nothing.
+// same ranking every pass, re-grabs the release that just failed, and keeps
+// re-requesting the indexer and download client forever. With it, each failure
+// demotes one release and the pass degrades to the next best, then to nothing.
 func TestFailedGrabDegradesToTheNextBestReleaseThenToNothing(t *testing.T) {
 	aired := time.Now().Add(-2 * time.Hour)
 	top := indexer.Release{
@@ -120,7 +120,7 @@ func TestFailedGrabDegradesToTheNextBestReleaseThenToNothing(t *testing.T) {
 	if got := sweepAndFail(1); got != top.Title {
 		t.Fatalf("first pass grabbed %q, want the top-ranked release", got)
 	}
-	// The failure is remembered, so the second pass must not re-grab it.
+	// The failure is recorded, so the second pass must not re-grab it.
 	if got := sweepAndFail(2); got != next.Title {
 		t.Fatalf("second pass grabbed %q, want the next-best release %q", got, next.Title)
 	}

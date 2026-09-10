@@ -20,7 +20,7 @@ const (
 	OutcomeNoMatch   = "no_match"
 )
 
-// AllOutcomes is the closed set, so a reader can assert it has handled it whole.
+// AllOutcomes is the closed set, so a reader can assert it has covered them all.
 var AllOutcomes = []string{
 	OutcomeGrabbed, OutcomeWouldGrab, OutcomePinHeld, OutcomeContended,
 	OutcomeAddFailed, OutcomeDeclined, OutcomeDeferred, OutcomeNoMatch,
@@ -49,7 +49,7 @@ func settling(kind string) bool {
 type outcomeSet map[int]outcome
 
 // settle records a decision that closed its items, overwriting whatever an
-// earlier candidate left there.
+// earlier candidate recorded.
 func (s outcomeSet) settle(numbers []int, o outcome) {
 	for _, n := range numbers {
 		s[n] = o
@@ -66,9 +66,9 @@ func (s outcomeSet) tentative(numbers []int, o outcome) {
 	}
 }
 
-// passIndex answers per item number the two questions the fill needs: which
+// passIndex records per item number the two things finalizeOutcomes needs: which
 // refused release came closest, and whether an eligible one covers it at all.
-// Built in one walk, because asking per item would be
+// Built in one walk, because computing it per item would be
 // O(items x candidates x pack size) -- and a back-catalogue pass against
 // absolute-numbered packs makes all three large at once.
 type passIndex struct {
@@ -77,10 +77,10 @@ type passIndex struct {
 }
 
 // indexCandidates ranks refusals per item without decide's coverage tier:
-// coverage buys grab efficiency (#126) and says nothing about which release came
-// closest for one episode, so inheriting it would blame a wide low-scoring pack
-// over a high-scoring single covering exactly the episode asked about. Pinned
-// stays on top -- a pin is per-title knowledge about which group is definitive.
+// coverage buys grab efficiency (#126) and is no evidence about which release
+// came closest for one episode, so inheriting it would name a wide low-scoring
+// pack over a high-scoring single covering exactly the episode asked about.
+// Pinned stays on top -- a pin records which group is definitive for a title.
 func indexCandidates(cands []decide.Candidate) passIndex {
 	idx := passIndex{closest: map[int]decide.Candidate{}, eligible: map[int]bool{}}
 	for _, c := range cands {
@@ -123,7 +123,7 @@ func (idx passIndex) bestRefusal(numbers []int) (release, reason string) {
 }
 
 // closerMiss is bestRefusal's ordering: pinned, then score, then seeders. Ties
-// keep the incumbent, so decide's ranking still breaks what this does not.
+// keep the first, so decide's ranking still breaks what this does not.
 func closerMiss(c, best decide.Candidate) bool {
 	if c.Pinned != best.Pinned {
 		return c.Pinned

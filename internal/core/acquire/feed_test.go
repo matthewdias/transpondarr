@@ -20,7 +20,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// levelRecorder counts records per level and keeps their messages, so a test can
+// levelRecorder counts records per level and stores their messages, so a test can
 // assert that a supported configuration stayed off the error channel — and that
 // a genuine warning was actually emitted.
 type levelRecorder struct {
@@ -59,7 +59,7 @@ func (r *levelRecorder) count(l slog.Level) int {
 }
 
 // feedEntry wraps a synthetic release with the feed metadata a Torznab item
-// carries. published is when the indexer listed it, not when the episode aired.
+// includes. published is when the indexer listed it, not when the episode aired.
 func feedEntry(title string, number int, published time.Time) indexer.FeedEntry {
 	rel := episodeRelease(title, number)
 	return indexer.FeedEntry{
@@ -79,14 +79,14 @@ type feedHarness struct {
 }
 
 // newFeedPoll wires a service whose indexer publishes a recent feed. The search
-// side answers with the same releases, as one real endpoint serving both would.
+// side returns the same releases, as one real endpoint serving both would.
 func newFeedPoll(t *testing.T, entries []indexer.FeedEntry, cfg fakeConfig) *feedHarness {
 	t.Helper()
 	return newFeedPollWithTitles(t, entries, cfg, fakeTitles{})
 }
 
 // newFeedPollWithTitles is newFeedPoll over a chosen title source, so a test can
-// vary how (and whether) variants are answered.
+// vary how (and whether) variants are returned.
 func newFeedPollWithTitles(t *testing.T, entries []indexer.FeedEntry, cfg fakeConfig, titles acquire.TitleSource) *feedHarness {
 	t.Helper()
 	feed := &coretest.FakeFeed{Entries: entries}
@@ -114,8 +114,8 @@ func newFeedPollWith(t *testing.T, idx indexer.Indexer, cfg fakeConfig, titles a
 	}
 }
 
-// fakeCachedTitles answers variants from a fixed snapshot, counting each route so
-// a test can tell a cache read from a provider fetch.
+// fakeCachedTitles returns variants from a fixed snapshot, counting each route so
+// a test can distinguish a cache read from a provider fetch.
 type fakeCachedTitles struct {
 	cached      map[int64][]string
 	err         error
@@ -139,7 +139,7 @@ func (f *fakeCachedTitles) CachedTitleVariants(_ context.Context, id int64) ([]s
 	return v, ok, nil
 }
 
-// setTitleProviderID gives a seeded title a provider identity, which is what
+// setTitleProviderID sets a provider identity on a seeded title, which is what
 // makes the variant lookup reachable at all.
 func setTitleProviderID(t *testing.T, st *store.Store, titleID, providerID int64) {
 	t.Helper()
@@ -150,7 +150,7 @@ func setTitleProviderID(t *testing.T, st *store.Store, titleID, providerID int64
 }
 
 // The acceptance criterion of #139: the poll matches on a variant it read from the
-// metadata cache, and spends no provider request doing it.
+// metadata cache, and makes no provider request doing it.
 func TestFeedPollMatchesOnCachedVariantWithoutFetching(t *testing.T) {
 	const english = "Fixture of the Sky"
 	past := time.Now().Add(-2 * time.Hour)
@@ -196,7 +196,7 @@ func TestFeedPollCacheMissStillMatchesStoredTitle(t *testing.T) {
 	}
 }
 
-// An unreadable cache degrades like a miss, and says so at debug level so a
+// An unreadable cache degrades like a miss, and logs it at debug level so a
 // persistently broken read is not silent.
 func TestFeedPollCacheErrorStillMatchesStoredTitle(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -222,7 +222,7 @@ func TestFeedPollCacheErrorStillMatchesStoredTitle(t *testing.T) {
 }
 
 // A title source without the cache capability degrades the same way: the
-// cross-language match waits for the bounded sweep rather than spending a request.
+// cross-language match is left to the bounded sweep rather than costing a request.
 func TestFeedPollWithoutCacheCapabilityUsesStoredTitleOnly(t *testing.T) {
 	const english = "Fixture of the Sky"
 	past := time.Now().Add(-2 * time.Hour)
@@ -262,14 +262,14 @@ func TestFeedPollGrabsAnAiredWantedItemWithoutSearching(t *testing.T) {
 	if h.feed.Polls != 1 {
 		t.Errorf("Recent called %d times, want 1", h.feed.Polls)
 	}
-	// The feed is not a search, so it leaves the sweep's cadence alone — a
-	// detected gap resets it (#140), but a poll that recognised its page had none.
+	// The feed is not a search, so it writes no sweep cadence — a detected gap
+	// resets it (#140), but a poll whose page still shows the mark has none.
 	if state := readSearchState(t, h.st, id); state.lastSearched.Valid {
 		t.Error("feed poll wrote search state")
 	}
 }
 
-// Entries that match nothing grabbable buy nothing: eligibility is the sweep's,
+// Entries that match nothing grabbable change nothing: eligibility is the sweep's,
 // evaluated through the same Match.
 func TestFeedPollGrabsNothingForIneligibleEntries(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -312,7 +312,7 @@ func TestFeedPollGrabsNothingForIneligibleEntries(t *testing.T) {
 	}
 }
 
-// The profile floor refuses the release, and the feed inherits that refusal
+// The profile floor excludes the release, and the feed applies that refusal
 // because it drives the same decide layer.
 func TestFeedPollHonoursTheProfileFloor(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -333,7 +333,7 @@ func TestFeedPollHonoursTheProfileFloor(t *testing.T) {
 	}
 }
 
-// Eligibility lives in the shared path, so the feed inherits #126's lift too: a
+// Eligibility lives in the shared path, so #126's lift applies at the feed too: a
 // pack is a candidate at either entry point, not just in the sweep.
 func TestFeedPollGrabsASeasonPack(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -359,7 +359,7 @@ func TestFeedPollGrabsASeasonPack(t *testing.T) {
 
 // The high-water mark's whole purpose. Seeding the title only *after* the first
 // poll is what makes the dedupe observable: had the entry been re-processed, it
-// would grab on the second poll. A grab row would otherwise absorb the evidence,
+// would grab on the second poll. A grab row would otherwise hide the evidence,
 // since a grabbed item stops being a candidate anyway.
 func TestFeedPollDoesNotReprocessASeenEntry(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -411,8 +411,8 @@ func TestFeedPollDedupesAFeedWithoutPublishDates(t *testing.T) {
 	if len(h.dl.Adds) != 0 {
 		t.Errorf("second poll added %+v, want none — an undated entry dedupes on its id", h.dl.Adds)
 	}
-	// Such a feed has no instant to reach, so it stores no coverage ids: they
-	// would double the row and answer a question that is never asked of it.
+	// Such a feed has no instant to show, so it stores no coverage ids: they
+	// would double the row and serve a check that never runs for it.
 	stored, err := h.st.Q.GetSetting(ctx, "feed.seen."+h.feed.Name())
 	if err != nil {
 		t.Fatalf("read the stored mark: %v", err)
@@ -423,7 +423,7 @@ func TestFeedPollDedupesAFeedWithoutPublishDates(t *testing.T) {
 }
 
 // An indexer with no recent feed is a supported configuration: sweep behaviour
-// is untouched and nothing is logged at error level.
+// is unchanged and nothing is logged at error level.
 func TestFeedPollWithoutTheCapabilityIsAQuietNoOp(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{episodeRelease("Placeholder Saga", 3)}}
@@ -469,7 +469,7 @@ func TestFeedPollNoOpsWhenAutomationDisabled(t *testing.T) {
 	}
 }
 
-// A hand-triggered poll is explicit intent, so it passes the kill switch the way
+// A manually triggered poll is explicit intent, so it passes the kill switch the way
 // a manual grab passes eligibility (PR #57).
 func TestFeedPollRunsWithAutomationDisabledWhenTriggeredByHand(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -489,8 +489,8 @@ func TestFeedPollRunsWithAutomationDisabledWhenTriggeredByHand(t *testing.T) {
 	}
 }
 
-// An unconfigured integration is a supported state: the poll waits for Settings
-// to supply both clients rather than erroring every tick.
+// An unconfigured integration is a supported state: the poll does nothing until
+// Settings supplies both clients rather than erroring every tick.
 func TestFeedPollNoOpsWithoutADownloadClient(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	st := coretest.NewStore(t)
@@ -509,7 +509,7 @@ func TestFeedPollNoOpsWithoutADownloadClient(t *testing.T) {
 }
 
 // A failed feed fetch is an indexer fault, reported as one — and it must not
-// advance the mark, or the page it never saw would be skipped forever.
+// advance the mark, or the page it never fetched would be skipped forever.
 func TestFeedPollReportsAFetchFailureAndKeepsTheMark(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -537,8 +537,8 @@ func TestFeedPollReportsAFetchFailureAndKeepsTheMark(t *testing.T) {
 	}
 }
 
-// Recognising nothing on a page means the mark scrolled off it: the feed moved
-// further than one page between polls, and the sweep owns the gap.
+// A page that shows nothing of the mark means it scrolled off: the feed moved
+// further than one page between polls, and the sweep covers the gap.
 func TestFeedPollWarnsWhenTheMarkScrolledOff(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 1, time.Now().Add(-time.Hour)),
@@ -551,7 +551,7 @@ func TestFeedPollWarnsWhenTheMarkScrolledOff(t *testing.T) {
 		t.Error("warned on the first poll, when there was no mark to scroll off")
 	}
 
-	// A wholly different page: nothing on it is recognised.
+	// A wholly different page: nothing on it was processed before.
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Placeholder Saga", 9, time.Now())}
 	if err := h.svc.PollFeedOnce(ctx); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
@@ -578,8 +578,8 @@ func seedGapCadence(t *testing.T, st *store.Store, id int64, backoff int, next t
 	}
 }
 
-// pollThenGap runs a first poll to lay down a mark at since, then swaps in a
-// wholly unrecognised page so the next poll reads as a gap.
+// pollThenGap runs a first poll to store a mark at since, then swaps in a page
+// sharing nothing with it so the next poll reads as a gap.
 func pollThenGap(t *testing.T, h *feedHarness, since time.Time) {
 	t.Helper()
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since)}
@@ -589,7 +589,7 @@ func pollThenGap(t *testing.T, h *feedHarness, since time.Time) {
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, time.Now())}
 }
 
-// The acceptance criterion of #140: a release that fell through a feed gap is
+// The acceptance criterion of #140: a release inside a feed gap is
 // searched materially sooner than the backoff cap, because the poll resets the
 // sweep for the title whose broadcast happened inside the gap.
 func TestFeedPollGapResetsATitleThatAiredInsideIt(t *testing.T) {
@@ -637,7 +637,7 @@ func TestFeedPollGapLeavesTitlesOutsideTheWindowAlone(t *testing.T) {
 }
 
 // A rip is published after its episode airs, so an item that aired shortly
-// before the mark can still have fallen through the gap behind it.
+// before the mark can still be inside the gap behind it.
 func TestFeedPollGapResetCoversPublishLagBeforeTheMark(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)
@@ -659,7 +659,7 @@ func TestFeedPollGapResetCoversPublishLagBeforeTheMark(t *testing.T) {
 
 // One gap event resets at most what one sweep pass can search, furthest-
 // postponed first: the gap is routine on a busy aggregating indexer, so an
-// unbounded reset would queue searches the sweep cannot spend.
+// unbounded reset would queue searches the sweep cannot run.
 func TestFeedPollGapResetIsBoundedToOnePass(t *testing.T) {
 	now := time.Now()
 	h := newFeedPoll(t, nil, fakeConfig{})
@@ -683,7 +683,7 @@ func TestFeedPollGapResetIsBoundedToOnePass(t *testing.T) {
 			reset++
 			continue
 		}
-		// The two nearest-due titles are the ones the ladder makes wait least.
+		// The two nearest-due titles are the ones with the shortest backoff.
 		if i > 1 {
 			t.Errorf("series %d was left postponed; the furthest-postponed series come first", i)
 		}
@@ -694,9 +694,9 @@ func TestFeedPollGapResetIsBoundedToOnePass(t *testing.T) {
 }
 
 // The acceptance criterion of #176: an aggregating indexer backfills a member
-// that timed out on the last poll, so one entry on the page carries a publish
-// date from before the mark. Nothing on the page is recognised, so the gap is
-// still a gap — and the entry that masked it must not cost the recovery.
+// that timed out on the last poll, so one entry on the page has a publish
+// date from before the mark. Nothing on the page shows the mark, so the gap is
+// still a gap — and the backdated entry must not stop the recovery.
 func TestFeedPollGapSurvivesABackdatedEntryOnThePage(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)
@@ -720,7 +720,7 @@ func TestFeedPollGapSurvivesABackdatedEntryOnThePage(t *testing.T) {
 	}
 }
 
-// A page carrying nothing but backfill has nothing fresh on it, and shows no
+// A page containing nothing but backfill has nothing fresh on it, and shows no
 // more coverage than a page of releases we have never seen: the recovery runs.
 func TestFeedPollRecoversAGapOnAPageWithNothingFresh(t *testing.T) {
 	now := time.Now()
@@ -745,7 +745,7 @@ func TestFeedPollRecoversAGapOnAPageWithNothingFresh(t *testing.T) {
 }
 
 // The other half of #176: a page that still shows the mark's own entry overlaps
-// it however much new sits on top, so the ladder is left alone.
+// it however much new sits on top, so the ladder is unchanged.
 func TestFeedPollOverlappingPageIsNotAGap(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)
@@ -773,9 +773,9 @@ func TestFeedPollOverlappingPageIsNotAGap(t *testing.T) {
 	wantNextSearchNear(t, state.nextSearchAt, now.Add(20*time.Hour))
 }
 
-// An indexer that rewrites its GUIDs leaves the mark's ids unrecognisable, and a
+// An indexer that rewrites its GUIDs makes the mark's ids unmatchable, and a
 // truncated id set never named them: the instant itself is on the page, so the
-// page still reaches back.
+// page still shows the mark.
 func TestFeedPollTreatsTheMarkInstantAsContinuity(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)
@@ -802,8 +802,8 @@ func TestFeedPollTreatsTheMarkInstantAsContinuity(t *testing.T) {
 	}
 }
 
-// An entry the feed dated not at all is remembered so it is not processed twice,
-// and that is all: a sticky item sits on every page forever, so reading one as
+// An entry the feed dated not at all is stored so it is not processed twice,
+// and that is all: a sticky item is on every page forever, so reading one as
 // coverage would disable gap detection outright and never self-correct.
 func TestFeedPollUndatedEntryDedupesButIsNotCoverage(t *testing.T) {
 	now := time.Now()
@@ -813,7 +813,7 @@ func TestFeedPollUndatedEntryDedupesButIsNotCoverage(t *testing.T) {
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
-	// The dated entry that carried the mark has scrolled off; the sticky has not.
+	// The dated entry published at the mark has scrolled off; the sticky has not.
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, now), sticky}
 
 	aired := now.Add(-time.Hour)
@@ -835,8 +835,8 @@ func TestFeedPollUndatedEntryDedupesButIsNotCoverage(t *testing.T) {
 }
 
 // The rewind path merges an older page's ids into the kept mark so they are not
-// re-processed, and one of those must not then claim the page reaches the mark:
-// that is #176's failure reached through the id arm instead of the date arm.
+// re-processed, and one of those must not then make the page appear to show the mark:
+// that is #176's failure via the id arm instead of the date arm.
 func TestFeedPollGapSurvivesAStaleRememberedID(t *testing.T) {
 	now := time.Now()
 	stale := feedEntry("Dead Tracker Sticky", 7, now.Add(-30*time.Hour))
@@ -846,7 +846,7 @@ func TestFeedPollGapSurvivesAStaleRememberedID(t *testing.T) {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
 	// The busy member times out, so only the dead member's old entry is served:
-	// the mark is kept and the stale id is remembered alongside it.
+	// the mark is kept and the stale id is stored alongside it.
 	h.feed.Entries = []indexer.FeedEntry{stale}
 	if err := h.svc.PollFeedOnce(ctx); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
@@ -856,7 +856,7 @@ func TestFeedPollGapSurvivesAStaleRememberedID(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
 	// The busy member returns having published more than one page: nothing here
-	// reaches the mark, and the stale entry is not evidence that anything does.
+	// shows the mark, and the stale entry is not evidence that anything does.
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Brand New Show", 9, now), stale}
 
 	if err := h.svc.PollFeedOnce(ctx); err != nil {
@@ -870,7 +870,7 @@ func TestFeedPollGapSurvivesAStaleRememberedID(t *testing.T) {
 
 // Why the id arm survives being narrowed rather than dropped: an aggregator that
 // renders a tracker's relative date ("2 days ago") recomputes it every poll, so
-// the entry that carried the mark comes back at a slightly different instant.
+// the entry published at the mark comes back at a slightly different instant.
 func TestFeedPollRecognisesTheMarkWhenTheIndexerRedatesIt(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)
@@ -897,7 +897,7 @@ func TestFeedPollRecognisesTheMarkWhenTheIndexerRedatesIt(t *testing.T) {
 }
 
 // An install upgrading mid-poll has a mark that predates the coverage ids: the
-// instant itself is still on the page, and the mark written next carries them.
+// instant itself is still on the page, and the mark written next includes them.
 func TestFeedPollAcceptsAMarkStoredBeforeCoverageIDs(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)
@@ -935,8 +935,8 @@ func TestFeedPollAcceptsAMarkStoredBeforeCoverageIDs(t *testing.T) {
 	}
 }
 
-// A mark that will not decode costs one re-processed page, never a dead feed —
-// the failure mode Sonarr's equivalent field actually has.
+// A mark that will not decode costs one re-processed page, never a feed that
+// stops working — the failure mode Sonarr's equivalent field actually has.
 func TestFeedPollToleratesACorruptMark(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -973,7 +973,7 @@ func TestFeedPollDoesNotRewindOnAnOlderPage(t *testing.T) {
 
 	h := newFeedPoll(t, []indexer.FeedEntry{newer}, fakeConfig{})
 	ctx := context.Background()
-	if err := h.svc.PollFeedOnce(ctx); err != nil { // sees the newer page, no title yet
+	if err := h.svc.PollFeedOnce(ctx); err != nil { // processes the newer page, no title yet
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
 
@@ -982,14 +982,14 @@ func TestFeedPollDoesNotRewindOnAnOlderPage(t *testing.T) {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	// The stale page shows nothing of the mark, so it reads as lost coverage and
-	// spends a bounded recovery. That is the accepted cost of not inferring
+	// runs a bounded recovery. That is the accepted cost of not inferring
 	// coverage from an older entry (#176) — and it recurs while the page does.
 	if !h.log.logged("moved more than one page") {
 		t.Error("a page showing nothing of the mark should report lost coverage")
 	}
 
 	// Now the title exists and the indexer serves the original page again. The
-	// newer entry was already seen, so it must not be taken a second time.
+	// newer entry was already processed, so it must not be grabbed a second time.
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, airsAt: &past}, sweepItem{number: 4, airsAt: &past})
 	h.feed.Entries = []indexer.FeedEntry{newer}
@@ -1002,7 +1002,7 @@ func TestFeedPollDoesNotRewindOnAnOlderPage(t *testing.T) {
 }
 
 // One page is parsed once and matched against every due title, so the shared
-// lookup must not let one title's entry reach another's items.
+// lookup must not let one title's entry match another's items.
 func TestFeedPollSharesOnePageAcrossTitles(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	recent := time.Now().Add(-10 * time.Minute)

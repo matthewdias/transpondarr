@@ -87,7 +87,7 @@ func TestSweepGrabsAWantedMovie(t *testing.T) {
 }
 
 // A film nobody is seeding for climbs the same ladder as a title, rather than
-// holding a slot at the head of the due queue and burning a search every tick.
+// staying at the head of the due queue and costing a search every tick.
 func TestSweepMovieClimbsTheBackoffLadder(t *testing.T) {
 	h := newSweep(t, nil, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 2019)
@@ -141,10 +141,10 @@ func TestSweepMovieWithNoAirDateLeavesTheCadenceHelpersInert(t *testing.T) {
 	wantNextSearchNear(t, state.nextSearchAt, before.Add(24*time.Hour))
 }
 
-// #224 gave films a date, which makes an announced one unaired and so not
+// #224 added a date to films, which makes an announced one unaired and so not
 // grabbable. That is right -- AniList's start date is the theatrical premiere,
-// and nothing exists to find before it -- so the sweep must not spend a search
-// on it. The Wanted page keeps showing it regardless; the two are separate
+// and nothing exists to find before it -- so the sweep must not search for it.
+// The Wanted page keeps showing it regardless; the two are separate
 // questions, which is why this asserts only the acquisition half.
 func TestSweepSkipsAnAnnouncedFilmUntilItsPremiere(t *testing.T) {
 	h := newSweep(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2027)}, fakeConfig{})
@@ -169,7 +169,7 @@ func TestSweepSkipsAnAnnouncedFilmUntilItsPremiere(t *testing.T) {
 
 // #208's amended rule, proved through automation: a film whose year is not yet
 // on record still matches, so a manual grab stays free (PR #57), but the sweep
-// never takes it -- and the pass stores the refusal so the Wanted page says why.
+// never grabs it -- and the pass stores the refusal so the Wanted page shows why.
 func TestSweepNeverGrabsANullYearMovieAndRecordsWhy(t *testing.T) {
 	h := newSweep(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2019)}, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 0)
@@ -191,7 +191,7 @@ func TestSweepNeverGrabsANullYearMovieAndRecordsWhy(t *testing.T) {
 }
 
 // A film has no measurable broadcast window, so the pin delay does not apply --
-// rather than anchoring to now, which would restart the wait on every pass and
+// rather than measuring from now, which would restart the delay on every pass and
 // never let another group's release through.
 func TestSweepMovieIgnoresThePinDelayWithNoAirDate(t *testing.T) {
 	h := newSweep(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2019)},
@@ -211,11 +211,11 @@ func TestSweepMovieIgnoresThePinDelayWithNoAirDate(t *testing.T) {
 	}
 }
 
-// The wrong grab both of movie mode's numeric gates are blind to: a numberless
-// season pack of the film's parent title names no episode and carries no year,
-// so nothing refuses it and the importer then hardlinks the title's episode 1
-// into the Movies root under the film's name. Automation must decline it; the
-// reason is stored, so the Wanted page says which release and why.
+// The wrong grab both of movie mode's numeric gates allow through: a numberless
+// season pack of the film's parent title names no episode and has no year,
+// so nothing excludes it and the importer then hardlinks the title's episode 1
+// into the Movies root under the film's name. Automation must not grab it; the
+// reason is stored, so the Wanted page shows which release and why.
 func TestSweepNeverGrabsAParentSeriesSeasonPackForAFilm(t *testing.T) {
 	rel := indexer.Release{
 		Title:       "[ExampleSubs] Placeholder Saga (Complete Series) [1080p]",
@@ -241,8 +241,8 @@ func TestSweepNeverGrabsAParentSeriesSeasonPackForAFilm(t *testing.T) {
 }
 
 // The deliberate cost of the rule above, stated as its own test: a genuine
-// multi-part film release is withheld from automation too, because nothing can
-// tell it from its parent title's pack. A human still takes it (PR #57).
+// multi-part film release is excluded from automation too, because nothing can
+// distinguish it from its parent title's pack. A human still takes it (PR #57).
 func TestSweepWithholdsAFilmsOwnBatchTokenedRelease(t *testing.T) {
 	rel := indexer.Release{
 		Title:       "[ExampleSubs] Sample Film (2019) (Complete) [1080p][Dual Audio]",
@@ -260,7 +260,7 @@ func TestSweepWithholdsAFilmsOwnBatchTokenedRelease(t *testing.T) {
 	}
 }
 
-// The blocklist is format-neutral: a remembered film release degrades the sweep
+// The blocklist is format-neutral: a recorded film release degrades the sweep
 // to the next-best one, exactly as it does for an episode (#118).
 func TestSweepMovieSkipsABlocklistedRelease(t *testing.T) {
 	top := movieRelease("TopSubs", "Sample Film", 2019)
@@ -282,7 +282,7 @@ func TestSweepMovieSkipsABlocklistedRelease(t *testing.T) {
 }
 
 // The feed is the other entry point onto the one decision layer: a film on the
-// page is grabbed with no search spent at all.
+// page is grabbed with no search at all.
 func TestFeedPollGrabsAWantedMovie(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		movieFeedEntry("ExampleSubs", "Sample Film", 2019, time.Now().Add(-5*time.Minute)),
@@ -305,7 +305,7 @@ func TestFeedPollGrabsAWantedMovie(t *testing.T) {
 }
 
 // The null-year gate is a property of the decision layer, so it holds through
-// the trigger that never spends a search either.
+// the trigger that never issues a search either.
 func TestFeedPollNeverGrabsANullYearMovie(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		movieFeedEntry("ExampleSubs", "Sample Film", 2019, time.Now().Add(-5*time.Minute)),
@@ -329,8 +329,8 @@ func TestFeedPollNeverGrabsANullYearMovie(t *testing.T) {
 
 // #209's numeric identity guard, end to end through the trigger that would have
 // acted on it unattended. titleBelongs is fuzzy containment, so a long-runner
-// sharing a name prefix with a film reaches the movie path; unrefused, its
-// episode 250 is grabbed into the film's single item with nobody watching.
+// sharing a name prefix with a film is evaluated on the movie path; unrefused,
+// its episode 250 is grabbed into the film's single item by automation.
 func TestFeedPollDoesNotGrabALongRunnersEpisodeForAFilm(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 250, time.Now().Add(-5*time.Minute)),
@@ -345,8 +345,8 @@ func TestFeedPollDoesNotGrabALongRunnersEpisodeForAFilm(t *testing.T) {
 	if got := grabbedItemNumbers(t, h.st, film); len(got) != 0 {
 		t.Fatalf("grabbed %v for the film, want nothing — that is a long-runner's episode", got)
 	}
-	// The long-runner refuses it too, on its own maxItem: the point is that no
-	// entry in the library took it, so the whole page was declined.
+	// The long-runner excludes it too, on its own maxItem: the point is that no
+	// entry in the library grabbed it, so nothing on the page was grabbed.
 	if got := grabbedItemNumbers(t, h.st, saga); len(got) != 0 {
 		t.Errorf("grabbed %v for the long-runner, want nothing past its range", got)
 	}
@@ -356,7 +356,7 @@ func TestFeedPollDoesNotGrabALongRunnersEpisodeForAFilm(t *testing.T) {
 }
 
 // The claim registry is format-neutral, and a film is the case where both
-// triggers see exactly one item: the two phase-locked jobs must still produce
+// triggers evaluate exactly one item: the two phase-locked jobs must still produce
 // one add.
 func TestConcurrentSweepAndFeedPollGrabAMovieOnce(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -371,7 +371,7 @@ func TestConcurrentSweepAndFeedPollGrabAMovieOnce(t *testing.T) {
 	var pollErr error
 	wg.Go(func() { pollErr = h.svc.PollFeedOnce(ctx) })
 
-	<-entered // the feed poll now holds the claim, inside the client
+	<-entered // the feed poll now has the claim, inside the client
 	sweepErr := h.svc.SweepOnce(ctx)
 	release()
 	wg.Wait()
@@ -388,7 +388,7 @@ func TestConcurrentSweepAndFeedPollGrabAMovieOnce(t *testing.T) {
 }
 
 // Notify-only rehearses a film like any other take: the release is named and
-// nothing reaches the download client.
+// nothing is sent to the download client.
 func TestNotifyOnlySweepReportsAWouldGrabMovie(t *testing.T) {
 	h := newRehearsal(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2019)},
 		fakeConfig{notifyOnly: true})

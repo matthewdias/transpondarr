@@ -1,31 +1,31 @@
-// Package acquire owns search, decide, and grab, shared by the manual HTTP
-// routes, the scheduled sweep and the feed poll so all three drive exactly one
-// matcher.
+// Package acquire is responsible for search, decide, and grab, shared by the
+// manual HTTP routes, the scheduled sweep and the feed poll so all three drive
+// exactly one matcher.
 //
-// The two automatic entry points divide by what they can see. The feed poll
-// (#101) owns releases published while we are watching: one request lists an
-// indexer's newest releases, so it is flat in library size and cheap enough to
-// run on a short tick. The sweep (#100) owns what already existed before we
-// looked — back-catalog, anything that scrolled off the feed page, a title
-// added after an entry was seen — and owns everything when no feed is
-// configured, at one search per title.
+// The two automatic entry points divide by which releases each can find. The
+// feed poll (#101) covers releases published while it is polling: one request
+// lists an indexer's newest releases, so it is flat in library size and cheap
+// enough to run on a short tick. The sweep (#100) covers what already existed
+// before the feed started — back-catalog, anything that scrolled off the feed
+// page, a title added after an entry was seen — and covers everything when no
+// feed is configured, at one search per title.
 //
-// Cadence follows that division: with a feed configured the sweep stands down
-// from the airing window and sleeps on its backoff. Grab scope deliberately does
-// not. A sweep search that turns up a current release still takes it, because
-// the feed's dedupe is one-shot — an entry seen before its title or item
-// existed never comes around again, and the sweep is the only thing that rescues
-// it.
+// Cadence follows that division: with a feed configured the sweep drops the
+// airing-window reset and its next search is due on the backoff interval. Grab
+// scope deliberately does not. A sweep search that turns up a current release
+// still grabs it, because the feed's dedupe is one-shot — an entry seen before
+// its title or item existed never comes around again, and the sweep is the only
+// thing that can still find it.
 //
 // Two automatic grabs never take the same item, by two mechanisms rather than
 // one. An in-process claim over wanted-item ids stops them overlapping, and a
 // re-read of grab state under that claim stops the later one acting on a list it
 // loaded before the other had finished — the gap the claim alone leaves, since a
-// pass reads its items, goes out on the network for seconds, and grabs after.
+// pass reads its items, makes network requests for seconds, and grabs after.
 //
-// A manual grab is outside both, deliberately: it takes its claim
-// unconditionally and never re-checks, because explicit user intent is never
-// refused (PR #57). So a manual grab racing automation, or another manual grab,
+// A manual grab is outside both, deliberately: it acquires its claim
+// unconditionally and never re-checks, because a manual grab always succeeds
+// (PR #57). So a manual grab racing automation, or another manual grab,
 // still duplicates exactly as double-clicking Grab always has — and converges on
 // the download client's info-hash dedupe.
 package acquire
@@ -69,23 +69,23 @@ type ClientSource interface {
 
 // TitleSource supplies a title's accepted name variants (satisfied by
 // *catalog.Service). ProviderName names the id space TitleVariants reads: the
-// sweep and feed both serve title regardless of provider, so it is the caller's
-// job not to hand over an id numbered somewhere else.
+// sweep and feed both serve title regardless of provider, so the caller must
+// pass an id numbered in that space.
 type TitleSource interface {
 	ProviderName() string
 	TitleVariants(ctx context.Context, providerID int64) ([]string, error)
 }
 
 // CachedTitleSource is an optional TitleSource capability: variants answered from
-// the local metadata cache, spending no provider request (satisfied by
+// the local metadata cache, with no provider request (satisfied by
 // *catalog.Service).
 type CachedTitleSource interface {
 	CachedTitleVariants(ctx context.Context, providerID int64) ([]string, bool, error)
 }
 
-// Recorder remembers a release automation could not use, so it is not re-ranked
+// Recorder records a release automation could not use, so it is not re-ranked
 // first next pass. Satisfied by *blocklist.Service, which must be the instance
-// the importer holds: false means its breaker refused to blame the release.
+// the importer uses: false means its breaker did not blame the release.
 type Recorder interface {
 	Record(ctx context.Context, titleID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }
@@ -111,9 +111,9 @@ type Match struct {
 	Candidates []decide.Candidate
 }
 
-// passItem is where an entry point states candidacy for itself: the stored item,
-// whose InLibrary is the library's answer, beside the pass's own grabbable. This
-// is the one place the two may sit together — deriving either from the other
+// passItem is where an entry point sets candidacy for itself: the stored item,
+// whose InLibrary comes from the library, beside the pass's own grabbable. This
+// is the one place the two may appear together — deriving either from the other
 // anywhere else is exactly the conflation this type exists to end (#97).
 type passItem struct {
 	domain.WantedItem
@@ -153,7 +153,7 @@ type Service struct {
 // New builds the service. A nil logger is tolerated so a caller that only needs
 // the service to exist (the OpenAPI spec dump builds its routes with empty deps)
 // cannot turn a missing logger into a panic inside a sweep; a nil recorder just
-// means nothing is remembered.
+// means nothing is recorded.
 func New(st *store.Store, clients ClientSource, titles TitleSource, cfg Config, log *slog.Logger, blocklist Recorder) *Service {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
@@ -176,8 +176,8 @@ func (s *Service) MatchTitle(ctx context.Context, id int64) (Match, error) {
 	return s.match(ctx, idx, title, items)
 }
 
-// loadItems reads a title and every wanted item belonging to it. Nothing
-// withholds an item from a manual pass: an item we hold is offered as an
+// loadItems reads a title and every wanted item belonging to it. A manual pass
+// matches against every item: one already in the library is offered as an
 // upgrade, since profiles inform manual actions and gate only automation
 // (PR #57). A held item with no recorded release matches as a plain one.
 func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passItem, error) {
@@ -263,10 +263,10 @@ func (s *Service) cachedVariants(ctx context.Context, title db.Series) []string 
 	return variants
 }
 
-// search asks the indexer for one title, reporting the term that answered.
-// Sanitized title first, then each variant as a zero-result fallback (#107): a
-// romaji term can be unsearchable even sanitized, and one extra request is cheap
-// next to reporting nothing.
+// search queries the indexer for one title, reporting the term that returned
+// releases. Sanitized title first, then each variant as a zero-result fallback
+// (#107): a romaji term can be unsearchable even sanitized, and one extra
+// request is cheap next to reporting nothing.
 func (s *Service) search(ctx context.Context, idx indexer.Indexer, variants []string) ([]indexer.Release, string, error) {
 	var releases []indexer.Release
 	term := ""

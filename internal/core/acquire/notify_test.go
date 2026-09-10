@@ -25,7 +25,7 @@ func withNotifier(reg *clients.Registry) *coretest.FakeNotifier {
 	return fn
 }
 
-// An automatic grab is what unattended operation most wants visibility into:
+// An automatic grab is what unattended operation most needs visibility into:
 // the sweep's grabPass dispatches a grabbed event with the title and release.
 func TestSweepGrabDispatchesGrabbedEvent(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -55,7 +55,7 @@ func TestSweepGrabDispatchesGrabbedEvent(t *testing.T) {
 			t.Errorf("item = %d, want the single covered episode", ev.ItemNumber)
 		}
 		// The kind is what keeps an adapter from labelling a movie "Episode 1"; a
-		// title must still carry the episode kind that earns the label.
+		// title must still have the episode kind that produces the label.
 		if ev.ItemKind != domain.KindEpisode {
 			t.Errorf("item kind = %q, want episode", ev.ItemKind)
 		}

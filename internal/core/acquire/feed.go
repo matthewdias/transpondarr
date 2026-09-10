@@ -17,22 +17,22 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// maxFeedMarkIDs bounds what one mark remembers. A page is ~100 entries, so this
-// only ever trips on a feed that publishes no dates at all and pages far deeper.
+// maxFeedMarkIDs bounds how many ids one mark stores. A page is ~100 entries, so
+// the cap is only reached on a feed that publishes no dates and pages far deeper.
 const maxFeedMarkIDs = 500
 
 // feedGapAiredSlack widens the recovery window back past the mark: a rip is
 // published after its episode airs, so an item that aired shortly before the
-// mark can still have fallen through the gap.
+// mark can still be inside the gap.
 const feedGapAiredSlack = time.Hour
 
-// feedMark is what a poll remembers about the last one: the newest publish time
-// it saw and the entries carrying it. Sonarr stores the same pair per indexer
-// (LastRssSyncReleaseInfo) — the timestamp answers "how far did we get", and the
-// ids settle the ties it cannot, since a batch of releases shares a second.
-// The id sets are two because the consumers differ: IDs is everything processed
-// and never to be processed again, LatestIDs only what was published at Latest —
-// the sole id evidence that a page still reaches the mark (#176).
+// feedMark is what a poll stores about the last one: the newest publish time it
+// processed and the entries published at it. Sonarr stores the same pair per
+// indexer (LastRssSyncReleaseInfo) — the timestamp records how far the last poll
+// got, and the ids break the ties it cannot, since a batch of releases shares a
+// second. The id sets are two because the consumers differ: IDs is everything
+// processed and never to be processed again, LatestIDs only what was published
+// at Latest — the sole id evidence that a page still shows the mark (#176).
 type feedMark struct {
 	Latest    time.Time `json:"latest,omitempty"`
 	IDs       []string  `json:"ids,omitempty"`
@@ -40,15 +40,15 @@ type feedMark struct {
 }
 
 // feedMarkKey namespaces the mark by indexer name. There is one Torznab endpoint
-// today, but a second source must not inherit the first's seen set (#128).
+// today, but a second source must not reuse the first's seen set (#128).
 func feedMarkKey(indexerName string) string { return "feed.seen." + indexerName }
 
-// PollFeedOnce takes the indexer's newest releases and grabs what any monitored
+// PollFeedOnce fetches the indexer's newest releases and grabs what any monitored
 // title wants, and is what the job runner calls. It is only a cheaper trigger
 // than the sweep: eligibility is the sweep's, because both drive grabPass over a
 // Match built the same way. The clients and the kill switch are read per run, so
-// a Settings edit takes effect on the next tick — except on a hand-triggered run,
-// which passes the kill switch as explicit intent (#122).
+// a Settings edit takes effect on the next tick — except on a manually triggered
+// run, which passes the kill switch as explicit intent (#122).
 //
 // An indexer with no recent feed is a supported configuration, not a failure:
 // the scheduled sweep already covers those titles, just less promptly.
@@ -81,11 +81,11 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 		return err
 	}
 	fresh := unseenEntries(entries, mark)
-	// A page that no longer reaches the mark means it scrolled off: the feed
+	// A page that no longer shows the mark means it scrolled off: the feed
 	// moved further than one page between polls, so whatever aired in between is
-	// the sweep's to find — and with a feed configured the sweep no longer aims
-	// at the airing window, leaving its backoff ladder to reach it up to a day
-	// later. The poll knows when coverage was lost, so it recovers (#140).
+	// the sweep's to find — and with a feed configured the sweep no longer resets
+	// on the airing window, so its backoff can leave the item unsearched for up
+	// to a day. The poll detects when coverage was lost, so it recovers (#140).
 	gap := lostCoverage(entries, mark)
 
 	// The whole point of the mark: a quiet feed costs one request and nothing else.
@@ -98,12 +98,12 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 		polled = s.pollTitle(ctx, releases)
 	}
 	// Recovery runs after the page is processed, so anything this poll just
-	// grabbed has settled its item and drops out of the reset set.
+	// grabbed has settled its item and is excluded from the reset set.
 	var recovered error
 	if gap {
 		recovered = s.recoverFeedGap(ctx, idx.Name(), mark.Latest, len(entries))
 	}
-	// The mark advances even when a title failed: those entries were seen, and
+	// The mark advances even when a title failed: those entries were processed, and
 	// re-processing the page would not fix whatever broke.
 	return errors.Join(
 		polled, recovered,
@@ -112,11 +112,11 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 }
 
 // recoverFeedGap puts the sweep back on the titles whose broadcast happened
-// while the feed was scrolling past us. The set is bounded to one sweep pass'
-// worth of titles and ordered furthest-postponed first: the gap fires routinely
-// on a busy aggregating indexer, so resetting everything would queue more
-// searches than the sweep can spend. A failed reset still lets the mark advance
-// — the sweep's ladder remains the fallback it already was.
+// inside the gap. The set is bounded to one sweep pass' worth of titles and
+// ordered furthest-postponed first: a gap is routine on a busy aggregating
+// indexer, so resetting everything would queue more searches than the sweep can
+// run. A failed reset still lets the mark advance — the sweep's ladder remains
+// the fallback it already was.
 func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since time.Time, page int) error {
 	now := time.Now()
 	stale, err := s.store.Q.ListBackedOffTitlesWantedInWindow(ctx,
@@ -156,7 +156,7 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 // something wanted. This is the inverse of the sweep's lookup, so it is title ×
 // entry rather than one search per title — deliberately unoptimised, because a
 // page is ~100 entries and the due query already drops any title with nothing
-// left to grab. One title's failure never costs the rest their pass.
+// left to grab. One title's failure never stops the rest of the pass.
 func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) error {
 	now := time.Now()
 	due, err := s.store.Q.ListTitlesWithWantedItems(ctx,
@@ -165,13 +165,13 @@ func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) err
 		return fmt.Errorf("list series with wanted items: %w", err)
 	}
 
-	// Nothing due means nothing to parse for: a caught-up library must not start
-	// paying a page of parses it previously skipped entirely.
+	// Nothing due means nothing to parse for: a library with nothing wanted must
+	// not start parsing a page it previously skipped entirely.
 	if len(due) == 0 {
 		return nil
 	}
 	// One page is matched against every due title, so its names are parsed once
-	// here rather than once per title: the parse is ~113x the scoring it feeds.
+	// here rather than once per title: the parse costs ~113x the scoring that uses it.
 	parses := pageParses(releases)
 
 	var errs []error
@@ -215,7 +215,7 @@ func (s *Service) pollOneTitle(ctx context.Context, title db.Series, releases []
 }
 
 // feedEntryID is an entry's identity for deduping: its GUID, or the fields a feed
-// publishing none still carries. Sonarr keys the same check on the download URL
+// publishing none still provides. Sonarr keys the same check on the download URL
 // rather than the GUID, because Torznab GUIDs are not dependable across
 // implementations.
 func feedEntryID(e indexer.FeedEntry) string {
@@ -237,10 +237,10 @@ func idSet(ids []string) map[string]bool {
 }
 
 // lostCoverage reports whether the page no longer shows the mark's own instant —
-// an entry published at it, or one whose id we remembered *for* it, since an
-// aggregator that renders a relative date recomputes it every poll. Anything else
-// on the page is no evidence: backfill, a sticky the feed never dated and a stale
-// id the rewind path merged all look exactly like a page that reaches back (#176).
+// an entry published at it, or one whose id we recorded *for* it, since an
+// aggregator that renders a relative date recomputes it every poll. Nothing else
+// is evidence: backfill, a sticky the feed never dated and a stale id the rewind
+// path merged are indistinguishable from a page that still shows the mark (#176).
 // A feed publishing no dates has no such instant, so it can never report one.
 func lostCoverage(entries []indexer.FeedEntry, mark feedMark) bool {
 	if mark.Latest.IsZero() {
@@ -256,7 +256,7 @@ func lostCoverage(entries []indexer.FeedEntry, mark feedMark) bool {
 }
 
 // unseenEntries narrows a page to what the last poll did not already process. An
-// entry older than the mark is skipped even when its id is unfamiliar, which is
+// entry older than the mark is skipped even when its id is not in the set, which is
 // what stops a truncated id set from re-processing history.
 func unseenEntries(entries []indexer.FeedEntry, mark feedMark) []indexer.FeedEntry {
 	seen := idSet(mark.IDs)
@@ -274,7 +274,7 @@ func unseenEntries(entries []indexer.FeedEntry, mark feedMark) []indexer.FeedEnt
 }
 
 // nextFeedMark is the newest publish time on the page plus the ids that need
-// remembering: the entries sharing that instant, and any the feed dated not at
+// storing: the entries sharing that instant, and any the feed dated not at
 // all, for which the id set is the only dedupe available.
 func nextFeedMark(entries []indexer.FeedEntry) feedMark {
 	var mark feedMark
@@ -287,7 +287,7 @@ func nextFeedMark(entries []indexer.FeedEntry) feedMark {
 		if e.Published.IsZero() || e.Published.Equal(mark.Latest) {
 			mark.IDs = append(mark.IDs, feedEntryID(e))
 		}
-		// An undated entry rides in IDs for the dedupe but never here: a sticky
+		// An undated entry is stored in IDs for the dedupe but never here: a sticky
 		// item is on every page, so coverage would never be lost again (#176).
 		if !e.Published.IsZero() && e.Published.Equal(mark.Latest) {
 			mark.LatestIDs = append(mark.LatestIDs, feedEntryID(e))
@@ -298,7 +298,7 @@ func nextFeedMark(entries []indexer.FeedEntry) feedMark {
 	return mark
 }
 
-// capIDs bounds one id list to what a mark may remember.
+// capIDs bounds one id list to what a mark may store.
 func capIDs(ids []string) []string {
 	if len(ids) > maxFeedMarkIDs {
 		return ids[:maxFeedMarkIDs]
@@ -306,11 +306,11 @@ func capIDs(ids []string) []string {
 	return ids
 }
 
-// advanceFeedMark keeps the furthest point the poll has reached. An indexer that
-// transiently serves an older page must not rewind the window, which would
-// re-process everything published since — so the older page's ids are remembered
+// advanceFeedMark records the furthest point the poll has processed. An indexer
+// that transiently serves an older page must not rewind the window, which would
+// re-process everything published since — so the older page's ids are stored
 // alongside the mark rather than replacing it. Only for the dedupe, though: the
-// kept instant keeps its own ids, or an older page's would claim to reach it.
+// stored instant keeps its own ids, or an older page's would appear to show it.
 func advanceFeedMark(prev, next feedMark) feedMark {
 	if prev.Latest.IsZero() || !next.Latest.Before(prev.Latest) {
 		return next
@@ -332,8 +332,8 @@ func (s *Service) loadFeedMark(ctx context.Context, indexerName string) (feedMar
 	}
 	var mark feedMark
 	if err := json.Unmarshal([]byte(v), &mark); err != nil {
-		// One re-processed page, not a dead feed — Sonarr's equivalent field stops
-		// RSS sync working entirely when its JSON goes bad.
+		// One re-processed page, not a feed that stops working — Sonarr's equivalent
+		// field stops RSS sync entirely when its JSON cannot be parsed.
 		s.log.Warn("feed mark unreadable; treating the next page as new",
 			"indexer", indexerName, "err", err)
 		return feedMark{}, nil

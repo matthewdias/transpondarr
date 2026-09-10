@@ -142,7 +142,7 @@ func holdWithStatus(t *testing.T, st *store.Store, titleID int64, number int, re
 // Membership is the sweep's upgrade pool plus what it is already acting on.
 // import_deferred is the one held state left out: its fix belongs to the
 // Activity queue, and a grab from here would overwrite the deferred row and
-// orphan the payload the episode is sitting in.
+// orphan the payload that contains the episode.
 func TestCutoffUnmetMembershipMatchesTheUpgradePool(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedTitle(t, st, "Placeholder Saga", 4)
@@ -232,7 +232,7 @@ func TestCutoffUnmetPagesGroupsPastMetTitles(t *testing.T) {
 	}
 }
 
-// Unmonitored title are withheld unless asked for: the toggle mirrors the
+// Unmonitored title are excluded unless requested: the toggle mirrors the
 // calendar's rather than inventing a second meaning.
 func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -261,13 +261,13 @@ func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 	}
 }
 
-// A page also closes on the item budget: groups of capped size stop stacking
+// A page also closes on the item budget: groups of capped size stop accumulating
 // at about 200 items, and the cursor resumes at the excluded title rather
 // than after it, so nothing is skipped.
 func TestCutoffUnmetPageClosesOnTheItemBudget(t *testing.T) {
 	st := coretest.NewStore(t)
 	profileID := upgradingProfile(t, st, "Upgrading", 2300)
-	// Five title of 50 sub-cutoff holds each: the budget admits four (200).
+	// Five title of 50 sub-cutoff holds each: the budget allows four (200).
 	titles := []string{"Bulk A", "Bulk B", "Bulk C", "Bulk D", "Bulk E"}
 	for _, title := range titles {
 		id := seedTitle(t, st, title, 50)
@@ -328,9 +328,9 @@ func TestCutoffUnmetCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	}
 }
 
-// plantParse writes a remembered parse for an item, under the release title it
-// claims to be the parse of. Tests plant one that disagrees with the held title
-// because agreeing with it would prove nothing about which one was scored.
+// plantParse writes a stored parse for an item, under the release title it is
+// stored as the parse of. Tests plant one that differs from the held title
+// because matching it would prove nothing about which one was scored.
 func plantParse(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string, parsed parser.Parsed) {
 	t.Helper()
 	blob, err := json.Marshal(parsed)
@@ -341,7 +341,7 @@ func plantParse(t *testing.T, st *store.Store, titleID int64, number int, releas
 }
 
 // plantRawParse is plantParse without the encoding, for the rows a parser
-// change or a corrupted write leaves behind.
+// change or a corrupted write produces.
 func plantRawParse(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string, version int64, blob string) {
 	t.Helper()
 	ctx := context.Background()
@@ -357,7 +357,7 @@ func plantRawParse(t *testing.T, st *store.Store, titleID int64, number int, rel
 	}
 }
 
-// storedParses reads back what the listing remembered, keyed by item id.
+// storedParses reads back what the listing stored, keyed by item id.
 func storedParses(t *testing.T, st *store.Store) map[int64]db.HeldReleaseParse {
 	t.Helper()
 	rows, err := st.DB.QueryContext(context.Background(),
@@ -380,10 +380,10 @@ func storedParses(t *testing.T, st *store.Store) map[int64]db.HeldReleaseParse {
 	return out
 }
 
-// A remembered parse is what the request scores, which is the whole point:
+// A stored parse is what the request scores, which is the whole point:
 // parsing a title costs ~113x scoring the parse, so a request that re-parsed
-// would be paying the cost this cache exists to remove. Observed by planting a
-// parse that disagrees with the title it is stored under -- the score follows
+// would incur the cost this cache exists to remove. Observed by planting a
+// parse that differs from the title it is stored under -- the score follows
 // the stored parse, so nothing re-read the title.
 func TestCutoffUnmetScoresTheStoredParse(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -406,9 +406,9 @@ func TestCutoffUnmetScoresTheStoredParse(t *testing.T) {
 	}
 }
 
-// A parse stored under a release the item no longer holds is not its parse.
-// The join carries the title, so an upgrade replacing what an item holds
-// invalidates its remembered parse without any writer knowing the table exists.
+// A parse stored under a release the item no longer has is not its parse.
+// The join includes the title, so an upgrade replacing an item's release
+// invalidates its stored parse without any writer referencing the table.
 func TestCutoffUnmetIgnoresAParseOfAnotherRelease(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
@@ -427,7 +427,7 @@ func TestCutoffUnmetIgnoresAParseOfAnotherRelease(t *testing.T) {
 	}
 }
 
-// The scan remembers every held item it examined, not just the ones it listed.
+// The scan stores a parse for every held item it examined, not just the ones it listed.
 // The healthy library the cost curve is about lists nothing at all, so a cache
 // filled only from listed items would never make that case cheaper.
 func TestCutoffUnmetStoresTheParsesItScanned(t *testing.T) {
@@ -551,8 +551,8 @@ func page1ItemID(t *testing.T, st *store.Store, titleID int64, number int) int64
 }
 
 // The write-back is chunked, so it must not lose a row at a chunk boundary: a
-// first traversal of a large library is exactly where the cache has to land
-// whole, and it is the only pass that pays the parser.
+// first traversal of a large library is exactly where the cache has to be
+// written whole, and it is the only pass that runs the parser.
 func TestCutoffUnmetStoresEveryParseAcrossChunks(t *testing.T) {
 	const items = 600 // more than one parseFillBatch, so a chunk boundary falls inside
 	st := coretest.NewStore(t)

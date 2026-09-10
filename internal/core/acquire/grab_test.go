@@ -58,7 +58,7 @@ func TestGrabRecordsOneGrabPerCoveredItem(t *testing.T) {
 	}
 }
 
-// A grab appends one grabbed event per covered item, giving history rows the
+// A grab appends one grabbed event per covered item, preserving history rows the
 // upsert would otherwise erase on re-grab.
 func TestGrabAppendsOneEventPerCoveredItem(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
@@ -104,7 +104,7 @@ func TestGrabAppendsOneEventPerCoveredItem(t *testing.T) {
 	}
 }
 
-// The download client is handed the configured category, which is what makes
+// The download client is sent the configured category, which is what makes
 // Transpondarr's torrents identifiable in the client UI.
 func TestGrabAddsWithConfiguredCategory(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
