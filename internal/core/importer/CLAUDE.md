@@ -95,3 +95,76 @@ item. The root `CLAUDE.md` owns everything above this layer.
   display-only — `webhook.go` must never map it, because `item_number: 1` is
   *correct* for a movie and the payload is a contract (#207 broke it once,
   deliberately and with an upgrade note).
+- **`failed` also means "this release is remembered" (`internal/core/blocklist`,
+  #118).** Both `failed` paths record a per-series blocklist entry, because the
+  grab row is per wanted item and the next attempt overwrites it — without that
+  memory the sweep re-derived the same ranking and re-grabbed the same doomed
+  release forever. `decide` consults it through the existing `ineligibleReason`,
+  so the sweep's eligibility gate, the Releases tab's reason column and manual
+  grab's freedom from eligibility (PR #57) all hold unchanged. Two constants are
+  load-bearing rather than arbitrary: identity is the **info hash or the
+  normalized title**, because Torznab often omits the hash; and the expiry
+  **escalates** (24h, 7d, then permanent) because the `failed` paths fire for
+  environmental reasons that can fail many grabs at once, so permanent-on-first
+  would blocklist a whole in-flight set on one qBit incident. Expired entries are
+  filtered, never deleted — the row carries the failure count the ladder reads.
+  An *import* failure deliberately records nothing: it stays `grabbed` and
+  retries, because its causes are path-mapping gaps rather than bad releases.
+- **An absent torrent is not a verdict (#241).** `failed` settles two different
+  things and only one survives an inference: freeing the item is self-healing and
+  stays automatic, while remembering the release as bad is a judgement that needs
+  a cause. Only three things supply one — the client reporting `error` for a
+  torrent it holds, a payload we examined that lacked what it claimed, and a
+  download URL that could not be fetched or parsed (`acquire.AutoGrab`, #120).
+  Absence supplies none (every cause is external: a hand-removed torrent, a reset
+  client, other tooling, a hash the client never had), and neither does
+  `missingFiles`, which is why it maps to its own `download.State` rather than
+  sharing `StateError` — the data is gone, the release is not at fault, and a
+  dropped mount would otherwise blocklist every release on it at once. **A blamed
+  failure's two consequences travel together**: the memory, and the re-fronting of
+  the search queue — so an unblamed failure takes neither. `record()`'s breaker
+  arm (#120) was already the precedent, declining to re-front exactly when it
+  declines to blame, and a dropped mount would otherwise answer one thundering
+  herd with another. `blame` is a required `failGrab` argument rather than a
+  default so a new failure path has to state its answer. **Dropping the memory
+  cost `data_missing` its only loop breaker**, which the blocklist entry had been
+  supplying by accident: converging on a duplicate (`AddAlreadyExists`) assumes it
+  can still deliver, and one whose data is gone never will, so the same release
+  ranked first and "grabbed" every pass while the item stayed unacquirable. The
+  adapter now refuses that add with `download.ErrDataMissing` — deliberately not
+  `ErrBadRelease`, which is the one `acquire.AutoGrab` blocklists — so the pass
+  reaches the next-best release instead. **The refusal belongs to the arm where
+  the torrent demonstrably pre-existed our add**, which is the pre-check and never
+  the post-failure re-check: there our own add may be what landed, so refusing
+  would leave a torrent no grab row references — #134's orphan, which that arm
+  exists to prevent. It costs nothing to converge there, because the loop's steady
+  state runs through the pre-check: a duplicate reached by the re-check writes a
+  grab row, fails unblamed, and is refused on the next pass. One extra cycle, not
+  a loop. Converging on a *healthy* duplicate is unchanged either way, and is what
+  makes re-grabbing an in-flight torrent safe. A stalled torrent is
+  *present* and reaches none of these paths, so the doomed-release case #118
+  defends against cannot arise from absence at all. The posture behind it: this
+  app disassociates a torrent from the library and never removes or deletes one
+  on its own, because the download client is the user's disk and their ratio.
+- **Both timers are the info-hash group's, not the row's (#247).** A pack is one
+  torrent, so `sharedSince` gives every row of a group its earliest stamp and
+  `stalled_since`/`missing_since` are stamped and cleared per group. Per-row
+  clocks were the bug: a row a later add wrote (#241's converged duplicate) began
+  its own clock, crossed the threshold in a *later* scan, and so escaped
+  `remember()`'s per-scan grouping — one incident, two `Record` calls, and since
+  the upsert is keyed on `(title, normalized title)` that reads as `failures = 2`
+  and jumps the ladder to 7d rather than writing a second row. The seam is here
+  and not in `remember()`, whose per-scan grouping is #124's design and correct;
+  widening *it* would need cross-scan memory the design avoids. Three
+  consequences. **Earliest, not `now`** — the clock belongs to the torrent, and
+  taking `now` for the late row would reproduce the split exactly; it also makes
+  an install upgrading mid-stall converge rather than stay inconsistent. **The
+  value is written, not just computed**, because the Activity queue renders
+  `abandon_at` from each row's own column, so a divergent stamp would show one
+  episode of a pack a countdown it will never be settled on; the write is guarded
+  on the value differing, so a steady state costs nothing. And **an unreadable
+  stamp is treated as an absent one** rather than restarting the group — the
+  tolerance that unparseable data must not fail a grab is preserved at the group
+  level, where only *no* row being readable waits another full period. Clearing
+  needed no change: both clear conditions read the group's status and the global
+  timeout, never the row.
