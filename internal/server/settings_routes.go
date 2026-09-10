@@ -189,9 +189,9 @@ func snapshotDTO(s settings.Snapshot) settingsDTO {
 
 // Input bodies
 //
-// One rule decides every field below, and CLAUDE.md argues it (#227): a body is
-// its section's whole state, so omitempty means absent and empty say the same
-// thing, and anything the service would default is required instead.
+// One rule decides every field below, and CLAUDE.md explains it (#227): a body is
+// its section's whole state, so omitempty means absent and empty are the same
+// instruction, and anything the service would default is required instead.
 
 type downloadInput struct {
 	Body struct {
@@ -282,7 +282,7 @@ type apiKeyOutput struct {
 
 // ── Routes ──────────────────────────────────────────────────────────────────
 
-// settingsHandler owns the runtime-config endpoints' dependencies: the settings
+// settingsHandler groups the runtime-config endpoints' dependencies: the settings
 // service (persists edits and rebuilds live clients) and the auth service (backs
 // the auth section of the settings snapshot).
 type settingsHandler struct {
@@ -439,7 +439,7 @@ func (h *settingsHandler) updateDownload(ctx context.Context, in *downloadInput)
 	return h.respond(), nil
 }
 
-// settingsError maps a service failure onto a status. A refused secret inheritance
+// settingsError maps a service failure onto a status. A rejected secret inheritance
 // is the caller's to fix by sending the secret, so it is a 422 rather than ours (#259).
 func settingsError(err error, wrap func(string, ...error) huma.StatusError, msg string) error {
 	if errors.Is(err, settings.ErrSecretRequired) {
@@ -493,7 +493,7 @@ func (h *settingsHandler) testIndexer(ctx context.Context, in *indexerInput) (*t
 	return out, nil
 }
 
-// Both guards are defence in depth: the enum tags already refuse an empty or
+// Both guards are defence in depth: the enum tags already reject an empty or
 // unrecognized value, so neither is reachable through Huma.
 func (h *settingsHandler) updateLibrary(ctx context.Context, in *libraryInput) (*settingsOutput, error) {
 	if !settings.ValidImportMode(in.Body.Mode) {

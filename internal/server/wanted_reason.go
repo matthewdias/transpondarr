@@ -9,7 +9,7 @@ import (
 
 // Why an item is still missing, split by scope (#150): one global answer for
 // the page, one per title group, one per item. The tiers render together
-// rather than competing for one slot, which is what let a failed grab and its
+// instead of one replacing another, which is what let a failed grab and its
 // blocklist entry both be visible.
 //
 // Every reason but the item's pass tier is derived from stored state at request
@@ -51,7 +51,7 @@ func globalReason(indexerReady bool, mode settings.AutomationMode) string {
 }
 
 // titleFacts is one title's standing in the sweep queue, the scope a group
-// header answers for.
+// header covers.
 type titleFacts struct {
 	Monitored       bool
 	BlockedReleases int
@@ -60,7 +60,7 @@ type titleFacts struct {
 }
 
 // titleReason picks the fact that most explains the group, widest-first: what
-// stops the title being a target, then its failure memory, then its queue slot.
+// stops the title being a target, then its recorded failures, then its queue slot.
 func titleReason(f titleFacts, now time.Time) string {
 	switch {
 	case !f.Monitored:
@@ -76,7 +76,7 @@ func titleReason(f titleFacts, now time.Time) string {
 }
 
 // passFacts is what the last pass decided about this item (#181), or the zero
-// value when no pass has spoken.
+// value when no pass has run.
 type passFacts struct {
 	Outcome    string
 	Release    string
@@ -98,9 +98,9 @@ type itemFacts struct {
 
 // Stored outcomes and surfaced reasons differ deliberately: acquire records
 // seven, a row shows five. grabbed exists only as the tombstone that
-// invalidates an older refusal -- a listed item's grab plainly did not hold,
-// and grab_failed owns that row. contended is silent too, because its honest
-// message is "the queue is working", which the group tier already says.
+// invalidates an older rejection -- a listed item's grab plainly did not last,
+// and grab_failed is what that row shows. contended is silent too, because its
+// honest message is "the queue is working", which the group tier already reports.
 func passReason(outcome string) string {
 	switch outcome {
 	case acquire.OutcomeNoMatch:
@@ -117,9 +117,9 @@ func passReason(outcome string) string {
 	return ""
 }
 
-// itemReason is the row's own story, or "" when the group and page tell it all;
-// fromPass reports whether the stored tier won, which is what may carry an "as
-// of" date.
+// itemReason is the reason specific to this row, or "" when the group and page
+// cover it all; fromPass reports whether the stored tier applied, which is the
+// one that may show an "as of" date.
 //
 // A pass answer outranks a failed grab because the two differ in kind. A
 // failure is a handled past event -- the item reverted to wanted, a blocklist

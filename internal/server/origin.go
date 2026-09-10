@@ -70,7 +70,7 @@ type origin struct {
 }
 
 // expectedOrigin reports the origin the client addressed, and whether we can determine
-// it. Trusting X-Forwarded-Host is safe: setting one needs a preflight.
+// it. Reading X-Forwarded-Host is safe: setting one needs a preflight.
 func expectedOrigin(req *http.Request) (origin, bool) {
 	host, portStated := firstValue(req.Header.Get("X-Forwarded-Host")), true
 	if host == "" {
@@ -94,7 +94,7 @@ func expectedOrigin(req *http.Request) (origin, bool) {
 // statedScheme is the scheme the client used, empty when nothing states one: a proxy
 // that terminates TLS without X-Forwarded-Proto forwards the request over plain http.
 func statedScheme(req *http.Request) string {
-	// Only the two this server can be reached over, so a header holding anything
+	// Only the two this server can be reached over, so a header containing anything
 	// else reads as unstated rather than building a spelling that won't parse,
 	// which would switch the whole check off.
 	switch p := strings.ToLower(firstValue(req.Header.Get("X-Forwarded-Proto"))); p {
@@ -107,8 +107,8 @@ func statedScheme(req *http.Request) string {
 	return ""
 }
 
-// firstValue takes the original value from a forwarding header, which each proxy in a
-// chain appends its own to.
+// firstValue returns the original value from a forwarding header, which each proxy
+// in a chain appends its own to.
 func firstValue(header string) string {
 	v, _, _ := strings.Cut(header, ",")
 	return strings.TrimSpace(v)
@@ -134,8 +134,8 @@ func parseOrigin(raw string) (origin, bool) {
 	}, true
 }
 
-// impliedPort reports whether writing a port out gives the same address as leaving it
-// off. An unstated scheme takes both, so we don't 403 over how a port was written.
+// impliedPort reports whether writing a port out produces the same address as leaving
+// it off. An unstated scheme matches both, so we don't 403 over how a port was written.
 func impliedPort(scheme, port string) bool {
 	switch scheme {
 	case "http":
@@ -149,7 +149,7 @@ func impliedPort(scheme, port string) bool {
 }
 
 // writeForbidden sends problem+json, not http.Error's text/plain: the SPA reads
-// `detail`, and a plain body reaches the operator as "HTTP 403" with no reason.
+// `detail`, and a plain body shows the operator "HTTP 403" with no reason.
 func writeForbidden(w http.ResponseWriter, detail string) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(http.StatusForbidden)

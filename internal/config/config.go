@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Config holds resolved server configuration.
+// Config is the resolved server configuration.
 type Config struct {
 	Addr    string // listen address, e.g. ":9797"
 	APIKey  string // required for /api/* (except health)
@@ -39,9 +39,9 @@ type Config struct {
 	// identity — the pipeline keys torrents on their info hash (see internal/store
 	// grabs), so clients without a category concept still work.
 	QbitCategory string
-	// StallTimeoutHours is how long a download the client says it is trying may
-	// sit with nothing downloaded before its grab is failed. Empty means the
-	// default; "0" never gives up. Not a Qbit* value: it is client-agnostic policy.
+	// StallTimeoutHours is how long a download the client reports as active may
+	// stay at zero bytes received before its grab is failed. Empty means the
+	// default; "0" disables it. Not a Qbit* value: it is client-agnostic policy.
 	StallTimeoutHours string
 
 	// Torznab indexer (optional). A single endpoint for v1 — pointing it at a
@@ -59,11 +59,11 @@ type Config struct {
 	// auto hardlinks and falls back to a copy across filesystems.
 	LibraryDir string
 	// LibraryMoviesDir is the root movies are placed into, Plex and Jellyfin both
-	// wanting a Movies library separate from Shows. Empty is not a fallback into
+	// requiring a Movies library separate from Shows. Empty is not a fallback into
 	// LibraryDir: a movie import fails until one is set.
 	LibraryMoviesDir string
 	// LibrarySeriesLayout is season_folders|flat: the path shape inside the series
-	// root. It says nothing about movies, which have one shape.
+	// root. It describes nothing about movies, which have one shape.
 	LibrarySeriesLayout string
 	ImportMode          string
 
@@ -75,7 +75,7 @@ type Config struct {
 	// "off" / "notify_only" / "on" as well as bool spellings (#116).
 	AutomationEnabled string
 	// PinDelayHours is how long the sweep waits for a title's pinned group before
-	// taking another group's release. "0" means no wait.
+	// it grabs another group's release. "0" means no wait.
 	PinDelayHours string
 }
 
@@ -84,8 +84,8 @@ type Config struct {
 // overriding variables already set in the real environment.
 func Load() (*Config, error) {
 	// .env.local first: loadDotEnv never overwrites, so reading it before .env is
-	// what makes it the higher-precedence tier. It is the per-checkout file, which
-	// a worktree sharing one .env with the main checkout has no other way to get.
+	// what makes it the higher-precedence tier. It is the per-checkout file, and
+	// the only override a worktree sharing one .env with the main checkout can set.
 	loadDotEnv(".env.local")
 	loadDotEnv(".env")
 
@@ -99,7 +99,7 @@ func Load() (*Config, error) {
 	c.DBPath = getenv("TRANSPONDARR_DB", filepath.Join(c.DataDir, "transpondarr.db"))
 
 	// APIKey may be empty here; when it is, main resolves a persisted key from the
-	// store or generates and persists one, so it survives restarts.
+	// store or generates and persists one, so the key is stable across restarts.
 	c.APIKey = os.Getenv("TRANSPONDARR_API_KEY")
 
 	c.QbitURL = os.Getenv("TRANSPONDARR_QBIT_URL")
@@ -140,7 +140,7 @@ func getenv(key, def string) string {
 // loadDotEnv loads KEY=VALUE pairs from a .env file into the process environment,
 // skipping any variable that is already set (the real environment wins). Blank
 // lines, "# comments", an optional leading "export", and surrounding quotes are
-// tolerated. A missing file is not an error — it is a dev convenience only.
+// accepted. A missing file is not an error — it is a dev convenience only.
 func loadDotEnv(path string) {
 	f, err := os.Open(path)
 	if err != nil {

@@ -14,13 +14,13 @@ var ErrSecretRequired = errors.New("secret required")
 
 // inheritSecret fills a blank secret from storage, but only for the destination it
 // was saved for: the read path redacts these values, so substituting one into a
-// request that names a caller-chosen host hands it straight back out (#259).
+// request that names a caller-chosen host sends it straight back out (#259).
 func inheritSecret(supplied, stored, toURL, storedURL, what string) (string, error) {
 	if supplied != "" || stored == "" {
 		return supplied, nil
 	}
 	// An empty destination is never connected to, so clearing a URL to disable an
-	// integration keeps the secret rather than wiping it or being refused.
+	// integration keeps the secret rather than wiping it or being rejected.
 	if strings.TrimSpace(toURL) == "" || sameDestination(toURL, storedURL) {
 		return stored, nil
 	}

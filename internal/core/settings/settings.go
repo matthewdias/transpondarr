@@ -71,7 +71,7 @@ const (
 	keyNotifyNtfyTopic  = "notify.ntfy.topic"
 	keyNotifyNtfyToken  = "notify.ntfy.token"
 
-	// The stored event name kept its pre-#207 spelling: renaming it would read
+	// The stored event name still uses its pre-#207 spelling: renaming it would read
 	// every saved toggle as absent, which means enabled.
 	eventTitleAdded = "series_added"
 )
@@ -92,7 +92,7 @@ const (
 
 // DownloadConfig is the qBittorrent client configuration, plus the one download
 // policy that is not the client's: StallHours is how long a download the client
-// says it is trying may sit with nothing downloaded before its grab is failed, 0
+// reports as active may stay at zero bytes received before its grab is failed, 0
 // meaning never.
 type DownloadConfig struct {
 	URL        string
@@ -104,7 +104,7 @@ type DownloadConfig struct {
 
 // IndexerConfig is the Torznab indexer configuration. Categories is the
 // comma-separated Newznab id list narrowing every request; empty means no
-// filter, and the string stays raw so the value is what cat= wants.
+// filter, and the string stays raw so it is passed to cat= unchanged.
 type IndexerConfig struct {
 	Name       string
 	URL        string
@@ -113,9 +113,9 @@ type IndexerConfig struct {
 }
 
 // LibraryConfig is the library import target configuration. MoviesDir is the
-// per-format root movies place into (#198); empty is not a fallback into Dir,
-// so a movie import fails until one is set. SeriesLayout shapes the path within
-// the series root (#129) and says nothing about movies.
+// per-format root movies are placed into (#198); empty is not a fallback into
+// Dir, so a movie import fails until one is set. SeriesLayout shapes the path
+// within the series root (#129) and describes nothing about movies.
 type LibraryConfig struct {
 	Dir          string
 	MoviesDir    string
@@ -125,8 +125,8 @@ type LibraryConfig struct {
 
 // AutomationMode is the global toggle's three states (#102, widened by #116).
 // Notify-only runs the unattended jobs for real — search, decide, cadence — but
-// rehearses the grab: a notification says what would have been taken, and
-// nothing reaches the download client.
+// rehearses the grab: a notification describes what would have been grabbed,
+// and nothing is sent to the download client.
 type AutomationMode string
 
 // The automation modes, in increasing order of commitment.
@@ -213,7 +213,7 @@ type Snapshot struct {
 
 // state is the effective configuration as an immutable value. It is only ever
 // replaced wholesale via cur.Store, never mutated in place, so any reader that
-// loads it sees a consistent snapshot without locking.
+// loads it always returns a consistent snapshot without locking.
 type state struct {
 	dl  DownloadConfig
 	idx IndexerConfig
@@ -358,8 +358,8 @@ func (s *Service) Snapshot() Snapshot {
 // DownloadCategory returns the category applied to grabbed torrents.
 func (s *Service) DownloadCategory() string { return s.cur.Load().dl.Category }
 
-// StallTimeout is how long a download the client says it is trying may sit with
-// nothing downloaded before the importer fails its grab; zero never does. Read
+// StallTimeout is how long a download the client reports as active may stay at
+// zero bytes received before the importer fails its grab; zero never does. Read
 // per scan, so an edit applies on the next tick without a restart.
 func (s *Service) StallTimeout() time.Duration {
 	return domain.StallTimeout(int64(s.cur.Load().dl.StallHours))
@@ -375,14 +375,14 @@ func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationMode 
 func (s *Service) NotifyOnly() bool { return s.cur.Load().automationMode == AutomationNotifyOnly }
 
 // PinDelayDefault is how long the sweep waits for a title's pinned group before
-// taking another group's release, for titles that do not override it.
+// it grabs another group's release, for titles that do not override it.
 func (s *Service) PinDelayDefault() time.Duration {
 	return domain.PinDelay(int64(s.cur.Load().pinDelayHours))
 }
 
 // parseMode and parseHours degrade a bad value to the zero default rather than
-// failing startup: one mistyped setting must not take the daemon down. Bools are
-// the toggle's own pre-#116 values, and are lowercased with everything else so a
+// failing startup: one mistyped setting must not stop the daemon starting. Bools
+// are the toggle's own pre-#116 values, lowercased with everything else so a
 // mode name is not the one spelling that is case-sensitive.
 func parseMode(v string, log *slog.Logger) AutomationMode {
 	switch t := strings.ToLower(strings.TrimSpace(v)); AutomationMode(t) {
@@ -401,8 +401,8 @@ func parseMode(v string, log *slog.Logger) AutomationMode {
 }
 
 // parseStallHours degrades like parseMode and parseHours, but an unset value is
-// the default rather than 0: 0 is the deliberate "never give up", which nobody
-// should reach by leaving a key blank.
+// the default rather than 0: 0 is the deliberate "no stall timeout", which
+// nobody should select by leaving a key blank.
 func parseStallHours(v string, log *slog.Logger) int {
 	t := strings.TrimSpace(v)
 	if t == "" {
@@ -464,7 +464,7 @@ func (s *Service) RegenerateAPIKey(ctx context.Context) (string, error) {
 
 // UpdateDownload saves the qBittorrent config and swaps in the rebuilt client.
 // An empty Password keeps the stored one; an empty URL disables the client.
-// Persisting before the swap leaves live state untouched if the save fails.
+// Persisting before the swap leaves live state unchanged if the save fails.
 func (s *Service) UpdateDownload(ctx context.Context, in DownloadConfig) error {
 	s.updateMu.Lock()
 	defer s.updateMu.Unlock()
@@ -476,7 +476,7 @@ func (s *Service) UpdateDownload(ctx context.Context, in DownloadConfig) error {
 	}
 	in.Password = pw
 	in.applyDefaults()
-	// Clamped before persisting, so a reload agrees with the live state rather
+	// Clamped before persisting, so a reload matches the live state rather
 	// than re-clamping (the UpdateAutomation rule).
 	in.StallHours = int(domain.ClampStallHours(int64(in.StallHours)))
 
@@ -501,7 +501,7 @@ func (s *Service) UpdateDownload(ctx context.Context, in DownloadConfig) error {
 // An empty APIKey keeps the stored one; an empty URL disables the indexer.
 // Blank categories clear the filter rather than inheriting — they are not a
 // secret, so the form shows what is stored.
-// Persisting before the swap leaves live state untouched if the save fails.
+// Persisting before the swap leaves live state unchanged if the save fails.
 func (s *Service) UpdateIndexer(ctx context.Context, in IndexerConfig) error {
 	cats, err := NormalizeCategories(in.Categories)
 	if err != nil {
@@ -538,7 +538,7 @@ func (s *Service) UpdateIndexer(ctx context.Context, in IndexerConfig) error {
 
 // UpdateLibrary saves the library config and swaps in the rebuilt target.
 // An empty Dir disables import. Persisting before the swap leaves live state
-// untouched if the save fails.
+// unchanged if the save fails.
 func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 	if !ValidSeriesLayout(in.SeriesLayout) {
 		return fmt.Errorf("invalid series layout %q (want season_folders or flat)", in.SeriesLayout)
@@ -570,11 +570,11 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 // UpdateAutomation saves the global automation policy. Nothing is rebuilt or
 // torn down: the jobs stay registered and read the switch per run, so disabling
 // and re-enabling are both restart-free. The clamped hour count is what gets
-// persisted, so a reload agrees with the live state rather than re-clamping.
+// persisted, so a reload matches the live state rather than re-clamping.
 //
 // Switching *into* on also clears the search cadence, in the same transaction
-// (#116). A notify-only pass settles nothing, so it walks the backoff ladder to
-// its daily cap, and the feed's one-shot dedupe has already consumed whatever it
+// (#116). A notify-only pass settles nothing, so the backoff escalates to its
+// daily cap, and the feed's one-shot dedupe will not re-offer whatever it
 // rehearsed — without the reset, "flip to on and it grabs" would wait out a
 // backoff the rehearsal itself accrued.
 func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) error {
@@ -614,7 +614,7 @@ func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) err
 // UpdateNotify saves the notification config and swaps in the rebuilt
 // dispatcher. An empty NtfyToken keeps the stored one; clearing every adapter
 // drops the dispatcher to nil. Persisting before the swap leaves live state
-// untouched if the save fails.
+// unchanged if the save fails.
 func (s *Service) UpdateNotify(ctx context.Context, in NotifyConfig) error {
 	s.updateMu.Lock()
 	defer s.updateMu.Unlock()
@@ -635,7 +635,7 @@ func (s *Service) UpdateNotify(ctx context.Context, in NotifyConfig) error {
 	}
 	// A request naming no destination must not move the destination either: the
 	// server persisted beside an inherited token has to be the one that token was
-	// saved for, or the next request finds them matching and sends it (#259).
+	// saved for, or they match on the next request and it is sent (#259).
 	if dest == "" && in.NtfyToken == "" && cur.ntf.NtfyToken != "" {
 		in.NtfyServer = cur.ntf.NtfyServer
 	}
@@ -683,7 +683,7 @@ func notifyKinds(ev NotifyEvents) map[notify.Kind]bool {
 }
 
 // buildNotify returns a dispatcher over the configured adapters, or nil when
-// none is — a concrete *Dispatcher, so nil-checking it never hits the typed-nil
+// none is — a concrete *Dispatcher, so nil-checking it avoids the typed-nil
 // interface gotcha buildLibrary documents.
 func (s *Service) buildNotify(c NotifyConfig) *notify.Dispatcher {
 	var routes []notify.Route
@@ -765,7 +765,7 @@ func (s *Service) TestIndexer(ctx context.Context, in IndexerConfig) error {
 		return err
 	}
 	in.applyDefaults()
-	// The probe carries the categories so it exercises the request a sweep issues.
+	// The probe includes the categories so it exercises the request a sweep issues.
 	_, err = torznab.New(in.Name, in.URL, key, cats).Search(ctx, indexer.Query{Term: "test"})
 	return err
 }
@@ -790,7 +790,7 @@ func (s *Service) TestLibrary(_ context.Context, in LibraryConfig) error {
 }
 
 // checkWritableDir reports whether dir is a directory this process can write to,
-// naming which root failed so a two-root check says which one.
+// naming which root failed so a two-root check identifies which one.
 func checkWritableDir(dir, what string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -818,7 +818,7 @@ func (s *Service) persist(ctx context.Context, kv map[string]string) error {
 
 // persistWith is persist plus a step that has to land or not land with it. The
 // only caller is the automation mode change, whose cadence reset must not
-// survive a failed save (or be lost by one that succeeded).
+// remain after a failed save (or be lost by one that succeeded).
 func (s *Service) persistWith(ctx context.Context, kv map[string]string, also func(*db.Queries) error) error {
 	tx, err := s.store.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -843,8 +843,8 @@ func (s *Service) persistWith(ctx context.Context, kv map[string]string, also fu
 }
 
 // NormalizeCategories cleans a comma-separated Newznab id list into the exact
-// form cat= wants. Every id — Newznab standard and Jackett custom alike — is a
-// positive integer, so anything else is a typo worth refusing rather than a
+// form cat= requires. Every id — Newznab standard and Jackett custom alike — is
+// a positive integer, so anything else is a typo worth rejecting rather than a
 // filter that silently matches nothing.
 func NormalizeCategories(s string) (string, error) {
 	var ids []string
@@ -900,7 +900,7 @@ func buildIndexer(c IndexerConfig) indexer.Indexer {
 
 // buildLibrary returns a library.Target (interface) so an unconfigured library
 // is a true nil interface — returning a typed nil *mediaserver.Target would read
-// as non-nil through the interface and defeat the importer's nil check.
+// as non-nil through the interface and bypass the importer's nil check.
 //
 // Either root alone builds one: a films-only library is a supported install, and
 // only "no root at all" still means import is off. Requiring the series root
