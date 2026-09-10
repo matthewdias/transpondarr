@@ -1,10 +1,10 @@
 // Package airing keeps per-item broadcast times in step with the metadata
 // provider, creating the wanted items a schedule names (and the ones it skips)
 // as it goes — for a long-runner whose episode total AniList never publishes,
-// the schedule is the only source that knows those episodes exist. Paging one
+// the schedule is the only source that shows those episodes exist. Paging one
 // is background work rather than part of GetTitle because it costs a request
 // per page: unremarkable off the request path, unacceptable behind a user
-// action against a ~30 req/min budget. GetTitle carries a single in-band page
+// action against a ~30 req/min budget. GetTitle returns a single in-band page
 // for the add; everything past it is here.
 package airing
 
@@ -22,7 +22,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// titlesPerPass bounds how much of the request budget one pass can spend. Title
+// titlesPerPass bounds how much of the request budget one pass can use. Title
 // due for a sync sort never-synced first, so a newly added title is picked up on
 // the next tick rather than queued behind a backlog of routine refreshes.
 const titlesPerPass = 5
@@ -34,8 +34,8 @@ type Service struct {
 	log      *slog.Logger
 }
 
-// New builds a Service over the shared provider. Sharing matters: the provider
-// carries the rate limiter, so a private instance would double the request rate.
+// New builds a Service over the shared provider. Sharing matters: the rate limiter
+// lives on the provider, so a private instance would double the request rate.
 func New(st *store.Store, provider metadata.Provider, log *slog.Logger) *Service {
 	return &Service{store: st, provider: provider, log: log}
 }
@@ -101,7 +101,7 @@ func (f *syncFailure) summary() error {
 func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 	now := time.Now()
 	// Always countKnown: aired times are immutable, so this query's CASE keys on
-	// status alone and the unknown-count tier (#151) has nothing to say here.
+	// status alone and the unknown-count tier (#151) does not apply here.
 	cutoff := func(status string) sql.NullString {
 		return sql.NullString{String: store.FormatTimestamp(now.Add(-metadata.TTLFor(status, true))), Valid: true}
 	}
@@ -115,7 +115,7 @@ func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 
 // syncTitle writes one title's schedule, then stamps it as synced. The stamp is
 // what stops a title AniList has no schedule for (its coverage thins out badly
-// before ~2015) from being re-asked every tick forever.
+// before ~2015) from being re-queried every tick forever.
 func (s *Service) syncTitle(ctx context.Context, airing metadata.AiringProvider, title db.Series) error {
 	// A title synced before has its aired history already; only the not-yet-aired
 	// tail can still move, and that is 1-2 pages instead of one per 50 episodes.
@@ -195,7 +195,7 @@ func (s *Service) syncTitle(ctx context.Context, airing metadata.AiringProvider,
 		}
 		filled += rows * monitored
 	}
-	// A filled item has no air date, so it is exactly what airedSince cannot see.
+	// A filled item has no air date, so it is exactly what airedSince cannot match.
 	if filled > 0 {
 		if err := q.ResetTitleSearchState(ctx, title.ID); err != nil {
 			return fmt.Errorf("reset search cadence: %w", err)
@@ -230,7 +230,7 @@ func premiereOnly(schedule []metadata.Airing) []metadata.Airing {
 }
 
 // skipped lists the item numbers a schedule implies but never names. fromOne
-// widens the fill to the whole numbering, which only a full fetch owns: a tail
+// widens the fill to the whole numbering, which only a full fetch may do: a tail
 // is a partial view, so it fills gaps inside its own span instead.
 func skipped(schedule []metadata.Airing, fromOne bool) []int {
 	if len(schedule) == 0 {

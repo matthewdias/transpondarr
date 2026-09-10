@@ -27,7 +27,7 @@ query ($id: Int!, $page: Int!, $perPage: Int!, $notYetAired: Boolean) {
 
 // GetSchedule pages a title's broadcast schedule. notYetAired fetches only the
 // upcoming tail (1-2 pages) — the asymmetry that makes full history affordable:
-// aired times are immutable, so only a never-synced title pays for all of them.
+// aired times are immutable, so only a never-synced title fetches all of them.
 func (c *Client) GetSchedule(ctx context.Context, id int64, notYetAired bool) ([]metadata.Airing, error) {
 	var out []metadata.Airing
 	for page := 1; ; page++ {
@@ -56,7 +56,7 @@ func (c *Client) GetSchedule(ctx context.Context, id int64, notYetAired bool) ([
 
 		sched := data.Media.AiringSchedule
 		for _, n := range sched.Nodes {
-			// A node without a usable episode number or timestamp carries nothing a
+			// A node without a usable episode number or timestamp has nothing a
 			// consumer could key on, so drop it rather than write a zero air date.
 			if n.Episode <= 0 || n.AiringAt <= 0 {
 				continue

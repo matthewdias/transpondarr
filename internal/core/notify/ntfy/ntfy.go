@@ -61,7 +61,7 @@ func body(ev notify.Event) string {
 	if ev.Title != "" {
 		lines = append(lines, ev.Title)
 	}
-	// A movie has exactly one item, so its number says nothing the title does not.
+	// A movie has exactly one item, so its number describes nothing the title does not.
 	if ev.ItemNumber > 0 && ev.ItemKind != domain.KindMovie {
 		lines = append(lines, "Episode "+strconv.Itoa(ev.ItemNumber))
 	}

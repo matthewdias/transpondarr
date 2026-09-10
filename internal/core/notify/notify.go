@@ -31,7 +31,7 @@ const (
 	KindTitleAdded  Kind = "title_added"
 	// KindRehearsal is a notify-only pass reporting what automation would have
 	// done (#116): ReleaseTitle set means "would have grabbed"; otherwise Error
-	// carries why nothing would have been.
+	// states why nothing would have been.
 	KindRehearsal Kind = "rehearsal"
 )
 
@@ -72,7 +72,7 @@ func (e Event) ItemsLabel() string {
 	return b.String()
 }
 
-// DetailLabel names what Error holds for this kind, so an adapter with labelled
+// DetailLabel names what Error contains for this kind, so an adapter with labelled
 // fields does not file a correct rehearsal outcome under "Error".
 func (k Kind) DetailLabel() string {
 	if k == KindRehearsal {

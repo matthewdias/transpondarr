@@ -18,7 +18,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// titlesPerPass bounds how much of the request budget one pass can spend. Title
+// titlesPerPass bounds how much of the request budget one pass can use. Title
 // due a refresh sort never-fetched first, so a title whose cache row was lost
 // is picked up ahead of routine re-checks.
 const titlesPerPass = 5
@@ -31,7 +31,7 @@ type Service struct {
 }
 
 // New builds a Service over the shared cached provider. Sharing matters twice:
-// the adapter underneath carries the rate limiter, and the cache's fetched_at
+// the rate limiter lives on the adapter underneath, and the cache's fetched_at
 // stamp is what marks a title as no longer due.
 func New(st *store.Store, provider metadata.Provider, log *slog.Logger) *Service {
 	return &Service{store: st, provider: provider, log: log}

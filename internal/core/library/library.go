@@ -1,6 +1,6 @@
 // Package library defines the final stage of the import pipeline: the
-// LibraryTarget interface. The universal pipeline (parse -> map -> hardlink) hands a
-// placed file to a Target.
+// LibraryTarget interface. The universal pipeline (parse -> map -> hardlink) passes
+// a placed file to a Target.
 package library
 
 import (
@@ -15,7 +15,7 @@ type ImportRequest struct {
 	SourcePath string
 	Title      domain.Title
 	Item       domain.WantedItem
-	// Replace means this file supersedes one the library already holds (#97), so
+	// Replace means this file supersedes one already in the library (#97), so
 	// a Target must overwrite rather than treat the destination as done.
 	Replace bool
 }

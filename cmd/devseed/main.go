@@ -3,7 +3,7 @@
 // it with no network access and no real credentials.
 //
 // It is a development tool: it is never built into transpondarrd, and nothing it
-// writes is meant to reach a real install.
+// writes belongs in a real install.
 package main
 
 import (

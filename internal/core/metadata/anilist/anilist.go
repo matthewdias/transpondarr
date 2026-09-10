@@ -36,8 +36,8 @@ const (
 )
 
 // Client is an AniList metadata provider. One instance is shared process-wide:
-// the limiter it carries is the only thing keeping concurrent callers inside the
-// budget, so a second client would silently double the request rate.
+// its limiter is the only thing keeping concurrent callers inside the budget, so
+// a second client would silently double the request rate.
 type Client struct {
 	http     *http.Client
 	limiter  *rate.Limiter
@@ -45,7 +45,7 @@ type Client struct {
 	log      *slog.Logger
 
 	// mu guards retryAt, the shared 429 backoff deadline: one caller's 429 must
-	// hold back every caller, or concurrency makes a rate-limited window worse.
+	// throttle every caller, or concurrency makes a rate-limited window worse.
 	mu      sync.Mutex
 	retryAt time.Time
 }
@@ -133,8 +133,8 @@ func (m media) episodes() int {
 }
 
 // year prefers startDate over seasonYear: AniList assigns a season later than a
-// year becomes known, and its WINTER bucket spans December, so seasonYear can
-// name the year after the premiere that release names carry.
+// year is published, and its WINTER bucket spans December, so seasonYear can
+// name the year after the premiere that release names use.
 func (m media) year() int {
 	if m.StartDate.Year != nil {
 		return *m.StartDate.Year
@@ -146,8 +146,8 @@ func (m media) year() int {
 }
 
 // premiere fixes the instant that reads as startDate's calendar day. Noon UTC
-// rather than JST midnight: startDate carries no clock to preserve, and a day
-// named at midnight anywhere lands a cell early for half the world. It is off by
+// rather than JST midnight: startDate has no clock to preserve, and a day
+// named at midnight anywhere renders a cell early for half the world. It is off by
 // a day east of UTC+11, which needs the viewer's zone the server does not have.
 func (m media) premiere() time.Time {
 	if m.StartDate.Year == nil || m.StartDate.Month == nil || m.StartDate.Day == nil {
@@ -156,11 +156,11 @@ func (m media) premiere() time.Time {
 	return time.Date(*m.StartDate.Year, time.Month(*m.StartDate.Month), *m.StartDate.Day, 12, 0, 0, 0, time.UTC)
 }
 
-// highestItem is the last episode number the title is known to reach. A published
-// count wins outright: a schedule can carry an entry past the announced end.
+// highestItem is the highest episode number the title is known to have. A published
+// count wins outright: a schedule can list an entry past the announced end.
 func (m media) highestItem() int {
 	// Format is the discriminator and the count never is: three shorts released
-	// as one film carry episodes: 3 and are still one acquirable item.
+	// as one film report episodes: 3 and are still one acquirable item.
 	if mapFormat(m.Format) == domain.FormatMovie {
 		return 1
 	}
@@ -233,8 +233,8 @@ func (c *Client) Search(ctx context.Context, term string) ([]metadata.Candidate,
 	return out, nil
 }
 
-// airingSchedule is a field on Media, not a root query, so one page of it rides
-// along here for no extra request.
+// airingSchedule is a field on Media, not a root query, so one page of it is
+// fetched here for no extra request.
 const titleQuery = `
 query ($id: Int!, $perPage: Int!) {
   Media(id: $id, type: ANIME) {
@@ -307,7 +307,7 @@ func mapFormat(anilistFormat string) domain.Format {
 // --- transport --------------------------------------------------------------
 
 // do executes one GraphQL request, decoding the `data` field into out. It waits
-// on the rate limiter before each attempt and retries on HTTP 429, honouring
+// on the rate limiter before each attempt and retries on HTTP 429, using
 // Retry-After.
 func (c *Client) do(ctx context.Context, query string, vars map[string]any, out any) error {
 	payload, err := json.Marshal(map[string]any{"query": query, "variables": vars})
@@ -354,7 +354,7 @@ func (c *Client) do(ctx context.Context, query string, vars map[string]any, out 
 }
 
 // extendBackoff moves the shared deadline out, never in — concurrent 429s keep
-// the furthest wait any of them was told.
+// the furthest wait any of them was given.
 func (c *Client) extendBackoff(until time.Time) {
 	c.mu.Lock()
 	if until.After(c.retryAt) {
@@ -380,8 +380,8 @@ func (c *Client) awaitBackoff(ctx context.Context) error {
 	}
 }
 
-// envelope is AniList's GraphQL response shape. A failing status carries it too,
-// which is where the provider says what went wrong.
+// envelope is AniList's GraphQL response shape. A failing status includes it too,
+// which is where the provider reports what went wrong.
 type envelope struct {
 	Data   json.RawMessage `json:"data"`
 	Errors []struct {
@@ -389,7 +389,7 @@ type envelope struct {
 	} `json:"errors"`
 }
 
-// message is the provider's own explanation, or "" when the envelope carries none.
+// message is the provider's own explanation, or "" when the envelope has none.
 func (e envelope) message() string {
 	if len(e.Errors) == 0 {
 		return ""
@@ -441,7 +441,7 @@ func retryAfter(h string) time.Duration {
 	return d
 }
 
-// sleep waits for d, honouring context cancellation.
+// sleep waits for d, or returns early when ctx is cancelled.
 func sleep(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return nil

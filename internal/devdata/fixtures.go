@@ -4,7 +4,7 @@
 // shipped binary.
 //
 // Release names here are synthetic: structurally faithful to what the parser
-// sees, and not scraped from any indexer.
+// reads, and not scraped from any indexer.
 package devdata
 
 import (
@@ -62,7 +62,7 @@ type item struct {
 	inLibrary bool
 	// unmonitored rather than monitored, so the zero value is the common case.
 	unmonitored bool
-	// airsIn is the offset from the seed clock; dated says whether there is a
+	// airsIn is the offset from the seed clock; dated records whether there is a
 	// date at all, since a null air date is normal operation rather than an error.
 	airsIn time.Duration
 	dated  bool
@@ -300,8 +300,8 @@ func nothingYet() title {
 	return t
 }
 
-// undatedRun is the pre-2015 case: AniList was asked and published no schedule
-// at all, which the calendar footer must be able to say.
+// undatedRun is the pre-2015 case: AniList was queried and published no schedule
+// at all, which the calendar footer must be able to show.
 func undatedRun() title {
 	t := title{
 		providerID: 990104, name: "Placeholder Drift",
@@ -349,7 +349,7 @@ func gapFilledRun() title {
 	return t
 }
 
-// neverSynced has been added but not yet reached by the airing job, which is the
+// neverSynced has been added but not yet synced by the airing job, which is the
 // footer's other absence and is briefly true of every title. Its item rows are
 // what make it reachable: ListUnscheduledTitles joins wanted_items, so a title
 // with none is never returned, whatever its airing stamp is set to.
@@ -422,7 +422,7 @@ func nullYearMovie() title {
 	}
 }
 
-// longRunner drains a back catalogue: a null count, a monitor cut partway up the
+// longRunner is the back-catalogue case: a null count, a monitor cut partway up the
 // run, and a grab missing from the download client inside its grace period.
 func longRunner() title {
 	t := title{

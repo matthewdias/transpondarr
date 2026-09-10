@@ -1,6 +1,6 @@
 // Package dbcache implements metadata.Cache on top of the SQLite metadata_cache
 // table (via the sqlc layer). It keeps the provider adapter DB-free: the adapter
-// speaks HTTP, this speaks SQL, and metadata.Cached composes them.
+// uses HTTP, this uses SQL, and metadata.Cached composes them.
 package dbcache
 
 import (

@@ -14,7 +14,7 @@ import (
 var stagingSuffixes = []string{partialSuffix, upgradeSuffix}
 
 // staged runs fn against a staging path beside dest, registered as in flight for
-// the duration. It owns the name so a staging file cannot exist unregistered.
+// the duration. It builds the name, so a staging file cannot exist unregistered.
 func (t *Target) staged(dest, suffix string, fn func(tmp string) error) error {
 	tmp := dest + suffix
 	key := canonical(tmp)
@@ -45,8 +45,8 @@ func (t *Target) removeUnstaged(path string) (bool, error) {
 	return true, nil
 }
 
-// canonical is a staging path as the sweep will see it: the sweep walks resolved
-// roots and WalkDir never descends a link, so every path it yields is resolved.
+// canonical is a staging path in the form the sweep finds: the sweep walks
+// resolved roots and WalkDir never descends a link, so its paths are resolved.
 func canonical(path string) string {
 	dir, err := filepath.EvalSymlinks(filepath.Dir(path))
 	if err != nil {
@@ -55,8 +55,8 @@ func canonical(path string) string {
 	return filepath.Join(dir, filepath.Base(path))
 }
 
-// staleStaging is one staging file the walk condemned, carrying its mtime so the
-// removal can report how long it sat there.
+// staleStaging is one staging file the walk selected for removal, with its mtime
+// so the removal can report how long it had been there.
 type staleStaging struct {
 	path    string
 	modTime time.Time

@@ -11,7 +11,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// ErrTitleHasItems refuses a count for a title that already has items: raising
+// ErrTitleHasItems rejects a count for a title that already has items: raising
 // maxItem on a healthy one is the same hazard as inferring the count from a
 // release name, only human-triggered.
 var ErrTitleHasItems = errors.New("catalog: series already has wanted items")
@@ -32,7 +32,7 @@ func (s *Service) SetItemCount(ctx context.Context, titleID int64, count int) (i
 	if err != nil {
 		return 0, fmt.Errorf("load series: %w", err)
 	}
-	// Read inside the transaction, so a concurrent add cannot slip items past it.
+	// Read inside the transaction, so a concurrent add cannot insert behind it.
 	existing, err := q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		return 0, fmt.Errorf("list existing items: %w", err)

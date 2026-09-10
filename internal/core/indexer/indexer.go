@@ -7,8 +7,8 @@ import (
 	"time"
 )
 
-// Query describes a search. It will grow season/episode/absolute fields as the
-// mapping engine lands.
+// Query describes a search. Season, episode and absolute fields are added when
+// the mapping engine is built.
 type Query struct {
 	Term string
 }
@@ -53,7 +53,7 @@ type FeedEntry struct {
 // Two rules follow, as for metadata.AiringProvider. A caller treats a missing
 // capability as a supported configuration, not an error — degrade to the
 // scheduled sweep. And any future decorator around an Indexer must forward this
-// conditionally, so the type assertion never claims a feed the adapter
+// conditionally, so the type assertion never reports a feed the adapter
 // underneath cannot serve.
 type RecentFeed interface {
 	// Recent returns the newest releases the source is publishing, newest first

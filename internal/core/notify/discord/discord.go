@@ -80,7 +80,7 @@ func (n *Notifier) Send(ctx context.Context, ev notify.Event) error {
 	if ev.Title != "" {
 		e.Fields = append(e.Fields, field{Name: "Title", Value: capValue(ev.Title)})
 	}
-	// A movie has exactly one item, so its number says nothing the title does not.
+	// A movie has exactly one item, so its number describes nothing the title does not.
 	if ev.ItemNumber > 0 && ev.ItemKind != domain.KindMovie {
 		e.Fields = append(e.Fields, field{Name: "Episode", Value: strconv.Itoa(ev.ItemNumber)})
 	}

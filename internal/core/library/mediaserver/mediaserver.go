@@ -6,7 +6,7 @@
 //	<movies root>/<Movie Name> (<Year>)/<Movie Name> (<Year>)<ext>
 //
 // The format is the discriminator and the item count never is, so a
-// single-episode OVA takes the series layout; both media servers expect one
+// single-episode OVA takes the series layout; both media servers file one
 // under Shows. A movie with no year on record drops the suffix from both
 // components rather than filing under a year the provider has not published.
 // Layout (#129) shapes the series path within its root and is a different axis
@@ -15,7 +15,7 @@
 //
 // Anime providers model each season as a SEPARATE entry with its own title (e.g. "...
 // 2nd Season") and its own 1..N numbering, so each entry maps to its own
-// single-season media-server show: the season is carried by the folder title,
+// single-season media-server show: the folder title names the season,
 // and inside it everything is Season 01. (Merging entries into one multi-season
 // show is a TVDB/relationship-mapping feature deliberately out of v1.) Episode
 // numbering is the wanted item's number.
@@ -109,7 +109,7 @@ func ParseMode(s string) Mode {
 }
 
 // Roots are the per-format library destinations. Movies get their own because
-// Plex and Jellyfin want a Movies library separate from Shows; Series takes
+// Plex and Jellyfin index a Movies library separately from Shows; Series takes
 // every other format, single-episode OVAs included.
 type Roots struct {
 	Series string
@@ -123,8 +123,8 @@ type Target struct {
 	mode   Mode
 	log    *slog.Logger
 
-	// staging holds the staging paths this process is writing right now, which is
-	// what tells the sweep a live transfer from an orphan (see staged).
+	// staging lists the staging paths this process is writing right now, which is
+	// how the sweep distinguishes a live transfer from an orphan (see staged).
 	stagingMu sync.Mutex
 	staging   map[string]bool
 }
@@ -184,8 +184,8 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 
 	// Two independent diagnoses, so neither may silence the other: the layout was
 	// switched and moved nothing already placed, and — a refreshed year or title,
-	// or a hand-deleted folder — our own naming inputs moved under us, leaving the
-	// held file where only #213's placed-path memory can find it.
+	// or a hand-deleted folder — our own naming inputs changed, leaving the file
+	// already in the library where only #213's placed-path memory can find it.
 	if req.Replace {
 		if held, ok := t.heldElsewhere(req, name); ok {
 			t.log.Warn("mediaserver: another layout holds this item; the superseded file is left where it is",
@@ -201,8 +201,8 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 	if destInfo, err := os.Stat(dest); err == nil {
 		switch {
 		case req.Replace:
-			// A better release can be a smaller file, so an upgrade never asks the
-			// size check whether it is already done.
+			// A better release can be a smaller file, so an upgrade skips the size
+			// check instead of treating the destination as done.
 			occupied = true
 		case destInfo.Size() >= info.Size():
 			// Size-checked idempotency only covers open grabs: a settled grab's source is
@@ -295,7 +295,7 @@ func movieName(name string, year int) string {
 	return fmt.Sprintf("%s (%d)", name, year)
 }
 
-// replace transfers over a destination the library already holds. Link mode
+// replace transfers over a destination already in the library. Link mode
 // cannot link onto an occupied name, so it links beside it and renames; copy
 // mode's staging-and-rename already is that. Transferring before removing
 // anything is the crash-safe order: the worst case is two files, never none.
@@ -480,7 +480,7 @@ var reservedNames = map[string]bool{
 
 // sanitize strips characters that are illegal or awkward in file paths so the
 // title name is usable as a directory/file component. It also drops control
-// characters and dodges Windows reserved device names, so the layout survives an
+// characters and avoids Windows reserved device names, so the layout survives an
 // SMB/CIFS share mounted from Windows.
 func sanitize(name string) string {
 	// Drop control characters (0x00–0x1F and DEL): illegal on most filesystems
@@ -501,7 +501,7 @@ func sanitize(name string) string {
 	out := strings.Join(strings.Fields(replacer.Replace(name)), " ")
 	out = strings.TrimRight(out, " .")
 
-	// Dodge Windows reserved device names. The check is on the base (before any
+	// Avoid Windows reserved device names. The check is on the base (before any
 	// extension, since "CON.txt" is reserved too) and case-insensitive.
 	if base, _, _ := strings.Cut(out, "."); reservedNames[strings.ToLower(base)] {
 		out = "_" + out
