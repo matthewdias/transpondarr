@@ -9,12 +9,12 @@
 // grabs at once; only a repeat failure of the same release separates a dead
 // release from a bad day.
 //
-// A breaker draws the other half of that line (#120). Its unit of evidence is a
+// A breaker is the other half of that line (#120). Its unit of evidence is a
 // release, credited with one wanted item, so neither one item churning through
-// its candidates nor one release spanning a season reads as breadth; only
+// its candidates nor one release spanning a season counts as breadth; only
 // different releases failing across different items — a full disk, a client
-// reaping torrents — suppresses recording. The threshold is low on purpose: a
-// false trip forgets one round and the release is remembered on its next, while
+// removing torrents — suppresses recording. The threshold is low on purpose: a
+// false trip skips one round and the release is recorded on its next, while
 // a miss blocks a whole candidate pool for a day.
 package blocklist
 
@@ -55,7 +55,7 @@ func blockDuration(failures int) time.Duration {
 }
 
 // Service records and reads blocklist entries. One instance serves the daemon:
-// the breaker only sees client health if every failure path passes through it.
+// the breaker measures client health only if every failure path goes through it.
 type Service struct {
 	store   *store.Store
 	log     *slog.Logger
@@ -72,10 +72,10 @@ func New(st *store.Store, log *slog.Logger) *Service {
 }
 
 // Record blocks a release for this title, escalating if it has failed before.
-// itemIDs are the items it covered, which the breaker weighs. False reports the
-// breaker refusing to blame the release, so a caller must skip whatever else a
-// fresh failure would trigger; a true with an error wrote the entry but may have
-// left the first rung's expiry.
+// itemIDs are the items it covered, which the breaker counts. False reports the
+// breaker suppressing the record, so a caller must skip whatever else a fresh
+// failure would trigger; a true with an error wrote the entry but may have left
+// the first rung's expiry.
 func (s *Service) Record(ctx context.Context, titleID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
 	normalized := decide.NormalizeReleaseTitle(releaseTitle)
 	if normalized == "" {
@@ -129,7 +129,7 @@ func (s *Service) Active(ctx context.Context, titleID int64) ([]db.ReleaseBlockl
 }
 
 // List returns every entry for a title, expired ones included: an expired entry
-// still carries the failure count, and the UI shows it as history.
+// still stores the failure count, and the UI shows it as history.
 func (s *Service) List(ctx context.Context, titleID int64) ([]db.ReleaseBlocklist, error) {
 	return s.store.Q.ListBlocklistByTitle(ctx, titleID)
 }
@@ -148,7 +148,7 @@ func (s *Service) Clear(ctx context.Context, titleID, entryID int64) error {
 	return nil
 }
 
-// ClearTitle forgets every remembered release for one title. Every
+// ClearTitle deletes every recorded release for one title. Every
 // user-initiated clear discards failure counts, single-entry Clear included: a
 // wrong block's place on the ladder is wrong with it.
 func (s *Service) ClearTitle(ctx context.Context, titleID int64) (int64, error) {
@@ -159,8 +159,8 @@ func (s *Service) ClearTitle(ctx context.Context, titleID int64) (int64, error) 
 	return rows, nil
 }
 
-// ClearAll forgets the library's memory and closes the breaker: an environmental
-// fault does not respect title boundaries, and neither should recovery from one.
+// ClearAll deletes every title's entries and closes the breaker: an
+// environmental fault crosses title boundaries, and so should recovery from one.
 func (s *Service) ClearAll(ctx context.Context) (int64, error) {
 	rows, err := s.store.Q.DeleteAllBlocklist(ctx)
 	if err != nil {
@@ -180,7 +180,7 @@ func (s *Service) Summary(ctx context.Context) (db.CountActiveBlocklistRow, erro
 	return row, nil
 }
 
-// ClearExpired forgets only the lapsed entries, discarding their failure counts
+// ClearExpired deletes only the lapsed entries, discarding their failure counts
 // — the point, since the counts an environmental fault leaves behind are the
 // ones worth dropping.
 func (s *Service) ClearExpired(ctx context.Context, titleID int64) (int64, error) {
@@ -195,7 +195,7 @@ func (s *Service) ClearExpired(ctx context.Context, titleID int64) (int64, error
 }
 
 // expiry renders a block duration as a stored timestamp; a zero duration is
-// permanent, which the schema spells NULL.
+// permanent, which the schema stores as NULL.
 func expiry(d time.Duration, now time.Time) sql.NullString {
 	if d <= 0 {
 		return sql.NullString{}

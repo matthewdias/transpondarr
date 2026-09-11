@@ -22,7 +22,7 @@ type BreakerState struct {
 }
 
 // releaseRef identifies a release the way the blocklist's own unique index does,
-// so the breaker and the table agree on what "the same release" means.
+// so the breaker and the table use one definition of "the same release".
 type releaseRef struct {
 	titleID    int64
 	normalized string
@@ -35,7 +35,7 @@ type failure struct {
 	at   time.Time
 }
 
-// breaker weighs whether a failure is about the release or the environment. In
+// breaker tests whether a failure is about the release or the environment. In
 // memory because a re-grab overwrites the grab row, the only durable record.
 type breaker struct {
 	mu     sync.Mutex
@@ -43,14 +43,14 @@ type breaker struct {
 	since  time.Time
 }
 
-// observe records a failure and reports whether the memory of it is trustworthy.
+// observe adds a failure to the window and reports whether to record it.
 func (b *breaker) observe(ref releaseRef, itemIDs []int64, now time.Time) bool {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	b.prune(now)
 	// No item to attribute it to is no evidence of breadth, so it neither counts
-	// nor is judged by a count it could not have joined.
+	// nor is tested against a count it is not part of.
 	if len(itemIDs) == 0 {
 		return b.since.IsZero()
 	}
@@ -72,8 +72,8 @@ func (b *breaker) observe(ref releaseRef, itemIDs []int64, now time.Time) bool {
 	return false
 }
 
-// state reports the breaker as of now, so a caller polling it sees the window
-// drain without a failure having to arrive first.
+// state reports the breaker as of now, so a caller polling it gets the drained
+// window without a failure having to arrive first.
 func (b *breaker) state(now time.Time) BreakerState {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -87,7 +87,7 @@ func (b *breaker) state(now time.Time) BreakerState {
 	}
 }
 
-// reset forgets the window, so clearing the blocklist need not also wait one out.
+// reset empties the window, so clearing the blocklist need not also wait one out.
 func (b *breaker) reset() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -105,7 +105,7 @@ func (b *breaker) count() int {
 	return len(items)
 }
 
-// prune drops failures that have left the window; the caller holds the lock.
+// prune drops failures older than the window; the caller holds the lock.
 func (b *breaker) prune(now time.Time) {
 	cutoff := now.Add(-breakerWindow)
 	for ref, f := range b.failed {

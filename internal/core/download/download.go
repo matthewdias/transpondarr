@@ -1,8 +1,8 @@
 // Package download defines the pluggable download-client interface.
 //
 // Torrents are keyed by their info hash — the one identifier that is stable
-// across clients and survives rename/move — so the pipeline never has to reason
-// about client-specific IDs. Add derives that hash locally.
+// across clients and unchanged by a rename or move — so the pipeline never uses
+// client-specific IDs. Add derives that hash locally.
 package download
 
 import (
@@ -12,12 +12,12 @@ import (
 )
 
 // ErrBadRelease marks an Add failure the release caused, not the adapter's own
-// connectivity or a client rejecting the add — a caller remembers these, so
+// connectivity or a client rejecting the add — a caller records these, so
 // mismarking would blocklist healthy releases (#120).
 var ErrBadRelease = errors.New("download: release could not be resolved")
 
-// ErrDataMissing marks an Add the client already holds but cannot deliver, its
-// data being gone. Not ErrBadRelease: a caller blocklists that one (#241).
+// ErrDataMissing marks an Add of a torrent the client already manages but whose
+// data is gone. Not ErrBadRelease: a caller blocklists that one (#241).
 var ErrDataMissing = errors.New("download: the client already holds this torrent and its data is missing")
 
 type AddOutcome string
@@ -30,7 +30,7 @@ const (
 )
 
 // AddOptions describes a torrent to add. Exactly one of URL or Content is used;
-// Content wins when both are set. A magnet URL carries its own info hash; for a
+// Content wins when both are set. A magnet URL contains its own info hash; for a
 // .torrent (URL or Content) the adapter derives the hash from the metainfo.
 type AddOptions struct {
 	// URL is a magnet link or an http(s) URL to a .torrent file.
@@ -60,16 +60,16 @@ type State string
 
 const (
 	StateDownloading State = "downloading"
-	// The client is holding the torrent back on purpose, so it is not trying and
-	// nothing about it is the release's fault (#246).
+	// The client is deliberately not downloading the torrent yet, so nothing about
+	// it is the release's fault (#246).
 	StateQueued   State = "queued"
 	StateComplete State = "complete" // finished; may be seeding
 	StateStalled  State = "stalled"
 	StateChecking State = "checking"
 	StatePaused   State = "paused"
 	StateError    State = "error"
-	// The client holds the torrent and reports its data gone from disk — not the
-	// torrent being absent, which has no state because nothing reports one.
+	// The client still manages the torrent and reports its data gone from disk,
+	// not the torrent being absent, which has no state because nothing reports one.
 	StateDataMissing State = "data_missing"
 	StateUnknown     State = "unknown"
 )
@@ -86,20 +86,20 @@ type Status struct {
 	// hardlinks from here.
 	ContentPath string
 	// Category is the client-side tag AddOptions set. It is the only thing that
-	// tells our torrents from the user's, so nothing may act on a torrent
-	// carrying someone else's.
+	// distinguishes our torrents from the user's, so nothing may act on a torrent
+	// tagged with someone else's.
 	Category string
 	// Size is the payload's total size in bytes.
 	Size int64
 	// AddedAt is when the client accepted the torrent, zero when it reports none:
-	// for a download no grab row explains, size and age are the identifying detail.
+	// for a download with no grab row, size and age are the identifying detail.
 	AddedAt time.Time
 }
 
-// StuckAtZero reports a download the client says it is trying with nothing
-// transferred, the one shape the stall timeout acts on (#242, widened by #246 to
-// cover a magnet that never obtains metadata). Progress counts partial blocks, so
-// it moves long before a piece completes — do not swap it for a byte counter.
+// StuckAtZero reports a downloading or stalled torrent that has transferred
+// nothing, the one shape the stall timeout acts on (#242, widened by #246 to
+// cover a magnet whose metadata never arrives). Progress counts partial blocks,
+// so it moves long before a piece completes — do not swap it for a byte counter.
 func (s Status) StuckAtZero() bool {
 	return (s.State == StateStalled || s.State == StateDownloading) && s.Progress == 0
 }
@@ -113,11 +113,11 @@ type Client interface {
 	// Add injects a torrent and returns its info hash and the outcome.
 	Add(ctx context.Context, opts AddOptions) (AddResult, error)
 	// Status returns the current state of the requested hashes. Hashes the
-	// client does not know are omitted from the result. With no hashes, it
+	// client has no torrent for are omitted from the result. With no hashes, it
 	// returns every torrent the client is managing.
 	Status(ctx context.Context, hashes ...string) ([]Status, error)
 	// Remove deletes the given torrents, and their payload data when deleteData
-	// is set. Hashes the client does not know are ignored.
+	// is set. Hashes the client has no torrent for are ignored.
 	Remove(ctx context.Context, hashes []string, deleteData bool) error
 }
 
@@ -130,7 +130,7 @@ type CategoryLister interface {
 }
 
 // StatusInCategory lists one category, pushing the filter down when the client
-// can take it — the unfiltered call returns the user's entire client, which for
+// supports it — the unfiltered call returns the user's entire client, which for
 // a seedbox is thousands of torrents to answer a question about a handful.
 func StatusInCategory(ctx context.Context, c Client, category string) ([]Status, error) {
 	if l, ok := c.(CategoryLister); ok {

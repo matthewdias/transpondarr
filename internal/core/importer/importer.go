@@ -1,8 +1,8 @@
-// Package importer is the final pipeline stage: it watches the download client
+// Package importer is the final pipeline stage: it polls the download client
 // for grabs Transpondarr initiated (rows in the grabs table) and, once a torrent
-// completes, hands the file to a library.Target and marks the item had.
+// completes, passes the file to a library.Target and marks the item had.
 //
-// It only ever imports our own grabs — every torrent it touches has an
+// It only ever imports our own grabs — every torrent it processes has an
 // authoritative info_hash -> wanted_item mapping, so it never has to identify an
 // arbitrary release. Adopting externally-added torrents is a later phase (it
 // needs the deferred identification layer).
@@ -10,7 +10,7 @@
 // Every grab status but "grabbed" is settled. A completed payload is walked once
 // and its files mapped onto the items the release claimed, so a season pack
 // imports episode by episode (#126). "import_deferred" therefore means a covered
-// item's file could not be picked out — nothing matched it, or two files claimed
+// item's file could not be identified — nothing matched it, or two files claimed
 // it — and nothing re-walks the same bytes on a later tick; only an explicit
 // retry, optionally naming the file, reopens one. Deferred grabs stay in the scan
 // for missing-from-client reconciliation, so a vanished payload still frees its item.
@@ -45,13 +45,13 @@ const (
 	statusFailed   = "failed"          // the download failed or is gone in the client (terminal)
 )
 
-// missingGracePeriod need only cover a client answering before its torrent list
+// missingGracePeriod need only cover a client responding before its torrent list
 // is fully back; an unreachable client errors out of the scan instead.
 const missingGracePeriod = 5 * time.Minute
 
 // ClientSource supplies the current download client, library target, and
 // notification dispatcher. It is read on every scan so a runtime settings
-// change (which swaps the clients) is picked up on the next poll without
+// change (which swaps the clients) is applied on the next poll without
 // restarting the importer.
 type ClientSource interface {
 	Download() download.Client
@@ -59,14 +59,14 @@ type ClientSource interface {
 	Notify() *notify.Dispatcher
 }
 
-// Recorder remembers a release that failed, so the sweep stops re-deriving it
-// (#118). Narrow on purpose; false means its breaker refused to blame the
-// release (#120).
+// Recorder records a release that failed, so the sweep stops re-deriving it
+// (#118). Narrow on purpose; false means its breaker suppressed the record
+// (#120).
 type Recorder interface {
 	Record(ctx context.Context, titleID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error)
 }
 
-// StallPolicy supplies how long a download may sit stalled having transferred
+// StallPolicy supplies how long a download may stay stalled having transferred
 // nothing before its grab is failed (satisfied by *settings.Service).
 type StallPolicy interface {
 	StallTimeout() time.Duration
@@ -83,7 +83,7 @@ type ItemClaims interface {
 }
 
 // Importer scans the download client for completed grabs and imports them. It
-// runs as a job on the runner, which owns the polling interval.
+// runs as a job on the runner, which sets the polling interval.
 type Importer struct {
 	store     *store.Store
 	clients   ClientSource
@@ -99,7 +99,7 @@ type Importer struct {
 }
 
 // Option configures a dependency that is the same on every scan and has a
-// default -- unlike failGrab's blame (#243), a per-call judgement no site may skip.
+// default -- unlike failGrab's blame (#243), a per-call argument no site may skip.
 type Option func(*Importer)
 
 // WithStallPolicy supplies the stall timeout. Without it the default applies.
@@ -161,7 +161,7 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 	for _, group := range groupByHash(grabs) {
 		if ctx.Err() != nil {
 			// Settled rows are not retryable next run, so what this scan already
-			// failed is remembered before the shutdown completes.
+			// failed is recorded before the shutdown completes.
 			im.remember(context.WithoutCancel(ctx), failed)
 			return ctx.Err() // the rest is retryable next run
 		}
@@ -176,8 +176,8 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 				im.setMissingSince(ctx, g.ID, sql.NullString{})
 			}
 			if g.StalledSince.Valid && !st.StuckAtZero() {
-				// Progress moved, or the client stopped trying: a later stall is
-				// measured from itself.
+				// Progress moved, or the client is no longer downloading it: a later
+				// stall is measured from itself.
 				im.setStalledSince(ctx, g.ID, sql.NullString{})
 			}
 		}
@@ -189,15 +189,15 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 				failed = append(failed, im.failGrab(ctx, g, "the download client reported an error", blameRelease))
 			}
 		case download.StateDataMissing:
-			// The client still holds the torrent and its data is gone from disk, so
+			// The client still manages the torrent and its data is gone from disk, so
 			// nothing here is a fact about the release (#241).
 			im.log.Warn("importer: download data missing in client", "release", group.rows[0].ReleaseTitle, "hash", group.hash)
 			for _, g := range group.rows {
 				failed = append(failed, im.failGrab(ctx, g, "the download client no longer has the data", blameNothing))
 			}
 		case download.StateStalled, download.StateDownloading:
-			// A download the client says it is trying that has received nothing is
-			// the same fact however the client words it (#246).
+			// A downloading or stalled torrent that has received nothing is the same
+			// fact whichever of the two states the client reports (#246).
 			if !st.StuckAtZero() {
 				continue
 			}
@@ -211,7 +211,7 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 			}
 			failed = append(failed, im.importGroup(ctx, target, active, st)...)
 		default:
-			// Queued, checking or paused: the client is not trying, so no clock runs.
+			// Queued, checking or paused: nothing is downloading, so no clock runs.
 			continue
 		}
 	}
@@ -229,7 +229,7 @@ type grabGroup struct {
 // groupByHash buckets the already-fetched rows, preserving first-seen order so a
 // scan's work is still deterministic. Title is part of the key because a group
 // is the unit of numbering and attribution both, and one torrent can back grabs
-// for two titles — a manual grab answers to no eligibility rule.
+// for two titles — no eligibility rule applies to a manual grab.
 func groupByHash(grabs []db.ListGrabsByStatusRow) []grabGroup {
 	type key struct {
 		title int64
@@ -270,8 +270,8 @@ func (im *Importer) notify(ctx context.Context, ev notify.Event) {
 	}
 }
 
-// blame says whether a failure is evidence about the release (#241). Required at
-// every failGrab call site, so a new one has to state its answer.
+// blame reports whether a failure is evidence about the release (#241). Required
+// at every failGrab call site, so a new one has to set it explicitly.
 type blame bool
 
 const (
@@ -279,7 +279,7 @@ const (
 	blameNothing blame = false
 )
 
-// failedGrab is one row this scan settled as failed, held until the scan can
+// failedGrab is one row this scan settled as failed, kept until the scan can
 // group them by the release they came from.
 type failedGrab struct {
 	titleID      int64
@@ -335,8 +335,8 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 			ReleaseTitle: rows[0].releaseTitle,
 			Error:        rows[0].reason,
 		})
-		// Reporting is information, remembering is a judgement (#241). A group's
-		// rows come from one path, so the first speaks for all of them.
+		// Reporting is information, recording is a judgement (#241). A group's
+		// rows come from one path, so the first row's value covers all of them.
 		if !rows[0].blame || im.blocklist == nil {
 			continue
 		}
@@ -348,7 +348,7 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 	}
 }
 
-// record writes one release's failure memory and, unless the breaker refused it,
+// record writes one release's failure memory and, unless the breaker suppressed it,
 // puts the title back at the front of the search queue.
 func (im *Importer) record(ctx context.Context, f failedGrab, itemIDs []int64) {
 	recorded, err := im.blocklist.Record(ctx, f.titleID, itemIDs, f.infoHash, f.releaseTitle, f.reason)
@@ -362,7 +362,7 @@ func (im *Importer) record(ctx context.Context, f failedGrab, itemIDs []int64) {
 		return
 	}
 	// A failure is new information, so the title is searched again promptly with
-	// the next-best release rather than sitting behind accumulated backoff.
+	// the next-best release rather than waiting out accumulated backoff.
 	if err := im.store.Q.ResetTitleSearchState(ctx, f.titleID); err != nil {
 		im.log.Error("importer: reset series search state", "series", f.titleID, "err", err)
 	}
@@ -382,8 +382,8 @@ func (im *Importer) openGrabs(ctx context.Context) ([]db.ListGrabsByStatusRow, e
 	return append(grabbed, deferred...), nil
 }
 
-// clock is one of the two timers a group's rows share. A reader and a writer keep
-// "stalled_since mirrors missing_since" structural rather than a claim to uphold.
+// clock is one of the two timers a group's rows share. A reader and a writer make
+// "stalled_since mirrors missing_since" structural rather than a convention.
 type clock struct {
 	column string
 	read   func(db.ListGrabsByStatusRow) sql.NullString
@@ -416,8 +416,8 @@ func (im *Importer) sharedSince(ctx context.Context, c clock, rows []db.ListGrab
 		// would work only while the layout stays lexicographically sortable.
 		t, err := store.ParseTimestamp(v.String)
 		if err != nil {
-			// Unreadable says nothing about when the clock started, so the row takes
-			// what the rest of the group says rather than failing on it.
+			// Unreadable is no evidence of when the clock started, so the row takes
+			// the rest of the group's value rather than failing on it.
 			im.log.Warn("importer: "+c.column+" could not be parsed; taking the group's clock",
 				"hash", g.InfoHash, "value", v.String, "err", err)
 			continue
@@ -442,7 +442,7 @@ func (im *Importer) sharedSince(ctx context.Context, c clock, rows []db.ListGrab
 
 // reconcileMissing fails a group whose torrent the client has stopped reporting
 // for longer than missingGracePeriod; a single absence is only recorded. It
-// returns what it failed, empty when the group is only being watched.
+// returns what it failed, empty while the grace period is still running.
 func (im *Importer) reconcileMissing(ctx context.Context, group grabGroup, now time.Time) []failedGrab {
 	since, started := im.sharedSince(ctx, missingClock, group.rows, now)
 	if !started {
@@ -463,10 +463,10 @@ func (im *Importer) reconcileMissing(ctx context.Context, group grabGroup, now t
 	return failed
 }
 
-// reconcileStalled fails a group whose torrent the client has been trying with
-// nothing downloaded for longer than the configured timeout; a first sighting
-// only starts the clock. It returns what it failed, empty while it is only
-// watching.
+// reconcileStalled fails a group whose torrent the client lists as downloading
+// or stalled with nothing transferred for longer than the configured timeout;
+// the first scan only starts the clock. It returns what it failed, empty while
+// the timeout is still running.
 func (im *Importer) reconcileStalled(ctx context.Context, group grabGroup, now time.Time) []failedGrab {
 	timeout := im.stallTimeout()
 	if timeout <= 0 {
@@ -500,7 +500,7 @@ func (im *Importer) reconcileStalled(ctx context.Context, group grabGroup, now t
 }
 
 // stallReason states the observation rather than the inference drawn from it,
-// and carries the timeout so the entry stays true if that is changed later.
+// and includes the timeout so the entry stays true if that is changed later.
 func stallReason(timeout time.Duration) string {
 	return fmt.Sprintf("the download stalled at 0%% for %dh", timeout/time.Hour)
 }
@@ -619,7 +619,7 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 		}
 		// A file nothing could map is fixable by hand; a payload with nothing left
 		// in it never will be, so the item goes back to wanted and the sweep
-		// self-heals with a single. An unextracted archive still holds the episode,
+		// self-heals with a single. An unextracted archive still contains the episode,
 		// so it counts as something left rather than as an empty payload.
 		if len(leftovers) > 0 {
 			settle(g, fmt.Sprintf("no file matched %s; %d unmatched file(s) in the payload", item, len(leftovers)))
@@ -630,15 +630,15 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 				item, archiveSummary(p.archives), extractAdvice(p.archives)))
 			continue
 		}
-		// A movie never reaches this: its one item is always covered, so a covered
-		// item with nothing left over needs a sibling row this shape cannot have.
+		// Unreachable for a movie: its one item is always covered, so a covered item
+		// with nothing left over needs a sibling row this shape cannot have.
 		failed = append(failed, im.failGrab(ctx, g, "the payload held no file for this episode", blameRelease))
 	}
 	return failed, details
 }
 
 // itemLabel names what a settled reason is about. A movie has exactly one item,
-// so its number would say nothing the title has not already said.
+// so its number adds nothing to the title.
 func itemLabel(kind string, number int) string {
 	if domain.WantedKind(kind) == domain.KindMovie {
 		return "this movie"
@@ -647,8 +647,8 @@ func itemLabel(kind string, number int) string {
 }
 
 // numberLabel names an arbitrary number an API caller supplied, which itemLabel
-// cannot: the number may be one the title does not have, so it has to survive
-// being printed rather than standing in for the item.
+// cannot: the number may be one the title does not have, so it is printed as
+// given rather than as the item.
 func numberLabel(kind string, number int) string {
 	if domain.WantedKind(kind) == domain.KindMovie {
 		return fmt.Sprintf("item %d", number)
@@ -698,8 +698,8 @@ func (im *Importer) place(ctx context.Context, target library.Target, source str
 
 // placeUnclaimed imports payload files for items this release never claimed —
 // the release titled 03 that ships 03 and 04 — and returns what is still loose.
-// A file is only taken when the item exists, is not had, and carries no
-// unsettled grab of its own; anything else is left alone rather than guessed at.
+// A file is only taken when the item exists, is not had, and has no unsettled
+// grab of its own; anything else is left loose rather than assigned.
 func (im *Importer) placeUnclaimed(ctx context.Context, target library.Target, g db.ListGrabsByStatusRow, leftovers []fileClaim, imported map[int]string) []fileClaim {
 	var loose []fileClaim
 	for _, lo := range leftovers {
@@ -712,8 +712,8 @@ func (im *Importer) placeUnclaimed(ctx context.Context, target library.Target, g
 			loose = append(loose, lo) // no such item: nothing to place it against
 			continue
 		}
-		// Had, or already spoken for: the file is redundant rather than unmatched,
-		// so it must not be counted as a loose end that defers another row.
+		// Had, or already grabbed: the file is redundant rather than unmatched, so
+		// it must not be counted as a loose end that defers another row.
 		if !free {
 			continue
 		}
@@ -742,7 +742,7 @@ func (im *Importer) placeUnclaimed(ctx context.Context, target library.Target, g
 }
 
 // unclaimedItem reads the item a loose file claims and reports whether it is free
-// to take: not had, and carrying no unsettled grab of its own.
+// to take: not had, and with no unsettled grab of its own.
 func (im *Importer) unclaimedItem(ctx context.Context, g db.ListGrabsByStatusRow, number int) (db.GetWantedItemByNumberRow, bool, error) {
 	item, err := im.store.Q.GetWantedItemByNumber(ctx, db.GetWantedItemByNumberParams{
 		SeriesID: g.TitleID,

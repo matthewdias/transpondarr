@@ -52,8 +52,8 @@ func TestImportAppendsImportedEvent(t *testing.T) {
 	}
 }
 
-// A deferral now means one covered item's file could not be picked out, and the
-// event carries the reason a human needs to fix it from the Activity queue.
+// A deferral now means one covered item's file could not be identified, and the
+// event includes the reason a human needs to fix it from the Activity queue.
 func TestDeferAppendsDeferredEventWithDetail(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, titleID := seedGrab(t, st, "abc")
@@ -108,7 +108,7 @@ func TestDefersAnArchivePayloadNamingTheArchive(t *testing.T) {
 	}
 }
 
-// A payload holding one loose episode and an archive covering another must not
+// A payload containing one loose episode and an archive covering another must not
 // fail the second: the bytes are right there, so it is a human's to fix.
 func TestDefersTheItemAnArchiveCoversBesideALooseFile(t *testing.T) {
 	st := coretest.NewStore(t)

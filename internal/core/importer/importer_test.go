@@ -46,7 +46,7 @@ func (c *cancelOnPlace) Place(ctx context.Context, r library.ImportRequest) (str
 	return c.FakeLibrary.Place(ctx, r)
 }
 
-// failOnItem refuses one item's Place, standing in for a per-file fault (a
+// failOnItem fails one item's Place, standing in for a per-file fault (a
 // permission error on one destination) inside an otherwise healthy group.
 type failOnItem struct {
 	coretest.FakeLibrary
@@ -537,7 +537,7 @@ func TestDefersWhenAFileIsMissingButOthersAreLoose(t *testing.T) {
 }
 
 // The hybrid split's unfixable half: nothing matched and nothing is left over,
-// so the item goes back to wanted and the release is remembered — one incident,
+// so the item goes back to wanted and the release is recorded — one incident,
 // however many rows it covered.
 func TestFailsAndBlocklistsWhenThePayloadHasNothingLeft(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -777,7 +777,7 @@ func TestLeavesAnUnclaimedFileAloneWhenItsItemIsGrabbedUnderTheClaim(t *testing.
 
 // One torrent can back grabs for two titles (a manual grab bypasses eligibility),
 // and a group is the unit of both mapping and attribution — so it is per title,
-// not per hash, or one title's rows borrow the other's numbering and title.
+// not per hash, or one title's rows use the other's numbering and title.
 func TestKeepsTwoTitlesSharingAnInfoHashApart(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedBatchGrab(t, st, "abc", 1)

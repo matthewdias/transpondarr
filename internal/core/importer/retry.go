@@ -51,7 +51,7 @@ type PayloadArchive struct {
 	Parts int
 }
 
-// PayloadInfo is a deferred release's payload as the retry dialog sees it.
+// PayloadInfo is a deferred release's payload as the retry dialog receives it.
 type PayloadInfo struct {
 	ReleaseTitle string
 	InfoHash     string
@@ -67,7 +67,7 @@ type RetryResult struct {
 	Detail     string
 }
 
-// ListPayload reports what a deferred grab's payload actually holds. It is the
+// ListPayload reports what a deferred grab's payload actually contains. It is the
 // read behind the retry dialog: the scan already decided it could not map these
 // files, so the only way forward is a human looking at them.
 func (im *Importer) ListPayload(ctx context.Context, grabID int64) (PayloadInfo, error) {
@@ -94,7 +94,7 @@ func (im *Importer) ListPayload(ctx context.Context, grabID int64) (PayloadInfo,
 		}
 	}
 	// Suggestions come from the same mapper the retry will run, so the dialog
-	// preselects what an automatic re-map would do rather than a second opinion.
+	// preselects what an automatic re-map would do rather than a different answer.
 	res := mapFiles(p.files, covers, nil, domain.Format(group[0].TitleFormat))
 	suggested := make(map[string]int, len(res.assigned))
 	for n, c := range res.assigned {
@@ -138,7 +138,7 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 		return nil, fmt.Errorf("%w: %w", ErrPayloadGone, err)
 	}
 
-	// Grabbed rows stay the scan's business; a retry only reopens what settled.
+	// Grabbed rows are left to the scan; a retry only reopens what settled.
 	deferred := rowsWithStatus(group, statusDeferred)
 	assignments = slashKeys(assignments)
 	if err := im.validateAssignments(ctx, deferred, p.files, assignments); err != nil {
@@ -155,11 +155,11 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 		}
 		outcome := row.Status
 		if outcome == statusGrabbed {
-			// Left open by a Place that failed; the scan picks it up on its own.
+			// Left open by a Place that failed; the scan retries it on its own.
 			outcome = "unchanged"
 		}
 		// A settled row's last_error is cleared by design, so the reason it settled
-		// by is the only thing the toast can say.
+		// by is the only text the toast has.
 		detail := row.LastError.String
 		if detail == "" {
 			detail = details[g.ID]
@@ -173,8 +173,8 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 	return results, nil
 }
 
-// deferredGroup resolves a grab id to its whole release, insisting the target
-// row is the one actually awaiting a fix and that the payload is still there.
+// deferredGroup resolves a grab id to its whole release, requiring that the
+// target row is the one actually awaiting a fix and the payload is still there.
 func (im *Importer) deferredGroup(ctx context.Context, grabID int64) ([]db.ListGrabsByStatusRow, download.Status, error) {
 	var none download.Status
 	dl := im.clients.Download()
@@ -217,8 +217,8 @@ func (im *Importer) deferredGroup(ctx context.Context, grabID int64) ([]db.ListG
 	return nil, none, fmt.Errorf("%w: the client no longer reports this torrent", ErrPayloadGone)
 }
 
-// slashKeys restates assignment paths in the slash form a candidate's rel
-// carries, so validation and the override lookup cannot disagree on Windows.
+// slashKeys restates assignment paths in the slash form a candidate's rel uses,
+// so validation and the override lookup cannot differ on Windows.
 func slashKeys(in map[string]int) map[string]int {
 	if len(in) == 0 {
 		return in
@@ -230,9 +230,9 @@ func slashKeys(in map[string]int) map[string]int {
 	return out
 }
 
-// validateAssignments refuses a retry that could not be carried out, rather than
-// half-applying it: an unknown file, a duplicated item, or an item this release
-// does not cover and the out-of-coverage guard would refuse anyway.
+// validateAssignments errors on a retry that cannot be applied, rather than
+// half-applying it: an unknown file, a duplicated item, or an item this
+// release does not cover and the out-of-coverage guard would block anyway.
 func (im *Importer) validateAssignments(ctx context.Context, deferred []db.ListGrabsByStatusRow, files []candidate, assignments map[string]int) error {
 	if len(assignments) == 0 {
 		return nil
@@ -272,7 +272,7 @@ func (im *Importer) validateAssignments(ctx context.Context, deferred []db.ListG
 }
 
 // assignableOutsideRelease applies the out-of-coverage guard up front, so a
-// retry naming an episode this release never claimed is refused with a reason
+// retry naming an episode this release never claimed errors with a reason
 // rather than silently doing nothing.
 func (im *Importer) assignableOutsideRelease(ctx context.Context, g db.ListGrabsByStatusRow, number int) error {
 	item, err := im.store.Q.GetWantedItemByNumber(ctx, db.GetWantedItemByNumberParams{
@@ -282,7 +282,7 @@ func (im *Importer) assignableOutsideRelease(ctx context.Context, g db.ListGrabs
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		// A movie has one item and its release always covers it, so any number
-		// reaching here names nothing rather than naming a missing episode.
+		// at this point names nothing rather than naming a missing episode.
 		if domain.WantedKind(g.ItemKind) == domain.KindMovie {
 			return fmt.Errorf("%w: a movie has no %s", ErrBadAssignment, numberLabel(g.ItemKind, number))
 		}

@@ -85,7 +85,7 @@ func wantCollected(t *testing.T, got, want []string) {
 }
 
 // The usual companions must not become candidates: a sample descended into is
-// how an obvious payload starts looking like a batch.
+// how an obvious payload turns into a batch.
 func TestCollectsEpisodeAmongSidecars(t *testing.T) {
 	root := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - 05 [1080p].mkv",
@@ -109,7 +109,7 @@ func TestSkipsSampleInPayloadRoot(t *testing.T) {
 	wantCollected(t, collected(t, root), []string{"Placeholder.Saga.S01E05.1080p.WEB.H264-EXAMPLE.mkv"})
 }
 
-// An extra that escapes both filters is still collected: it carries no episode
+// An extra that passes both filters is still collected: it has no episode
 // number, so the mapper leaves it over rather than placing it.
 func TestCollectsUnnumberedExtraForTheMapper(t *testing.T) {
 	root := writeTree(t,
@@ -174,7 +174,7 @@ func TestCollectsSoleVideoCarryingAnExtrasToken(t *testing.T) {
 
 // The standard scene layout: the episode is inside the RAR set, which nothing
 // here opens, and the only video is a truncated sample the relaxation must not
-// reach for.
+// take.
 func TestCollectsNothingFromAnArchivePayloadWithARootSample(t *testing.T) {
 	root := writeTree(t,
 		"placeholder.saga.s01e05.1080p.web.h264-example.rar",
@@ -245,7 +245,7 @@ func TestReportsZipAndSevenZipArchives(t *testing.T) {
 	wantCollected(t, archivesOf(t, seven), []string{"payload.7z×1"})
 
 	// The ordinary 7z split has no bare .7z head, so the stem-stripping is the
-	// only thing holding its volumes together.
+	// only thing grouping its volumes.
 	sevenSplit := writeTree(t, "payload.7z.001", "payload.7z.002", "payload.7z.003")
 	wantCollected(t, archivesOf(t, sevenSplit), []string{"payload.7z.001×3"})
 }
@@ -283,7 +283,7 @@ func TestPlainArchiveFilePayloadIsNotACandidate(t *testing.T) {
 }
 
 // A sample is not a video at all, so the episode is still the sole one even when
-// its own title carries an extras token.
+// its own title contains an extras token.
 func TestCollectsTokenedVideoBesideASample(t *testing.T) {
 	root := writeTree(t,
 		"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv",
@@ -293,7 +293,7 @@ func TestCollectsTokenedVideoBesideASample(t *testing.T) {
 	wantCollected(t, collected(t, root), []string{"[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv"})
 }
 
-// Filtering out extras must not leave the walk reaching for whatever is left.
+// Filtering out extras must not leave the walk taking whatever is left.
 func TestCollectsNothingWhenEveryFileIsAnExtra(t *testing.T) {
 	root := writeTree(t,
 		"[ExampleSubs] Placeholder Saga - NCOP [1080p].mkv",
@@ -333,13 +333,13 @@ func TestNonEpisodeTokensMatchWholeWords(t *testing.T) {
 }
 
 // The multi-set reason is where a name helps most: the user has to go and find
-// them, and a bare count says only that there is more than one.
+// them, and a bare count reports only that there is more than one.
 func TestNoVideoReasonNamesEveryArchiveItCanFit(t *testing.T) {
 	two := noVideoReason([]archive{{rel: "ep04.rar", parts: 2}, {rel: "ep05.rar", parts: 2}})
 	if !strings.Contains(two, "ep04.rar") || !strings.Contains(two, "ep05.rar") {
 		t.Errorf("reason = %q, want both sets named", two)
 	}
-	// Naming a whole season's worth would bury the instruction that follows.
+	// Naming a whole season's worth would hide the instruction that follows.
 	many := noVideoReason([]archive{
 		{rel: "ep01.rar", parts: 2}, {rel: "ep02.rar", parts: 2},
 		{rel: "ep03.rar", parts: 2}, {rel: "ep04.rar", parts: 2},

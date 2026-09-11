@@ -13,7 +13,7 @@ type fileClaim struct {
 }
 
 // mapResult is a payload's files mapped onto the items a release claimed: what
-// to place, how many files nothing could tell apart, and what is left over.
+// to place, how many files nothing could distinguish, and what is left over.
 type mapResult struct {
 	assigned  map[int]candidate
 	conflicts map[int]int
@@ -82,9 +82,9 @@ func mapFiles(files []candidate, covers map[int]bool, overrides map[string]int, 
 		}
 		best, tied := pickVersion(claims[n])
 		if tied {
-			// Guessing here silently drops the other file, so the row defers and a
-			// human names the one they want. The caller words it: only it knows
-			// whether the item is an episode or a movie.
+			// Picking either here silently drops the other file, so the row defers and
+			// a human names the one they want. The caller writes the text: only it has
+			// the item's kind.
 			res.conflicts[n] = len(claims[n])
 			continue
 		}
@@ -97,7 +97,7 @@ func mapFiles(files []candidate, covers map[int]bool, overrides map[string]int, 
 // thing shipped with it, which is a property of what a movie payload *is* rather
 // than of how a releaser named it — so a numbered extra ("Deleted Scene 1")
 // cannot claim the one item the way a number-driven mapping let it. Samples are
-// already gone before this sees anything, so size never re-admits one.
+// already gone before this runs, so size never re-admits one.
 func mapMovie(rest []candidate, covers map[int]bool, res mapResult) mapResult {
 	item, single := soleItem(covers)
 	_, taken := res.assigned[item]
@@ -163,7 +163,7 @@ func claimNumber(p parser.Parsed, covers map[int]bool) int {
 	if p.Batch || p.EpisodeEnd != p.EpisodeStart {
 		return 0
 	}
-	// Season-relative wins when both land inside the release, matching decide's stance.
+	// Season-relative wins when both land inside the release, matching decide's rule.
 	if p.EpisodeStart > 0 && covers[p.EpisodeStart] {
 		return p.EpisodeStart
 	}

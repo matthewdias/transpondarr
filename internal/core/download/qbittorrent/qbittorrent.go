@@ -1,7 +1,7 @@
 // Package qbittorrent implements the download.Client interface against
 // qBittorrent's WebUI API by wrapping the maintained autobrr/go-qbittorrent
-// client, which owns the login/CSRF/session handshake and cross-version quirks
-// (and re-logins automatically on session expiry).
+// client, which handles the login/CSRF/session handshake and cross-version
+// quirks (and re-logins automatically on session expiry).
 //
 // Transpondarr keeps only the app-specific glue: local info-hash derivation for a
 // deterministic ID before the add (qBittorrent's add endpoint does not return the

@@ -101,7 +101,7 @@ func assertBlockedFor(t *testing.T, e db.ReleaseBlocklist, want time.Duration) {
 }
 
 // Record stores the normalized title decide matches on, so a release differing
-// only in spacing or case is still recognised.
+// only in spacing or case is still matched.
 func TestRecordStoresTheNormalizedTitle(t *testing.T) {
 	svc, _, title := newService(t)
 	ctx := context.Background()
@@ -130,7 +130,7 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 	if _, err := svc.Record(ctx, title.ID, nil, "h2", "[SynthSubs] Placeholder Saga - 02", "failed"); err != nil {
 		t.Fatalf("record expired: %v", err)
 	}
-	// Expire the second entry behind the service's back; only time can do this.
+	// Expire the second entry in the store directly; only time does it otherwise.
 	if _, err := st.DB.ExecContext(ctx,
 		"UPDATE release_blocklist SET blocked_until = ? WHERE info_hash = 'h2'",
 		store.FormatTimestamp(time.Now().Add(-time.Hour)),
@@ -160,7 +160,7 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 
 // Every read of "is this still blocking?" goes through the service's clock, so
 // a test can move time rather than backdate rows -- and so the breaker's pinned
-// clock does not sit next to methods that quietly disagree with it.
+// clock is not next to methods reading a different one.
 func TestExpiryHonoursTheServiceClock(t *testing.T) {
 	svc, _, title := newService(t)
 	ctx := context.Background()
@@ -208,7 +208,7 @@ func hashes(entries []db.ReleaseBlocklist) []string {
 	return out
 }
 
-// ClearExpired is the "forget the history, keep what still blocks" affordance;
+// ClearExpired is the "drop the history, keep what still blocks" affordance;
 // ClearTitle is the whole-title one. Both stop at the title boundary.
 func TestClearExpiredAndClearTitle(t *testing.T) {
 	svc, st, title := newService(t)
@@ -265,7 +265,7 @@ func TestClearExpiredAndClearTitle(t *testing.T) {
 	if left, _ := svc.List(ctx, title.ID); len(left) != 0 {
 		t.Errorf("entries after clearing the series = %v, want none", hashes(left))
 	}
-	// Neither clear reaches past the title it was scoped to.
+	// Neither clear affects a title it was not scoped to.
 	if elsewhere, _ := svc.List(ctx, other.ID); len(elsewhere) != 1 {
 		t.Errorf("other series has %d entries, want its own 1 untouched", len(elsewhere))
 	}

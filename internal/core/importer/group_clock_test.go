@@ -15,7 +15,7 @@ import (
 )
 
 // TestKeepsStallClockAcrossScans and TestKeepsGrabWhileAbsenceIsWithinGracePeriod
-// are not subsumed here: they pin a stamp surviving a scan, not just uniformity.
+// are not subsumed here: they pin a stamp persisting across a scan, not just uniformity.
 
 // seedPack creates one title covered by a pack: an item per number, each with a
 // grab row on the same hash, which is the shape groupByHash buckets.
@@ -106,7 +106,7 @@ func assertPackSettled(t *testing.T, st *store.Store, hash string, want int) {
 
 // backdateOpenRows pushes whatever the scan left open past the stall timeout.
 // Under a per-group clock nothing is open and this does nothing; under a per-row
-// one it is what carries the late row to the second rung.
+// one it is what moves the late row to the second rung.
 func backdateOpenRows(t *testing.T, st *store.Store, hash string, ago time.Duration) {
 	t.Helper()
 	for _, g := range packGrabs(t, st, hash) {
@@ -201,10 +201,10 @@ func TestLateRowInheritsTheGroupsEarliestStallClock(t *testing.T) {
 	}
 }
 
-// The per-group clock and the widened predicate (#246) compose: a pack can now
-// reach reconcileStalled because its magnet never obtained metadata, not only
-// because the client called it stalled, and the group must settle in one scan on
-// one rung there too.
+// The per-group clock and the widened predicate (#246) compose: reconcileStalled
+// now applies to a pack whose magnet never obtained metadata, not only to one
+// the client reported stalled, and the group must settle in one scan on one
+// rung there too.
 func TestMetadataStalledPackWithALateRowTakesOneRung(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedPack(t, st, "abc", 1, 2)
@@ -270,7 +270,7 @@ func TestMetadataStallStampsAndClearsTheWholeGroup(t *testing.T) {
 }
 
 // missing_since has the identical shape. An absence is never blamed (#241), so
-// no rung is at stake -- but remember() states that "the grab_failed
+// no rung is at stake -- but remember() documents that "the grab_failed
 // notification groups the same way: one per incident", and a split group makes
 // that claim false.
 func TestVanishedPackWithALateRowIsOneIncident(t *testing.T) {
