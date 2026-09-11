@@ -17,8 +17,8 @@ The manifests name the dependencies; two constraints they don't explain:
 
 ## Build & run
 
-The `Makefile` is the canonical interface — `make help` lists the targets. What it
-can't tell you:
+The `Makefile` is the canonical interface — `make help` lists the targets. What the
+list doesn't show:
 
 - **`make notices` has a narrower trigger than "touched `go.mod`."** The file covers
   Go modules *linked into the binary* (`go version -m`, not the module graph) and
@@ -43,7 +43,7 @@ reproduce it locally — run what the change touched.
   the handlers reading it), which is what the suite's `-race` exists for.
 - **Scoping is safe because the test cache is content-addressed through the dependency
   graph** — editing `internal/store` does re-run `internal/core/importer`'s tests, it
-  won't hand back a stale pass. `(cached)` means the compiled inputs really are
+  won't return a stale pass. `(cached)` means the compiled inputs really are
   unchanged (a comment-only edit to a dependency legitimately keeps the hit); reach for
   `-count=1` only to force a test whose result depends on state Go can't see.
 - **Lint** — `golangci-lint run ./internal/core/decide/...` for Go,
@@ -88,7 +88,7 @@ reproduce it locally — run what the change touched.
   because paging a schedule costs one request per 50 episodes and `GetTitle` is
   on the request path. Two rules follow: a decorator must forward the capability
   *conditionally* (`metadata.Cached` returns a schedule-carrying wrapper only
-  when its inner provider has one, so the assertion never lies), and the caller
+  when its inner provider has one, so the assertion is never wrong), and the caller
   treats a missing capability as a supported configuration, not an error.
 
 ## Development process — TDD, red/green
@@ -151,7 +151,7 @@ Behaviour changes are test-driven. Work red → green → refactor:
 
 ## Conventions
 
-Nine subsystems carry their own rules in a nested `CLAUDE.md`, loaded when you work
+Nine subsystems have their own rules in a nested `CLAUDE.md`, loaded when you work
 under that directory — read the one you are in, not all nine:
 [`decide`](internal/core/decide/CLAUDE.md) (matching, eligibility, movies),
 [`acquire`](internal/core/acquire/CLAUDE.md) (sweep, feed, pass outcomes),
@@ -173,9 +173,9 @@ What stays here is what applies before you know which package you are in.
   fault (#242).** Long enough to need its own section — see
   [`docs/design-notes.md`](docs/design-notes.md).
 - **Periodic work goes on the job runner (`internal/core/jobs`), not a bare
-  `go`.** Register by name with an interval in `main.go`; the runner owns panic
+  `go`.** Register by name with an interval in `main.go`; the runner handles panic
   containment, the "log failures only when `ctx.Err() == nil`" rule, and the
-  drained shutdown that lets the store outlive in-flight work. It never cancels
+  drained shutdown that keeps the store open until in-flight work finishes. It never cancels
   a job itself — `ctx` is the only shutdown signal, so work past a point of no
   return can still finish. A job closure must read its dependencies from the
   registry/service each run, not capture a snapshot, or live config edits stop
@@ -184,11 +184,11 @@ What stays here is what applies before you know which package you are in.
 - **`frontend/src/lib/api-types.ts` is generated and CI fails on drift**, so every
   backend schema change regenerates it and every concurrent branch conflicts there.
   Resolve by re-running `make gen-api` against the merged spec — never by hand-editing
-  the conflict, which produces types that pass review and disagree with the server.
+  the conflict, which produces types that pass review and don't match the server.
 - **Quality profiles inform manual actions; they gate only automation.** A manual
   grab always succeeds in one request — the grab endpoint evaluates eligibility
   server-side at grab time and returns `ineligible_reason` on the 201, but never
-  refuses (no confirm flag, no 422). Enforcement belongs to the scheduler's
+  rejects the request (no confirm flag, no 422). Enforcement belongs to the scheduler's
   automatic choices; a manual grab is explicit user intent. Don't reintroduce a
   gate on manual paths (decided in PR #57).
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
@@ -228,10 +228,10 @@ What stays here is what applies before you know which package you are in.
 
 How to word a comment, a doc, a CHANGELOG entry or a PR body is
 [`docs/style.md`](docs/style.md) — including the 15 words this codebase uses
-twice, which prose has to qualify and identifiers already do. This section owns
-the budget; that file owns the English.
+twice, which prose has to qualify and identifiers already do. This section sets
+the budget; that file covers the wording.
 
-Code carries the *what*; comments carry only what the code cannot. Default to
+Code states the *what*; comments state only what the code cannot. Default to
 none, and prefer a better name or a small helper over an explanation.
 
 - **Budget:** one line. Exported declarations get the Go-standard one-line doc
@@ -274,13 +274,13 @@ Concretely, in `internal/core/decide`:
   **back-catalog drain rate**, shorten the interval rather than widen the pass —
   the ratio sets throughput, the width sets peak burst, and a pass issues its
   searches back-to-back with no pacing. That is now the only thing the ratio
-  buys: acquisition latency for a current release belongs to the feed.
+  controls: the feed sets acquisition latency for a current release.
 - **The recent feed inverts that cost, which is why it is the hot path.** One
   request covers every series, so `feed-poll` is flat in library size while the
   sweep is linear in due series. That is what makes the sweep affordable as a
   safety net rather than the mechanism. Don't shorten `feedPollInterval` below
-  15 minutes: indexers ask for it, and Sonarr — which sets the community's
-  expectation here — defaults to 15 and refuses below 10.
+  15 minutes: indexer operators ask for it, and Sonarr — which sets the
+  community's expectation here — defaults to 15 and rejects anything below 10.
 - **Identification**: v1 relies on identity-by-construction (we chose the release);
   hash/AniDB identification and pre-existing-library import are deliberately
   out of v1's design.
