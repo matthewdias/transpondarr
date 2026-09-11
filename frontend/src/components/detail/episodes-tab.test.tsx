@@ -42,7 +42,7 @@ function renderTab(items: WantedItem[]) {
 }
 
 describe("EpisodesTab search buttons", () => {
-  // The row button's intent is "find me this episode", so it must carry the
+  // The row button's intent is "find me this episode", so it must send the
   // number rather than falling through to the series-wide search.
   it("sends the row's number from a wanted and a deferred episode", async () => {
     const { onSearchAll, onSearchItem, user } = renderTab([
@@ -163,8 +163,8 @@ describe("EpisodesTab monitoring", () => {
   });
 
   // The header count and the titles-list bar must read the same denominator, or
-  // one says 3 / 3 while the other says 3 / 1050. That means the server's exact
-  // definition of tracked: monitored AND already broadcast.
+  // one shows 3 / 3 while the other shows 3 / 1050. That means the server's
+  // exact definition of tracked: monitored AND already broadcast.
   it("counts only monitored, aired episodes in the header", () => {
     renderStrip([
       item({ id: 1, number: 1, in_library: true, status: "in_library" }),
@@ -357,7 +357,7 @@ describe("EpisodesTab selection range", () => {
     await user.click(
       screen.getByRole("checkbox", { name: /select episode 2/i }),
     );
-    // Episode 1 arrives late, pushing every anchored index along by one.
+    // Episode 1 arrives late, shifting every anchored index along by one.
     rerender(
       <EpisodesTab
         detail={detail([item({ id: 5, number: 0 }), ...rows])}
@@ -376,7 +376,7 @@ describe("EpisodesTab selection range", () => {
 
 describe("EpisodesTab unmonitored status", () => {
   // "Wanted" is the one status that becomes false when an item is unmonitored;
-  // nothing is wanting it. The others stay true and are left alone.
+  // nothing will search for it. The others stay true and are left alone.
   it("replaces only the wanted badge", () => {
     renderStrip([
       item({ id: 1, number: 1, monitored: false, status: "wanted" }),
@@ -395,8 +395,8 @@ describe("EpisodesTab unmonitored status", () => {
     expect(screen.getByText("Downloading")).toBeInTheDocument();
   });
 
-  // An unmonitored item the library holds keeps its true status; the row's
-  // monitor toggle is what says it is unmonitored.
+  // An unmonitored item in the library keeps its true status; the row's
+  // monitor toggle is what shows it is unmonitored.
   it("leaves every other status alone when unmonitored", () => {
     renderStrip([
       item({
@@ -460,7 +460,7 @@ describe("EpisodesTab select all", () => {
   });
 
   // A partial selection must not read as "none selected", which is what a bare
-  // unchecked box would claim.
+  // unchecked box would indicate.
   it("reads as indeterminate on a partial selection", () => {
     render(
       <EpisodesTab
@@ -478,7 +478,7 @@ describe("EpisodesTab select all", () => {
       />,
     );
 
-    // Radix models it natively as a third checked state, so it reaches
+    // Radix models it natively as a third checked state, so it is exposed to
     // assistive tech as aria-checked="mixed" rather than as a DOM property.
     const box = screen.getByRole("checkbox", { name: /select all/i });
     expect(box).toHaveAttribute("aria-checked", "mixed");
@@ -530,7 +530,7 @@ describe("EpisodesTab with no items at all", () => {
   });
 
   // A populated tab must not offer it: raising maxItem on a healthy title is
-  // what makes decide distrust of absolute numbering inert.
+  // what disables decide's check on absolute numbering.
   it("is absent from a populated tab", () => {
     renderTab([item({ id: 1, number: 1 })]);
 

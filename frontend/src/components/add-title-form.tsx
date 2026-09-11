@@ -32,7 +32,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 
-/** CandidateDTO satisfies this structurally; a SeasonEntryDTO carries the same
+/** CandidateDTO satisfies this structurally; a SeasonEntryDTO has the same
  * next broadcast as next_episode, which its call site maps. */
 export type AddTitle = Pick<
   Candidate,
@@ -57,7 +57,7 @@ const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
 /**
  * The set the stored cut will cover, in the words of the episodes themselves.
  * Its arms mirror catalog.monitorCut's so the two agree by construction: the
- * status is what decides there, so nothing here may re-derive an answer from it.
+ * status determines the cut there, so nothing here may re-derive an answer from it.
  */
 function monitorSummary(
   target: AddTitle,
@@ -83,7 +83,7 @@ function monitorSummary(
     };
   }
   // The cut is the next broadcast, which covers items only while it lands
-  // inside the run; an unknown count is a run long enough to hold it.
+  // inside the run; an unknown count is a run long enough to contain it.
   if (next > 0 && (count === 0 || next <= count)) {
     return {
       text:
@@ -94,7 +94,7 @@ function monitorSummary(
     };
   }
   // Everything else falls past the last item — a finished run, one between
-  // cours, and a schedule reaching beyond the count alike.
+  // cours, and a schedule extending beyond the count alike.
   return {
     text:
       count > 1
@@ -124,17 +124,17 @@ export function AddTitleForm({
   onBack?: () => void;
 }) {
   const [monitorItems, setMonitorItems] = useState<MonitorItems>("all");
-  // A movie is one item, so all vs. future says nothing the series-level
-  // Monitored switch does not already say.
+  // A movie is one item, so all vs. future adds nothing to the series-level
+  // Monitored switch.
   const isMovie = target.format === "MOVIE";
   // Both choices resolve to the same cut before anything has aired (#217), so
-  // the question is not asked — only answered, by the summary below.
+  // the control is hidden and only the summary below shows the result.
   const askMonitor = !isMovie && !isUpcoming(target.status);
   const summary = monitorSummary(target, monitorItems);
   const [profileId, setProfileId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const profiles = useQuery(profilesQuery());
-  // Only a film's destination is in question here, so a series pays no request.
+  // Only a film's destination is in question here, so no request is sent for a series.
   const settings = useQuery({ ...settingsQuery(), enabled: isMovie });
   const noMoviesRoot = isMovie && settings.data?.library.movies_dir === "";
 
@@ -188,7 +188,7 @@ export function AddTitleForm({
         )}
 
         {/* Told, not blocked: gating a manual add is what #198 and PR #57 both
-            refuse, and the grab holds until the root is set rather than failing. */}
+            rule out, and the grab stays open until the root is set rather than failing. */}
         {noMoviesRoot && (
           <Link
             to="/settings"
@@ -236,7 +236,7 @@ export function AddTitleForm({
             </Select>
           )}
           {/* Outside the dropdown deliberately: the trigger shows the label
-              alone, so a consequence only the open menu states is unread. */}
+              alone, so a consequence only the open menu shows is unread. */}
           <p
             id="monitor-summary"
             className="flex items-start gap-1.5 text-[12.5px] text-muted-foreground"
@@ -248,9 +248,9 @@ export function AddTitleForm({
           </p>
         </div>
 
-        {/* The row is held but never blocking: the add omits the profile until
+        {/* The row is reserved but never blocking: the add omits the profile until
             one is picked, so a slow or failed fetch just takes the server's
-            default rather than standing between the user and the button. */}
+            default rather than disabling the button. */}
         {(profiles.isPending || profiles.isPaused) && (
           <div className="space-y-1">
             <span className="block text-xs font-medium text-muted-foreground">
@@ -301,7 +301,7 @@ export function AddTitleForm({
           type="submit"
           disabled={add.isPending}
           // The plain "Add" buttons behind the form share this visible label,
-          // so the accessible name carries the title.
+          // so the accessible name includes the title.
           aria-label={`Add ${title}`}
         >
           {add.isPending && <Loader2 className="size-3.5 animate-spin" />}
@@ -332,7 +332,7 @@ export function AddTitleDialog({
   const isMobile = useIsMobile();
   const description = "Choose what to monitor and how releases are scored.";
   // Mounting only while open reseeds the form per title, so a previous title's
-  // choices can never ride along.
+  // choices can never persist.
   const form = open && (
     <AddTitleForm
       title={title}

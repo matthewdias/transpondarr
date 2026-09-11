@@ -60,12 +60,12 @@ const statusLabel: Record<ItemStatus, string> = {
 // Format alone (#208), so a one-item OVA keeps its episode line. A premiere
 // states no time anywhere below: a film's airs_at is either a real TV-premiere
 // instant or a date-only release stored at noon UTC to name a day, and nothing
-// here can tell them apart, so any clock or countdown might be invented.
+// here can distinguish them, so any clock or countdown might be invented.
 const isPremiere = (item: CalendarItem) => item.format === "MOVIE";
 
 // A film's deferral is a size tie or an unextracted archive (#210), never a
 // batch. Worded exactly as ItemStatusBadge does, so the two renderers on this
-// page say one thing; every other status reads the same either way.
+// page show the same wording; every other status reads the same either way.
 const statusText = (item: CalendarItem) =>
   isPremiere(item) && item.status === "deferred"
     ? "Downloaded, not imported"
@@ -265,7 +265,7 @@ function EntryLine({ item }: { item: CalendarItem }) {
         )}
       />
       {/* A month cell is a seventh of the grid, so the marker is an icon where
-          an episode gets its number; the title attribute carries the words. */}
+          an episode gets its number; the title attribute contains the words. */}
       {premiere ? (
         <Film
           aria-hidden

@@ -116,7 +116,7 @@ describe("GroupCell", () => {
   // The marker explains a ranking outcome, and an unmatched release has none —
   // a foreign-title reject still parses a group, so it would otherwise be
   // marked on a row that has nothing to do with this series.
-  it("withholds the pin from an unmatched release", () => {
+  it("omits the pin from an unmatched release", () => {
     render(
       <GroupCell
         r={release({
@@ -245,7 +245,7 @@ const filmResults = [
   }),
 ];
 
-// A gated handler holds the search in flight so the loading header can be
+// A gated handler keeps the search in flight so the loading header can be
 // asserted, then lets it land in the same test rather than leaving a dangling
 // request for teardown to reset.
 function renderReleases(
@@ -336,7 +336,7 @@ describe("ReleasesTab episode focus", () => {
 
   // "0 of 0" during the initial search reads as a finished search that found
   // nothing, which is the opposite of what is happening.
-  it("withholds the count until the search has landed", async () => {
+  it("hides the count until the search has landed", async () => {
     const { land } = renderReleases(3, true);
 
     expect(await screen.findByText(/searching indexers/i)).toBeInTheDocument();
@@ -406,7 +406,7 @@ describe("ReleasesTab episode focus", () => {
     expect(screen.queryByText(/covering e/i)).not.toBeInTheDocument();
   });
 
-  // Format alone (#208): this component is never told the item count, so an OVA
+  // Format alone (#208): this component is never passed the item count, so an OVA
   // keeps the filter whether it ships one episode or twelve.
   it("keeps the focus for an OVA", async () => {
     renderReleases(3, false, "OVA");
@@ -426,14 +426,14 @@ describe("ReleasesTab episode focus", () => {
 
 describe("ReleasesTab empty state", () => {
   // Format alone (#208): a single-episode OVA is a series and keeps this wording.
-  it("says series for a series", async () => {
+  it("shows series for a series", async () => {
     renderNoResults("TV");
     expect(
       await screen.findByText("No releases found for this series."),
     ).toBeInTheDocument();
   });
 
-  it("says film for a film", async () => {
+  it("shows film for a film", async () => {
     renderNoResults("MOVIE");
     expect(
       await screen.findByText("No releases found for this film."),

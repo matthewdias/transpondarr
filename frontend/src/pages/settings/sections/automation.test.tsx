@@ -82,7 +82,7 @@ function renderSection(automation: Settings["automation"]) {
 describe("AutomationSection", () => {
   // The hint describes the mode in the selector, so the default-state sentence
   // belongs to "Off" alone — on the other two it contradicts the setting.
-  it("does not tell an enabled install that automation is off", async () => {
+  it("does not show an enabled install that automation is off", async () => {
     const user = userEvent.setup();
     renderSection({ mode: "off", pin_delay_hours: 0 });
     expect(
@@ -100,7 +100,7 @@ describe("AutomationSection", () => {
     ).toBeTruthy();
   });
 
-  // #116: the third state rides the same section save as the old two.
+  // #116: the third state is sent in the same section save as the old two.
   it("saves the mode picked in the selector", async () => {
     let body: unknown;
     server.use(

@@ -28,8 +28,8 @@ function countdown(secs: number): string | null {
   return `in ${Math.floor(secs / 86400)}d`;
 }
 
-// locale defaults to the viewer's; tests pin it so assertions are not at the
-// mercy of the runner's ICU default.
+// locale defaults to the viewer's; tests pin it so assertions do not depend
+// on the runner's ICU default.
 function absoluteDate(at: number, locale?: string): string {
   return new Date(at).toLocaleDateString(locale, {
     day: "numeric",
@@ -60,7 +60,7 @@ export function airDate(input: string | undefined, locale?: string): string {
 
 /**
  * A film's date where a column has room for the date alone. Never counted down
- * and never clocked: the stored instant may be a date-only release held at noon
+ * and never clocked: the stored instant may be a date-only release set to noon
  * UTC to name a day (#224), so anything finer would be invented precision.
  */
 export function premiereDate(
@@ -95,7 +95,7 @@ export function nextEpisodeLabel(
 
 /**
  * A film's release line, tensed on the date and never counted down: the stored
- * instant may be a date-only release held at noon UTC to name a day, so an
+ * instant may be a date-only release set to noon UTC to name a day, so an
  * "in 4h" would state precision the provider never published.
  */
 export function premiereLabel(

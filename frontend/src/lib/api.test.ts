@@ -47,7 +47,7 @@ describe("typed client (openapi-fetch)", () => {
   });
 
   // The cross-origin check (#269) is middleware, not a Huma handler, so it writes
-  // its own body. A text/plain one reaches the operator as "HTTP 403" with no
+  // its own body. A text/plain one appears to the operator as "HTTP 403" with no
   // cause, which is what the changelog's upgrade note tells them to look for.
   it("surfaces the reason a cross-origin write was refused", async () => {
     server.use(
@@ -70,7 +70,7 @@ describe("typed client (openapi-fetch)", () => {
     expect(err.message).toBe("cross-origin request refused");
   });
 
-  it("maps problem+json failures to a thrown ApiError carrying the detail", async () => {
+  it("maps problem+json failures to a thrown ApiError with the detail", async () => {
     server.use(
       http.get("/api/v1/titles", () =>
         HttpResponse.json(
@@ -85,7 +85,7 @@ describe("typed client (openapi-fetch)", () => {
   });
 
   // The 2026-08-15 AniList outage: detail was the handler's own summary and the
-  // provider's explanation rode in errors[], where nothing read it.
+  // provider's explanation was in errors[], where nothing read it.
   it("prefers the errors[] cause over the handler's detail", async () => {
     server.use(
       http.post("/api/v1/titles", () =>
@@ -160,7 +160,7 @@ describe("typed client (openapi-fetch)", () => {
     });
   });
 
-  it("falls back to detail when the body carries no errors[]", async () => {
+  it("falls back to detail when the body has no errors[]", async () => {
     server.use(
       http.get("/api/v1/titles", () =>
         HttpResponse.json(
@@ -173,7 +173,7 @@ describe("typed client (openapi-fetch)", () => {
     expect(err).toMatchObject({ status: 500, message: "indexer unreachable" });
   });
 
-  it("falls back to the status line when the body carries neither", async () => {
+  it("falls back to the status line when the body has neither", async () => {
     server.use(
       http.get("/api/v1/titles", () => HttpResponse.json({}, { status: 503 })),
     );
@@ -181,8 +181,8 @@ describe("typed client (openapi-fetch)", () => {
     expect(err).toMatchObject({ status: 503, message: "HTTP 503" });
   });
 
-  // An upstream body reaches the toast verbatim, so a proxy's HTML page must not
-  // fill it.
+  // An upstream body appears in the toast verbatim, so a proxy's HTML page must
+  // not fill it.
   it("bounds the composed message", async () => {
     server.use(
       http.get("/api/v1/titles", () =>

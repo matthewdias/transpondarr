@@ -25,7 +25,7 @@ const title = (over: Partial<Title>): Title => ({
   ...over,
 });
 
-// The state reaches the row from the list endpoint, not from a per-title fetch:
+// The state comes from the list endpoint, not from a per-title fetch:
 // one query answers the whole page (#229).
 it("renders a film's item state beside a series' count", async () => {
   server.use(

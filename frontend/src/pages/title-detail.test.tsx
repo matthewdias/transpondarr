@@ -52,7 +52,7 @@ describe("PinnedGroupChip", () => {
     const user = userEvent.setup();
     renderChip(detail({}));
 
-    // Unset state invites a pin rather than showing an empty value.
+    // Unset state prompts for a pin rather than showing an empty value.
     await user.click(screen.getByRole("button", { name: /pin group/i }));
     await user.type(
       screen.getByRole("textbox", { name: /release group/i }),
@@ -152,7 +152,7 @@ describe("PinnedGroupChip", () => {
       screen.getByRole("button", { name: /pin: shinyrip · no wait/i }),
     ).toBeInTheDocument();
 
-    // No override: the global default applies and the chip must not invent it.
+    // No override: the global default applies and the chip must not show it.
     rerender(
       <QueryClientProvider client={client}>
         <PinnedGroupChip detail={detail({ pinned_group: "ShinyRip" })} />
@@ -163,7 +163,7 @@ describe("PinnedGroupChip", () => {
     ).toBeInTheDocument();
   });
 
-  // A placeholder disappears the moment you type, so the unit has to live in a
+  // A placeholder disappears the moment you type, so the unit has to be in a
   // label that stays on screen.
   it("names the wait field's unit in a persistent label", async () => {
     const user = userEvent.setup();
@@ -259,7 +259,7 @@ describe("ProfilePicker", () => {
 
   // The picker's query starts only once the header is painted, so rendering
   // nothing while it loads shifted the chips row on every visit.
-  it("holds the chip's place while the profiles load", async () => {
+  it("reserves the chip's place while the profiles load", async () => {
     server.use(
       http.get("/api/v1/profiles", async () => {
         await delay(20);
@@ -279,7 +279,7 @@ describe("ProfilePicker", () => {
 
   // A failed fetch used to be indistinguishable from a series with no profile
   // control at all, and nothing let you ask again.
-  it("says so and retries when the profiles cannot be read", async () => {
+  it("reports the failure and retries when the profiles cannot be read", async () => {
     server.use(
       http.get(
         "/api/v1/profiles",
@@ -450,7 +450,7 @@ describe("TitleDetailPage episode search", () => {
   }
 
   // The switch to Releases is programmatic, so it must not read as the
-  // series-wide intent a direct tab click carries.
+  // series-wide intent of a direct tab click.
   it("focuses the Releases tab on the searched episode, and a tab click clears it", async () => {
     const user = renderPage();
 
@@ -532,7 +532,7 @@ describe("TitleDetailPage episode search", () => {
   });
 
   // ?item no longer implies the tab, so it lands on the format's own tab and
-  // the focus it carries is simply not on screen -- never a half-focused one.
+  // the focus it sets is simply not on screen -- never a half-focused one.
   it("leaves the landing tab alone when the URL names only an item", async () => {
     renderPage("/titles/7?item=5");
 
@@ -546,7 +546,7 @@ describe("TitleDetailPage episode search", () => {
   });
 
   // Unreachable today — nothing links series to series — but a focus that
-  // outlived its series would filter the new one on a number from the old.
+  // outlasted its series would filter the new one on a number from the old.
   it("drops the focus when the page moves to another series", async () => {
     const user = renderPage();
 
@@ -584,7 +584,7 @@ describe("MonitoringToggle", () => {
     );
   }
 
-  it("lets the switch speak for itself while automation is on", () => {
+  it("shows only the switch while automation is on", () => {
     renderToggle(true, "on");
     expect(screen.getByRole("switch", { name: /monitor/i })).toBeChecked();
     expect(screen.getByText("Monitored")).toBeInTheDocument();
@@ -592,15 +592,15 @@ describe("MonitoringToggle", () => {
   });
 
   // Monitored means "will be grabbed automatically", so the global kill switch
-  // makes that label a promise the daemon is not keeping -- say so where the
-  // promise is made rather than only in Settings.
+  // makes that label false -- show that beside the label rather than only in
+  // Settings.
   it("flags the global kill switch on a monitored series", () => {
     renderToggle(true, "off");
     const note = screen.getByRole("link", { name: /automation is off/i });
     expect(note).toHaveAttribute("href", "/settings");
   });
 
-  // Notify-only keeps the promise half-made: searched and reported, not grabbed.
+  // Notify-only makes the label half true: searched and reported, not grabbed.
   it("flags a notify-only rehearsal on a monitored series", () => {
     renderToggle(true, "notify_only");
     const note = screen.getByRole("link", { name: /notify-only rehearsal/i });

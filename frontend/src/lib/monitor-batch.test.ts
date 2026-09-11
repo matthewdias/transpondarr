@@ -72,7 +72,7 @@ it("reports how much landed when a later batch fails", async () => {
   expect((err as PartialBatchError).message).toMatch(/1000 of 1202/);
 });
 
-// Nothing landed, so this is an ordinary failure and must not claim otherwise.
+// Nothing landed, so this is an ordinary failure and must not report otherwise.
 it("throws the plain error when the first batch fails", async () => {
   const batches: Body[] = [];
   capture(batches, 0);

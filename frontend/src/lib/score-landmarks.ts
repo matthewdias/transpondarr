@@ -26,8 +26,8 @@ export const SCORE_LANDMARKS: ScoreLandmark[] = [
 // profile describes.
 export const DEFAULT_CUTOFF = GROUP_BASE + RES_BASE;
 
-// A stored cutoff matching no landmark is named, never rewritten — the same
-// stance stale excludes take.
+// A stored cutoff matching no landmark is named, never rewritten, as stale
+// excludes are.
 export function landmarkLabel(score: number): string {
   return (
     SCORE_LANDMARKS.find((l) => l.score === score)?.label ?? `Custom (${score})`

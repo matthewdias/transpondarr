@@ -179,7 +179,7 @@ it("renders group and item reasons on their own tiers", async () => {
   ]);
 });
 
-// #181's tier. It is the one stored reason on the page, so the chip carries a
+// #181's tier. It is the one stored reason on the page, so the chip shows a
 // visible age -- a past-tense verb plus "2h ago" cannot read as "now" -- and
 // the tooltip names the release, the refusal reason and which entry point
 // decided. A row with nothing of its own still stays quiet.
@@ -226,7 +226,7 @@ it("dates what the last pass decided and names the release", async () => {
   );
   expect(declined.getAttribute("title")).toContain("below the profile floor");
   expect(declined.getAttribute("title")).toContain("search");
-  // Episode 4 has no story of its own; its group carries it.
+  // Episode 4 has no story of its own; its group shows it.
   expect(screen.queryByText(/Releases declined · 2h ago/)).toBe(declined);
   expect(screen.getByText("Episode 4")).toBeInTheDocument();
 });
@@ -234,7 +234,7 @@ it("dates what the last pass decided and names the release", async () => {
 // A hold names what it is waiting for and how long is left, which is how the
 // pin delay gets validated empirically (#62). An add failure shares the failed
 // grab's destructive tone: the client refused it, which is not the profile
-// turning a release down.
+// refusing a release.
 it("names a pinned-group wait and tones a refused add as a failure", async () => {
   const justNow = new Date(Date.now() - 60 * 1000)
     .toISOString()
@@ -289,7 +289,7 @@ it("names a pinned-group wait and tones a refused add as a failure", async () =>
   expect(refused.getAttribute("title")).toContain("404 fetching .torrent");
 });
 
-// The page tier is a banner said once, not a badge stamped on every row.
+// The page tier is a banner shown once, not a badge stamped on every row.
 it("shows the global reason as one banner", async () => {
   useHandlers({
     pages: {
@@ -350,7 +350,7 @@ it("moves between the scope chips with arrows and toggles from the keyboard", as
   expect(seen[1].get("unaired")).toBe("false");
 });
 
-// Both toggles reach the server rather than filtering what already arrived: the
+// Both toggles go to the server rather than filtering what already arrived: the
 // listing is paginated, so a client-side filter would leave short pages.
 it("sends the unaired and unmonitored toggles to the server", async () => {
   const seen: URLSearchParams[] = [];
@@ -428,7 +428,7 @@ it("queues a search for the selected groups' series", async () => {
 });
 
 // Goals shared by every item hoist to the group header; a row keeps only what
-// is its own, and the profile and cutoff live on the header outright.
+// is its own, and the profile and cutoff are on the header outright.
 it("hoists shared goals to the cutoff group header", async () => {
   useHandlers({
     pages: { "": { groups: [] } },
@@ -460,20 +460,20 @@ it("hoists shared goals to the cutoff group header", async () => {
   ).toBeInTheDocument();
   expect(screen.getByText("2 episodes below cutoff")).toBeInTheDocument();
   expect(screen.getByText("Anime HD · cutoff 2300")).toBeInTheDocument();
-  // The resolution gap is everyone's, so it is said once on the header...
+  // The resolution gap is everyone's, so it is shown once on the header...
   expect(
     screen.getByText("Wanted: resolution 1080p (+100)"),
   ).toBeInTheDocument();
   // ...and the group gap stays on the one row that has it.
   expect(
-    screen.getByText("Also wants group FakeTop (+100)"),
+    screen.getByText("Also wanted: group FakeTop (+100)"),
   ).toBeInTheDocument();
   expect(screen.getByText("2100 / 2300")).toBeInTheDocument();
   expect(screen.getByText("2200 / 2300")).toBeInTheDocument();
 });
 
-// Cutoff Unmet decides membership in Go, so a request can scan its whole budget
-// without finding anything and still have somewhere to resume. Saying "nothing
+// Cutoff Unmet computes membership in Go, so a request can scan its whole budget
+// without finding anything and still have somewhere to resume. Showing "nothing
 // below cutoff" there would hide a library that has some, further down.
 it("offers to keep looking when an empty cutoff page still has a cursor", async () => {
   useHandlers({
@@ -496,7 +496,7 @@ it("offers to keep looking when an empty cutoff page still has a cursor", async 
 });
 
 // The last page with nothing on it is the real empty state.
-it("says nothing below cutoff when the scan is exhausted", async () => {
+it("shows the nothing-below-cutoff state when the scan is exhausted", async () => {
   useHandlers({
     pages: { "": { groups: [] } },
     cutoffPages: { "": { groups: [] } },
@@ -508,12 +508,12 @@ it("says nothing below cutoff when the scan is exhausted", async () => {
   expect(screen.queryByRole("button", { name: /keep looking/i })).toBeNull();
 });
 
-// A held release can meet every preference its profile states and still sit
-// below the cutoff. The row says so rather than rendering an empty space that
+// A held release can meet every preference its profile states and still be
+// below the cutoff. The row shows it rather than rendering an empty space that
 // reads as a bug -- as two facts, not a verdict: unmet goals exclude the
 // repack/v2 bonus, so an empty list is not proof that nothing can clear the
-// cutoff, and the copy must not claim it is.
-it("says when a sub-cutoff row has nothing left to improve", async () => {
+// cutoff, and the copy must not state it is.
+it("shows when a sub-cutoff row has nothing left to improve", async () => {
   useHandlers({
     pages: { "": { groups: [] } },
     cutoffGroups: [
@@ -532,7 +532,7 @@ it("says when a sub-cutoff row has nothing left to improve", async () => {
   );
   expect(note.getAttribute("title")).not.toMatch(/best possible|nothing can/i);
   // The header stays quiet: an item below the ceiling on the same profile is
-  // healthy, so the group is not the place to say this.
+  // healthy, so the group is not the place to show this.
   expect(screen.queryByText(/^Wanted:/)).toBeNull();
 });
 
@@ -607,13 +607,13 @@ it("words the queued-search toast for what actually happened", () => {
     }),
   ).toMatchObject({
     title: "Search queued for 1 title.",
-    description: "The next scheduled sweep will pick it up.",
+    description: "The next scheduled sweep will run it.",
   });
 });
 
 // #188: an unmonitored row is only reachable behind the toggle, so it has to
-// say why it is quiet -- and the pass tier it may still carry is suppressed,
-// since nothing will ever revisit it.
+// show why it is quiet -- and the pass tier it may still have is suppressed,
+// since no pass will search it again.
 it("labels an unmonitored row and offers to re-monitor it", async () => {
   const calls: { item_ids: number[]; monitored: boolean }[] = [];
   useHandlers({
@@ -666,7 +666,7 @@ it("unmonitors a missing row in place", async () => {
 
 // The count follows the filter, so with the Unmonitored chip on a narrowed
 // long-runner reads "1173 episodes missing" above rows deliberately switched
-// off. Splitting it says what is actually being chased.
+// off. Splitting it shows what is actually being searched for.
 it("splits the group count when unmonitored rows are shown", async () => {
   useHandlers({
     pages: {
@@ -689,7 +689,7 @@ it("splits the group count when unmonitored rows are shown", async () => {
 });
 
 // With items paged the loaded rows are a sample, so a breakdown derived from
-// them would understate what is off -- a worse lie than the plain count.
+// them would understate what is off -- worse than the plain count.
 it("keeps the plain count when the group is truncated", async () => {
   useHandlers({
     pages: {
@@ -724,7 +724,7 @@ it("offers an unmonitored cutoff row its own monitor toggle", async () => {
   const user = userEvent.setup();
   await user.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
 
-  // The library really does hold both, so both keep that status; the toggle is
+  // The library really does contain both, so both keep that status; the toggle is
   // what distinguishes them, and re-monitoring stays reachable from this tab.
   expect(await screen.findAllByText("In library")).toHaveLength(2);
   expect(
@@ -735,8 +735,8 @@ it("offers an unmonitored cutoff row its own monitor toggle", async () => {
   ).toBeInTheDocument();
 });
 
-// #215's DTO half. A film reaches this page like anything else, and format is
-// the only thing that can tell it apart -- item count cannot (#208), because a
+// #215's DTO half. A film lands on this page like anything else, and format is
+// the only thing that can distinguish it -- item count cannot (#208), because a
 // one-episode OVA is a series. Air date far enough out that the countdown
 // branch cannot fire for either row: what is under test is the wording.
 it("never calls a film's item an episode, or dates it to the hour", async () => {
@@ -768,7 +768,7 @@ it("never calls a film's item an episode, or dates it to the hour", async () => 
   expect(screen.queryByText("Not aired yet")).not.toBeInTheDocument();
 });
 
-// A film's stored instant may be noon UTC standing in for a day (#224), so a
+// A film's stored instant may be noon UTC representing a day (#224), so a
 // countdown would state precision the provider never published. Inside the
 // week, which is exactly where countdownOrDate would otherwise count down.
 it("shows a film's near release as a date, never as a countdown", async () => {
@@ -791,7 +791,7 @@ it("shows a film's near release as a date, never as a countdown", async () => {
 
   await screen.findByText("Placeholder Film");
   // The episode beside it still counts down, so this is the format branch and
-  // not a page-wide change of mind.
+  // not a page-wide change.
   expect(screen.getByText(/^in \d+d$/)).toBeInTheDocument();
   expect(screen.getAllByText(/^in \d+d$/)).toHaveLength(1);
 });
@@ -822,9 +822,9 @@ it("keeps a film's cutoff group from counting in episodes", async () => {
 
 // #231 split the two parameters: ?tab picks the tab and ?item focuses an item,
 // so a row states only what is true of it. A film's item is not a choice, and
-// format is the only thing that can say so -- a one-item OVA still numbers its
-// episode, which is why the OVA row here carries ?item and the film's does not.
-it("asks for a focused item only where there is a choice of item", async () => {
+// format is the only signal for that -- a one-item OVA still numbers its
+// episode, which is why the OVA row here has ?item and the film's does not.
+it("sets a focused item only where there is a choice of item", async () => {
   useHandlers({
     pages: {
       "": {

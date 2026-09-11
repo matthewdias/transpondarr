@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { LibraryProgress } from "@/components/library-progress";
 
-// The denominator is what the series is pursuing (monitored and aired), so it
+// The denominator is the series' tracked items (monitored and aired), so it
 // is routinely a subset -- and the raw count has to stay beside it.
 it("shows the raw total when the denominator is a subset", () => {
   render(
@@ -50,7 +50,7 @@ it("words the zero state rather than reading as an empty series", () => {
   expect(screen.getByText("(12 total)")).toBeInTheDocument();
 });
 
-// The same empty denominator, the other cause. Saying "nothing aired" over a
+// The same empty denominator, the other cause. Showing "nothing aired" over a
 // finished series someone switched off is a plain false statement.
 it("names monitoring, not airing, when nothing is monitored", () => {
   render(
@@ -148,7 +148,7 @@ it("hangs the import reason off the blocked film", () => {
 
 // Substituted, not qualified, exactly as the detail page does it: every other
 // status stays true when unmonitored, and only "Wanted" becomes a false claim.
-it("names monitoring instead of wanting an unmonitored film", () => {
+it("names monitoring instead of Wanted for an unmonitored film", () => {
   render(
     <LibraryProgress
       format="MOVIE"

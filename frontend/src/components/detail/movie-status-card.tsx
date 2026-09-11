@@ -6,7 +6,7 @@ import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
 import { MonitorToggle } from "@/components/monitor-toggle";
 
 /**
- * A film's acquisition state, standing in for the episodes table. Format is the
+ * A film's acquisition state, replacing the episodes table. Format is the
  * discriminator, so a one-item OVA never lands here.
  */
 export function MovieStatusCard({

@@ -114,7 +114,7 @@ describe("DiscoveryPage", () => {
     expect(inLibrary).toHaveAttribute("href", "/titles/7");
     expect(screen.getAllByRole("button", { name: /^add$/i })).toHaveLength(1);
 
-    // The synopsis lives in the detail dialog, not on the card, so an expanded
+    // The synopsis is in the detail dialog, not on the card, so an expanded
     // description can never reflow the grid.
     expect(
       screen.queryByText("A hero rises. Adapted from the manga."),
@@ -126,12 +126,12 @@ describe("DiscoveryPage", () => {
     expect(
       within(dialog).getByText("A hero rises. Adapted from the manga."),
     ).toBeInTheDocument();
-    // The dialog carries the same actions as its card.
+    // The dialog has the same actions as its card.
     expect(
       within(dialog).getByRole("link", { name: /open on anilist/i }),
     ).toHaveAttribute("href", "https://anilist.co/anime/101");
 
-    // Adding from the detail hands over to the add form rather than stacking a
+    // Adding from the detail switches to the add form rather than stacking a
     // second dialog on top of the first.
     await userEvent.click(
       within(dialog).getByRole("button", { name: /^add$/i }),
@@ -253,7 +253,7 @@ describe("DiscoveryPage", () => {
     ).toBeInTheDocument();
   });
 
-  // A film's premiere is now its next_airs_at, and the card said "Ep 1 in 4h" —
+  // A film's premiere is now its next_airs_at, and the card showed "Ep 1 in 4h" —
   // an episode line, with a clock, for the noon-UTC placeholder.
   it("dates a film's premiere instead of calling it episode 1", async () => {
     server.use(

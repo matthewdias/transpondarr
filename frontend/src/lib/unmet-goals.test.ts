@@ -4,7 +4,7 @@ import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 const g = (label: string, points: number) => ({ label, points });
 
 describe("sharedGoals", () => {
-  it("keeps only goals every item carries, in the first item's order", () => {
+  it("keeps only goals every item has, in the first item's order", () => {
     const items = [
       { unmet_goals: [g("group TopSubs", 100), g("resolution 1080p", 100)] },
       { unmet_goals: [g("resolution 1080p", 100)] },
@@ -14,7 +14,7 @@ describe("sharedGoals", () => {
 
   it("treats the same axis at a different depth as a different goal", () => {
     // One item is a rank below the top group, the other two ranks below: both
-    // want "group TopSubs" but at different points, so nothing is shared.
+    // miss "group TopSubs" but at different points, so nothing is shared.
     const items = [
       { unmet_goals: [g("group TopSubs", 100)] },
       { unmet_goals: [g("group TopSubs", 200)] },

@@ -104,7 +104,7 @@ describe("CalendarPage", () => {
     );
   });
 
-  it("does not claim a provider published nothing for a title it never asked about", async () => {
+  it("does not report a provider published nothing for a title it never asked about", async () => {
     server.use(
       calendarHandler(
         [item({})],
@@ -156,7 +156,7 @@ describe("CalendarPage", () => {
 
     expect(await screen.findByText(/· today/i)).toBeInTheDocument();
     expect(screen.getByText("Wanted")).toBeInTheDocument();
-    // The stuck badge carries the import error as its tooltip.
+    // The stuck badge shows the import error as its tooltip.
     expect(screen.getByText("Import blocked")).toHaveAccessibleDescription();
     expect(screen.getByTitle("library offline")).toBeInTheDocument();
   });
@@ -194,9 +194,9 @@ describe("CalendarPage", () => {
   });
 
   // A film's deferral is a size tie or an unextracted archive (#210), never a
-  // batch, so neither the compact label (week) nor the badge (agenda) may say
+  // batch, so neither the compact label (week) nor the badge (agenda) may show
   // one. The two renderers word it separately, so both are asserted here.
-  it("says a deferred film was not imported, never that a batch was", async () => {
+  it("shows a deferred film as not imported, never as a batch", async () => {
     server.use(calendarHandler([film({ status: "deferred" })]));
 
     renderPage();
@@ -217,7 +217,7 @@ describe("CalendarPage", () => {
     expect(agenda).not.toHaveTextContent(/Batch downloaded/);
   });
 
-  // #210's rule: only the strings a film can reach change wording.
+  // #210's rule: only the strings shown for a film change wording.
   it("keeps the batch wording for a deferred episode in both views", async () => {
     server.use(calendarHandler([item({ status: "deferred" })]));
 
@@ -254,7 +254,7 @@ describe("CalendarPage", () => {
     );
   });
 
-  it("names the empty week without assuming episodes", async () => {
+  it("names the empty week without the word episodes", async () => {
     server.use(calendarHandler([]));
 
     renderPage();

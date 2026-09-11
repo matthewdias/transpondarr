@@ -17,7 +17,7 @@ export function DownloadSection({ settings }: { settings: Settings }) {
   const [user, setUser] = useState(d.user);
   const [password, setPassword] = useState("");
   const [category, setCategory] = useState(d.category);
-  // Held as a string so the field can be transiently empty while being retyped.
+  // Stored as a string so the field can be transiently empty while being retyped.
   const [stallHours, setStallHours] = useState(String(d.stall_hours));
   const [testState, setTestState] = useState<TestState>(null);
 
@@ -106,7 +106,7 @@ export function DownloadSection({ settings }: { settings: Settings }) {
         max={24 * 365}
         value={stallHours}
         onChange={(e) => setStallHours(e.target.value)}
-        hint="A download that never transfers anything at all is abandoned after this long — one the client reports as stalled, and a magnet still looking for its metadata: the episode goes back to wanted and the release is remembered as failed. A download that has made any progress, and one the client has queued or paused, is never abandoned. 0 waits forever."
+        hint="A download that never transfers anything at all is abandoned after this long — one the client reports as stalled, and a magnet still fetching its metadata: the episode goes back to wanted and the release is remembered as failed. A download that has made any progress, and one the client has queued or paused, is never abandoned. 0 waits forever."
       />
     </SectionShell>
   );

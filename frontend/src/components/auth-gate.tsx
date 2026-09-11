@@ -11,8 +11,8 @@ type Phase = "loading" | "setup" | "login" | "ready";
  * Forms-based auth. On load we ask the server for auth status: an
  * authenticated request (session cookie, API key, or local-address bypass) goes
  * straight through; an unconfigured server shows first-run setup; otherwise a
- * login screen. The httpOnly session cookie carries auth thereafter — no token
- * is ever held in JS. A 401 re-runs the check.
+ * login screen. The httpOnly session cookie authenticates later requests — no
+ * token is ever stored in JS. A 401 re-runs the check.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = useState<Phase>("loading");

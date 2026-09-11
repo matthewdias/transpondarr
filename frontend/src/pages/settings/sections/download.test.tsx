@@ -82,8 +82,8 @@ function renderSection(download: Settings["download"] = stored) {
 }
 
 describe("DownloadSection", () => {
-  // 0 is the deliberate "never give up", so it has to survive the round trip as
-  // a number rather than being dropped as an empty field (#242).
+  // 0 is the deliberate "never give up", so it has to stay a number through the
+  // round trip rather than being dropped as an empty field (#242).
   it("saves the stall timeout, zero included", async () => {
     let body: unknown;
     server.use(

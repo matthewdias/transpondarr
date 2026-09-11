@@ -68,7 +68,7 @@ function AddTitleBody({
       <div>
         {/* The dialog header names the flow, so the step names the title -- as
             the same row it was picked from, which is the continuity a step
-            owes the list behind it. */}
+            needs with the list behind it. */}
         <Item variant="muted" size="sm" className="mb-3 gap-3">
           <ItemMedia>
             <Poster
@@ -180,7 +180,7 @@ function AddTitleBody({
                 <Button
                   size="sm"
                   // Every row's visible label is identical, so the accessible
-                  // name carries the title.
+                  // name includes the title.
                   aria-label={`Add ${candidateTitle(c)}`}
                   onClick={() => onSelect(c)}
                 >
@@ -207,7 +207,7 @@ export function AddTitleButton() {
   const close = () => setDialogOpen(false);
 
   // Escape leaves the step, not the whole dialog: the form is a layer over the
-  // results, and the stacked dialog it replaced would have peeled off one at a
+  // results, and the stacked dialog it replaced would have closed one at a
   // time. Radix dispatches this from a capture-phase document listener, so
   // preventing it here is the only way to intercept it.
   const stepBackOnEscape = (event: KeyboardEvent) => {

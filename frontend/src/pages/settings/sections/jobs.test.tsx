@@ -38,7 +38,7 @@ describe("JobsTable", () => {
       <JobsTable
         jobs={[
           // 90m rather than a round quarter-hour: the countdown floors, so a
-          // value sitting on a unit boundary renders one unit short by the time
+          // value on a unit boundary renders one unit short by the time
           // the assertion runs.
           job({
             name: "wanted-search",
@@ -118,7 +118,7 @@ describe("JobsTable", () => {
     expect(row.getByText("Running")).toBeInTheDocument();
   });
 
-  it("says a job has never run rather than rendering an unset timestamp", () => {
+  it("shows that a job has never run rather than rendering an unset timestamp", () => {
     render(<JobsTable jobs={[job({ next_run: minutesFromNow(5) })]} />);
     const row = rowFor("Wanted search");
     expect(within(row).getByText("Never")).toBeInTheDocument();
@@ -126,8 +126,8 @@ describe("JobsTable", () => {
   });
 
   // Duration is a developer's metric with no baseline on this card, so it keeps
-  // its precision but gives up the column that next run earns.
-  it("keeps the last duration available without spending a column on it", () => {
+  // its precision but loses the column to next run.
+  it("keeps the last duration available without using a column for it", () => {
     render(
       <JobsTable
         jobs={[job({ last_run: minutesFromNow(-1), last_duration_ms: 0.5 })]}
@@ -184,7 +184,7 @@ describe("JobsTable", () => {
   });
 
   // A trigger during a run is not absorbed into it — the runner queues a full
-  // second pass as soon as the run finishes — so the button refuses to stack one.
+  // second pass as soon as the run finishes — so the button is disabled rather than stacking one.
   it("cannot run a job that is already running", () => {
     render(<JobsTable jobs={[job({ running: true })]} onRun={vi.fn()} />);
     expect(
@@ -195,7 +195,7 @@ describe("JobsTable", () => {
   // Trigger returns before the runner flips `running`, so until the poll
   // catches up the request in flight is the only sign a second click would
   // stack a second pass.
-  it("holds every run button while a run request is in flight", () => {
+  it("disables every run button while a run request is in flight", () => {
     render(
       <JobsTable
         jobs={[job(), job({ name: "import-scan" })]}
@@ -266,8 +266,8 @@ describe("JobsSection", () => {
   });
 
   // Running the sweep with the kill switch off grabs for real, so the one case
-  // where the button contradicts a setting the user chose asks first.
-  it("asks before running an automation-gated job with automation off", async () => {
+  // where the button bypasses a setting the user chose confirms first.
+  it("confirms before running an automation-gated job with automation off", async () => {
     const runs = renderSection([job()], "off");
     await userEvent.click(await runButton("Wanted search"));
 
@@ -280,8 +280,8 @@ describe("JobsSection", () => {
     await waitFor(() => expect(runs).toEqual(["wanted-search"]));
   });
 
-  // A notify-only run rehearses — it grabs nothing — so it earns no dialog.
-  it("runs a gated job without asking in notify-only", async () => {
+  // A notify-only run rehearses — it grabs nothing — so it gets no dialog.
+  it("runs a gated job without confirming in notify-only", async () => {
     const runs = renderSection([job()], "notify_only");
     await userEvent.click(await runButton("Wanted search"));
 
@@ -289,9 +289,9 @@ describe("JobsSection", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  // A failed settings read still asks (fail-safe), but must not assert a state
-  // it never learned.
-  it("admits when it could not tell whether automation is off", async () => {
+  // A failed settings read still confirms (fail-safe), but must not state a
+  // setting it never loaded.
+  it("reports when the automation setting could not be loaded", async () => {
     const runs = renderSection([job()], "unreadable");
     await userEvent.click(await runButton("Wanted search"));
 
@@ -313,7 +313,7 @@ describe("JobsSection", () => {
   });
 
   // Only the two jobs that grab are gated; the rest are unaffected by the switch.
-  it("does not ask about a job automation never gated", async () => {
+  it("does not confirm a job automation never gated", async () => {
     const runs = renderSection([job({ name: "session-cleanup" })], "off");
     await userEvent.click(await runButton("Session cleanup"));
 

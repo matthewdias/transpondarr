@@ -99,7 +99,7 @@ function renderTab(
 
 describe("HistoryTab blocked releases", () => {
   // A re-grab overwrites the failed grab row, so the blocked list is often the
-  // only remaining trace: an empty feed must not swallow the section.
+  // only remaining trace: an empty feed must not hide the section.
   it("shows blocked releases even when there is no grab history", async () => {
     renderTab([], [blocklistEntry()]);
     expect(await screen.findByText(/Blocked releases/i)).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe("HistoryTab blocked releases", () => {
     expect(screen.getByText(/No grab or import history/i)).toBeInTheDocument();
   });
 
-  it("says when a release is blocked permanently", async () => {
+  it("shows when a release is blocked permanently", async () => {
     renderTab([], [blocklistEntry({ blocked_until: undefined, failures: 3 })]);
     expect(await screen.findByText(/blocked permanently/i)).toBeInTheDocument();
   });
@@ -150,7 +150,7 @@ describe("HistoryTab blocked releases", () => {
 
   // With nothing else in the section to read, a collapsed disclosure would be a
   // dead end, so the expired list opens on its own.
-  it("says when a block has expired rather than showing it as active", async () => {
+  it("marks a block as expired rather than showing it as active", async () => {
     renderTab(
       [],
       [
@@ -176,7 +176,7 @@ describe("HistoryTab blocked releases", () => {
     expect(await screen.findByText("Unblocks in 20h")).toBeInTheDocument();
   });
 
-  // A failed blocklist fetch must say so, not silently render an unblocked series.
+  // A failed blocklist fetch must show an error, not silently render an unblocked series.
   it("reports a blocklist that could not be loaded", async () => {
     renderTab([event({})], [], true);
     expect(
@@ -244,7 +244,7 @@ describe("HistoryTab blocked releases", () => {
     );
   });
 
-  it("forgets expired blocks without touching what still blocks", async () => {
+  it("forgets expired blocks without clearing what still blocks", async () => {
     let expiredOnly = false;
     const live = blocklistEntry();
     const lapsed = blocklistEntry({

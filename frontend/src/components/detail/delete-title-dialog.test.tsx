@@ -62,7 +62,7 @@ function renderDialog(onDeleted = vi.fn(), d: TitleDetail = detail) {
 }
 
 describe("DeleteTitleDialog", () => {
-  it("says what goes and what stays, in counts", async () => {
+  it("shows what goes and what stays, in counts", async () => {
     const user = userEvent.setup();
     renderDialog();
 
@@ -71,11 +71,11 @@ describe("DeleteTitleDialog", () => {
     // 6 tracked episodes go; the 2 in the library stay on disk.
     expect(dialog).toHaveTextContent(/6 tracked episodes/i);
     expect(dialog).toHaveTextContent(/2 episodes? in your library/i);
-    // 3 active downloads (downloading + stuck + deferred) ride the checkbox label.
+    // 3 active downloads (downloading + stuck + deferred) appear in the checkbox label.
     expect(dialog).toHaveTextContent(/3 active downloads/i);
   });
 
-  it("deletes without touching downloads by default", async () => {
+  it("deletes without removing downloads by default", async () => {
     let url: URL | undefined;
     server.use(
       http.delete("/api/v1/titles/7", ({ request }) => {
@@ -130,7 +130,7 @@ describe("DeleteTitleDialog", () => {
         () => new HttpResponse(null, { status: 204 }),
       ),
     );
-    // The dialog lives on the detail page, so its query is active when the
+    // The dialog is on the detail page, so its query is active when the
     // title-prefix invalidation lands.
     function Page() {
       useQuery(titleDetailQuery(7));
