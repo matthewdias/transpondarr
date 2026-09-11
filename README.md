@@ -58,16 +58,22 @@ that comes from AniList/AniDB rather than TVDB.
   reassigned from its page later. A per-title **pinned group** can also mean
   *wait for*: automation holds new episodes for the pinned release group's
   release before taking another group's. Opt a profile into **upgrades** and an
-  episode you already have is re-grabbed while its file scores below the cutoff,
-  then left alone for good.
+  episode you already have is re-grabbed while its file scores below the cutoff.
+  Once the file meets the cutoff, automation takes only a v2 or repack of that
+  release, from the same release group at the same resolution. **Still take v2s
+  and repacks after cutoff** is on by default; turn it off to leave the file alone
+  for good.
 - **Failure memory** — a failed release is blocklisted with escalating expiry
   instead of re-grabbed forever. If many grabs fail within minutes of each other,
   a breaker treats the failures as an environmental fault and stops blocklisting,
   so one bad afternoon doesn't blocklist the library. Everything is visible in
   the UI, and a blocklisted release can be unblocked there.
-- **Manual control that's never refused** — search and grab any release by hand,
-  with an episode's Search opening the release list focused on that episode;
-  profiles are advisory on manual actions and enforced only on automation.
+- **Manual control** — search and grab by hand, with an episode's Search opening
+  the release list focused on that episode. Your quality profile never blocks a
+  manual grab: profiles are advisory on manual actions and enforced only on
+  automation. A release that doesn't match any of the title's episodes, or isn't
+  the film, is still refused (eg. another show's release, or an episode number
+  past the title's last episode).
 - **Seeding-safe library import** — hardlink (or copy) into Plex/Jellyfin-ready
   naming, without breaking the seeding torrent. Episodes file into season
   folders or flat, whichever suits your media server's scanner. Season packs
@@ -186,7 +192,10 @@ For a real deployment alongside qBittorrent and a media server, use
   a second mount.
 - **Ownership.** Set `PUID`/`PGID` to the UID:GID that owns your media volume.
   The container starts as root, fixes `/config` ownership, and drops to that user
-  before serving, so hardlinks into the library land with the right ownership.
+  before serving. The folders Transpondarr creates in the library, and any file it
+  copies there (`copy` import mode, or `auto` across filesystems), are owned by that
+  user. A hardlink is the downloaded file under a second name, so it has the same
+  owner as the download, usually the user qBittorrent runs as.
   Persist the `/config` volume (it contains the SQLite DB).
 
 Verify a running deployment (the second call needs your API key):
