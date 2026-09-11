@@ -136,10 +136,10 @@ function renderPage() {
   return client;
 }
 
-// The three reason tiers render together: the series' story on its group
+// The three reason levels render together: the series' story on its group
 // header, an item's own story on its row, and rows with nothing to add stay
 // quiet. Per-row Search routes into the episode-targeted Releases tab.
-it("renders group and item reasons on their own tiers", async () => {
+it("renders group and item reasons at their own levels", async () => {
   useHandlers({
     pages: {
       "": {
@@ -179,7 +179,7 @@ it("renders group and item reasons on their own tiers", async () => {
   ]);
 });
 
-// #181's tier. It is the one stored reason on the page, so the chip shows a
+// #181's pass reason is the one stored reason on the page, so the chip shows a
 // visible age -- a past-tense verb plus "2h ago" cannot read as "now" -- and
 // the tooltip names the release, the refusal reason and which entry point
 // decided. A row with nothing of its own still stays quiet.
@@ -198,7 +198,7 @@ it("dates what the last pass decided and names the release", async () => {
               id: 2,
               number: 5,
               reason: "declined",
-              reason_detail: "below the profile floor",
+              reason_detail: "below the profile minimum",
               last_pass: {
                 release_title: "[SynthSubs] Signal Anomaly - 05 [720p]",
                 source: "sweep",
@@ -224,7 +224,7 @@ it("dates what the last pass decided and names the release", async () => {
   expect(declined.getAttribute("title")).toContain(
     "[SynthSubs] Signal Anomaly - 05 [720p]",
   );
-  expect(declined.getAttribute("title")).toContain("below the profile floor");
+  expect(declined.getAttribute("title")).toContain("below the profile minimum");
   expect(declined.getAttribute("title")).toContain("search");
   // Episode 4 has no story of its own; its group shows it.
   expect(screen.queryByText(/Releases declined · 2h ago/)).toBe(declined);
@@ -289,7 +289,7 @@ it("names a pinned-group wait and tones a refused add as a failure", async () =>
   expect(refused.getAttribute("title")).toContain("404 fetching .torrent");
 });
 
-// The page tier is a banner shown once, not a badge stamped on every row.
+// The page-level reason is one banner, not a badge stamped on every row.
 it("shows the global reason as one banner", async () => {
   useHandlers({
     pages: {
@@ -612,7 +612,7 @@ it("words the queued-search toast for what actually happened", () => {
 });
 
 // #188: an unmonitored row is only reachable behind the toggle, so it has to
-// show why it is quiet -- and the pass tier it may still have is suppressed,
+// show why it is quiet -- and the pass reason it may still have is suppressed,
 // since no pass will search it again.
 it("labels an unmonitored row and offers to re-monitor it", async () => {
   const calls: { item_ids: number[]; monitored: boolean }[] = [];

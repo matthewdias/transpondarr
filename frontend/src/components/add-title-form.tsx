@@ -56,7 +56,7 @@ const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
 
 /**
  * The set the stored cut will cover, in the words of the episodes themselves.
- * Its arms mirror catalog.monitorCut's so the two agree by construction: the
+ * Its branches mirror catalog.monitorCut's so the two agree by construction: the
  * status determines the cut there, so nothing here may re-derive an answer from it.
  */
 function monitorSummary(
@@ -69,7 +69,7 @@ function monitorSummary(
   if (target.format === "MOVIE") {
     return { text: "The film will be monitored.", warn: false };
   }
-  // A title that has not started takes this arm and no other: its control is
+  // A title that has not started takes this branch and no other: its control is
   // hidden, so the mode it is summarising is always "all" (#217).
   if (mode === "all") {
     return {
@@ -187,8 +187,8 @@ export function AddTitleForm({
           <p className="text-[12.5px] text-faint">{meta.join(" · ")}</p>
         )}
 
-        {/* Told, not blocked: gating a manual add is what #198 and PR #57 both
-            rule out, and the grab stays open until the root is set rather than failing. */}
+        {/* Told, not blocked: #198 and PR #57 both rule out blocking a manual add,
+            and the grab stays open until the root is set rather than failing. */}
         {noMoviesRoot && (
           <Link
             to="/settings"

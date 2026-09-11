@@ -61,7 +61,7 @@ const releasesLink = (titleId: number, format: string, number: number) =>
     ? `/titles/${titleId}?tab=releases`
     : `/titles/${titleId}?tab=releases&item=${number}`;
 
-// The reason tiers' vocabulary (#150): the page shows what blocks everything,
+// The reason levels' vocabulary (#150): the page shows what blocks everything,
 // a group header shows where its series is in the sweep queue, and a row
 // shows a reason only when it has its own story. Tone separates "you have to do
 // something" from "the queue is working".
@@ -90,8 +90,8 @@ const titleReasonTone: Record<TitleMissingReason, string> = {
   search_due: "border-border bg-panel-2 text-muted-foreground",
 };
 
-// The row tier. The last five are #181's: what the last pass decided about this
-// episode, which is the half the user can act on.
+// The row level. The last five are #181's: what the last pass decided about
+// this episode, which is the half the user can act on.
 const itemReasonLabel: Record<ItemMissingReason, string> = {
   unmonitored: "Not monitored",
   unaired: "Not aired yet",
@@ -492,7 +492,7 @@ function TitleReasonBadge({ group }: { group: MissingGroup }) {
   );
 }
 
-// The pass tier is the only reason on this page that can go stale, so it is
+// Pass reasons are the only ones on this page that can go stale, so each is
 // always shown with its age: a past-tense verb next to "2h ago" cannot read as
 // a fact about now. The tooltip shows what the pass acted on.
 function itemReasonTitle(item: MissingItem): string | undefined {

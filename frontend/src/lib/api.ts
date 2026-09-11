@@ -14,7 +14,7 @@
 import createClient from "openapi-fetch";
 import type { components, paths } from "./api-types";
 
-/** Dispatched on window when a request 401s, so the auth gate can re-open. */
+/** Dispatched on window when a request 401s, so `AuthGate` can re-open. */
 export const AUTH_EXPIRED_EVENT = "transpondarr:auth-expired";
 
 /** Thrown for any non-2xx response; `status` lets callers special-case 401. */
@@ -67,11 +67,11 @@ function problemCause(problem: ProblemBody): string {
 }
 
 // Central failure handling shared by the typed client (unwrap) and the auth calls
-// (rawFetch). A 401 normally means the session went stale, so it re-opens the
-// auth gate even for calls outside React Query — but for endpoints whose job is
+// (rawFetch). A 401 normally means the session went stale, so it re-opens
+// `AuthGate` even for calls outside React Query — but for endpoints whose job is
 // to *check* credentials (login, setup, change password), a 401 is just a wrong
-// password: those pass authEvent: false so the gate doesn't remount and wipe the
-// form before its error can render.
+// password: those pass authEvent: false so `AuthGate` doesn't remount and wipe
+// the form before its error can render.
 function throwApiError(status: number, body: unknown, authEvent = true): never {
   if (status === 401) {
     if (authEvent) window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));

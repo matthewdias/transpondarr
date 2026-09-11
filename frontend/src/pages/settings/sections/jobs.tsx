@@ -138,7 +138,7 @@ export function JobsTable({
   );
 }
 
-// The jobs that grab unattended; mirrors the jobs.ManualRun gates in
+// The jobs that grab unattended; mirrors the jobs.ManualRun checks in
 // internal/core/acquire — keep the two in sync.
 const AUTOMATION_GATED = ["wanted-search", "feed-poll"];
 

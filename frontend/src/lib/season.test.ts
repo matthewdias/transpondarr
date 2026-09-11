@@ -65,7 +65,7 @@ describe("stepSeasonClamped", () => {
     ).toEqual({ season: "summer", year: 2026 });
   });
 
-  it("does not step below winter of the floor year", () => {
+  it("does not step below winter of the minimum year", () => {
     const floor = { season: "winter" as const, year: YEAR_FLOOR };
     expect(stepSeasonClamped(floor, -1, 2027)).toBe(floor);
   });

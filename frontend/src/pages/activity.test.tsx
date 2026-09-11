@@ -124,7 +124,7 @@ describe("ActivityPage", () => {
 
     expect(await screen.findByText("Queued")).toBeInTheDocument();
     expect(document.querySelectorAll(".text-destructive")).toHaveLength(1);
-    // Not alarming and not active either: without its own arm it would fall
+    // Not alarming and not active either: without its own branch it would fall
     // through to the downloading tone, which the label alone cannot catch.
     expect(document.querySelectorAll(".text-dl")).toHaveLength(0);
   });
@@ -133,8 +133,8 @@ describe("ActivityPage", () => {
   // we are going to give up on it and when (#242). A stall with bytes on disk
   // has no deadline, and is what makes the countdown assertion mean something.
   it("shows when a stalled download will be given up on", async () => {
-    // Half an hour past the boundary: the countdown floors, so an exact 4h would
-    // have elapsed into "in 3h" by the time it rendered.
+    // Half an hour past the boundary: the countdown rounds down, so an exact 4h
+    // would have elapsed into "in 3h" by the time it rendered.
     const inFourHours = new Date(Date.now() + 4.5 * 3600 * 1000).toISOString();
     useHandlers(
       {

@@ -70,7 +70,7 @@ describe("EpisodesTab search buttons", () => {
   });
 
   // A live grab is no reason to hide it: the Releases tab grabs at any status,
-  // so a condition here would gate nothing -- and a stuck import, which retries
+  // so a condition here would block nothing -- and a stuck import, which retries
   // the same release forever, is exactly when another release is wanted.
   it("offers it while a grab is in flight or its import is stuck", async () => {
     const { onSearchItem, user } = renderTab([
