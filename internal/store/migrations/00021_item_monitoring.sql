@@ -1,6 +1,6 @@
 -- +goose Up
 -- Per-item monitoring (issue #188). monitor_new_from is a numeric cut rather
--- than a mode: the sites that must honour it (the airing gap-fill and refresh)
+-- than a mode: the sites that must apply it (the airing gap-fill and refresh)
 -- create items with no air date, so "future only" has nothing to re-evaluate
 -- there, and a number records the decision as taken rather than re-derived.
 -- NULL means monitor nothing new. Both defaults preserve today's behaviour.

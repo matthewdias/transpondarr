@@ -4,7 +4,7 @@
 
 -- name: UpsertBlocklistEntry :one
 -- A repeat failure of the same release bumps the existing row so the escalating
--- expiry can see the count; hash, reason and expiry take the latest attempt's.
+-- expiry can read the count; hash, reason and expiry take the latest attempt's.
 INSERT INTO release_blocklist (series_id, info_hash, release_title, normalized_title, reason, blocked_until)
 VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT (series_id, normalized_title) DO UPDATE SET
@@ -17,8 +17,8 @@ ON CONFLICT (series_id, normalized_title) DO UPDATE SET
 RETURNING *;
 
 -- name: SetBlocklistExpiry :exec
--- NULL is permanent. Separate from the upsert because the ladder is keyed on the
--- failure count the upsert only reports after it has written.
+-- NULL is permanent. Separate from the upsert because the escalating expiry is
+-- keyed on the failure count the upsert only reports after it has written.
 UPDATE release_blocklist SET blocked_until = ?, updated_at = datetime('now') WHERE id = ?;
 
 -- name: ListActiveBlocklist :many
@@ -35,7 +35,7 @@ WHERE series_id = ?
 ORDER BY updated_at DESC;
 
 -- name: DeleteBlocklistEntry :execrows
--- Scoped to the series so an unblock cannot reach another series' entry.
+-- Scoped to the series so an unblock cannot delete another series' entry.
 DELETE FROM release_blocklist
 WHERE id = ? AND series_id = ?;
 
@@ -45,13 +45,13 @@ DELETE FROM release_blocklist
 WHERE series_id = ?;
 
 -- name: DeleteExpiredBlocklistByTitle :execrows
--- A permanent entry (NULL blocked_until) is never expired, so it survives this.
+-- A permanent entry (NULL blocked_until) never expires, so this never deletes it.
 DELETE FROM release_blocklist
 WHERE series_id = ? AND blocked_until IS NOT NULL AND blocked_until <= ?;
 
 -- name: DeleteAllBlocklist :execrows
--- Library-wide clear: an environmental fault does not respect series
--- boundaries, so neither does recovery from one.
+-- Library-wide clear: an environmental fault is not confined to one series,
+-- so recovery from one is not either.
 DELETE FROM release_blocklist;
 
 -- name: CountActiveBlocklist :one

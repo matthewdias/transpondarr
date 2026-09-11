@@ -134,8 +134,8 @@ type ListGrabsByInfoHashRow struct {
 }
 
 // One release's rows, in episode order: the group the importer settles together.
-// item_in_library rides along because it is what makes an import a replacement (#97);
-// format and year ride along because the library target routes and names on them (#198).
+// item_in_library is selected because it is what makes an import a replacement (#97);
+// format and year are selected because the library target routes and names on them (#198).
 // The three grab row shapes stay parallel: a retry converts between two of them.
 func (q *Queries) ListGrabsByInfoHash(ctx context.Context, infoHash string) ([]ListGrabsByInfoHashRow, error) {
 	rows, err := q.db.QueryContext(ctx, listGrabsByInfoHash, infoHash)
@@ -420,8 +420,8 @@ type SetGrabStatusParams struct {
 	ID     int64  `json:"id"`
 }
 
-// Every status but grabbed is settled, so a stale import error never survives
-// a transition.
+// Every status but grabbed is settled, so a transition always clears a stale
+// import error.
 func (q *Queries) SetGrabStatus(ctx context.Context, arg SetGrabStatusParams) error {
 	_, err := q.db.ExecContext(ctx, setGrabStatus, arg.Status, arg.ID)
 	return err

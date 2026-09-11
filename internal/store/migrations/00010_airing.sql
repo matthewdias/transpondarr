@@ -9,7 +9,7 @@ ALTER TABLE wanted_items ADD COLUMN airs_at TEXT;
 ALTER TABLE series ADD COLUMN airing_synced_at TEXT;
 
 -- Duplicates should not exist (AddSeries expands 1..N exactly once), but a live
--- upgrade must not fail on one. The survivor is the row carrying state — had
+-- upgrade must not fail on one. The row kept is the one with state — had
 -- first, then grabbed, then oldest — since deleting it would cascade its grab away.
 DELETE FROM wanted_items WHERE id IN (
     SELECT id FROM (

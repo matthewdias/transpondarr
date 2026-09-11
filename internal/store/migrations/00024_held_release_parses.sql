@@ -1,14 +1,14 @@
 -- +goose Up
--- The parse of the release a wanted item holds (issue #185). Cutoff Unmet
--- decides membership by scoring every held release on every request, and
+-- The parse of a wanted item's held release (issue #185). Cutoff Unmet
+-- computes membership by scoring every held release on every request, and
 -- parsing a title costs ~113x what scoring the parse does -- so the tab was at
 -- its most expensive exactly when a library was healthy and nothing qualified.
 -- Only the parse is cached: it is a pure function of the stored title, where a
 -- score depends on the profile and would have to be invalidated whenever one
 -- was edited. release_title is the parse's own key rather than a record of it:
 -- the read joins on it, so a row left behind by a superseded release simply
--- does not match, and the one writer of wanted_items.held_release_title needs
--- no knowledge of this table. One row per item, overwritten in place, so the
+-- does not match, and the one writer of wanted_items.held_release_title never
+-- touches this table. One row per item, overwritten in place, so the
 -- table stays bounded by wanted_items and needs no retention. No backfill --
 -- SQL cannot run the parser, so the rows are filled as the listing reads them.
 -- parser_version is the second half of the key: a title alone does not identify

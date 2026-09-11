@@ -3,7 +3,7 @@
 -- matching metadata.Candidate.Year, so no read site grows a .Valid check.
 ALTER TABLE series ADD COLUMN year INTEGER NOT NULL DEFAULT 0;
 
--- Re-key items a pre-#208 movie add created as episodes. Load-bearing, not
+-- Re-key items a pre-#208 movie add created as episodes. Necessary, not
 -- tidying: idx_wanted_items_identity is (series_id, kind, number), so a new
 -- ('movie', 1) would not conflict with a legacy ('episode', 1) and the first
 -- refresh after deploy would silently double every pre-existing movie.
