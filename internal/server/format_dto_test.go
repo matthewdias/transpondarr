@@ -5,11 +5,11 @@ import (
 	"testing"
 )
 
-// The three list DTOs a movie reaches without carrying its format (#215). Each
-// is a word away from calling a film an episode, and format is the only thing
+// The three list DTOs a movie appears in without its format (#215). Each is a
+// word away from labelling a film an episode, and format is the only thing
 // that can stop it: item count cannot, because a one-episode OVA is a series
-// (#208). Every one of these rides a join to series that already existed, so
-// this asserts the column reaches the wire, not that a query grew.
+// (#208). Every one of these uses a join to series that already existed, so
+// this asserts the column is serialized, not that a query grew.
 func TestMissingGroupCarriesTheTitleFormat(t *testing.T) {
 	h := wantedHarness(t)
 	movieID := seedMovie(t, h.store, "Placeholder Film", 2019)

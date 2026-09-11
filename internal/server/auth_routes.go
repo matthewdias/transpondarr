@@ -119,7 +119,7 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
-		// The settings inputs' rule (#227) reaches here too: the service reads an
+		// The settings inputs' rule (#227) applies here too: the service reads an
 		// absent mode as "enabled", which would lock a local install out.
 		if !auth.ValidRequired(in.Required) {
 			http.Error(w, "required must be enabled or local", http.StatusBadRequest)
@@ -174,7 +174,7 @@ func clearSessionCookie(w http.ResponseWriter, req *http.Request) {
 	})
 }
 
-// isHTTPS reports whether the original request was over TLS, honouring a reverse
+// isHTTPS reports whether the original request was over TLS, reading a reverse
 // proxy's X-Forwarded-Proto so the Secure cookie flag is set on HTTPS deployments.
 func isHTTPS(req *http.Request) bool {
 	return req.TLS != nil || strings.EqualFold(req.Header.Get("X-Forwarded-Proto"), "https")
@@ -196,7 +196,7 @@ func passwordAttemptLimiter() func(http.Handler) http.Handler {
 }
 
 // keyByRemoteAddr keys the limiter on the peer address (host without port). It
-// uses RemoteAddr, not forwarding headers (httprate.KeyByIP/KeyByRealIP trust
+// uses RemoteAddr, not forwarding headers (httprate.KeyByIP/KeyByRealIP read
 // those), since they're client-controllable; behind a reverse proxy this is
 // coarse (the proxy's address), which is acceptable for a single-admin lockout.
 func keyByRemoteAddr(req *http.Request) (string, error) {

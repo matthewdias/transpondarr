@@ -15,7 +15,7 @@ import (
 )
 
 // An install that has never set the key gets the default, not zero -- zero is
-// the deliberate "never give up" and must be reachable only on purpose.
+// the deliberate "no stall timeout" and must be set only on purpose.
 func TestStallTimeoutDefaultsWhenUnset(t *testing.T) {
 	svc, _, _ := newTestService(t)
 
@@ -27,7 +27,7 @@ func TestStallTimeoutDefaultsWhenUnset(t *testing.T) {
 	}
 }
 
-// The saved value applies live and survives a restart, and 0 disables rather
+// The saved value applies live and persists across a restart, and 0 disables rather
 // than meaning "immediately".
 func TestUpdateDownloadPersistsStallHours(t *testing.T) {
 	svc, _, st := newTestService(t)
@@ -72,14 +72,14 @@ func TestStallHoursAreClampedBeforePersisting(t *testing.T) {
 	if got, want := svc.StallTimeout(), domain.MaxStallHours*time.Hour; got != want {
 		t.Errorf("StallTimeout() = %v, want the clamped %v", got, want)
 	}
-	// Stored clamped, so a reload agrees with the live state rather than re-clamping.
+	// Stored clamped, so a reload matches the live state rather than re-clamping.
 	if got, _ := st.Q.GetSetting(ctx, keyDownloadStallHours); got != "8760" {
 		t.Errorf("persisted %q, want the clamped %q", got, "8760")
 	}
 }
 
-// The env baseline is the floor the DB override sits on, and an unparseable one
-// degrades to the default rather than taking the daemon down.
+// The env baseline is what a DB override applies on top of, and an unparseable one
+// degrades to the default rather than stopping the daemon starting.
 func TestStallHoursFromEnvBaseline(t *testing.T) {
 	for _, tc := range []struct {
 		env  string

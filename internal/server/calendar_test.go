@@ -110,7 +110,7 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 	}
 }
 
-// Calendar items carry the same derived status vocabulary as title detail.
+// Calendar items use the same derived status vocabulary as title detail.
 func TestCalendarDerivesItemStatus(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	ctx := context.Background()
@@ -240,8 +240,8 @@ func TestCalendarSeparatesNeverCheckedFromNoSchedule(t *testing.T) {
 	}
 }
 
-// Format is what tells a film's premiere from an episode, and a film with a TV
-// premiere reaches the calendar today: without it the entry renders as "Ep 01".
+// Format is what distinguishes a film's premiere from an episode, and a film with
+// a TV premiere appears on the calendar today: without it the entry renders as "Ep 01".
 func TestCalendarCarriesFormat(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	titleID := seedTitle(t, h.store, "Airing Show", 1)
@@ -269,7 +269,7 @@ func TestCalendarCarriesFormat(t *testing.T) {
 }
 
 // The two halves of the null-date rule: a film AniList dates is placed, and one
-// it gives only a year for stays in the footer rather than being invented onto
+// AniList reports only a year for stays in the footer rather than being invented onto
 // January 1st.
 func TestCalendarPlacesADatedFilmAndFootnotesAYearOnlyOne(t *testing.T) {
 	h := newHarness(t, nil, nil)
@@ -290,7 +290,7 @@ func TestCalendarPlacesADatedFilmAndFootnotesAYearOnlyOne(t *testing.T) {
 }
 
 // Dating a film makes it ungrabbable until its premiere, which is right — but
-// the library list must still count it as something being pursued, or the title
+// the library list must still count it as something being acquired, or the title
 // reads "Nothing aired yet" from the day it gains a date.
 func TestAnnouncedFilmStaysTracked(t *testing.T) {
 	h := newHarness(t, nil, nil)
@@ -316,7 +316,7 @@ func TestAnnouncedFilmStaysTracked(t *testing.T) {
 	if got[movieID] != 1 {
 		t.Errorf("film tracked = %d, want 1: an announced film is still being waited on", got[movieID])
 	}
-	// The episodic cut is untouched: episode 2 has not aired, so it is not pursued.
+	// The episodic cut is unchanged: episode 2 has not aired, so it is not counted.
 	if got[showID] != 1 {
 		t.Errorf("series tracked = %d, want 1 (only the aired episode)", got[showID])
 	}

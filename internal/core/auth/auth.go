@@ -1,6 +1,6 @@
 // Package auth implements forms-based authentication: a single admin
 // account (username + argon2id-hashed password) and opaque server-side login
-// sessions carried in an httpOnly cookie. It is deliberately separate from the
+// sessions sent in an httpOnly cookie. It is deliberately separate from the
 // API key — the key authenticates machines (dashboards, scripts), while humans
 // log in and get a session. Credentials and the required-mode live in the
 // settings table; sessions live in their own table.
@@ -81,7 +81,7 @@ type state struct {
 	required string
 }
 
-// Service holds the admin credentials and required-mode and manages sessions.
+// Service exposes the admin credentials and required-mode and manages sessions.
 type Service struct {
 	mu       countingMutex // serializes writers; readers never take it
 	store    *store.Store
@@ -140,7 +140,7 @@ func normalizeRequired(m string) string {
 }
 
 // ValidRequired reports whether m is a recognised required-mode. Exact, unlike
-// normalizeRequired, which reads what a stored value or an env var may hold.
+// normalizeRequired, which reads what a stored value or an env var may contain.
 func ValidRequired(m string) bool {
 	switch m {
 	case RequiredEnabled, RequiredLocal:
@@ -225,13 +225,13 @@ func (s *Service) SetRequired(ctx context.Context, mode string) error {
 		return err
 	}
 	// Publishing after the persist means a tightening takes effect a write later:
-	// local admits its last requests rather than parking them until it is stored.
+	// local admits its last requests rather than blocking them until it is stored.
 	s.publish(func(next *state) { next.required = mode })
 	return nil
 }
 
-// publish swaps in a modified copy of the snapshot, so a writer carries the
-// fields it does not touch by construction. Callers hold s.mu.
+// publish swaps in a modified copy of the snapshot, so a writer preserves the
+// fields it does not change by construction. Callers hold s.mu.
 func (s *Service) publish(mutate func(*state)) {
 	next := *s.state.Load()
 	mutate(&next)

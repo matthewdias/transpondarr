@@ -20,10 +20,10 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// titleDTO carries two denominators deliberately: tracked is what the title is
-// actually pursuing (monitored and broadcast), total is every item it has. total
-// keeps its old meaning because narrowing it in place would be a silent break
-// for API clients.
+// titleDTO reports two denominators deliberately: tracked counts the items
+// automation will act on (monitored and broadcast), total counts every item on
+// the title. total keeps its old meaning because narrowing it in place would be a
+// silent break for API clients.
 type titleDTO struct {
 	ID             int64  `json:"id"`
 	Title          string `json:"title"`
@@ -64,17 +64,17 @@ type titleDetailDTO struct {
 	Items      []wantedItemDTO `json:"items"`
 }
 
-// provider is required rather than defaulted: a default hides which id space the
-// caller meant, which is the bug class the pair exists to prevent.
+// provider is required rather than defaulted: a default does not record which id
+// space the caller meant, which is the bug class the pair exists to prevent.
 type addTitleInput struct {
 	Body struct {
 		Provider   string `json:"provider" required:"true" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
 		ProviderID int64  `json:"provider_id" required:"true" minimum:"1" doc:"The provider's id for the title to add"`
 		Monitored  *bool  `json:"monitored,omitempty" doc:"Whether to monitor for downloads (default true)"`
 		// The default must stay "all": an omitted field has to keep meaning
-		// today's behaviour for a client that never learned about the choice.
+		// today's behaviour for a client written before the choice existed.
 		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future" default:"all" doc:"Which items to monitor, now and as the title grows: all, or only those that have not yet aired"`
-		// Carried in the add so it is one atomic write; omitted (0) takes the
+		// Included in the add so it is one atomic write; omitted (0) takes the
 		// default profile, which stays right as that default changes.
 		QualityProfileID int64 `json:"quality_profile_id,omitempty" minimum:"1" doc:"Quality profile to assign; omitted takes the default profile"`
 	}
@@ -157,7 +157,7 @@ type setPinnedGroupOutput struct {
 }
 
 // count is required with no default, per #227: an omitted field must not be
-// able to choose a value, least of all the numbering bound decide reads.
+// able to set a value, least of all the numbering bound decide reads.
 type setItemCountInput struct {
 	ID   int64 `path:"id" doc:"Title id"`
 	Body struct {
@@ -197,10 +197,10 @@ type titleGrabsOutput struct {
 	}
 }
 
-// titleHandler owns the dependencies shared by the title endpoints — the
+// titleHandler groups the dependencies shared by the title endpoints — the
 // read/CRUD handlers here and the acquisition handlers in
-// titles_acquisition_routes.go. Bundling them on a receiver lets both files hang
-// handlers off the same type and share helpers like requireTitle without
+// titles_acquisition_routes.go. Bundling them on a receiver lets both files
+// define handlers on the same type and share helpers like requireTitle without
 // threading deps through every call.
 type titleHandler struct {
 	store   *store.Store
@@ -315,8 +315,8 @@ func (h *titleHandler) listTitles(ctx context.Context, _ *struct{}) (*listTitles
 		return nil, huma.Error500InternalServerError("failed to list series", err)
 	}
 	// A second pass rather than a wider aggregate: the state reads the item's
-	// grab, which no GROUP BY can carry, and deriving it once here keeps the
-	// counts query -- and so a series' progress column -- untouched.
+	// grab, which no GROUP BY can express, and deriving it once here keeps the
+	// counts query -- and so a series' progress column -- unchanged.
 	movieRows, err := h.store.Q.ListMovieItemStates(ctx)
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to load movie item state", err)
@@ -487,7 +487,7 @@ func (h *titleHandler) getTitle(ctx context.Context, in *getTitleInput) (*getTit
 }
 
 // deleteTitle removes a title and, via FK cascades, its wanted items, grabs,
-// and blocklist memory. The client removal runs first so a refusal leaves the
+// and blocklist entries. The client removal runs first so a failure leaves the
 // title intact and the delete retryable; delete-first would orphan torrents
 // with no record and no retry path.
 func (h *titleHandler) deleteTitle(ctx context.Context, in *deleteTitleInput) (*struct{}, error) {
@@ -500,7 +500,7 @@ func (h *titleHandler) deleteTitle(ctx context.Context, in *deleteTitleInput) (*
 			return nil, huma.Error500InternalServerError("failed to load grabs", err)
 		}
 		// Every status but failed still has a client entry: imported torrents seed
-		// and deferred payloads sit in the client; failed means errored or gone.
+		// and deferred payloads remain in the client; failed means errored or gone.
 		seen := make(map[string]bool, len(grabs))
 		hashes := make([]string, 0, len(grabs))
 		for _, g := range grabs {
@@ -541,8 +541,8 @@ func (h *titleHandler) setMonitored(ctx context.Context, in *setMonitoredInput) 
 	}); err != nil {
 		return nil, huma.Error500InternalServerError("failed to update series", err)
 	}
-	// Monitoring a title again asks for it to be looked after now, not once a
-	// backoff accumulated before it was paused has run down.
+	// Monitoring a title again means searching it now, not once a backoff
+	// accumulated before it was paused has run down.
 	if in.Body.Monitored {
 		if err := h.store.Q.ResetTitleSearchState(ctx, in.ID); err != nil {
 			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
@@ -555,7 +555,7 @@ func (h *titleHandler) setMonitored(ctx context.Context, in *setMonitoredInput) 
 }
 
 // Guarded to a title with no items: it bounds the escape hatch to the dead end
-// it exists for, since maxItem is the bound decide uses to distrust a release's
+// it exists for, since maxItem is the bound decide uses to reject a release's
 // own numbering and raising it on a healthy title would make that guard inert.
 func (h *titleHandler) setItemCount(ctx context.Context, in *setItemCountInput) (*setItemCountOutput, error) {
 	created, err := h.catalog.SetItemCount(ctx, in.ID, in.Body.Count)
@@ -574,8 +574,8 @@ func (h *titleHandler) setItemCount(ctx context.Context, in *setItemCountInput) 
 
 func (h *titleHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupInput) (*setPinnedGroupOutput, error) {
 	group := strings.TrimSpace(in.Body.Group)
-	// PUT replaces: an omitted delay falls back to the global default, and a
-	// cleared group takes its delay with it.
+	// PUT replaces: an omitted delay falls back to the global default, and
+	// clearing the group clears its delay too.
 	var delay sql.NullInt64
 	if group != "" && in.Body.DelayHours != nil {
 		delay = sql.NullInt64{Int64: int64(*in.Body.DelayHours), Valid: true}

@@ -165,7 +165,7 @@ func TestNotifyUnsetTogglesParseEnabled(t *testing.T) {
 }
 
 // The stored toggle key is a literal, so #207's rename of the event kind must
-// not disturb settings saved before it. Seeded under the old key, read out
+// not affect settings saved before it. Seeded under the old key, read out
 // against the new kind.
 func TestNotifyStoredSeriesAddedKeySurvivesTheTitleRename(t *testing.T) {
 	for _, tc := range []struct {

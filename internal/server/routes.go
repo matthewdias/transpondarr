@@ -38,8 +38,8 @@ type routeDeps struct {
 
 // registerRoutes wires every Huma endpoint. Handlers are grouped by resource in
 // sibling *_routes.go files; this is just the manifest of which groups exist.
-// Larger groups (title, settings) hang their handlers off a per-resource
-// receiver struct; single-route groups keep them as inline closures.
+// Larger groups (title, settings) define their handlers as methods on a
+// per-resource receiver struct; single-route groups keep them as inline closures.
 func registerRoutes(api huma.API, deps routeDeps) {
 	registerSystemRoutes(api, deps)
 	registerMetadataRoutes(api, deps)

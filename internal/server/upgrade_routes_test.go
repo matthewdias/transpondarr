@@ -12,7 +12,7 @@ import (
 )
 
 // upgradeProfileJSON is profileJSON plus the upgrade policy, so a round-trip
-// test can assert the new fields survive create, update and read.
+// test can assert the new fields persist through create, update and read.
 type upgradeProfileJSON struct {
 	profileJSON
 	UpgradesEnabled      bool `json:"upgrades_enabled"`
@@ -30,8 +30,8 @@ func hold(t *testing.T, h *harness, titleID int64, number int, release string) {
 	}
 }
 
-// The upgrade policy is profile data, so it has to survive the same round trip
-// the rest of the profile does.
+// The upgrade policy is profile data, so it has to persist through the same round
+// trip the rest of the profile does.
 func TestProfileUpgradePolicyRoundTrips(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	in := profileInput("Upgrading", map[string]any{
@@ -84,7 +84,7 @@ func TestProfileUpgradePolicyRoundTrips(t *testing.T) {
 	}
 }
 
-// A release that only covers items we hold is a match now, so a manual grab of
+// A release that only covers items we have is a match now, so a manual grab of
 // it succeeds in one request like every other manual grab (PR #57).
 func TestGrabOfAHeldOnlyReleaseSucceeds(t *testing.T) {
 	const matchURL = "magnet:?xt=urn:btih:0000000000000000000000000000000000000003"
@@ -117,7 +117,7 @@ func TestGrabOfAHeldOnlyReleaseSucceeds(t *testing.T) {
 	if len(r.Items) != 1 || r.Items[0] != 3 {
 		t.Errorf("items = %v, want [3]", r.Items)
 	}
-	// The default profile never opted in, so automation would refuse it — which
+	// The default profile never opted in, so automation would reject it — which
 	// the Releases tab shows rather than enforces.
 	if len(r.UpgradeItems) != 0 {
 		t.Errorf("upgrade_items = %v, want none while the profile is opted out", r.UpgradeItems)

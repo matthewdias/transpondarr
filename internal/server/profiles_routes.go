@@ -96,7 +96,7 @@ type assignTitleProfileOutput struct {
 	}
 }
 
-// profilesHandler owns the quality-profile CRUD plus the per-title assignment
+// profilesHandler groups the quality-profile CRUD plus the per-title assignment
 // (registered here rather than with the title routes because its only logic is
 // profile validity).
 type profilesHandler struct {
@@ -263,7 +263,7 @@ func writeGroups(ctx context.Context, q *db.Queries, profileID int64, groups []p
 
 // requireNameFree applies to profile names the case-insensitive rule validate
 // already applies to group names. Callers must skip it when the name is not
-// changing, since a row can hold a name this refuses (see update).
+// changing, since a stored row can contain a name this rejects (see update).
 func requireNameFree(ctx context.Context, q *db.Queries, name string) error {
 	_, err := q.GetQualityProfileByName(ctx, name)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -386,7 +386,7 @@ func (h *profilesHandler) update(ctx context.Context, in *updateProfileInput) (*
 	} else if gerr != nil {
 		return nil, huma.Error500InternalServerError("failed to load profile", gerr)
 	}
-	// Only an actual rename is checked: an install predating this rule can hold
+	// Only an actual rename is checked: an install predating this rule can contain
 	// Anime and anime, and the second row's own lookup returns the first.
 	name := strings.TrimSpace(in.Body.Name)
 	if !strings.EqualFold(name, current.Name) {

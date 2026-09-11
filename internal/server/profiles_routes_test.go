@@ -40,7 +40,7 @@ type profileJSON struct {
 // endpoint takes no partial one (#227), so a test states only what it is about.
 // resolution_order and upgrade_v2_above_cutoff restate the quality_profiles
 // column defaults (00009, 00017), as profile-editor-state.ts does — nothing ties
-// the three together, so a changed default has to be carried here by hand.
+// the three together, so a changed default has to be copied here by hand.
 func profileInput(name string, over map[string]any) map[string]any {
 	in := map[string]any{
 		"name":                    name,
@@ -174,7 +174,7 @@ func TestProfileCRUDAndTitleAssignment(t *testing.T) {
 		t.Errorf("series quality_profile_id = %d, want %d", detail.QualityProfileID, created.ID)
 	}
 
-	// --- delete while in use: refused with the conflict explained -------------
+	// --- delete while in use: rejected with the conflict explained ------------
 	var errOut struct {
 		Detail string `json:"detail"`
 	}
@@ -341,7 +341,7 @@ func TestUpdateProfileRejectsNameTakenByAnother(t *testing.T) {
 		}
 	}
 
-	// A refused rename must have written nothing.
+	// A rejected rename must have written nothing.
 	var list struct {
 		Profiles []profileJSON `json:"profiles"`
 	}
@@ -415,7 +415,7 @@ func TestUpdateUnknownProfileIsNotFound(t *testing.T) {
 	}
 }
 
-// A pre-#90 install can hold Anime and anime, which nothing dedupes; the newer
+// A pre-#90 install can contain Anime and anime, which nothing dedupes; the newer
 // row must stay savable rather than answering 409 to its own name.
 func TestUpdateProfileWithPreExistingCaseVariantName(t *testing.T) {
 	h := newHarness(t, nil, nil)
@@ -445,7 +445,7 @@ func TestUpdateProfileWithPreExistingCaseVariantName(t *testing.T) {
 		t.Errorf("recasing its own name = %d, want 200", c)
 	}
 
-	// Renaming it onto the other row's exact name is still refused, by the
+	// Renaming it onto the other row's exact name is still rejected, by the
 	// binary unique constraint rather than by the pre-check.
 	if c := do(t, h, "PUT", second, profileInput("Anime", nil), nil); c != http.StatusConflict {
 		t.Errorf("collapsing the pair = %d, want 409", c)

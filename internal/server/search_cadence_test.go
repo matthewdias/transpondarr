@@ -23,7 +23,7 @@ func searchCadence(t *testing.T, h *harness, titleID int64) (int, *string) {
 	return backoff, next
 }
 
-// Re-monitoring a title is a request for it to be looked after now, not once
+// Re-monitoring a title is a request for it to be searched now, not once
 // the backoff it accumulated before being paused has run down.
 func TestEnableMonitoringResetsSearchCadence(t *testing.T) {
 	h := newHarness(t, nil, nil)
@@ -45,7 +45,7 @@ func TestEnableMonitoringResetsSearchCadence(t *testing.T) {
 }
 
 // Changing the pin changes what the sweep is waiting for, so the wait it is
-// currently serving is stale. Without the reset, dropping a 48h wait to 2h — or
+// currently applying is stale. Without the reset, dropping a 48h wait to 2h — or
 // pinning an entirely different group — does nothing until the old window
 // closes, which reads as the setting having been ignored.
 func TestRepinningResetsSearchCadence(t *testing.T) {

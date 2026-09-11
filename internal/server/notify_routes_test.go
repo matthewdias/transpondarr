@@ -131,7 +131,7 @@ func TestNotificationTestEndpoints(t *testing.T) {
 		t.Errorf("ntfy test with no topic = %d, want 422", code)
 	}
 
-	// A refusing endpoint → 502.
+	// A rejecting endpoint → 502.
 	refuse := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 	}))

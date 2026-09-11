@@ -21,7 +21,7 @@ import (
 
 // TestGrabThenImportLifecycle exercises the whole item lifecycle across the two
 // halves that were previously only tested in isolation: a grab recorded by the
-// HTTP handler (status "grabbed", in_library=false) is picked up by the importer
+// HTTP handler (status "grabbed", in_library=false) is found by the importer
 // once its download completes, placed in the library, and the item becomes held.
 // The importer reads the very registry the server writes to, so this is the real
 // wiring, not a reconstructed mapping.
@@ -268,7 +268,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
 
-	// Complete, but at a path Transpondarr cannot see (a path-mapping gap).
+	// Complete, but at a path Transpondarr cannot read (a path-mapping gap).
 	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete,
 		ContentPath: filepath.Join(t.TempDir(), "unmapped", "raw.mkv")}}
 	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
@@ -297,7 +297,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 	}
 
 	// History records lifecycle moments, not live trouble: an import failure
-	// stays out of it (#111), owned by the stuck status and the queue instead.
+	// stays out of it (#111), reported by the stuck status and the queue instead.
 	var hist struct {
 		Events []struct {
 			Status string `json:"status"`
@@ -331,7 +331,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 }
 
 // TestImportErrorOnlyReportedWhileStuck: import_error is part of the stuck
-// contract, so a status that is not stuck must never carry one. Since #97 an
+// contract, so a status that is not stuck must never report one. Since #97 an
 // item that is had with an open grab reads as an upgrade in flight, which is
 // what this shape -- a failed status write after a successful Place -- now
 // looks like from outside.

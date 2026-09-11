@@ -20,9 +20,9 @@ import (
 // queued search triggers rather than issuing indexer requests itself.
 const sweepJobName = "wanted-search"
 
-// lastPassDTO dates the one stored reason a row can carry (#181). It is emitted
-// only when the pass tier won: everything else is computed at request time, and
-// an "as of" on a fresh answer would be a lie about how it was reached.
+// lastPassDTO dates the one stored reason a row can show (#181). It is emitted
+// only when the pass tier won: everything else is computed at request time,
+// and an "as of" on a fresh answer would misreport how it was derived.
 type lastPassDTO struct {
 	ReleaseTitle string `json:"release_title,omitempty" doc:"The release the pass acted on or turned down; absent when nothing matched"`
 	Source       string `json:"source" enum:"sweep,feed" doc:"Which entry point decided; only a search ever reports no_match"`
@@ -30,10 +30,10 @@ type lastPassDTO struct {
 	HeldUntil    string `json:"held_until,omitempty" format:"date-time" doc:"When a pinned-group hold expires (reason pin_held)"`
 }
 
-// missingItemDTO is one item still worth acquiring. It carries no derived status
+// missingItemDTO is one item still worth acquiring. It reports no derived status
 // because the listing's predicate admits only wanted ones -- an in-flight grab
 // is Activity's row, not this page's. Its reason covers only what varies row to
-// row; the title's story lives on the group and the page's on global_reason.
+// row; the title's reason lives on the group and the page's on global_reason.
 type missingItemDTO struct {
 	ID           int64        `json:"id"`
 	Number       int          `json:"number"`
@@ -202,7 +202,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	out.Body.GlobalReason = globalReason(h.deps.clients.Indexer() != nil,
 		h.deps.settings.Snapshot().Automation.Mode)
 
-	// One past the page, to learn whether a next page exists.
+	// One past the page, to detect whether a next page exists.
 	titleRows, err := h.deps.store.Q.ListMissingTitlesPage(ctx, db.ListMissingTitlesPageParams{
 		Column1:  boolParam(in.Unmonitored),
 		Column2:  boolParam(in.Unaired),
@@ -220,9 +220,9 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		titleRows = titleRows[:in.Limit]
 	}
 	// The page's weight is rows, not groups, so it also closes on an item
-	// budget. The aggregate already says what each group will list, so the
-	// budget is applied before any items are fetched; the first group always
-	// ships, however large its cap.
+	// budget. The aggregate already reports what each group will list, so the
+	// budget is applied before any items are fetched; the first group is always
+	// included, however large its cap.
 	itemSum := 0
 	for i, s := range titleRows {
 		shown := min(int(s.Missing), acquire.ItemsPerGroup)
@@ -305,7 +305,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		items := itemsByTitle[s.ID]
 		if len(items) == 0 {
 			// The two queries are not one transaction; a grab settling between
-			// them empties a group, and an empty group is a lie about a count.
+			// them empties a group, and an empty group misreports the count.
 			continue
 		}
 		facts := titleFacts{
@@ -450,7 +450,7 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	qtx := h.deps.store.Q.WithTx(tx)
 
 	// Only where something will actually move: the update reports a row count,
-	// not which title it touched.
+	// not which title it changed.
 	var titleIDs []int64
 	if in.Body.Monitored {
 		titleIDs, err = qtx.ListTitleIDsForUnmonitoredItems(ctx, in.Body.ItemIDs)
@@ -481,7 +481,7 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 
 // resetSelected puts the named title back at the front of the sweep queue in
 // one transaction: a partial reset would leave half the selection queued behind
-// a 500, with nothing telling the caller which half.
+// a 500, with nothing in the response naming which half.
 func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
 	found, err := h.deps.store.Q.CountTitlesByIDs(ctx, ids)
 	if err != nil {
@@ -507,7 +507,7 @@ func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
 	return nil
 }
 
-// blockedCounts is how many releases each title currently refuses, keyed for
+// blockedCounts is how many releases each title currently blocks, keyed for
 // the per-row lookup the reason column does. Scoped to the page's title.
 func (h *wantedHandler) blockedCounts(ctx context.Context, ids []int64, now sql.NullString) (map[int64]int64, error) {
 	rows, err := h.deps.store.Q.ListActiveBlocklistCounts(ctx, db.ListActiveBlocklistCountsParams{
@@ -548,7 +548,7 @@ func boolParam(on bool) int64 {
 }
 
 // storedTime parses a stored timestamp, an unset or unparseable one reading as
-// the zero time -- which the reason derivation takes as "unknown", never as a
+// the zero time -- which the reason derivation reads as "unknown", never as a
 // date in the past or future.
 func storedTime(stored sql.NullString) time.Time {
 	if !stored.Valid {

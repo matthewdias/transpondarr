@@ -9,7 +9,7 @@ import (
 
 // The provider enum is filled at runtime from ProviderName(), so it must widen
 // in step with what is configured or the server serves responses its own spec
-// rejects. It earns the tag by giving the frontend a narrow union type.
+// rejects. The tag is worth it: it narrows the frontend's union type.
 type candidateDTO struct {
 	Provider   string `json:"provider" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
 	ProviderID int64  `json:"provider_id"`

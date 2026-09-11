@@ -74,7 +74,7 @@ func TestAutomationPersistedOverrideWinsOverEnv(t *testing.T) {
 	}
 }
 
-// #116: the toggle carries a third state. The stored value stays one key whose
+// #116: the toggle gained a third state. The stored value stays one key whose
 // domain widened, so every legacy "true"/"false" — persisted or env — must keep
 // meaning what it always did.
 func TestAutomationModeParsing(t *testing.T) {
@@ -122,7 +122,7 @@ func TestUpdateAutomationRejectsUnknownMode(t *testing.T) {
 	}
 }
 
-// backedOffTitles inserts a title parked at the far end of the backoff ladder,
+// backedOffTitles inserts a title at the far end of the backoff ladder,
 // which is where a stretch of notify-only leaves every rehearsed title.
 func backedOffTitles(t *testing.T, svc *Service) int64 {
 	t.Helper()
@@ -149,9 +149,9 @@ func searchCadence(t *testing.T, svc *Service, id int64) (backoff int64, next sq
 	return backoff, next
 }
 
-// #116: a rehearsed pass settles nothing, so it climbs the backoff ladder and
-// the feed has already consumed what it reported. Switching on has to clear that
-// cadence, or the first real sweep for a rehearsed title is up to a day away.
+// #116: a rehearsed pass settles nothing, so its backoff escalates and the feed
+// will not re-offer what it reported. Switching on has to clear that cadence, or
+// the first real sweep for a rehearsed title is up to a day away.
 func TestUpdateAutomationResetsCadenceWhenSwitchedOn(t *testing.T) {
 	ctx := context.Background()
 	svc := newServiceWith(t, &config.Config{AutomationEnabled: "notify_only"}, nil)
@@ -191,7 +191,7 @@ func TestUpdateAutomationLeavesCadenceAloneOtherwise(t *testing.T) {
 }
 
 // An unparseable value degrades to the default rather than failing startup: a
-// typo in one setting must not take the whole daemon down.
+// typo in one setting must not stop the whole daemon starting.
 func TestAutomationUnparseableValueDegradesToDefault(t *testing.T) {
 	svc := newServiceWith(t, &config.Config{}, map[string]string{
 		keyAutomationEnabled:  "yes-please",
@@ -271,7 +271,7 @@ func TestUpdateAutomationPersistsAcrossRestart(t *testing.T) {
 		t.Fatalf("update automation: %v", err)
 	}
 
-	// The env baseline still says off; only the persisted override carries the save.
+	// The env baseline still reads off; only the persisted override records the save.
 	restarted, err := New(ctx, st, &config.Config{}, clients.New(), log)
 	if err != nil {
 		t.Fatalf("restart service: %v", err)
@@ -284,7 +284,7 @@ func TestUpdateAutomationPersistsAcrossRestart(t *testing.T) {
 	}
 }
 
-// The HTTP layer hands through whatever a client sent, so the clamp has to hold
+// The HTTP layer passes through whatever a client sent, so the clamp has to apply
 // on the write path too, not only when parsing a stored value.
 func TestUpdateAutomationClampsPinDelay(t *testing.T) {
 	ctx := context.Background()
@@ -308,7 +308,7 @@ func TestUpdateAutomationClampsPinDelay(t *testing.T) {
 }
 
 // The Settings UI renders from the snapshot, so a control cannot show its own
-// current value unless the snapshot carries it.
+// current value unless the snapshot includes it.
 func TestSnapshotCarriesAutomation(t *testing.T) {
 	svc := newServiceWith(t, &config.Config{AutomationEnabled: "true", PinDelayHours: "12"}, nil)
 	got := svc.Snapshot().Automation

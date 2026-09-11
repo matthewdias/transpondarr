@@ -43,8 +43,8 @@ func countRows(t *testing.T, st *store.Store, query string, args ...any) int {
 	return n
 }
 
-// Deleting a title removes it and everything hanging off it — wanted items,
-// grabs, blocklist memory — and, without the flag, never touches the download
+// Deleting a title removes it and everything that references it — wanted items,
+// grabs, blocklist entries — and, without the flag, never contacts the download
 // client.
 func TestDeleteTitleRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 	dl := &coretest.FakeDownload{}
@@ -153,7 +153,7 @@ func TestDeleteTitleRemoveDownloadsCollectsHashes(t *testing.T) {
 	}
 }
 
-// The flag with no configured client is a 503 and the title survives — but only
+// The flag with no configured client is a 503 and the title remains — but only
 // when there is actually something to remove; with no in-client grabs the client
 // is never needed.
 func TestDeleteTitleRemoveDownloadsWithoutClient(t *testing.T) {
@@ -182,7 +182,7 @@ func TestDeleteTitleRemoveDownloadsWithoutClient(t *testing.T) {
 	})
 }
 
-// Remove-first ordering: a client that refuses the removal leaves the title
+// Remove-first ordering: a client that rejects the removal leaves the title
 // intact and the whole delete retryable, rather than orphaning its torrents.
 func TestDeleteTitleClientFailureLeavesTheTitleIntact(t *testing.T) {
 	dl := &coretest.FakeDownload{RemoveErr: errors.New("qbit: refused")}

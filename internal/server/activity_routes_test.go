@@ -128,7 +128,7 @@ func TestActivityQueueReportsOpenGrabsWithClientState(t *testing.T) {
 	}
 }
 
-// A stalled row already reads as stalled; what it cannot say is that we are
+// A stalled row already reads as stalled; what it cannot report is that we are
 // going to act on it and when, which is the part abandon_at adds (#242).
 func TestActivityQueueReportsWhenAStallWillBeGivenUpOn(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
@@ -180,19 +180,19 @@ func TestActivityQueueReportsWhenAStallWillBeGivenUpOn(t *testing.T) {
 		t.Errorf("abandon_at = %q for a healthy download, want empty: nothing is going to happen to it", h.AbandonAt)
 	}
 	// A torrent that goes absent is settled on the grace period instead, and
-	// absence wins by construction, so the stall's deadline stops being the truth.
+	// absence wins by construction, so the stall's deadline stops being true.
 	if g := byID[gone.ID]; g.AbandonAt != "" {
 		t.Errorf("abandon_at = %q for a torrent the client no longer reports, want empty: the absence timer owns it now", g.AbandonAt)
 	}
-	// The stamp outlives the stall by up to one import scan, so the live status
-	// is what says whether a deadline is still real.
+	// The stamp persists past the stall by up to one import scan, so the live status
+	// is what determines whether a deadline is still real.
 	if r := byID[resumed.ID]; r.AbandonAt != "" {
 		t.Errorf("abandon_at = %q for a download that resumed, want empty: its stamp is only waiting to be cleared", r.AbandonAt)
 	}
 }
 
 // The countdown follows the predicate, not the word "stalled": a magnet fetching
-// metadata is being counted, and a torrent the client is holding back is not
+// metadata is being counted, and a torrent the client has queued is not
 // (#246).
 func TestActivityQueueCountsAMetadataStallButNotAQueuedDownload(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
@@ -356,7 +356,7 @@ func TestActivityHistoryEmpty(t *testing.T) {
 	}
 }
 
-// A failed attempt survives a re-grab in per-title history — the bug the
+// A failed attempt persists across a re-grab in per-title history — the bug the
 // grabs-table upsert baked in (each attempt overwrote the last).
 func TestTitleHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:00000000000000000000000000000000000000aa"

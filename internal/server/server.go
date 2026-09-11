@@ -37,11 +37,11 @@ func init() {
 }
 
 // Deps is everything New wires into the HTTP layer. Instances are shared with
-// the daemon's background jobs on purpose: Provider brings its rate limiter,
-// Blocklist its breaker (so it sees every failure path), Acquire its in-flight
-// claims (covering manual grabs and the jobs alike), and Importer is the very
-// instance the scan job runs on — a manual import fix and the scan serialize on
-// its mutex instead of racing over one payload.
+// the daemon's background jobs on purpose: one Provider is where the rate limiter
+// lives, one Blocklist where the breaker records every failure path, one Acquire
+// where the in-flight claims cover manual grabs and the jobs alike, and Importer
+// is the very instance the scan job runs on — a manual import fix and the scan
+// serialize on its mutex instead of racing over one payload.
 type Deps struct {
 	Store     *store.Store
 	Logger    *slog.Logger
@@ -87,8 +87,8 @@ func New(d Deps) http.Handler {
 }
 
 // OpenAPIYAML renders the API's OpenAPI 3.1 document without starting a server or
-// touching any live dependency — route registration only defines operations and
-// schemas, so zero-value deps are safe. Used by `transpondarrd openapi` to feed
+// using any live dependency — route registration only defines operations and
+// schemas, so zero-value deps are safe. Used by `transpondarrd openapi` to drive
 // frontend type generation (see `make gen-api`).
 func OpenAPIYAML() ([]byte, error) {
 	api := humachi.New(chi.NewMux(), apiConfig())
@@ -159,11 +159,11 @@ func authorized(req *http.Request, a *auth.Service, apiKeyFn func() string) bool
 	return false
 }
 
-// hasValidSession reports whether the request carries a valid browser login
+// hasValidSession reports whether the request includes a valid browser login
 // session (as opposed to being admitted by the API key or the local-address
-// bypass). The auth-status endpoint surfaces this so the UI knows when there is
-// an actual session to sign out of — in "local" mode a loopback client is
-// authorized with no session, so a "Sign out" action would otherwise be a no-op.
+// bypass). The auth-status endpoint surfaces this so the UI offers "Sign out"
+// only when there is a session to end — in "local" mode a loopback client is
+// authorized with no session, so the action would otherwise be a no-op.
 func hasValidSession(req *http.Request, a *auth.Service) bool {
 	c, err := req.Cookie(auth.SessionCookieName)
 	if err != nil {
@@ -195,10 +195,10 @@ func requiresAuth(p string) bool {
 	return true
 }
 
-// proxyHeaders are set by reverse proxies. If a request carries any of them it was
+// proxyHeaders are set by reverse proxies. If a request includes any of them it was
 // proxied, so the local-address bypass must not apply — otherwise a remote client
 // behind a same-host or LAN proxy that forwards under some other header name would
-// be mistaken for a local client and skip auth.
+// be read as a local client and skip auth.
 var proxyHeaders = []string{
 	"X-Forwarded-For", "X-Real-IP", "Forwarded",
 	"X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Server", "Via",
@@ -212,18 +212,18 @@ func proxied(req *http.Request) bool {
 }
 
 // isLocalRequest reports whether the request came from a loopback or private
-// address with no proxy-forwarding headers. Note: in "local" mode this trusts the
+// address with no proxy-forwarding headers. Note: in "local" mode this admits the
 // whole private range, not just the host — see SECURITY.md before exposing it.
 func isLocalRequest(req *http.Request) bool {
 	if proxied(req) {
 		return false
 	}
 	// DNS-rebinding guard: a private RemoteAddr only proves the TCP peer is on the
-	// LAN, not that the browser meant to reach a local host. A rebinding page
+	// LAN, not that the browser addressed a local host. A rebinding page
 	// (attacker.com re-pointed at this private IP) still connects from a private
-	// address, so it would otherwise clear the check above and skip auth. Requiring
+	// address, so it would otherwise pass the check above and skip auth. Requiring
 	// the Host header to be an IP literal or "localhost" — a value the attacker
-	// can't force into the victim's browser via DNS — defeats that. Reaching the
+	// can't force into the victim's browser via DNS — blocks that. Reaching the
 	// UI by a hostname in local mode therefore needs a real login (session/API key).
 	if !hostIsLocalLiteral(req.Host) {
 		return false

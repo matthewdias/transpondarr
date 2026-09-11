@@ -18,7 +18,7 @@ import (
 )
 
 // queueItemDTO is one in-flight grab with the live client-reported state
-// alongside the derived status the rest of the UI speaks.
+// alongside the derived status the rest of the UI uses.
 type queueItemDTO struct {
 	ID           int64    `json:"id"`
 	TitleID      int64    `json:"title_id"`
@@ -295,7 +295,7 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 	}, func(ctx context.Context, in *activityHistoryInput) (*activityHistoryOutput, error) {
 		limit := in.Limit
 
-		// Fetch one past the page to learn whether a next page exists.
+		// Fetch one past the page to detect whether a next page exists.
 		var rows []db.ListGrabEventsPageRow
 		if in.Cursor == "" {
 			var err error
@@ -346,7 +346,7 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 
 // abandonAt is when a stall the importer is counting will fail its grab. A
 // torrent the client is no longer trying on, no stamp, or a disabled timeout all
-// mean nothing is coming, and the row says nothing rather than inventing a deadline.
+// mean nothing is coming, and the row reports nothing rather than an invented deadline.
 func abandonAt(s download.Status, stalledSince sql.NullString, timeout time.Duration) (time.Time, bool) {
 	if !s.StuckAtZero() || !stalledSince.Valid || timeout <= 0 {
 		return time.Time{}, false
@@ -358,7 +358,7 @@ func abandonAt(s download.Status, stalledSince sql.NullString, timeout time.Dura
 	return since.Add(timeout), true
 }
 
-// downloadCategory is the safety boundary: only torrents carrying it are ours.
+// downloadCategory is the safety boundary: only torrents tagged with it are ours.
 // settings is nil only on the OpenAPI-dump path, where no handler runs.
 // downloadCategory is empty only when settings are absent: the settings layer
 // substitutes the default for a blank one, so the value is never normalized here
@@ -385,7 +385,7 @@ func (h *activityHandler) referencedHashes(ctx context.Context) (map[string]bool
 }
 
 // pickUnmatched keeps the torrents in our category that nothing references. A
-// blank category cannot tell ours from the user's, so it keeps nothing. It
+// blank category cannot distinguish ours from the user's, so it keeps nothing. It
 // re-checks the category even when the client already filtered: that filter is
 // an optional capability, so the fallback path arrives unfiltered.
 func pickUnmatched(statuses []download.Status, referenced map[string]bool, category string) []download.Status {
@@ -402,14 +402,14 @@ func pickUnmatched(statuses []download.Status, referenced map[string]bool, categ
 	return out
 }
 
-// listUnmatched surfaces the downloads nothing is waiting on. Removal stays the
+// listUnmatched surfaces the downloads no grab row references. Removal stays the
 // user's: a deferred payload is exactly what a human was about to fix by hand.
 func (h *activityHandler) listUnmatched(ctx context.Context, _ *struct{}) (*activityUnmatchedOutput, error) {
 	out := &activityUnmatchedOutput{}
 	out.Body.Items = []unmatchedItemDTO{}
 	category := h.downloadCategory()
 	dl := h.deps.clients.Download()
-	// Set before the scoped return: an unscoped listing asks the client nothing,
+	// Set before the scoped return: an unscoped listing makes no client request,
 	// so reporting a healthy client as unreachable would simply be false.
 	out.Body.ClientOk = dl != nil
 	out.Body.Scoped = category != ""
@@ -443,7 +443,7 @@ func (h *activityHandler) listUnmatched(ctx context.Context, _ *struct{}) (*acti
 	return out, nil
 }
 
-// removeUnmatched re-derives the set rather than trusting the listing: a scan or
+// removeUnmatched re-derives the set rather than reusing the listing: a scan or
 // a grab can adopt the hash between the render and the click.
 func (h *activityHandler) removeUnmatched(ctx context.Context, in *removeUnmatchedInput) (*struct{}, error) {
 	category := h.downloadCategory()

@@ -170,7 +170,7 @@ func TestCrossOriginSetupIsRefusedInEveryMode(t *testing.T) {
 // TestCrossOriginSetupIsRefusedBehindAProxy is the review's HIGH finding as an
 // end-to-end assertion. cloudflared, Tailscale Serve and any nginx that sets only
 // For and Proto send a forwarding header without X-Forwarded-Host, and the check
-// used to allow those outright -- which handed a hostile page the admin account on
+// used to allow those outright -- which let a hostile page create the admin account on
 // a fresh enabled install, the one thing this whole change exists to stop.
 func TestCrossOriginSetupIsRefusedBehindAProxy(t *testing.T) {
 	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredEnabled})

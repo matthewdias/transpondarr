@@ -12,7 +12,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/metadata"
 )
 
-// The provider enum carries the same runtime-vs-spec coupling as candidateDTO's.
+// The provider enum has the same runtime-vs-spec coupling as candidateDTO's.
 type seasonEntryDTO struct {
 	Provider     string     `json:"provider" enum:"anilist" doc:"Metadata provider whose id space provider_id is numbered in"`
 	ProviderID   int64      `json:"provider_id"`
@@ -74,7 +74,7 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 		out.Body.Entries = make([]seasonEntryDTO, 0, len(entries))
 		for _, e := range entries {
 			genres := e.Genres
-			// The schema promises a non-nullable array; a nil slice would marshal
+			// The schema declares a non-nullable array; a nil slice would marshal
 			// as null and break that contract.
 			if genres == nil {
 				genres = []string{}

@@ -94,7 +94,7 @@ func TestMovieSearchesAndGrabs(t *testing.T) {
 	}
 }
 
-// A film with no year on record is still manually grabbable — the reason rides
+// A film with no year on record is still manually grabbable — the reason is on
 // the 201 advisorily, the PR #57 shape — so only automation is held back.
 func TestMovieWithNoYearIsGrabbableButFlagged(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:noyear"
@@ -169,7 +169,7 @@ func TestMovieWrongYearIsRefusedWithAReason(t *testing.T) {
 
 // A season pack may be the film's parent title, so automation declines it --
 // but it may equally be a genuine multi-part film release, so the manual grab
-// carries the reason on the 201 rather than refusing. PR #57's shape again.
+// reports the reason on the 201 rather than being rejected. PR #57's shape again.
 func TestMovieSeasonPackIsGrabbableButFlagged(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:completesaga"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{

@@ -34,7 +34,7 @@ type candidateReleaseDTO struct {
 	UpgradeBlocked []upgradeBlockedDTO `json:"upgrade_blocked,omitempty" doc:"Covered items automation would not replace, and why; a manual grab is not gated by it"`
 }
 
-// upgradeBlockedDTO is one held item the upgrade policy refused (#97).
+// upgradeBlockedDTO is one held item the upgrade policy rejected (#97).
 type upgradeBlockedDTO struct {
 	Item   int    `json:"item"`
 	Reason string `json:"reason"`
@@ -76,7 +76,7 @@ type grabTitleOutput struct {
 }
 
 // registerTitleAcquisitionRoutes wires the title acquisition endpoints: the
-// read-only release search (match against wanted items) and the grab that hands
+// read-only release search (match against wanted items) and the grab that sends
 // a chosen release to the download client and records it. The handlers are
 // methods on titleHandler (defined in titles_routes.go), so they share one
 // acquire.Service with the scheduled sweep.
@@ -163,7 +163,7 @@ func (h *titleHandler) grabRelease(ctx context.Context, in *grabTitleInput) (*gr
 	}
 
 	// Re-run the match and locate the chosen release by URL, so we grab exactly
-	// what the decider says it covers rather than trusting client-supplied item
+	// what the decider reports it covers rather than the client-supplied item
 	// numbers.
 	var chosen *decide.Candidate
 	for i := range m.Candidates {

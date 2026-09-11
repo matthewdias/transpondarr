@@ -14,7 +14,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// blocklistEntryDTO is one remembered failed release. blocked_until is absent
+// blocklistEntryDTO is one recorded failed release. blocked_until is absent
 // when the block is permanent, which is why active is reported separately.
 type blocklistEntryDTO struct {
 	ID           int64  `json:"id"`
@@ -54,7 +54,7 @@ type clearedOutput struct {
 	}
 }
 
-// breakerDTO reports whether failure memory is suppressed right now; open means
+// breakerDTO reports whether failure recording is suppressed right now; open means
 // too many items failed inside the window for the releases to be the cause.
 type breakerDTO struct {
 	Open      bool   `json:"open"`
@@ -72,8 +72,8 @@ type blocklistSummaryOutput struct {
 	}
 }
 
-// blocklistHandler owns the per-title blocklist endpoints. Separate from grab
-// history because the two outlive each other.
+// blocklistHandler groups the per-title blocklist endpoints. Separate from grab
+// history because each persists after the other is gone.
 type blocklistHandler struct {
 	store     *store.Store
 	blocklist *blocklist.Service
@@ -178,8 +178,8 @@ func (h *blocklistHandler) summary(ctx context.Context, _ *struct{}) (*blocklist
 	return out, nil
 }
 
-// clearAll is the recovery action for an environmental fault: it forgets the
-// library's memory and closes the breaker, so the next tick starts clean.
+// clearAll is the recovery action for an environmental fault: it deletes every
+// recorded release and closes the breaker, so the next tick starts clean.
 func (h *blocklistHandler) clearAll(ctx context.Context, _ *struct{}) (*clearedOutput, error) {
 	n, err := h.blocklist.ClearAll(ctx)
 	if err != nil {

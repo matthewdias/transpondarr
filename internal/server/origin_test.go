@@ -57,7 +57,7 @@ func TestCrossOriginWriteIsRefused(t *testing.T) {
 		"host as a prefix of the origin": writeReq(http.MethodPost, "192.168.1.10:9797", map[string]string{
 			"Origin": "http://192.168.1.10.evil.example:9797",
 		}),
-		// Reading the header as text rather than as a URL would take this: the
+		// Reading the header as text rather than as a URL would accept this: the
 		// address before the @ is userinfo, and evil.example is the host.
 		"our address hidden in userinfo": writeReq(http.MethodPost, "192.168.1.10:9797", map[string]string{
 			"Origin": "http://192.168.1.10:9797@evil.example",
@@ -100,7 +100,7 @@ func TestNullOriginIsRefused(t *testing.T) {
 
 	// With no Host there is no expected origin to compare against, so this is the
 	// case that separates rejecting "null" outright from rejecting it because the
-	// hosts happened to differ. Without it the branch survives deletion.
+	// hosts happened to differ. Without it, deleting the branch still passes.
 	req.Host = ""
 	if !crossOriginWrite(req) {
 		t.Fatal("Origin: null allowed when the expected origin is unknown")
@@ -132,7 +132,7 @@ func TestForwardedHeadersNameTheExpectedOrigin(t *testing.T) {
 // used to allow the request, on the reasoning that a proxied install is
 // authenticated anyway. That is false for the three routes requiresAuth exempts in
 // every auth required-mode, so a proxy sending X-Forwarded-For and no
-// X-Forwarded-Host handed out /auth/setup. Host is the right fallback: a proxy that
+// X-Forwarded-Host exposed /auth/setup. Host is the right fallback: a proxy that
 // forwards anything usually forwards Host unchanged too.
 func TestProxiedWithoutForwardedHostComparesHost(t *testing.T) {
 	for header, value := range map[string]string{
@@ -189,7 +189,7 @@ func TestUnstatedPortIsNotCompared(t *testing.T) {
 	}
 }
 
-// TestUnparseableForwardedProtoDoesNotDisableTheCheck: a header holding something
+// TestUnparseableForwardedProtoDoesNotDisableTheCheck: a header containing something
 // that is not a scheme used to build a spelling url.Parse rejects, and an
 // unparseable expected origin allows everything. Found by a test of mine that set
 // X-Forwarded-Proto to an IP address and passed for the wrong reason.
@@ -208,7 +208,7 @@ func TestUnparseableForwardedProtoDoesNotDisableTheCheck(t *testing.T) {
 func TestIPv6ForwardedHostIsCompared(t *testing.T) {
 	// X-Forwarded-Port is set on purpose. It is ignored now, so the case reads the
 	// same either way -- but joining it onto a bracketed host is what produced the
-	// unparseable "[[fd00::1]]:443", so anyone reinstating the header trips here.
+	// unparseable "[[fd00::1]]:443", so anyone reinstating the header fails here.
 	hostile := writeReq(http.MethodPost, "127.0.0.1:9797", map[string]string{
 		"Origin": "https://evil.example", "X-Forwarded-Host": "[fd00::1]",
 		"X-Forwarded-Proto": "https", "X-Forwarded-Port": "443",

@@ -27,8 +27,8 @@ func deriveItemState(inLibrary bool, grab db.Grab, hasGrab bool) itemState {
 	status := "wanted"
 	switch {
 	case inLibrary && grabStatus == "grabbed":
-		// An upgrade in flight over a file we hold (#97). Every other held state
-		// stays "in_library": a deferred or failed upgrade left the library alone.
+		// An upgrade in flight over a file already in the library (#97). Every other
+		// held state stays "in_library": a deferred or failed upgrade changed nothing.
 		status = "downloading"
 	case inLibrary:
 		status = "in_library"
@@ -46,7 +46,7 @@ func deriveItemState(inLibrary bool, grab db.Grab, hasGrab bool) itemState {
 	}
 	if status != "stuck" {
 		// The reason is part of the stuck contract; a settled item must not
-		// carry a stale one.
+		// report a stale one.
 		importError = ""
 	}
 	return itemState{Status: status, ReleaseTitle: releaseTitle, ImportError: importError}

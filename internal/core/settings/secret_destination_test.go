@@ -11,7 +11,7 @@ import (
 )
 
 // stubQbit stands in for a qBittorrent WebUI, recording the credentials each login
-// attempt carried so a test can assert a secret never left the process.
+// attempt sent so a test can assert a secret never left the process.
 func stubQbit(t *testing.T, seen *url.Values) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -28,7 +28,7 @@ func stubQbit(t *testing.T, seen *url.Values) *httptest.Server {
 	return srv
 }
 
-// stubTorznab records the apikey each search carried and answers with an empty feed.
+// stubTorznab records the apikey each search sent and answers with an empty feed.
 func stubTorznab(t *testing.T, seen *string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +40,7 @@ func stubTorznab(t *testing.T, seen *string) *httptest.Server {
 	return srv
 }
 
-// stubNtfy records the Authorization header each publish carried.
+// stubNtfy records the Authorization header each publish sent.
 func stubNtfy(t *testing.T, seen *string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +123,7 @@ func TestTestNotifyNtfyRefusesToSendTheStoredTokenElsewhere(t *testing.T) {
 
 // The save path inherits the same secrets and then builds a live client against the
 // caller's URL, which authenticates to it on the next poll — the same exfiltration,
-// one poll later. Nothing may be persisted or swapped on the refusal.
+// one poll later. Nothing may be persisted or swapped on the rejection.
 func TestUpdateDownloadRefusesToSendTheStoredPasswordElsewhere(t *testing.T) {
 	svc, reg, st := newTestService(t)
 	ctx := context.Background()
@@ -181,8 +181,8 @@ func TestUpdateNotifyRefusesToSendTheStoredTokenElsewhere(t *testing.T) {
 }
 
 // The Test button's whole point: the saved host still authenticates with a secret the
-// user never has to retype, and for the indexer that survives a path edit — switching
-// which Jackett indexer is probed is not a new destination.
+// user never has to retype, and for the indexer it persists across a path edit —
+// switching which Jackett indexer is probed is not a new destination.
 func TestInheritsTheStoredSecretForTheSavedDestination(t *testing.T) {
 	ctx := context.Background()
 
@@ -239,7 +239,7 @@ func TestAllowsABlankSecretWhenNoneIsStored(t *testing.T) {
 }
 
 // Clearing the URL disables the integration; no request is ever made, so there is
-// nothing to leak and the stored secret must survive rather than be refused or wiped.
+// nothing to leak and the stored secret must be kept rather than rejected or wiped.
 func TestClearingTheURLKeepsTheStoredSecret(t *testing.T) {
 	svc, _, _ := newTestService(t)
 	ctx := context.Background()
@@ -254,8 +254,8 @@ func TestClearingTheURLKeepsTheStoredSecret(t *testing.T) {
 		t.Errorf("password = %q after clearing the url, want it kept", got)
 	}
 
-	// The kept secret now belongs to no host, so re-enabling somewhere else still
-	// has to ask for it rather than reviving it against a new destination.
+	// The kept secret is now bound to no host, so re-enabling somewhere else still
+	// has to ask for it rather than reusing it against a new destination.
 	err := svc.UpdateDownload(ctx, DownloadConfig{URL: "http://qb.elsewhere:8080", User: "admin"})
 	if !errors.Is(err, ErrSecretRequired) {
 		t.Fatalf("re-pointing a disabled client with a blank password = %v, want ErrSecretRequired", err)
@@ -266,9 +266,9 @@ func TestClearingTheURLKeepsTheStoredSecret(t *testing.T) {
 }
 
 // A blank ntfy server means the public ntfy.sh, which is a destination in its own
-// right — so a custom server's token must not ride along to it. This pins the order
+// right — so a custom server's token must not be sent to it. This pins the order
 // inside the two ntfy paths: defaulting after the inheritance instead of before
-// makes the blank server read as "no destination", which hands the stored token to
+// makes the blank server read as "no destination", which sends the stored token to
 // ntfy.sh.
 func TestBlankNtfyServerDoesNotInheritACustomServersToken(t *testing.T) {
 	ctx := context.Background()
@@ -297,7 +297,7 @@ func TestBlankNtfyServerDoesNotInheritACustomServersToken(t *testing.T) {
 
 // A blank topic builds no ntfy route, so there is no destination and nothing can
 // leak. Turning ntfy off — and editing any other adapter afterwards, since the
-// notifications body is the whole section's state (#227) — must not demand the
+// notifications body is the whole section's state (#227) — must not require the
 // token of a server that is no longer being written to.
 func TestDisablingNtfyDoesNotDemandItsToken(t *testing.T) {
 	svc, _, _ := newTestService(t)
@@ -343,7 +343,7 @@ func TestABlankNtfyTopicCannotMoveTheServerTheTokenIsBoundTo(t *testing.T) {
 	}
 
 	// Step 2: the same server, now with a topic. It is a different destination from
-	// the one the token was saved for, so it must still be refused.
+	// the one the token was saved for, so it must still be rejected.
 	err := svc.UpdateNotify(ctx, NotifyConfig{NtfyServer: attacker.URL, NtfyTopic: "pwn"})
 	if !errors.Is(err, ErrSecretRequired) {
 		t.Errorf("follow-up save at the caller's server = %v, want ErrSecretRequired", err)
@@ -358,7 +358,7 @@ func TestABlankNtfyTopicCannotMoveTheServerTheTokenIsBoundTo(t *testing.T) {
 
 // The same seam without an attacker: turning ntfy off by clearing both fields must
 // not leave the custom server's token attached to the defaulted ntfy.sh, or the next
-// save that sets a topic ships it there.
+// save that sets a topic sends it there.
 func TestDisablingNtfyKeepsTheTokenBoundToItsOwnServer(t *testing.T) {
 	svc, _, _ := newTestService(t)
 	ctx := context.Background()
@@ -399,8 +399,8 @@ func TestABlankNtfyTopicStillSavesTheServerWhenNoTokenIsStored(t *testing.T) {
 }
 
 // A self-hosted ntfy still fills its own blank token on a save — the save path's
-// inheritance was only ever covered with a blank server, so nothing caught a rule
-// that refused every custom server.
+// inheritance was only ever covered with a blank server, so no test covered a rule
+// that rejected every custom server.
 func TestUpdateNotifyInheritsTokenForACustomServer(t *testing.T) {
 	svc, _, _ := newTestService(t)
 	ctx := context.Background()
@@ -426,7 +426,7 @@ func TestUpdateNotifyInheritsTokenForACustomServer(t *testing.T) {
 
 // The destination is the host that receives the secret, so the path, the trailing
 // slash, letter case and an explicitly written default port do not make a new one --
-// each of those refusing would cost a retype and buy nothing.
+// each of those rejecting would cost a retype and buy nothing.
 func TestSameDestination(t *testing.T) {
 	for _, tc := range []struct {
 		name, a, b string
@@ -444,7 +444,7 @@ func TestSameDestination(t *testing.T) {
 		{"different scheme", "https://qb:8080", "http://qb:8080", false},
 		{"non-default port against none", "https://idx.example", "https://idx.example:8443", false},
 		// Two unrelated bare strings both parse to an empty host, so a hostless URL
-		// must be only itself or the rule would call them the same destination.
+		// must be only itself or the rule would treat them as the same destination.
 		{"hostless pair", "qb.example/path", "evil.example/path", false},
 		{"hostless identical", "not a url", "not a url", true},
 		{"hostless against a url", "", "http://qb:8080", false},
