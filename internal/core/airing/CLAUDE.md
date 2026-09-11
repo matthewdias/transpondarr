@@ -9,19 +9,19 @@ AniList's coverage is partial by design, so absence is a normal state here.
   is null for real titles in normal operation — never treat its absence as an
   error. `internal/core/airing` syncs it in the background off the job runner and
   stamps `series.airing_synced_at` even when the provider returns nothing, which
-  is what stops an unschedulable title being re-asked every tick. Aired times are
+  is what stops an unschedulable title being re-requested every tick. Aired times are
   immutable, so only a never-synced series pages full history; a resync passes
   `notYetAired` and fetches the tail.
 - **A schedule is densified, never transcribed (#152).** `airingSchedule` is a
   field on `Media`, not a root query, so one page of it plus
-  `nextAiringEpisode.episode` ride in `titleQuery` for zero extra requests, and a
-  null-count add returns its items immediately instead of sitting at `0 / 0` for
+  `nextAiringEpisode.episode` are fetched in `titleQuery` for zero extra requests, and a
+  null-count add returns its items immediately instead of showing `0 / 0` for
   an `airingSyncInterval`. Both that page and the background sync then create
   `1..max(known number)` rather than transcribing, leaving `airs_at` null on the
-  filled-in ones — a schedule reading 1, 3, 4 means episode 2 shared a broadcast
+  filled-in ones — a schedule listing 1, 3, 4 means episode 2 shared a broadcast
   slot, and with a null count nothing else would ever create it. Over-creating
   leaves an item permanently wanted that no release matches (a sweep slot, and a
-  series that reads incomplete) but cannot cause a wrong grab, since `decide`
+  series that shows as incomplete) but cannot cause a wrong grab, since `decide`
   refuses anything numbered past `maxItem` regardless; under-creating loses an
   episode nobody notices is missing. Three bounds, each measured against the live
   API rather than assumed:
@@ -41,15 +41,15 @@ AniList's coverage is partial by design, so absence is a normal state here.
   materializes its whole run in the add's transaction. That is deliberate: it
   is the same set the sync would reach for the tail, plus a back catalogue
   *nothing* creates today, and it costs no extra AniList requests, because the
-  sweep spends one search per *series* regardless of item count. Numbers only —
-  carrying dates through the add would pull in `ItemMeta`, `CreateWantedItem` and
-  the sqlc layer for a column `internal/core/airing` already owns. A gap-filled
+  sweep runs one search per *series* regardless of item count. Numbers only —
+  passing dates through the add would pull in `ItemMeta`, `CreateWantedItem` and
+  the sqlc layer for a column `internal/core/airing` already writes. A gap-filled
   item does reset the search cadence (`ResetTitleSearchState`, as `refresh`
-  does): it carries no air date, so it is exactly what `airedSince` cannot see.
-- **Monitoring gates what automation *pursues*, not what the app *knows*
+  does): it has no air date, so `airedSince` never selects it.
+- **Monitoring limits what automation *acquires*, not what the app *looks up*
   (#183).** `series.monitored = 0` withholds a title from the sweep and the feed
-  — the paths that spend money and move files — but never from the two
-  background jobs that only *learn* about it. It used to gate all four, and
+  — the paths that grab releases and move files — but never from the two
+  background jobs that only *look up* data about it. It used to gate all four, and
   three predicates then composed into a hole: an unmonitored title got no
   `airs_at`, so `ListCalendarItems` dropped its rows before the Calendar's own
   monitored check could include them, and `ListUnscheduledTitles` filtered it

@@ -25,7 +25,11 @@ literally, and put each example beside the claim it proves.
 2. **No body or mind verbs for things that have neither.** A library doesn't hold
    a file; hands hold things. Name the literal operation instead: contains,
    stores, returns an error, doesn't match. This is the most common violation in
-   the repo, so it's the first thing to check.
+   the repo, so it's the first thing to check. Rule 8 wins when the verb is the
+   code's own word: a *held* release (`held_release_title`), an item *claim*
+   (`TryClaimItems`), a *blamed* failure (`blameRelease`), a release the
+   blocklist *remembers* (the Failure memory settings section). Rewording those
+   loses the word a reader would search the code for.
 3. **Most ordinary construction.** Contractions are fine, and "doesn't use extra
    disk space" beats "uses no extra disk space". "instead of" beats "rather than"
    when the two sides are actions you're choosing between; keep "rather than" for
@@ -43,7 +47,7 @@ literally, and put each example beside the claim it proves.
    numbers", not "a pair". "the grab row", not "the row". "another attempt at
    *writing* that destination", not "another attempt at that destination".
 7. **Qualify a word this codebase uses twice.** The table below lists them. The
-   identifiers already carry the qualifier and prose dropped it.
+   identifiers already include the qualifier and prose dropped it.
 8. **Identifier when the sentence is about that code, description when it spans
    several.** `loadSweepItems` ANDs one column into one condition — name it. The
    search sweep spends one query per title — describe it, because that behaviour
@@ -206,7 +210,8 @@ report the subject count and let the author decide.
 5. **Body and mind verbs.** Quote every sentence where something without a body
    or a mind does a body or mind verb (holds, carries, owns, says, refuses,
    claims, remembers, wants, watches, travels, spends, escapes, reaches). Give
-   the literal operation for each.
+   the literal operation for each, unless the verb is the code's own word
+   (rule 2).
 6. **House metaphors.** Quote every use of arm, gate, ladder, tier and floor, and
    give the plain word.
 7. **Ceiling.** Quote any sentence over about 33 words.

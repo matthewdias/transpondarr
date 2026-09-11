@@ -659,7 +659,7 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	h := wantedHarness(t)
 	ctx := context.Background()
 	// The daemon registers this job; the harness runner is empty, so the route's
-	// trigger has nothing to trigger until the test supplies it.
+	// trigger finds no job to run until the test registers one.
 	h.jobs.Add(jobs.Job{Name: "wanted-search", Interval: time.Hour,
 		Run: func(context.Context) error { return nil }})
 	one := seedTitle(t, h.store, "One", 1)

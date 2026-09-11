@@ -256,10 +256,10 @@ func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 	setNextSearchAt(t, st, mustSeed(t, st, "unscheduled", 1, 1, 0, nil), later)
 	// Excluded: already in the library.
 	setNextSearchAt(t, st, mustSeed(t, st, "all-had", 1, 1, 1, &inside), later)
-	// Excluded: the item already has a settled grab.
-	settled := mustSeed(t, st, "in-flight", 1, 1, 0, &inside)
-	seedSearchGrab(t, st, itemOf(t, st, settled), "grabbed")
-	setNextSearchAt(t, st, settled, later)
+	// Excluded: the item already has a grab in flight.
+	inFlight := mustSeed(t, st, "in-flight", 1, 1, 0, &inside)
+	seedSearchGrab(t, st, itemOf(t, st, inFlight), "grabbed")
+	setNextSearchAt(t, st, inFlight, later)
 
 	got := gapTitles(t, st, now, lo, hi, 100)
 	for _, want := range []string{"in-window", "failed-grab"} {

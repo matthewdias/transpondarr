@@ -188,11 +188,11 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 	// already in the library where only #213's placed-path memory can find it.
 	if req.Replace {
 		if held, ok := t.heldElsewhere(req, name); ok {
-			t.log.Warn("mediaserver: another layout holds this item; the superseded file is left where it is",
+			t.log.Warn("mediaserver: this item already has a file under another layout; the superseded file is left where it is",
 				"title", req.Title.Name, "item", req.Item.Number, "held", held, "dest", dest)
 		}
 		if _, err := os.Stat(destDir); errors.Is(err, os.ErrNotExist) {
-			t.log.Warn("mediaserver: upgrading into a directory that does not exist; the library may hold this item under an older name",
+			t.log.Warn("mediaserver: upgrading into a directory that does not exist; the library may already contain this item under an older name",
 				"title", req.Title.Name, "item", req.Item.Number, "dest", dest, "source", req.SourcePath)
 		}
 	}

@@ -9,7 +9,7 @@
 // grabs at once; only a repeat failure of the same release separates a dead
 // release from a bad day.
 //
-// A breaker is the other half of that line (#120). Its unit of evidence is a
+// A breaker separates them by breadth instead (#120). Its unit of evidence is a
 // release, credited with one wanted item, so neither one item churning through
 // its candidates nor one release spanning a season counts as breadth; only
 // different releases failing across different items — a full disk, a client

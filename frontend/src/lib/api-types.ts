@@ -45,7 +45,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** What a deferred grab's payload holds, so an import can be fixed by hand */
+        /** What a deferred grab's payload contains, so an import can be fixed by hand */
         get: operations["get-queue-item-payload"];
         put?: never;
         post?: never;
@@ -1114,7 +1114,7 @@ export interface components {
         CutoffItemDTO: {
             /** Format: date-time */
             airs_at?: string;
-            /** @description What the library holds, and what the score below rates */
+            /** @description The release in the library, which the score below rates */
             held_release: string;
             /** Format: int64 */
             id: number;
@@ -1455,7 +1455,7 @@ export interface components {
             /** Format: int64 */
             number: number;
             /**
-             * @description This item's own story; absent when the group and page tell it all
+             * @description This item's own reason; absent when the title's reason or global_reason already explains it
              * @enum {string}
              */
             reason?: "unmonitored" | "unaired" | "grab_failed" | "no_match" | "declined" | "pin_held" | "would_grab" | "add_failed";
@@ -1590,7 +1590,7 @@ export interface components {
             cutoff_score: number;
             /** @description Ranked group preference, most preferred first; empty ranks no group */
             groups?: components["schemas"]["ProfileGroupDTO"][];
-            /** @description Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty carries no exclusions */
+            /** @description Axis values that disqualify a release: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty excludes nothing */
             hard_excludes?: string[];
             /**
              * Format: int64
@@ -1605,9 +1605,9 @@ export interface components {
             resolution_order: string[];
             /** @description softsub or hardsub; empty for no preference */
             sub_pref?: string;
-            /** @description Take the same group's v2/repack of what we hold even above the cutoff */
+            /** @description Take the same release group's v2/repack of the held release even above the cutoff */
             upgrade_v2_above_cutoff: boolean;
-            /** @description Re-grab a held item while what holds it scores below the cutoff */
+            /** @description Re-grab a held item while its release scores below the cutoff */
             upgrades_enabled: boolean;
         };
         ProfileGroupDTO: {
@@ -3655,7 +3655,7 @@ export interface operations {
                 cursor?: string;
                 /** @description Include items from unmonitored titles */
                 unmonitored?: boolean;
-                /** @description Include items whose broadcast is still ahead; the Calendar owns the forward-looking view */
+                /** @description Include items whose broadcast is still ahead; the Calendar shows upcoming broadcasts */
                 unaired?: boolean;
             };
             header?: never;
@@ -3726,7 +3726,7 @@ export interface operations {
                 cursor?: string;
                 /** @description Include items from unmonitored titles */
                 unmonitored?: boolean;
-                /** @description Include items whose broadcast is still ahead; the Calendar owns the forward-looking view */
+                /** @description Include items whose broadcast is still ahead; the Calendar shows upcoming broadcasts */
                 unaired?: boolean;
             };
             header?: never;

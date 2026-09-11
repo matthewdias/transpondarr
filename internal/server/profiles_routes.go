@@ -49,13 +49,13 @@ type profileBody struct {
 	SubPref         string            `json:"sub_pref,omitempty" doc:"softsub or hardsub; empty for no preference"`
 	PreferDualAudio bool              `json:"prefer_dual_audio"`
 	CodecPref       string            `json:"codec_pref,omitempty" doc:"h264, h265 or av1; empty for no preference"`
-	HardExcludes    []string          `json:"hard_excludes,omitempty" doc:"Axis values a release must never carry: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty carries no exclusions"`
+	HardExcludes    []string          `json:"hard_excludes,omitempty" doc:"Axis values that disqualify a release: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty excludes nothing"`
 	MinScore        int64             `json:"min_score" minimum:"0" doc:"Floor: candidates scoring below are ineligible; zero is no floor"`
 	Groups          []profileGroupDTO `json:"groups,omitempty" doc:"Ranked group preference, most preferred first; empty ranks no group"`
 
-	UpgradesEnabled      bool  `json:"upgrades_enabled" doc:"Re-grab a held item while what holds it scores below the cutoff"`
+	UpgradesEnabled      bool  `json:"upgrades_enabled" doc:"Re-grab a held item while its release scores below the cutoff"`
 	CutoffScore          int64 `json:"cutoff_score" minimum:"0" doc:"Ceiling: a held release scoring at least this is good enough; zero means already met"`
-	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff" doc:"Take the same group's v2/repack of what we hold even above the cutoff"`
+	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff" doc:"Take the same release group's v2/repack of the held release even above the cutoff"`
 }
 
 type listProfilesOutput struct {

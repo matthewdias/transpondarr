@@ -4,17 +4,17 @@ Design rationale too long to read as a bullet in `CLAUDE.md`. Each section answe
 one question, so a reader with a specific question can find the paragraph that
 answers it (rule 22 of [`style.md`](style.md)).
 
-`CLAUDE.md`'s `## Conventions` carries a one-line pointer to each of these; the
+`CLAUDE.md`'s `## Conventions` has a one-line pointer to each of these; the
 pointer is the summary, this file is the argument.
 
 ## A stall at exactly 0% is the one absence-shaped thing that is the release's fault (#242)
 
-A `stalledDL` torrent is *present*, so it reached neither `reconcileMissing` nor
-`StateError` and sat open forever. That is the doomed release the blocklist was
-built for (#118), and the blocklist could not reach it.
+A `stalledDL` torrent is *present*, so neither `reconcileMissing` nor
+`StateError` handled it, and its grab stayed open forever. That is the doomed
+release the blocklist was built for (#118), and it never got a blocklist entry.
 
-Progress is the discriminator, strictly `> 0`. A torrent that moved at all proves
-a peer had the data, so those bytes are the user's to discard. A percentage
+Progress is the discriminator, strictly `> 0`. A torrent that made any progress
+proves a peer had the data, so those bytes are the user's to discard. A percentage
 threshold would draw a line nothing supports.
 
 This is `blameRelease`, unlike a torrent that has simply vanished (#241). Nobody
@@ -54,20 +54,20 @@ observation, cleared the moment progress moves. The timeout is
 `qbit.*`.
 
 Setting it to 0 both disables the timeout and **clears the stamp**, so the two
-ways of holding a download agree. Pausing and switching the timeout off both give
+ways of keeping a stalled download agree. Pausing and switching the timeout off both give
 a fresh window instead of banking the wait.
 
 ### Which client states qualify (#246)
 
-The trigger is the client reporting that it is *trying*, with progress 0. That
+The trigger is the client reporting an *active* download, with progress 0. That
 means `StateStalled` or `StateDownloading`, so `metaDL` and `forcedMetaDL` are
-covered — the magnet parked at "Downloading metadata", which #242's own wording
+covered — the magnet stuck at "Downloading metadata", which #242's own wording
 had to exclude.
 
 `StatePaused` is deliberate user intent and `StateUnknown` is a gap in `mapState`,
-so neither reaches the arm. `queuedDL` is excluded by having its own `StateQueued`
-instead of hiding inside `StateDownloading`, because a client holding a torrent
-back is not trying. Folding the two together is what made "widen the predicate"
+so neither takes that branch. `queuedDL` is excluded by having its own
+`StateQueued` instead of being folded into `StateDownloading`, because a queued
+torrent is not an active download. Folding the two together is what made "widen the predicate"
 and "never abandon a queued download" look like opposites.
 
 `Status.StuckAtZero` names the predicate. `stalled_since` deliberately keeps a
@@ -77,7 +77,7 @@ name it has outgrown, because the clock did not change — it still mirrors
 The stamp-clearing loop and the switch arm must read the one predicate. Widening
 only the arm clears the clock every scan while `sharedSince` re-derives it from
 the pre-clear rows. The database then keeps the cleared value, the timeout never
-accumulates, and the grab sits open — the bug, surviving its own fix. It is a
+accumulates, and the grab stays open — the same bug, with its fix in place. It is a
 mutation that lives, so `TestKeepsMetadataStallClockAcrossScans` exists to kill it.
 
 ### No fetching-metadata state, on purpose
@@ -109,11 +109,11 @@ the duration lives.
 
 Between the two timers, absence wins by construction. The `!ok` branch
 `continue`s before the state switch, so a torrent that goes missing is settled on
-the 5-minute grace and the stall clock is never consulted.
+the 5-minute grace and the stall clock is never read.
 
-The queue's `abandon_at` is the part `client_state` could not say — that we are
+The queue's `abandon_at` is the part `client_state` could not express — that we are
 going to act, and when. It is therefore keyed on the *live* status as well as on
-the stamp, which outlives the stall by up to one scan.
+the stamp, which stays set for up to one scan after the stall ends.
 
 Widened, it now shows on a healthy grab too: for the scan or two before its first
 piece lands, and on a magnet for as long as metadata takes. That is accepted
@@ -135,13 +135,13 @@ get left over if that never happens.
 The predicate asserts the following clauses for the files it looks at:
 
 1. not currently in flight
-2. carries one of our own two suffixes
+2. has one of our own two suffixes
 3. sits over a known video extension
 4. sits under a configured root
 5. has an mtime older than 24 hours
 
 `SweepStaging` only removes files it finds, so an unmounted root means it finds
-nothing. It can't delete a library it can't see.
+nothing. It can't delete a library it doesn't find.
 
 ### What protects a live transfer
 
@@ -157,8 +157,8 @@ a staging file can't exist without being registered. `removeUnstaged` does the
 check and the unlink under one lock, so a transfer can't register between the two.
 
 The limitation we accepted on the other side: an `.upgrade` file orphaned by a
-crash isn't swept until its *payload's* mtime passes 24 hours, so it can sit
-there after it stops being useful. Late, never wrong.
+crash isn't swept until its *payload's* mtime passes 24 hours, so it can stay
+on disk after it stops being useful. Late, never wrong.
 
 ### Resolving roots, and the order the sweep works in
 
@@ -169,14 +169,14 @@ fail to match in that setup. Links inside the tree are still not followed, so th
 enumeration stays within a root.
 
 Every root is enumerated before anything is removed. `collectStale` builds the
-whole list first, and a second loop deletes from it. If one root sits inside the
+whole list first, and a second loop deletes from it. If one root is inside the
 other, walking the outer one already descends into the inner one, so the same
 file lands in the list twice. The first delete succeeds and the second gets
 `ErrNotExist`, which `SweepStaging` treats as ordinary instead of as a fault.
 
-Deleting during the enumeration would hide the second sighting. The outer walk
+Deleting during the enumeration would hide the second occurrence. The outer walk
 would remove the file, and the inner walk would never yield a path that no longer
-exists. The tolerance would then only be reached by a real race, where an import
+exists. The tolerance would then only run during a real race, where an import
 reclaims its own staging file while the sweep is running. Collecting first is what
 makes it happen in an ordinary configuration, which keeps the tolerance reachable
 and testable.
@@ -196,11 +196,11 @@ a wrong delete, and that is the only direction allowed to fail.
 ### Why it is an optional capability and its own job
 
 `library.StagingSweeper` is an optional capability found by type assertion, so
-`library.Target` is still just `Name()` and `Place()`, with no way to ask a target
-what it currently contains. A target without the capability is a supported
+`library.Target` is still just `Name()` and `Place()`, with no method that
+lists what a target currently contains. A target without the capability is a supported
 configuration, not an error. That general read path is #170, and manual file
 adoption (#157) and library drift detection (#171) both need it. The issue has to
-settle the question this sweep already answered locally: whether listing belongs
+settle the question this sweep's design already answered locally: whether listing belongs
 on `Target` itself, or stays an optional capability like this one.
 
 The sweep runs as its own slow job instead of inside the 15-second import scan,

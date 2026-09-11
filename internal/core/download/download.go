@@ -18,7 +18,7 @@ var ErrBadRelease = errors.New("download: release could not be resolved")
 
 // ErrDataMissing marks an Add of a torrent the client already manages but whose
 // data is gone. Not ErrBadRelease: a caller blocklists that one (#241).
-var ErrDataMissing = errors.New("download: the client already holds this torrent and its data is missing")
+var ErrDataMissing = errors.New("download: the torrent is already in the client and its data is missing")
 
 type AddOutcome string
 

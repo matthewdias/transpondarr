@@ -9,7 +9,7 @@ service side is in [`../core/settings/CLAUDE.md`](../core/settings/CLAUDE.md).
   alone. A hostile page
   addresses the server by its IP, so `Host` is an IP literal and `RemoteAddr` is
   private — the same shape `rebinding_test.go` names the legitimate LAN case. The
-  rebinding check is correct and answers a different question. `crossOriginGuard`
+  rebinding check is correct and tests a different condition. `crossOriginGuard`
   therefore runs ahead of `authMiddleware`, so one check applies to the Huma routes
   and the hand-rolled auth ones alike. The hand-rolled ones matter most: `decodeJSON`
   ignores `Content-Type`, so `/auth/setup` accepts a `text/plain` body, and its only
@@ -52,14 +52,13 @@ service side is in [`../core/settings/CLAUDE.md`](../core/settings/CLAUDE.md).
   `statedScheme` takes only `http` and `https` for the same class of reason: any
   other value built a spelling `url.Parse` rejects, and an unparseable expected
   origin allowed everything.
-  The refusal is **problem+json, not `http.Error`'s text/plain**, because
+  The 403 is **problem+json, not `http.Error`'s text/plain**, because
   `throwApiError` reads `detail` and from a plain body the operator gets
   "HTTP 403" and no cause — the string the upgrade note names. Reads stay unchecked, a
   stated residual risk: four `GET`s make outbound
   calls and use the AniList request budget. A rebinding page is *same-origin* by
-  construction, so this check does not apply to one. `isLocalRequest` stops it
-  everywhere
-  that needs a login, which leaves the pre-setup window, named in SECURITY.md.
+  construction, so this check does not apply to one. `isLocalRequest` rejects it
+  on every route that needs a login, which leaves the pre-setup window, named in SECURITY.md.
   **`apiProxyOptions` pins the Vite dev proxy's `changeOrigin` off** for the same
   reason the port rule exists. The string shorthand turns it on, which rewrites
   `Host` to the API's port and adds no forwarding header, so `make dev` plus
@@ -74,7 +73,7 @@ service side is in [`../core/settings/CLAUDE.md`](../core/settings/CLAUDE.md).
   valid session cookie, a valid API key, or — in `local` required-mode — a
   loopback/private request with no forwarding headers. The key is resolved as
   `TRANSPONDARR_API_KEY` env → DB-persisted → generate-and-persist (`resolveAPIKey`
-  in `cmd/transpondarrd`); it survives restarts.
+  in `cmd/transpondarrd`); it persists across restarts.
 - **A settings body is its section's whole state, so `omitempty` is an argument
   rather than a default (#227).** A field the service would fill in with a
   default is required — the library mode and layout, the qBit category, the
@@ -85,16 +84,16 @@ service side is in [`../core/settings/CLAUDE.md`](../core/settings/CLAUDE.md).
   `omitempty` only where absent and empty are the same instruction — a blank
   secret keeps the stored one, a blank URL, root or topic switches that piece
   off. Sending a required field empty still takes the default, and that *is* the
-  distinction: the client said so — **except where the field carries an `enum`
-  tag**, which refuses an empty value outright, so `mode`, `series_layout` and
+  distinction: the client said so — **except where the field has an `enum`
+  tag**, which rejects an empty value outright, so `mode`, `series_layout` and
   automation's `mode` are 422 either way and the handler's `ValidImportMode` /
   `ValidSeriesLayout` guards are unreachable defence in depth. The rule is about
-  the encoding, not about Huma, so it reaches the hand-rolled bodies too —
+  the encoding, not about Huma, so it applies to the hand-rolled bodies too —
   `POST /api/v1/auth/mode` validates the mode itself, where the service would
   otherwise read an absent one as `enabled` and lock a `local` install out. It
-  validates *exactly*, matching those enums: `auth.ValidRequired` refuses a case
+  validates *exactly*, matching those enums: `auth.ValidRequired` rejects a case
   variant that `normalizeRequired` would have accepted, because that one reads
-  what a stored value or an env var may hold, not what a client sent.
+  what a stored value or an env var may contain, not what a client sent.
   `TestSettingsInputsRequireEveryDefaultedField` is the audit in runnable form:
   a field moved back to `omitempty` fails it unless someone also takes it out of
   the table, which is where the argument has to be made.

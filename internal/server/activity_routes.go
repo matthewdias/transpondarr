@@ -171,7 +171,7 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 		OperationID: "get-queue-item-payload",
 		Method:      http.MethodGet,
 		Path:        "/api/v1/activity/queue/{id}/payload",
-		Summary:     "What a deferred grab's payload holds, so an import can be fixed by hand",
+		Summary:     "What a deferred grab's payload contains, so an import can be fixed by hand",
 		Tags:        []string{"activity"},
 	}, h.getPayload)
 

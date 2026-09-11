@@ -12,25 +12,25 @@ a pass records about what it decided.
   unoptimised, since a page is ~100 entries and the due query already drops any
   series with nothing wanted. It writes no search cadence: nothing was searched,
   and a grab settles its item, so the sweep's `EXISTS` drops the series anyway.
-  The one exception is a poll that catches itself missing a page (#140): it
+  The one exception is a poll that detects a missing page (#140): it
   resets the sweep for the series that aired inside the gap, bounded to
   `titlesPerPass` per gap event so a routine gap on a busy indexer queues no more
-  searches than one pass can spend.
-  **A page proves coverage only by showing the mark's own instant (#176)** — an
-  entry published at it, or one whose id was remembered *for* it. Nothing else on
+  searches than one pass can run.
+  **A feed page proves coverage only by containing the mark's own instant
+  (#176)** — an entry published at it, or one whose id was recorded *for* it. Nothing else on
   the page is evidence, and the three things that are not are worth naming because
   each looked like evidence once: an entry merely *older* than the mark (an
   aggregator's backfill, which is structural rather than exotic — Jackett's
   aggregate indexer returns partial results, so a member that timed out on one
-  poll reappears on the next carrying its original dates); a **sticky the feed
-  never dated**, which sits on every page, so treating it as coverage disables gap
+  poll reappears on the next with its original dates); a **sticky the feed
+  never dated**, which is on every page, so treating it as coverage disables gap
   detection permanently and never self-corrects; and a **stale id the rewind path
   merged**, which by construction was published before the instant it would be
-  claiming to reach. Hence the mark carries two id sets that a reader must not
+  counted as covering. Hence the mark stores two id sets that a reader must not
   merge back into one: `IDs` is the dedupe set `unseenEntries` needs, deliberately
-  the wider of the two, and `LatestIDs` is coverage alone. The id arm survives the
-  narrowing rather than being dropped because an aggregator rendering a tracker's
-  relative date recomputes it every poll, so the entry carrying the mark comes back
+  the wider of the two, and `LatestIDs` is coverage alone. The id check was kept
+  through the narrowing because an aggregator rendering a tracker's
+  relative date recomputes it every poll, so the entry at the mark comes back
   at a slightly different instant.
   Reading a mere straggler as coverage is what masked the gap: the old signal was
   "every entry is fresh", and one backdated entry on the page defeated it. Sonarr's
@@ -38,19 +38,19 @@ a pass records about what it decided.
   safe *there* only because Sonarr re-processes its whole page each sync and
   dedupes downstream, where `unseenEntries` skips what it dates before the mark —
   so the precedent is one to understand and not to copy. Two consequences: a page
-  with nothing fresh on it can still be a gap, so the recovery sits outside the
+  with nothing fresh on it can still be a gap, so the recovery runs outside the
   quiet-feed shortcut rather than behind it; and a false gap **recurs for as long
-  as the page hides the mark** — an indexer stuck serving an older page reports one
+  as the feed page omits the mark** — an indexer stuck serving an older page reports one
   every poll — which is affordable only because the recovery is bounded to
   `titlesPerPass` and reorders the sweep queue rather than adding searches to it.
-  They divide by what they can see: the feed owns releases published while we
-  watch, the sweep owns what already existed and everything when no feed is
-  configured. **Cadence follows that division; grab scope deliberately does
-  not** — a sweep search that turns up a current release still takes it, because
+  They split the work by when a release was published: the feed handles
+  releases published while it is polling, and the sweep handles what already
+  existed, plus everything when no feed is configured. **Cadence follows that division; grab scope deliberately does
+  not** — a sweep search that turns up a current release still grabs it, because
   the feed's dedupe is one-shot and an entry seen before its series or item
   existed never comes around again. Concretely, `writeSearchState` drops the
   aired-since reset and the next-broadcast clamp when a feed exists (both are
-  #100's answer to "search a weekly show at air time", which the feed now owns);
+  #100's answer to "search a weekly show at air time", which the feed now handles);
   the pin-delay hold stays either way, since that release already exists.
   **Concurrent grabs are serialized by an in-process claim over wanted-item ids**
   (`claims.go`). The two jobs are phase-locked — same interval, both
@@ -71,7 +71,7 @@ a pass records about what it decided.
   pass count. Three constants are load-bearing. **The stored set is wider than
   the surfaced set** — eight outcomes stored, five reach a row: `grabbed` exists
   only as the tombstone that invalidates an older refusal (a listed item's grab
-  plainly did not hold, and `grab_failed` owns that row), while `contended` and
+  plainly failed, and `grab_failed` is that row's reason), while `contended` and
   `deferred` both mean a later pass will take the item — another grab has its
   items, or this pass took an overlapping release first — so neither adds
   anything the title group's own reason does not.
@@ -82,10 +82,10 @@ a pass records about what it decided.
   `unmonitored` above every other tier) rather than invalidating, so the stored
   answer returns intact when the item is monitored again.
   **Blame drops decide's coverage tier** and re-ranks Pinned → Score → Seeders,
-  because coverage buys grab efficiency (#126) and says nothing about which
+  because coverage improves grab efficiency (#126) and shows nothing about which
   release came closest *for one episode* — inheriting it would let a wide
   low-scoring pack outrank a high-scoring single covering exactly the episode
-  asked about. And **the read-side suppression guard is exactly equivalent to
+  in question. And **the read-side suppression guard is exactly equivalent to
   ranking on recency**, not an approximation of it: a pass only writes for a
   grabbable item and an item is not grabbable while its grab is live, so an
   outcome can never be recorded between a grab being made and failing — hence
@@ -93,22 +93,23 @@ a pass records about what it decided.
   index. `covered` stays a separate map from the outcome set (it runs per
   candidate on the feed's hot path); they agree by invariant, tested rather than
   merged. Only a sweep that ran to the end writes `no_match`: a hard return never
-  saw the rest of the candidates, and a feed poll saw a page, not a search.
+  evaluated the rest of the candidates, and a feed poll read one feed page, not
+  search results.
 - **Cutoff Unmet caches the parse and never the score (#185).** Membership is
-  re-derived per request so editing a profile moves the list, and the scan walks
+  re-derived per request so editing a profile moves the list, and the scan uses
   its whole budget precisely when a library is healthy and nothing qualifies —
   so the cost had to come off without recording the answer. Measured, the split
   is lopsided: `parser.Parse` is ~103µs per held release against ~0.9µs for
   `decide.Score` plus `decide.UnmetGoals`, so **the expensive half is the one no
   profile can change** and the cheap half is the one that would need
-  invalidating. Hence `held_release_parses` stores what a release name said and
+  invalidating. Hence `held_release_parses` stores the parse of a release name and
   nothing about what it is worth; a `held_score` column is the regression this
   bullet exists to prevent, since it would put a version counter on
   `quality_profiles` and a bump obligation on every profile mutation. Two things
   follow. The row is **keyed on the release title it parsed and on
   `parser.Version`**, so the read joins on both: a superseded release's parse
   cannot match, which is why `SetWantedItemHeld`, the one writer of
-  `held_release_title`, needs no knowledge of the table — and neither can a
+  `held_release_title`, needs no reference to the table — and neither can a
   parse the current parser would no longer make, which the title alone could
   never express, since a held title does not change when the parser under it
   does. That is the one obligation the design does not remove: bump
@@ -138,7 +139,7 @@ a pass records about what it decided.
   switching to `on` resets every series' cadence** (`ResetAllTitlesSearchState`,
   in the same transaction as the settings write). A rehearsed pass returns a grab
   count of 0 — nothing settled, so counting would-grabs would re-decide the same
-  items every tick — which means it takes the empty-handed branch and climbs the
+  items every tick — which means it takes the no-grab branch and climbs the
   backoff ladder to its daily cap. Meanwhile the feed mark advances as usual (not
   advancing it would make a 15-minute poll a repeating firehose), so a rehearsed
   entry never comes around again. Without the reset on resume, "flip to on and it
@@ -152,8 +153,8 @@ a pass records about what it decided.
   would also stop an in-flight grab resetting the ladder.
 - **Neither automation entry point filters on format (#211).** The sweep's due
   query briefly did — #208 parked movies there because decide could not match one,
-  so `next_search_at` would never advance and the film would hold a slot at the
+  so `next_search_at` would never advance and the film would occupy a slot at the
   head of a LIMIT-ordered queue forever. #209 removed the reason and #211 the
   clause, so a wanted movie is now due, searched and grabbed like any other
-  title, and format belongs in `decide` alone. The feed's due query never carried
-  the stop, which is why the feed acquired films before the sweep could.
+  title, and format belongs in `decide` alone. The feed's due query never had
+  the filter, which is why the feed acquired films before the sweep could.
