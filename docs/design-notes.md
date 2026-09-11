@@ -74,8 +74,8 @@ and "never abandon a queued download" look like opposites.
 name it has outgrown, because the clock did not change — it still mirrors
 `missing_since`, and a migration for a column name is cosmetics.
 
-The stamp-clearing loop and the switch arm must read the one predicate. Widening
-only the arm clears the clock every scan while `sharedSince` re-derives it from
+The stamp-clearing loop and the switch's `StateStalled`/`StateDownloading` case
+must read the one predicate. Widening only that case clears the clock every scan while `sharedSince` re-derives it from
 the pre-clear rows. The database then keeps the cleared value, the timeout never
 accumulates, and the grab stays open — the same bug, with its fix in place. It is a
 mutation that lives, so `TestKeepsMetadataStallClockAcrossScans` exists to kill it.

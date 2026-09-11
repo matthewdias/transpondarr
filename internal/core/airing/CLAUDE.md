@@ -25,7 +25,8 @@ AniList's coverage is partial by design, so absence is a normal state here.
   refuses anything numbered past `maxItem` regardless; under-creating loses an
   episode nobody notices is missing. Three bounds, each measured against the live
   API rather than assumed:
-  - **A published count wins outright** over both floors. Roughly 1 counted entry
+  - **A published count wins outright** over the two minimums, the page's highest number and
+    `nextAiringEpisode.episode`. Roughly 1 counted entry
     in 15 has a schedule reaching *past* its count (a 12-episode show whose
     schedule runs 2..13), which unconditional `max` would turn into a phantom item.
   - **A full fetch fills from 1, never from the schedule's own minimum.** In the
@@ -35,7 +36,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
     25). Filling from the minimum would silently drop the run below it.
   - **A tail fetch fills only inside its own span**, being a partial view of the
     numbering, so it does not re-derive a back catalogue every pass.
-- **The in-band page is bounded; the next-broadcast floor is not.** AniList keeps
+- **The in-band page is bounded; the next-broadcast minimum is not.** AniList keeps
   only a recent *window* of schedule records for a long-runner — its first page
   starts in the middle of the run, not at episode 1 — so a null-count long-runner
   materializes its whole run in the add's transaction. That is deliberate: it
@@ -49,7 +50,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
 - **Monitoring limits what automation *acquires*, not what the app *looks up*
   (#183).** `series.monitored = 0` withholds a title from the sweep and the feed
   — the paths that grab releases and move files — but never from the two
-  background jobs that only *look up* data about it. It used to gate all four, and
+  background jobs that only *look up* data about it. It used to exclude a title from all four, and
   three predicates then composed into a hole: an unmonitored title got no
   `airs_at`, so `ListCalendarItems` dropped its rows before the Calendar's own
   monitored check could include them, and `ListUnscheduledTitles` filtered it
@@ -66,9 +67,9 @@ AniList's coverage is partial by design, so absence is a normal state here.
   together**: nothing else calls the provider's `GetTitle` for a series (the
   title-detail page reads `store.Q.GetTitle`, the DB), so an unmonitored title's
   cached status freezes at its add-time value — and since the airing query picks
-  its TTL tier from that status, opening it alone would leave a title added
-  while `RELEASING` on the 6h tier permanently, never graduating to 30d. Fixing
-  the arm and not the class would have turned a bounded one-off cost into a
+  its TTL from that status, opening it alone would leave a title added
+  while `RELEASING` on the 6h TTL permanently, never graduating to 30d. Fixing
+  one query and not both would have turned a bounded one-off cost into a
   recurring one. Reaching instead for a per-job TTL override was declined:
   `TTLFor` is deliberately one policy shared by both jobs, which is #151's rule
   about the two halves not disagreeing.

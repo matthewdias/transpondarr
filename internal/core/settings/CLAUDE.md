@@ -15,8 +15,8 @@ was saved for. The HTTP-side encoding rules are in
   path deliberately redacts — and then connect to the URL the *caller* supplied, so
   the substitution handed the secret to whatever host a request named.
   `inheritSecret` is now the single way a stored secret is read back, and it returns
-  an error instead of substituting when the destination differs. Three constants are
-  load-bearing. The comparison is **scheme + host + port**, because the host is what
+  an error instead of substituting when the destination differs. The
+  comparison is **scheme + host + port**, because the host is what
   receives the secret: a path edit (a different Jackett indexer on the same Jackett)
   must not cost a retype, and a default port written out explicitly is not a move.
   **An empty destination inherits the secret instead of returning an error** — nothing is ever connected
