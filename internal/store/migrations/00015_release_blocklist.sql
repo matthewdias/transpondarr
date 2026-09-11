@@ -2,8 +2,8 @@
 -- Per-series failure memory for a specific release (issue #118). A grab row is
 -- per wanted item and is overwritten by the next attempt, so nothing outlived a
 -- failure and the sweep re-derived the same ranking forever. Expired entries are
--- filtered, never deleted: the row carries failures, so deleting on expiry would
--- reset the escalation ladder and no release could ever become permanent.
+-- filtered, never deleted: the row counts failures, so deleting on expiry would
+-- reset the escalating expiry and no release could ever become permanent.
 CREATE TABLE release_blocklist (
     id               INTEGER PRIMARY KEY,
     series_id        INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,

@@ -4,7 +4,7 @@
 -- already keyed on (issue #74), so the primary key stops naming its upstream.
 --
 -- This has to rebuild the table rather than ALTER it: `anilist_id INTEGER
--- UNIQUE` carries an implicit index that no DROP INDEX can remove, and it is
+-- UNIQUE` creates an implicit index that no DROP INDEX can remove, and it is
 -- over-strict on the pair (MAL 123 alongside AniList 123). A CHECK cannot be
 -- bolted on afterwards either -- SQLite has no ADD CONSTRAINT, and ADD COLUMN
 -- validates existing rows, which no constant default can satisfy for both a
@@ -13,11 +13,11 @@
 -- The rebuild is dangerous because series has three ON DELETE CASCADE children
 -- and foreign keys are enforced on every pooled connection (store/db.go): with
 -- them on, DROP TABLE series empties the user's library. The whole script is
--- therefore one statement block, which goose hands to a single Exec and
+-- therefore one statement block, which goose passes to a single Exec and
 -- database/sql runs on a single pooled connection -- the only way to guarantee
--- that the per-connection PRAGMA and the DROP meet. NO TRANSACTION is required
--- because PRAGMA foreign_keys is a silent no-op inside one; the explicit BEGIN
--- keeps the rebuild itself atomic.
+-- that the per-connection PRAGMA and the DROP share that connection. NO
+-- TRANSACTION is required because PRAGMA foreign_keys is a silent no-op inside
+-- one; the explicit BEGIN keeps the rebuild itself atomic.
 -- +goose StatementBegin
 PRAGMA foreign_keys = off;
 BEGIN;
@@ -88,7 +88,7 @@ CREATE TABLE series_old (
     search_epoch       INTEGER NOT NULL DEFAULT 0
 );
 -- A row keyed on any other provider has no anilist_id to go back to, so it
--- downgrades to an untracked title rather than claiming an id in the wrong space.
+-- downgrades to an untracked title rather than storing an id in the wrong space.
 INSERT INTO series_old (
     id, anilist_id, title, format, monitored, created_at,
     quality_profile_id, airing_synced_at, pinned_group, last_searched_at,

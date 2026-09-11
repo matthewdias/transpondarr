@@ -1,6 +1,6 @@
 -- +goose Up
 -- What a user wants a release to be. Anime inverts Sonarr's weighting: release
--- group is the dominant quality signal, so groups live in their own ordered
+-- group is the dominant quality signal, so groups get their own ordered
 -- table below rather than as a tiebreaker column here. resolution_order and
 -- hard_excludes are JSON arrays (ordered best-first / axis-value tokens like
 -- "hardsub") — small closed sets, unlike groups, which users reorder row-wise.
@@ -14,18 +14,18 @@ CREATE TABLE quality_profiles (
     prefer_dual_audio INTEGER NOT NULL DEFAULT 0,
     codec_pref        TEXT    NOT NULL DEFAULT '',
     hard_excludes     TEXT    NOT NULL DEFAULT '[]' CHECK (json_valid(hard_excludes)),
-    -- Floor: a candidate scoring below this is ineligible, so the answer can be
-    -- "nothing yet" instead of the least-bad thing available.
+    -- Minimum score: a candidate scoring below it is ineligible, so the answer
+    -- can be "nothing yet" instead of the least-bad thing available.
     min_score         INTEGER NOT NULL DEFAULT 0,
     created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
--- Exactly one default profile; it is what new series start on and what the UI
--- refuses to delete.
+-- Exactly one default profile; it is what new series start on, and it cannot be
+-- deleted from the UI.
 CREATE UNIQUE INDEX idx_quality_profiles_default ON quality_profiles (is_default) WHERE is_default = 1;
 
 -- Ranked group preference, rank 1 most preferred. A blocked row is the
--- never-take list; its rank carries no meaning.
+-- never-take list; its rank has no meaning.
 CREATE TABLE quality_profile_groups (
     id         INTEGER PRIMARY KEY,
     profile_id INTEGER NOT NULL REFERENCES quality_profiles (id) ON DELETE CASCADE,
@@ -38,10 +38,10 @@ CREATE TABLE quality_profile_groups (
 INSERT INTO quality_profiles (id, name, is_default) VALUES (1, 'Default', 1);
 
 -- Existing series keep working with no backfill: everything starts on Default.
--- No REFERENCES clause: SQLite forbids ADD COLUMN with both a foreign key and a
+-- No REFERENCES clause: SQLite rejects ADD COLUMN with both a foreign key and a
 -- non-NULL default while foreign_keys is on (our DSN enforces it). The queries
--- carry the integrity instead: SetSeriesProfile requires the profile to exist,
--- DeleteQualityProfile refuses while any series still points at it.
+-- enforce the integrity instead: SetSeriesProfile requires the profile to exist,
+-- DeleteQualityProfile deletes nothing while any series still points at it.
 ALTER TABLE series ADD COLUMN quality_profile_id INTEGER NOT NULL DEFAULT 1;
 
 -- +goose Down

@@ -1,17 +1,17 @@
 -- +goose Up
 -- Upgrades are per-profile opt-in and cutoff-bounded, not a chase: automation
--- re-grabs a held item only while what holds it scores below cutoff_score.
+-- re-grabs a held item only while its held release scores below cutoff_score.
 -- Zero means the cutoff is already met, symmetric with a zero min_score meaning
--- no floor, so enabling upgrades does nothing until a landmark is chosen.
+-- no minimum, so enabling upgrades does nothing until a landmark is chosen.
 ALTER TABLE quality_profiles ADD COLUMN upgrades_enabled INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE quality_profiles ADD COLUMN cutoff_score INTEGER NOT NULL DEFAULT 0;
 -- The carve-out: a v2/repack of the release we already hold is a fix rather than
 -- an upgrade, so it is taken above cutoff too. Inert until upgrades are enabled.
 ALTER TABLE quality_profiles ADD COLUMN upgrade_v2_above_cutoff INTEGER NOT NULL DEFAULT 1;
 
--- What a held item is holding. The grab row cannot answer it: a failed upgrade
+-- A held item's release. The grab row cannot record it: a failed upgrade
 -- overwrites release_title with the release that failed, and grabs is UNIQUE per
--- item, so held identity lives beside have.
+-- item, so held identity is stored beside have.
 ALTER TABLE wanted_items ADD COLUMN held_release_title TEXT NOT NULL DEFAULT '';
 
 -- Backfill from the grab that imported the item; the scalar subquery is safe

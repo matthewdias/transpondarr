@@ -1,5 +1,5 @@
 -- +goose Up
--- Content-type-agnostic core: a Title holds WantedItems. An episode is one
+-- Content-type-agnostic core: a Title contains WantedItems. An episode is one
 -- item; a movie (added later) is a Title with a single item — no schema change
 -- to the pipeline required.
 CREATE TABLE series (

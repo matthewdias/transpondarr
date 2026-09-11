@@ -9,7 +9,7 @@
 -- The Missing tab's pagination unit is the series, so a group can never split
 -- across a page boundary. The wanted half is the sweep's predicate character
 -- for character (the EXISTS body of ListTitlesDueWantedSearch), which is what
--- keeps this page honest about what automation will go after; an in-flight
+-- keeps this page accurate about what automation will search for; an in-flight
 -- grab is absent by construction, being Activity's to show. Monitoring and the
 -- unaired cut are display filters, not exclusions: a row has to stay visible
 -- after the click that hid it, or there is no way back. The unaired cut skips a
@@ -20,7 +20,7 @@
 -- this page, where hiding one episode still leaves its series listed. Groups are ordered
 -- newest missing broadcast first, all-undated series last: COALESCE sorts a
 -- null air date below every timestamp, and lexicographic compare on the one
--- stored layout is chronological. The keyset lives in HAVING because it binds
+-- stored layout is chronological. The keyset is in HAVING because it binds
 -- on the aggregate; a first page passes a sentinel above every stored value so
 -- one query serves every page. The count is the whole group even when the
 -- handler caps the items it returns for one.
@@ -42,11 +42,11 @@ LIMIT ?;
 -- name: ListMissingItemsByTitle :many
 -- The items behind one page of groups. Same predicates as the series page, so a
 -- group and its items are computed from one reading of the world; the series
--- half of the monitoring filter is the series page's business, since every id
+-- half of the monitoring filter is left to the series page, since every id
 -- here came from it. Number ascends within a series deliberately: a back catalogue
 -- drains forwards, and episodes enumerate forwards however their dates fall.
--- Both joins are 1:1, so neither multiplies rows. The grab's created_at rides
--- along because the reason column ranks a stored pass outcome against it: an
+-- Both joins are 1:1, so neither multiplies rows. The grab's created_at is
+-- selected because the reason column ranks a stored pass outcome against it: an
 -- answer older than the grab is one the grab has already superseded.
 SELECT w.*,
        g.status        AS grab_status,
@@ -70,8 +70,8 @@ WHERE w.series_id IN (sqlc.slice('title_ids'))
 ORDER BY w.series_id, w.number;
 
 -- name: ListCutoffTitlesPage :many
--- Candidate groups for Cutoff Unmet: series on an upgrading profile holding
--- anything the upgrade pool could act on. The status set is the sweep's pool
+-- Candidate groups for Cutoff Unmet: series on an upgrading profile with
+-- any item the upgrade pool could act on. The status set is the sweep's pool
 -- (imported, failed -- see loadSweepItems) plus grabbed, which is an upgrade
 -- already in flight and worth showing as such. import_deferred is deliberately
 -- out: that item's fix is the Activity queue's, and a grab from here would
@@ -106,7 +106,7 @@ LIMIT ?;
 -- Every rateable held item behind one page of candidate groups; scoring and the
 -- cutoff test happen in Go under the one profile snapshot per series. The grab
 -- join is inner and its status set matches the series page's, so a group's
--- items are exactly what made its series a candidate. The parse join carries
+-- items are exactly what made its series a candidate. The parse join matches on
 -- the title and the parser version it was made under, so neither a superseded
 -- release nor a parser that has since changed can match, and the caller parses
 -- afresh.
@@ -129,7 +129,7 @@ WHERE w.series_id IN (sqlc.slice('title_ids'))
 ORDER BY w.series_id, w.number;
 
 -- name: ListActiveBlocklistCounts :many
--- How many releases each series is currently refusing, for the reason column.
+-- How many releases are currently refused per series, for the reason column.
 -- Per series rather than per item because that is the blocklist's own scope.
 -- Scoped to the page's series, like the item fetches beside it: the whole table
 -- was aggregated to read out at most one page's worth. A NULL blocked_until is
@@ -146,7 +146,7 @@ GROUP BY series_id;
 SELECT COUNT(*) FROM series WHERE id IN (sqlc.slice('ids'));
 
 -- name: UpsertHeldReleaseParse :exec
--- Remembers the parse of what an item holds, so the next Cutoff Unmet request
+-- Stores the parse of an item's held release, so the next Cutoff Unmet request
 -- scores it instead of parsing it again. Keyed on the item, so a changed held
 -- release overwrites its own row rather than accumulating one per release ever
 -- held.

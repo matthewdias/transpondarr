@@ -4,14 +4,14 @@ FROM series
 ORDER BY title;
 
 -- name: ListTitlesWithProgress :many
--- Progress is measured against what is being pursued (#188): monitored and
--- already broadcast, numerator and denominator carrying the identical filter so
+-- Progress is measured against what automation acts on (#188): monitored and
+-- already broadcast, numerator and denominator applying the identical filter so
 -- a held unaired item cannot push a series past its own total. A null air date
 -- reads as aired, as everywhere else here, and so does a movie: its date is the
 -- theatrical premiere rather than the moment it becomes acquirable, so an
 -- announced film is being waited on now and must not read "Nothing aired yet"
--- from the day it gains one. monitored_items rides along so a zero
--- denominator can name its own cause: nothing aired yet, or nothing monitored.
+-- from the day it gains one. monitored_items is returned so the cause of a zero
+-- denominator can be shown: nothing aired yet, or nothing monitored.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
 SELECT
@@ -34,11 +34,11 @@ ORDER BY s.title;
 -- aggregate above. One grab per item (UNIQUE) keeps the join 1:1. Format
 -- guarantees one item only for a film added since #208 -- 00022 re-keys a
 -- legacy movie's episodes to kind 'movie' without collapsing them -- so the
--- ordering is load-bearing: the caller takes the first by number, which is the
+-- ordering is necessary: the caller takes the first by number, which is the
 -- item the detail page renders.
 -- Cost: driving from wanted_items scans them all and probes grabs per row,
 -- measured at 5.5ms over a 400-title library against 0.1ms with a forced join
--- order. Left alone: it is roughly what ListTitlesWithProgress already pays on
+-- order. Left alone: it is roughly what ListTitlesWithProgress already costs on
 -- the same request. Nothing here runs ANALYZE.
 -- NOTE: keep comments here ASCII-only. sqlc's sqlite codegen miscounts byte vs.
 -- rune offsets and silently truncates the emitted SQL on a multi-byte character.
@@ -93,22 +93,22 @@ DELETE FROM series WHERE id = ?;
 
 -- name: SetTitlePinnedGroup :execrows
 -- NULL clears the pin; execrows lets the handler 404 an unknown series. The
--- delay rides along because it is meaningless without a group to wait for, so
--- PUT-replacing one must replace the other.
+-- delay is set alongside because it means nothing without a group to wait for,
+-- so PUT-replacing one must replace the other.
 UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?;
 
 -- name: ListTitlesDueAiringSync :many
 -- Series whose broadcast schedule has never been synced or has gone stale. A
--- finished title's aired times are immutable, so it waits on the long cutoff
--- while anything still moving waits on the short one. A series with no cache
--- row has unknown status and deliberately rides the short cutoff: unknown is
+-- finished title's aired times are immutable, so it uses the long cutoff
+-- while anything still moving uses the short one. A series with no cache
+-- row has unknown status and deliberately uses the short cutoff: unknown is
 -- likelier a transient anomaly than a finished title, and the cost is one tail
 -- request per short TTL. Unmonitored series are ordered last rather than
--- filtered out (#183): monitoring gates what automation pursues, not what we
+-- filtered out (#183): monitoring limits what automation acts on, not what we
 -- know, and without a synced schedule the calendar drops their rows before its
 -- own unmonitored filter can include them. Among equals never-synced sort
 -- first; the limit bounds how much of the request budget one pass can burn.
--- Scoped to one provider because the id this hands to it is only meaningful in
+-- Scoped to one provider because the id this passes to it is only meaningful in
 -- that provider's space.
 SELECT s.*
 FROM series s
@@ -137,8 +137,8 @@ UPDATE series SET airing_synced_at = NULL WHERE id = ?;
 
 -- name: ListTrackedNextAiring :many
 -- Discovery overlay rows: every series keyed on the given provider, joined to
--- its next item scheduled after the given instant. airing_synced_at rides along
--- so the caller can tell "synced, nothing upcoming" from "never synced".
+-- its next item scheduled after the given instant. airing_synced_at is returned
+-- so the caller can distinguish "synced, nothing upcoming" from "never synced".
 SELECT
     s.id,
     s.provider_id,
@@ -159,14 +159,14 @@ WHERE s.provider = ?;
 
 -- name: ListTitlesDueMetadataRefresh :many
 -- Series whose cached title snapshot is missing or stale under the status-aware
--- TTL policy. Only a finished title with a known episode count earns the long
+-- TTL policy. Only a finished title with a known episode count gets the long
 -- cutoff; a finished one whose count the provider never publishes takes a
--- middle tier, and anything still moving rides the short one, mirroring the
+-- middle cutoff, and anything still moving uses the short one, mirroring the
 -- freshness rule in metadata.Cached. Unmonitored series are ordered last rather
 -- than filtered out, and had to stop being filtered when the airing sync did
 -- (#183): nothing else calls the provider's GetTitle for a series, so their
 -- status would freeze at its add-time value and one added while RELEASING would
--- ride that query's short cutoff forever, never reaching the long one. Among
+-- stay on that query's short cutoff forever, never moving to the long one. Among
 -- equals never-fetched sort first; the limit bounds how much of the request
 -- budget one pass burns. Scoped to one provider for the same reason
 -- ListTitlesDueAiringSync is.

@@ -22,8 +22,8 @@ ORDER BY g.created_at DESC;
 
 -- name: ListGrabsByInfoHash :many
 -- One release's rows, in episode order: the group the importer settles together.
--- item_in_library rides along because it is what makes an import a replacement (#97);
--- format and year ride along because the library target routes and names on them (#198).
+-- item_in_library is selected because it is what makes an import a replacement (#97);
+-- format and year are selected because the library target routes and names on them (#198).
 -- The three grab row shapes stay parallel: a retry converts between two of them.
 SELECT
     g.id, g.wanted_item_id, g.info_hash, g.release_title, g.status,
@@ -96,8 +96,8 @@ ORDER BY g.created_at DESC, g.id DESC;
 SELECT DISTINCT info_hash FROM grabs WHERE info_hash != '';
 
 -- name: SetGrabStatus :exec
--- Every status but grabbed is settled, so a stale import error never survives
--- a transition.
+-- Every status but grabbed is settled, so a transition always clears a stale
+-- import error.
 UPDATE grabs SET status = ?, last_error = NULL WHERE id = ?;
 
 -- name: SetGrabMissingSince :exec

@@ -76,7 +76,7 @@ type GetWantedItemByNumberRow struct {
 	GrabStatus       sql.NullString `json:"grab_status"`
 }
 
-// One read answers exists / had / already spoken for, which is the whole guard
+// One read returns exists / had / grab status, which is the whole guard
 // on placing a payload file for an item no grab row claimed. UNIQUE
 // (wanted_item_id) on grabs keeps the join 1:1.
 func (q *Queries) GetWantedItemByNumber(ctx context.Context, arg GetWantedItemByNumberParams) (GetWantedItemByNumberRow, error) {
@@ -235,8 +235,8 @@ type ListUnscheduledTitlesRow struct {
 // Series still missing an episode the provider gives no air date for, so the
 // calendar can surface them instead of silently omitting them. The first param
 // mirrors the grid's own unmonitored filter: a footer explaining an absence
-// must cover exactly the population the grid was asked to show (#183).
-// schedule_checked separates the two absences the footer would otherwise assert
+// must cover exactly the population the grid displays (#183).
+// schedule_checked separates the two absences the footer would otherwise show
 // as one: nothing writes airs_at but the airing sync, so an unstamped title is
 // one we have not asked about rather than one the provider publishes nothing for.
 func (q *Queries) ListUnscheduledTitles(ctx context.Context, dollar_1 interface{}) ([]ListUnscheduledTitlesRow, error) {
@@ -338,7 +338,7 @@ type SetWantedItemHeldParams struct {
 	ID               int64  `json:"id"`
 }
 
-// The one write point for held identity: what the library holds, and which
+// The one write point for held identity: what the library contains, and which
 // release put it there, so an upgrade has something to score against.
 func (q *Queries) SetWantedItemHeld(ctx context.Context, arg SetWantedItemHeldParams) error {
 	_, err := q.db.ExecContext(ctx, setWantedItemHeld, arg.InLibrary, arg.HeldReleaseTitle, arg.ID)
@@ -404,7 +404,7 @@ type UpsertWantedItemParams struct {
 }
 
 // DO NOTHING keeps refresh from ever clobbering an existing item's in_library,
-// title or monitored; the row count tells the caller whether the series grew.
+// title or monitored; a row count of 1 means the series grew.
 func (q *Queries) UpsertWantedItem(ctx context.Context, arg UpsertWantedItemParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, upsertWantedItem,
 		arg.SeriesID,
@@ -434,8 +434,8 @@ type UpsertWantedItemAiringParams struct {
 }
 
 // Creating the item matters for a null-count long-runner: the schedule is the
-// only source that knows its episodes exist. Only airs_at moves on conflict, so
-// a stored monitored flag survives every resync.
+// only source that lists its episodes. Only airs_at moves on conflict, so
+// no resync overwrites a stored monitored flag.
 func (q *Queries) UpsertWantedItemAiring(ctx context.Context, arg UpsertWantedItemAiringParams) error {
 	_, err := q.db.ExecContext(ctx, upsertWantedItemAiring,
 		arg.SeriesID,

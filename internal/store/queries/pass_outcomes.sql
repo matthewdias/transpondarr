@@ -5,8 +5,8 @@
 
 -- name: UpsertPassOutcome :exec
 -- One row per item, replaced in place. Every column takes the new pass's value
--- so an outcome carrying no hold clears a stale held_until, rather than leaving
--- a closed pin window attached to a decision that no longer mentions it.
+-- so an outcome with no hold clears a stale held_until, rather than leaving
+-- a closed pin window attached to a decision that no longer includes it.
 INSERT INTO pass_outcomes (wanted_item_id, outcome, source, release_title, detail, held_until, recorded_at)
 VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (wanted_item_id) DO UPDATE SET

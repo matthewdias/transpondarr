@@ -34,8 +34,8 @@ const deleteAllBlocklist = `-- name: DeleteAllBlocklist :execrows
 DELETE FROM release_blocklist
 `
 
-// Library-wide clear: an environmental fault does not respect series
-// boundaries, so neither does recovery from one.
+// Library-wide clear: an environmental fault is not confined to one series,
+// so recovery from one is not either.
 func (q *Queries) DeleteAllBlocklist(ctx context.Context) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteAllBlocklist)
 	if err != nil {
@@ -68,7 +68,7 @@ type DeleteBlocklistEntryParams struct {
 	SeriesID int64 `json:"series_id"`
 }
 
-// Scoped to the series so an unblock cannot reach another series' entry.
+// Scoped to the series so an unblock cannot delete another series' entry.
 func (q *Queries) DeleteBlocklistEntry(ctx context.Context, arg DeleteBlocklistEntryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteBlocklistEntry, arg.ID, arg.SeriesID)
 	if err != nil {
@@ -87,7 +87,7 @@ type DeleteExpiredBlocklistByTitleParams struct {
 	BlockedUntil sql.NullString `json:"blocked_until"`
 }
 
-// A permanent entry (NULL blocked_until) is never expired, so it survives this.
+// A permanent entry (NULL blocked_until) never expires, so this never deletes it.
 func (q *Queries) DeleteExpiredBlocklistByTitle(ctx context.Context, arg DeleteExpiredBlocklistByTitleParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteExpiredBlocklistByTitle, arg.SeriesID, arg.BlockedUntil)
 	if err != nil {
@@ -193,8 +193,8 @@ type SetBlocklistExpiryParams struct {
 	ID           int64          `json:"id"`
 }
 
-// NULL is permanent. Separate from the upsert because the ladder is keyed on the
-// failure count the upsert only reports after it has written.
+// NULL is permanent. Separate from the upsert because the escalating expiry is
+// keyed on the failure count the upsert only reports after it has written.
 func (q *Queries) SetBlocklistExpiry(ctx context.Context, arg SetBlocklistExpiryParams) error {
 	_, err := q.db.ExecContext(ctx, setBlocklistExpiry, arg.BlockedUntil, arg.ID)
 	return err
@@ -227,7 +227,7 @@ type UpsertBlocklistEntryParams struct {
 // byte vs. rune offsets and a multi-byte character in a doc comment silently
 // truncates the emitted SQL. See CLAUDE.md.
 // A repeat failure of the same release bumps the existing row so the escalating
-// expiry can see the count; hash, reason and expiry take the latest attempt's.
+// expiry can read the count; hash, reason and expiry take the latest attempt's.
 func (q *Queries) UpsertBlocklistEntry(ctx context.Context, arg UpsertBlocklistEntryParams) (ReleaseBlocklist, error) {
 	row := q.db.QueryRowContext(ctx, upsertBlocklistEntry,
 		arg.SeriesID,

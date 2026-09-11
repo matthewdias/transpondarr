@@ -11,13 +11,13 @@ RETURNING *;
 
 -- name: UpsertWantedItem :execrows
 -- DO NOTHING keeps refresh from ever clobbering an existing item's in_library,
--- title or monitored; the row count tells the caller whether the series grew.
+-- title or monitored; a row count of 1 means the series grew.
 INSERT INTO wanted_items (series_id, kind, number, title, in_library, monitored)
 VALUES (?, ?, ?, ?, 0, ?)
 ON CONFLICT (series_id, kind, number) DO NOTHING;
 
 -- name: GetWantedItemByNumber :one
--- One read answers exists / had / already spoken for, which is the whole guard
+-- One read returns exists / had / grab status, which is the whole guard
 -- on placing a payload file for an item no grab row claimed. UNIQUE
 -- (wanted_item_id) on grabs keeps the join 1:1.
 SELECT w.*, g.status AS grab_status
@@ -42,7 +42,7 @@ WHERE id IN (sqlc.slice('ids')) AND monitored = 0;
 UPDATE wanted_items SET in_library = ? WHERE id = ?;
 
 -- name: SetWantedItemHeld :exec
--- The one write point for held identity: what the library holds, and which
+-- The one write point for held identity: what the library contains, and which
 -- release put it there, so an upgrade has something to score against.
 UPDATE wanted_items SET in_library = ?, held_release_title = ? WHERE id = ?;
 
@@ -66,8 +66,8 @@ ORDER BY w.airs_at, s.title, w.number;
 -- Series still missing an episode the provider gives no air date for, so the
 -- calendar can surface them instead of silently omitting them. The first param
 -- mirrors the grid's own unmonitored filter: a footer explaining an absence
--- must cover exactly the population the grid was asked to show (#183).
--- schedule_checked separates the two absences the footer would otherwise assert
+-- must cover exactly the population the grid displays (#183).
+-- schedule_checked separates the two absences the footer would otherwise show
 -- as one: nothing writes airs_at but the airing sync, so an unstamped title is
 -- one we have not asked about rather than one the provider publishes nothing for.
 SELECT DISTINCT s.id, s.title, s.airing_synced_at IS NOT NULL AS schedule_checked
@@ -86,8 +86,8 @@ WHERE series_id = ? AND kind = ? AND number = ? AND airs_at IS NULL;
 
 -- name: UpsertWantedItemAiring :exec
 -- Creating the item matters for a null-count long-runner: the schedule is the
--- only source that knows its episodes exist. Only airs_at moves on conflict, so
--- a stored monitored flag survives every resync.
+-- only source that lists its episodes. Only airs_at moves on conflict, so
+-- no resync overwrites a stored monitored flag.
 INSERT INTO wanted_items (series_id, kind, number, airs_at, monitored)
 VALUES (?, ?, ?, ?, ?)
 ON CONFLICT (series_id, kind, number) DO UPDATE SET airs_at = excluded.airs_at;
