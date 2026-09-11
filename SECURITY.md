@@ -66,8 +66,13 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   the port the proxy listens on, which differs from the published port whenever a
   container maps ports.
 
-- **Run as the data owner, not root.** The container image is distroless and does not
-  remap UID/GID; set `user:` to the account that owns your media volume.
+- **Run as the data owner, not root.** The container starts as root only to fix
+  ownership of `/config`, then drops to `PUID`/`PGID` (default `1000:1000`) before
+  serving. Set those two variables to the account that owns your media volume.
+  `PUID=0` skips the drop and keeps the server running as root. If you set `user:` (or `--user`) instead, the root phase is skipped and
+  `PUID`/`PGID` are ignored, so `/config` must already be writable by that user.
+  Docker creates a missing bind-mount directory owned by root, and the server then
+  exits at startup with an error naming the uid it runs as.
 
 ## Known limitations (deferred hardening)
 

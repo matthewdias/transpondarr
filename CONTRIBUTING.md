@@ -158,25 +158,45 @@ reads it there.
 ## Architecture
 
 - **Content-type-agnostic core** (`internal/core/domain`): the pipeline is keyed
-  on `WantedItem`, so movies slot in later without a rewrite.
-- **Pluggable interfaces:** `Indexer` (Torznab + other native integrations),
-  `DownloadClient` (qBittorrent), `LibraryTarget` (media-server layout now; a
-  drop-folder later).
+  on `WantedItem`, so a film (`domain.FormatMovie`) is a title with a single item
+  and goes through the same pipeline as an episode.
+- **Pluggable interfaces:** `Indexer` (Torznab only; native integrations are
+  planned), `download.Client` (qBittorrent), `library.Target` (media-server
+  layout now; a drop-folder later).
 
 ## Layout
 
 ```
-cmd/transpondarrd      server entrypoint
-internal/config        env-based configuration
-internal/server        chi + Huma API, forms auth (sessions) + machine API key, embedded SPA
-internal/store         SQLite: goose migrations + sqlc query layer (internal/store/db)
-internal/core/domain   content-type-agnostic model (Title / WantedItem)
-internal/core/metadata Provider interface + anilist adapter + read-through cache
-internal/core/indexer  Indexer interface + torznab
-internal/core/download Download client interface + qbittorrent adapter
-internal/core/library  LibraryTarget interface + mediaserver adapter
-web/                   embeds frontend build output (web/dist)
-frontend/              Vite + React + TypeScript source
+cmd/transpondarrd       server entrypoint
+cmd/devseed             dev database seeder (make seed)
+internal/config         env-based configuration
+internal/server         chi + Huma API, forms auth (sessions) + machine API key, embedded SPA
+internal/store          SQLite: goose migrations + sqlc query layer (internal/store/db)
+internal/privdrop       container start-up: fix /config ownership, then drop to PUID/PGID
+internal/version        build version, set with -ldflags
+internal/coretest       pipeline test harness: temp store + fake indexer/download/library
+internal/devdata        dev fixtures + AniList/Torznab stubs, used only by cmd/devseed
+internal/core/acquire   search, decide and grab, shared by manual grabs, the search sweep and the feed poll
+internal/core/airing    syncs each item's broadcast time from the metadata provider
+internal/core/auth      forms login (argon2id password) + sessions
+internal/core/blocklist releases that already failed for a title, with escalating expiry
+internal/core/browse    seasonal discovery charts, cached per season
+internal/core/catalog   search for and add titles, creating their wanted items
+internal/core/clients   live download/indexer/library clients, swapped when settings change
+internal/core/decide    matches releases to wanted items and ranks them
+internal/core/domain    content-type-agnostic model (Title / WantedItem)
+internal/core/download  download.Client interface + qbittorrent adapter
+internal/core/importer  polls the download client and imports finished grabs into the library
+internal/core/indexer   Indexer interface + torznab
+internal/core/jobs      background job runner (named jobs on fixed intervals)
+internal/core/library   library.Target interface + mediaserver adapter
+internal/core/metadata  Provider interface + anilist adapter + read-through cache
+internal/core/notify    notification events + Discord, webhook and ntfy adapters
+internal/core/parser    release name -> structured fields (anitogo)
+internal/core/refresh   adds wanted items as a title's episode count grows
+internal/core/settings  runtime config: environment overlaid with Settings UI edits
+web/                    embeds frontend build output (web/dist)
+frontend/               Vite + React + TypeScript source
 ```
 
 ## Database changes
