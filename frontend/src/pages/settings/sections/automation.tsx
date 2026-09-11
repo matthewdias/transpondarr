@@ -24,7 +24,7 @@ const MODES: { value: Mode; label: string; hint: string }[] = [
   {
     value: "notify_only",
     label: "Notify only",
-    hint: "A rehearsal: automation searches and decides for real, sends a notification for what it would have grabbed (and why it would grab nothing), but nothing reaches the download client.",
+    hint: "A rehearsal: automation searches and decides for real, sends a notification for what it would have grabbed (and why it would grab nothing), but the download client receives nothing.",
   },
   {
     value: "on",
@@ -37,7 +37,7 @@ export function AutomationSection({ settings }: { settings: Settings }) {
   const a = settings.automation;
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<Mode>(a.mode);
-  // Held as a string so the field can be transiently empty while being retyped.
+  // Stored as a string so the field can be transiently empty while being retyped.
   const [pinDelay, setPinDelay] = useState(String(a.pin_delay_hours));
 
   const saveToast = useSaveToast(queryClient, "Automation");

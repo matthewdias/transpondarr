@@ -1,6 +1,6 @@
 // Query key + fetch wiring for every server query, in one place. Call sites use
 // useQuery(fooQuery(...)) and spread in call-site state like `enabled`; signal
-// threading for cancellation lives here so components never mention it.
+// threading for cancellation is done here so components never reference it.
 import {
   infiniteQueryOptions,
   keepPreviousData,
@@ -49,7 +49,7 @@ export const grabsQuery = (titleId: number) =>
     queryFn: ({ signal }) => api.listGrabs(titleId, signal),
   });
 
-// Blocklist entries outlive grab rows, so this is separate data, not a slice of
+// Blocklist entries outlast grab rows, so this is separate data, not a slice of
 // the grab feed.
 export const blocklistQuery = (titleId: number) =>
   queryOptions({
@@ -58,7 +58,7 @@ export const blocklistQuery = (titleId: number) =>
   });
 
 // staleTime: the chart is a 6h-TTL cache server-side; refetching on every
-// season flip would only re-read the same snapshot. keepPreviousData holds the
+// season flip would only re-read the same snapshot. keepPreviousData keeps the
 // outgoing chart on a flip instead of flashing the skeleton.
 export const browseSeasonQuery = ({ season, year }: SeasonRef) =>
   queryOptions({
@@ -68,7 +68,7 @@ export const browseSeasonQuery = ({ season, year }: SeasonRef) =>
     placeholderData: keepPreviousData,
   });
 
-// keepPreviousData holds the outgoing grid while a prev/next page loads
+// keepPreviousData keeps the outgoing grid while a prev/next page loads
 // instead of flashing it empty.
 export const calendarQuery = (
   start: string,
@@ -130,7 +130,7 @@ export const blocklistSummaryQuery = () =>
     refetchInterval: JOBS_POLL_MS,
   });
 
-// Exported so tests and the page agree on how stale a queue snapshot can be.
+// Exported so tests and the page share one staleness bound for the queue.
 export const ACTIVITY_QUEUE_POLL_MS = 15 * 1000;
 
 // Polls like jobs: torrent progress ages on its own with nothing to invalidate it.
@@ -150,7 +150,7 @@ export const activityUnmatchedQuery = () =>
     refetchInterval: ACTIVITY_QUEUE_POLL_MS,
   });
 
-// Keyset pagination: each page carries the cursor for the next, absent on the last.
+// Keyset pagination: each page contains the cursor for the next, absent on the last.
 export const activityHistoryQuery = () =>
   infiniteQueryOptions({
     queryKey: ["activity-history"],

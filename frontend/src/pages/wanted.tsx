@@ -61,9 +61,9 @@ const releasesLink = (titleId: number, format: string, number: number) =>
     ? `/titles/${titleId}?tab=releases`
     : `/titles/${titleId}?tab=releases&item=${number}`;
 
-// The reason tiers' vocabulary (#150): the page says what blocks everything,
-// a group header says where its series stands in the sweep queue, and a row
-// speaks only when it has its own story. Tone separates "you have to do
+// The reason tiers' vocabulary (#150): the page shows what blocks everything,
+// a group header shows where its series is in the sweep queue, and a row
+// shows a reason only when it has its own story. Tone separates "you have to do
 // something" from "the queue is working".
 const globalReasonText: Record<GlobalMissingReason, string> = {
   no_indexer:
@@ -71,7 +71,7 @@ const globalReasonText: Record<GlobalMissingReason, string> = {
   automation_off:
     "Automation is off: nothing here will be grabbed on its own. Searches you trigger still run.",
   notify_only:
-    "Automation is rehearsing: decisions are notified, but nothing reaches the download client.",
+    "Automation is rehearsing: decisions are notified, but the download client receives nothing.",
 };
 
 const titleReasonLabel: Record<TitleMissingReason, string> = {
@@ -119,7 +119,7 @@ const itemReasonTone: Record<ItemMissingReason, string> = {
 export function WantedPage() {
   const [tab, setTab] = useState<WantedTab>("missing");
   // One group of independent filters, so the state is the set that is on. The
-  // two flags below are what the queries take; nothing else sees the set.
+  // two flags below are what the queries take; nothing else reads the set.
   const [scope, setScope] = useState<string[]>([]);
   const unaired = scope.includes("unaired");
   const unmonitored = scope.includes("unmonitored");
@@ -260,7 +260,7 @@ function MissingTab({
 // GroupSection is the collapsible card both tabs' groups share. No
 // overflow-hidden on the section -- it would become the sticky containing
 // block and pin the header to the card instead of the viewport -- so the
-// rounding is carried by the header and last row themselves. The header's
+// rounding is applied to the header and last row themselves. The header's
 // background is the opaque panel token: rows scroll under it while stuck.
 function GroupSection({
   title,
@@ -458,7 +458,7 @@ function MissingRow({
       <ItemReasonBadge item={item} film={film} />
       <Button variant="outline" size="sm" asChild>
         {/* #105's episode-targeted search: the Releases tab, where the
-            unchanged manual grab lives, opens filtered to this episode. */}
+            unchanged manual grab is, opens filtered to this episode. */}
         <Link to={releasesLink(titleId, format, item.number)}>
           <Search className="size-4" /> Search
         </Link>
@@ -494,7 +494,7 @@ function TitleReasonBadge({ group }: { group: MissingGroup }) {
 
 // The pass tier is the only reason on this page that can go stale, so it is
 // always shown with its age: a past-tense verb next to "2h ago" cannot read as
-// a fact about now. The tooltip carries what the pass acted on.
+// a fact about now. The tooltip shows what the pass acted on.
 function itemReasonTitle(item: MissingItem): string | undefined {
   const pass = item.last_pass;
   if (!pass) {
@@ -516,8 +516,8 @@ function itemReasonTitle(item: MissingItem): string | undefined {
     .join(" · ");
 }
 
-// A row speaks only when it has its own story; most rows are told by their
-// group and stay quiet.
+// A row shows a reason only when it has its own story; most rows are
+// explained by their group header and stay quiet.
 function ItemReasonBadge({ item, film }: { item: MissingItem; film: boolean }) {
   if (!item.reason) return null;
   // The badge is right either way; only the word is episodic. A film has a
@@ -557,7 +557,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
   if (isError)
     return <ListError what="the cutoff list" error={error} onRetry={refetch} />;
 
-  // An empty page can still carry a cursor: membership is decided in Go, so a
+  // An empty page can still have a cursor: membership is computed in Go, so a
   // request that scanned its whole budget without finding a sub-cutoff release
   // returns nothing and a place to resume. Returning early here would show
   // "Nothing below cutoff" over a library that has some, further down.
@@ -569,7 +569,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
           blurb={
             hasNextPage
               ? "No episode below its cutoff in the series checked so far. Keep looking to check the rest of the library."
-              : "Held episodes on a profile with upgrades enabled appear here while what holds them scores below that profile's cutoff."
+              : "Held episodes on a profile with upgrades enabled appear here while their release scores below that profile's cutoff."
           }
         />
       ) : (
@@ -590,7 +590,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
 }
 
 function CutoffGroupCard({ group }: { group: CutoffGroup }) {
-  // Goals every item shares are said once here; a row keeps only its own.
+  // Goals every item shares are shown once here; a row keeps only its own.
   const shared = sharedGoals(group.items);
   const hidden = group.below - group.items.length;
   return (
@@ -670,7 +670,7 @@ function CutoffRow({
         </div>
         {own.length > 0 ? (
           <div className="truncate text-[11px] text-dl">
-            Also wants {goalLine(own)}
+            Also wanted: {goalLine(own)}
           </div>
         ) : (
           (item.unmet_goals?.length ?? 0) === 0 && (
@@ -707,7 +707,7 @@ function CutoffRow({
 }
 
 // A search is queued, never run here: titlesPerPass bounds how much of the
-// indexer budget one pass can spend, so the toast says queued rather than done.
+// indexer budget one pass can use, so the toast says queued rather than done.
 function SearchActions({
   selectedTitles,
   onDone,

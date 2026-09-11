@@ -106,7 +106,7 @@ describe("ActivityPage", () => {
     expect(document.querySelectorAll(".text-destructive")).toHaveLength(1);
   });
 
-  // A queued download is waiting its turn on purpose, so it reads as its own
+  // The client queues a download by design, so a queued one reads as its own
   // thing rather than as Downloading · 0%, and nothing is wrong with it (#246).
   it("names a queued download without flagging it", async () => {
     useHandlers(
@@ -129,10 +129,10 @@ describe("ActivityPage", () => {
     expect(document.querySelectorAll(".text-dl")).toHaveLength(0);
   });
 
-  // A stalled row can already say it is stalled; what it cannot say is that we
-  // are going to give up on it and when (#242). A stall with bytes on disk
-  // carries no deadline, and is what makes the countdown assertion mean something.
-  it("says when a stalled download will be given up on", async () => {
+  // A stalled row can already show it is stalled; what it cannot show is that
+  // we are going to give up on it and when (#242). A stall with bytes on disk
+  // has no deadline, and is what makes the countdown assertion mean something.
+  it("shows when a stalled download will be given up on", async () => {
     // Half an hour past the boundary: the countdown floors, so an exact 4h would
     // have elapsed into "in 3h" by the time it rendered.
     const inFourHours = new Date(Date.now() + 4.5 * 3600 * 1000).toISOString();
@@ -169,7 +169,7 @@ describe("ActivityPage", () => {
     expect(screen.getByText(/giving up on /)).toBeInTheDocument();
     expect(screen.getAllByText("Stalled")).toHaveLength(3);
     // Two deadlines, on the two rows that have one: a stall with bytes on disk
-    // is not going to be given up on however long it sits.
+    // is not going to be given up on however long it stays.
     expect(screen.getAllByText(/giving up/)).toHaveLength(2);
   });
 
@@ -205,7 +205,7 @@ describe("ActivityPage", () => {
 
     renderPage();
 
-    // Queue: the paused row carries the live state and progress.
+    // Queue: the paused row shows the live state and progress.
     expect(await screen.findByText("Paused")).toBeInTheDocument();
     expect(screen.getByText(/42%/)).toBeInTheDocument();
     const links = screen.getAllByRole("link", { name: "Signal Anomaly" });
@@ -218,7 +218,7 @@ describe("ActivityPage", () => {
       "/titles/9",
     );
 
-    // History: past-tense verbs, failure detail carried through.
+    // History: past-tense verbs, failure detail passed through.
     expect(screen.getByText(/Grabbed/)).toBeInTheDocument();
     expect(screen.getByText(/Failed/)).toBeInTheDocument();
     expect(
@@ -298,7 +298,7 @@ describe("ActivityPage", () => {
     await waitFor(() => expect(historyCalls).toBe(2));
   });
 
-  it("says when the download client is unreachable instead of hiding the queue", async () => {
+  it("shows when the download client is unreachable instead of hiding the queue", async () => {
     useHandlers(
       { client_ok: false, items: [queueItem({ id: 1 })] },
       { "": { events: [] } },
@@ -327,9 +327,9 @@ describe("unmatched downloads", () => {
   };
 
   // A rare state: an always-present empty section would be noise on every visit.
-  // #215's DTO half: the queue is movie-reachable, and format is the only thing
-  // that can tell a film from an episode -- item count cannot (#208). The film
-  // is still identified, by the title it already carries.
+  // #215's DTO half: the queue can contain a movie, and format is the only
+  // thing that can distinguish a film from an episode -- item count cannot
+  // (#208). The film is still identified, by the title it already has.
   it("does not call a downloading film an episode", async () => {
     useHandlers(
       {
@@ -359,8 +359,8 @@ describe("unmatched downloads", () => {
     expect(screen.queryByText(/Unmatched downloads/i)).not.toBeInTheDocument();
   });
 
-  // No grab row stands behind these, so the row itself has to carry enough to
-  // recognise the torrent by: how big it is and how long it has been sitting.
+  // No grab row references these, so the row itself has to show enough to
+  // recognise the torrent by: how big it is and how long it has been there.
   it("identifies the orphan by size and age", async () => {
     useHandlers(
       { client_ok: true, items: [] },
@@ -548,7 +548,7 @@ describe("fixing a deferred import", () => {
     );
   });
 
-  // Nothing unpacks archives, so the dialog has to say what it found and what to
+  // Nothing unpacks archives, so the dialog has to name the archive and what to
   // do — an empty file list was the dead end this whole path exists to end.
   it("names the archive it cannot unpack and still lets the retry run", async () => {
     let posted: unknown;

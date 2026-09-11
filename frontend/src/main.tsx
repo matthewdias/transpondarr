@@ -22,7 +22,7 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30_000,
       refetchOnWindowFocus: false,
-      // Don't hammer the server on client errors (401/404/422); retry once on 5xx.
+      // Don't retry client errors (401/404/422); retry once on 5xx.
       retry: (count, error) =>
         error instanceof ApiError && error.status < 500 ? false : count < 1,
     },

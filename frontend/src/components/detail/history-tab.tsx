@@ -104,8 +104,8 @@ export function HistoryTab({
   );
 }
 
-// Blocklist entries outlive grab rows, so this is its own section and the feed's
-// empty state must not swallow it.
+// Blocklist entries outlast grab rows, so this is its own section and the feed's
+// empty state must not hide it.
 export function BlockedReleases({
   titleId,
   active,

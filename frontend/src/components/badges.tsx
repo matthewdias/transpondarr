@@ -42,7 +42,7 @@ export function MonitoredBadge({ monitored }: { monitored: boolean }) {
 }
 
 // Replaces "wanted" alone, at the render site: the other statuses stay true
-// when unmonitored, and deriveItemState knows nothing about monitoring.
+// when unmonitored, and deriveItemState has no monitoring input.
 export function UnmonitoredItemBadge() {
   return (
     <span className={cn(badgeBase, "border-border bg-panel-2 text-faint")}>
@@ -94,11 +94,11 @@ export function ItemStatusBadge({
       );
     case "deferred":
       // A film's deferral is a size tie or an unextracted archive (#210), never
-      // a batch, so neither the label nor the single-episode advice holds.
+      // a batch, so neither the label nor the single-episode advice applies.
       return movie ? (
         <span
           className={cn(badgeBase, "border-dl/40 bg-transparent text-dl")}
-          title="The download finished but the film could not be picked out of it. The Activity queue says what it needs."
+          title="The download finished but the film could not be picked out of it. The Activity queue shows what it needs."
         >
           <FolderClock className="size-3" /> Downloaded, not imported
         </span>

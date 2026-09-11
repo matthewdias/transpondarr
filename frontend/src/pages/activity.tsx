@@ -149,11 +149,11 @@ function QueueSection() {
 }
 
 // Live state outranks the derived status for the icon: a paused or stalled
-// torrent is the thing worth noticing, whatever the pipeline calls the item.
+// torrent is the thing worth noticing, whatever the item's pipeline status.
 function queueTone(item: QueueItem) {
   if (item.client_state === "paused")
     return { icon: Pause, tone: "bg-panel-2 text-muted-foreground" };
-  // Waiting its turn is the client's own decision, so nothing is wrong with it
+  // The client queues a download by its own rules, so nothing is wrong with it
   // and nothing is happening to it (#246).
   if (item.client_state === "queued")
     return { icon: Clock, tone: "bg-panel-2 text-muted-foreground" };
@@ -206,8 +206,8 @@ function QueueRow({ item }: { item: QueueItem }) {
       </ItemMedia>
       <ItemContent className="min-w-0 gap-0.5">
         <div className="text-sm font-medium">
-          {/* A film's number says nothing its title has not, and calling it an
-              episode is a plain false statement. Format alone decides (#208). */}
+          {/* A film's number adds nothing to its title, and calling it an
+              episode is a plain false statement. Format alone determines it (#208). */}
           {item.format !== "MOVIE" && (
             <>
               Episode {item.item_number}
@@ -266,8 +266,8 @@ function QueueRow({ item }: { item: QueueItem }) {
 
 // Unlike the other two sections this one vanishes when empty: an orphaned
 // download is a rare state, and a permanent empty card would be noise on every
-// visit. A load failure still speaks, since silence would be indistinguishable
-// from "nothing is wrong".
+// visit. A load failure still renders, since hiding it would be
+// indistinguishable from "nothing is wrong".
 function UnmatchedSection() {
   // The poll is paused while a confirm dialog is open: a scan or a new grab
   // adopting the hash would otherwise drop the row, unmounting the dialog the

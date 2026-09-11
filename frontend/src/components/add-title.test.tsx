@@ -91,7 +91,7 @@ async function openWithResults() {
 
 // Every add-time decision now belongs to the title it is about, so the row
 // button opens a form rather than adding on the spot -- and the search behind
-// it survives, because picking the wrong title is the common misstep.
+// it is kept, because picking the wrong title is the common misstep.
 it("opens a per-title form and keeps the search behind it", async () => {
   const user = await openWithResults();
 
@@ -126,8 +126,8 @@ it("opens a per-title form and keeps the search behind it", async () => {
 });
 
 // A stacked dialog would have dismissed one layer at a time; the step it was
-// replaced with owes the same, or Escape silently costs the typed search that
-// Back preserves.
+// replaced with has to do the same, or Escape silently costs the typed search
+// that Back preserves.
 it("steps back from the form on Escape, and closes on the next one", async () => {
   const user = await openWithResults();
 
@@ -173,7 +173,7 @@ it("confirms with the defaults in one click and sends no profile", async () => {
   );
 });
 
-// The profile fetch must never stand between the user and the button: a failed
+// The profile fetch must never block the button: a failed
 // one (or a slow one) degrades to the server's default, which is the same
 // answer an untouched picker gives.
 it("adds when the profiles cannot be fetched", async () => {
@@ -239,7 +239,7 @@ it("offers no way to add a series that monitors nothing", async () => {
 });
 
 // The movie Format is tracked now (#208): the row adds like any other, and the
-// "reserved" note that stood in for the refusal is gone.
+// "reserved" note that served as the refusal is gone.
 it("adds a movie result like any other title", async () => {
   server.use(
     http.get("/api/v1/metadata/search", () =>

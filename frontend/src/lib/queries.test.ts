@@ -79,11 +79,11 @@ describe("query key factories", () => {
     expect(jobsQuery().refetchInterval).toBe(15 * 1000);
   });
 
-  it("keeps releases fresh for five minutes to spare the rate-limited indexer", () => {
+  it("keeps releases fresh for five minutes to reduce load on the rate-limited indexer", () => {
     expect(releasesQuery(3).staleTime).toBe(5 * 60 * 1000);
   });
 
-  it("holds the outgoing chart on a season flip instead of flashing a skeleton", () => {
+  it("keeps the outgoing chart on a season flip instead of flashing a skeleton", () => {
     expect(
       browseSeasonQuery({ season: "summer", year: 2026 }).placeholderData,
     ).toBe(keepPreviousData);

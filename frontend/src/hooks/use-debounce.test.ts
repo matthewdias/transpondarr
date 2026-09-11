@@ -15,7 +15,7 @@ describe("useDebounce", () => {
     expect(result.current).toBe("a");
   });
 
-  it("holds the previous value until the delay elapses", () => {
+  it("returns the previous value until the delay elapses", () => {
     const { result, rerender } = renderHook(
       ({ value }) => useDebounce(value, 300),
       {

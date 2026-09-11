@@ -54,7 +54,7 @@ type TabKey = "episodes" | "status" | "releases" | "history";
 
 const isMovieFormat = (format: string) => format === "MOVIE";
 
-// The first tab is the format's own, so a tab held across a title-to-title
+// The first tab is the format's own, so a tab kept across a title-to-title
 // navigation resolves to the one this format actually renders.
 function resolveTab(tab: TabKey | null, isMovie: boolean): TabKey {
   const first: TabKey = isMovie ? "status" : "episodes";
@@ -76,10 +76,10 @@ export function TitleDetailPage() {
   // Null means "whatever this format lands on", resolved below: the format is
   // not known until the detail loads, so it cannot seed the initial state.
   const [tab, setTab] = useState<TabKey | null>(linkedTab);
-  // Radix unmounts an inactive panel, so the focused episode is the page's to
-  // hold, not the Releases tab's.
+  // Radix unmounts an inactive panel, so the page stores the focused episode,
+  // not the Releases tab.
   const [focusItem, setFocusItem] = useState<number | null>(linkedItem);
-  // The page survives a series-to-series navigation, and an episode number from
+  // The page persists across a series-to-series navigation, and an episode number from
   // the series you left means something else in the one you arrived at.
   useEffect(() => {
     setFocusItem(linkedItem);
@@ -127,7 +127,7 @@ export function TitleDetailPage() {
   });
 
   // The page's, not the tab's: Radix unmounts an inactive panel, so a selection
-  // held there would evaporate on a round trip to Releases. Every callback below
+  // stored there would evaporate on a round trip to Releases. Every callback below
   // is stable, which is what lets the memoized rows skip a re-render per toggle.
   const [selected, setSelected] = useState<Set<number>>(new Set());
   useEffect(() => setSelected(new Set()), [id]);
@@ -337,7 +337,7 @@ export function TitleDetailPage() {
   );
 }
 
-// ProfilePicker sits in the chips row: the profile is context you glance at and
+// ProfilePicker is in the chips row: the profile is context you glance at and
 // occasionally change, not a form you fill in.
 export function ProfilePicker({ detail }: { detail: TitleDetail }) {
   const queryClient = useQueryClient();
@@ -486,7 +486,7 @@ export function PinnedGroupChip({ detail }: { detail: TitleDetail }) {
           onSubmit={(e) => {
             e.preventDefault();
             // A cleared group takes its wait with it, so the disabled field's
-            // leftover value must not ride along to be silently dropped.
+            // leftover value must not be sent only to be silently dropped.
             const blank = group.trim() === "" || delay === "";
             pin.mutate({ g: group, d: blank ? undefined : Number(delay) });
           }}
@@ -563,9 +563,9 @@ export function PinnedGroupChip({ detail }: { detail: TitleDetail }) {
 
 /**
  * Monitoring switch. Monitored now means "will be searched and grabbed
- * automatically", so the global kill switch turns that label into a promise the
- * daemon is not keeping — the only case worth annotating, since an unmonitored
- * series is already saying it will not run.
+ * automatically", so the global kill switch makes that label false — the only
+ * case worth annotating, since an unmonitored series already shows it will not
+ * run.
  */
 export function MonitoringToggle({
   monitored,
@@ -606,7 +606,7 @@ export function MonitoringToggle({
       </label>
       {monitored && note && (
         // Helper text, not a chip: a bordered pill directly under a switch reads
-        // as a second control. The icon carries the caution, since the palette's
+        // as a second control. The icon shows the caution, since the palette's
         // amber is under 4.5:1 as text at this size.
         <Link
           to="/settings"

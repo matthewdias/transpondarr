@@ -65,9 +65,9 @@ function signed(points: number): string {
 }
 
 // ScoreBreakdown is the "why this rank" surface (#17): per-axis contributions,
-// the total, and — when the profile refuses the release — the reason. Its tokens
-// assume an upright surface, so the tooltip that hosts it overrides the inverted
-// default (where text-dl falls to 1.84:1 in dark mode).
+// the total, and — when the profile refuses the release — the reason. Its
+// tokens need an upright surface, so the tooltip that hosts it overrides the
+// inverted default (where text-dl falls to 1.84:1 in dark mode).
 export function ScoreBreakdown({ r }: { r: CandidateRelease }) {
   const parts = r.score_parts ?? [];
   return (
@@ -78,8 +78,8 @@ export function ScoreBreakdown({ r }: { r: CandidateRelease }) {
             {r.ineligible_reason}
           </p>
           <p className="mb-2 max-w-56 text-[11px] text-faint">
-            Judged from attributes read from the release name — an unlabeled
-            release is not caught.
+            Based on attributes read from the release name — an unlabeled
+            release is not detected.
           </p>
         </>
       )}
@@ -267,7 +267,7 @@ export function ReleasesTab({
             matched against wanted items — season &amp; number aware
           </span>
         ) : (
-          // Focused, the count is the only thing saying how much is hidden, so
+          // Focused, the count is the only thing showing how much is hidden, so
           // it outranks the caption's sm-only budget — and a count before the
           // search lands would read as a search that found nothing.
           !search.isLoading && (

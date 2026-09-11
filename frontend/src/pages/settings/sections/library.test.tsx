@@ -75,7 +75,7 @@ function renderSection(library: Settings["library"]) {
 
 describe("LibrarySection", () => {
   // #198: movies place into their own root, so the section edits both and a
-  // save carries them together.
+  // save sends them together.
   it("seeds both roots and saves an edited movies directory", async () => {
     let body: unknown;
     const saved: Settings["library"] = {
@@ -116,8 +116,8 @@ describe("LibrarySection", () => {
     });
   });
 
-  // #129: the layout is edited here, and a save that does not touch it must
-  // carry the season folders an existing library is already in.
+  // #129: the layout is edited here, and a save that does not change it must
+  // send the season folders an existing library is already in.
   it("seeds the stored layout and saves a switch to flat", async () => {
     let body: unknown;
     server.use(

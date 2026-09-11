@@ -63,7 +63,7 @@ export function fetchRange(days: Date[]): { start: string; end: string } {
 
 /**
  * Group items into local-day cells keyed by dayKey. An unparseable air time is
- * dropped rather than mis-filed; the caller never sees an item without one
+ * dropped rather than mis-filed; the caller never receives an item without one
  * (the API omits unscheduled rows).
  */
 export function bucketByDay<T extends { airs_at: string }>(

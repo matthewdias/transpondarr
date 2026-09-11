@@ -128,7 +128,7 @@ it("hides the monitor mode for a movie and sends all", async () => {
 
 // #217: nothing has aired, so both choices monitor everything. A control whose
 // answers cannot differ is not a choice, so it is not offered.
-it("asks nothing for a title that has not started, and monitors all of it", async () => {
+it("shows no choice for a title that has not started, and monitors all of it", async () => {
   const bodies = captureAdd();
   const user = renderForm(upcoming, "Placeholder Saga");
 
@@ -172,8 +172,8 @@ it("names the episodes each choice would monitor", async () => {
 //
 // The cut lands past the last item for every one of these, so the warning keys
 // on where it lands and never on the status: a run between cours and one whose
-// schedule reaches past its count monitor exactly as much as a finished one
-// does, which is nothing, and used to be told they would be monitored.
+// schedule extends past its count monitor exactly as much as a finished one
+// does, which is nothing, and used to be shown as monitored.
 it.each([
   ["a finished run", finished],
   ["a run between cours", { ...title, next_item: undefined }],
@@ -218,8 +218,8 @@ it("names the cut when the episode count is unknown", async () => {
   ).toBeInTheDocument();
 });
 
-// The summary is the reason the consequence sits outside the dropdown, so the
-// control has to point at it or a screen reader never reaches it.
+// The summary is the reason the consequence is outside the dropdown, so the
+// control has to point at it or a screen reader never announces it.
 it("describes the control with the summary", async () => {
   renderForm(airing, "Placeholder Saga");
 
@@ -258,7 +258,7 @@ function libraryRoots(dir: string, moviesDir: string) {
 const noMoviesRoot = /movies (directory|folder|library)|Settings/i;
 
 // #198 made a missing movies root a configuration error at import time; the add
-// form is where a user can find that out before it bites them.
+// form is where a user can find that out before an import fails on it.
 it("warns when a film is added with no movies root configured", async () => {
   libraryRoots("/media/shows", "");
   const bodies = captureAdd();
@@ -267,7 +267,7 @@ it("warns when a film is added with no movies root configured", async () => {
   const note = await screen.findByRole("link", { name: noMoviesRoot });
   expect(note).toHaveAttribute("href", "/settings");
 
-  // Never blocking: gating a manual path is what #198 and PR #57 both refuse.
+  // Never blocking: gating a manual path is what #198 and PR #57 both rule out.
   await user.click(screen.getByRole("button", { name: "Add Sample Film" }));
   await waitFor(() => expect(bodies).toHaveLength(1));
 });

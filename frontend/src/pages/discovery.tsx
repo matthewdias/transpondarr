@@ -202,7 +202,7 @@ export function DiscoveryPage() {
 
         <h2 className="mt-5 text-sm font-medium text-muted-foreground">
           {seasonLabel(ref)}
-          {/* Placeholder data belongs to the outgoing season; its count would lie. */}
+          {/* Placeholder data belongs to the outgoing season; its count would be wrong. */}
           {chart.isSuccess && !chart.isPlaceholderData && (
             <span className="text-faint">
               {" "}
@@ -315,7 +315,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
   const queryClient = useQueryClient();
   const [detailOpen, setDetailOpen] = useState(false);
   // The actions render on both the card and the detail, so the form's open
-  // state lives here and is mounted once.
+  // state is kept here and mounted once.
   const [formOpen, setFormOpen] = useState(false);
   const title = entryTitle(entry);
 
@@ -358,7 +358,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
         <Button
           size="sm"
           className="flex-1"
-          // Sequential, never stacked: the detail hands over to the form.
+          // Sequential, never stacked: the detail switches to the form.
           onClick={() => {
             setDetailOpen(false);
             setFormOpen(true);
@@ -442,7 +442,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
 
       <AddTitleDialog
         title={title}
-        // A season entry carries the same next broadcast under its own name.
+        // A season entry has the same next broadcast under its own name.
         target={{ ...entry, next_item: entry.next_episode }}
         open={formOpen}
         onOpenChange={setFormOpen}

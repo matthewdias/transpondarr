@@ -25,8 +25,8 @@ function renderCard(over: Partial<WantedItem> = {}, on = { search: vi.fn() }) {
   return user;
 }
 
-// The card stands in for the episodes table, so it must carry the state that
-// table's row carried -- and never the episode number, which is the whole point.
+// The card replaces the episodes table, so it must show the state that
+// table's row showed -- and never the episode number, which is the whole point.
 it("reads the film's own state without naming an episode", async () => {
   renderCard({ status: "in_library", in_library: true, release_title: "REL" });
 
@@ -36,7 +36,7 @@ it("reads the film's own state without naming an episode", async () => {
   expect(screen.queryByText(/^0?1$/)).not.toBeInTheDocument();
 });
 
-it("offers a search that hands off to the Releases tab", async () => {
+it("offers a search that switches to the Releases tab", async () => {
   const search = vi.fn();
   const user = renderCard({}, { search });
 
@@ -45,8 +45,8 @@ it("offers a search that hands off to the Releases tab", async () => {
   expect(search).toHaveBeenCalled();
 });
 
-// A film's date can be a date-only release held at noon UTC, so a countdown
-// would invent precision — and "Released in 4h" is wrong on its own terms.
+// A film's date can be a date-only release stored at noon UTC, so a countdown
+// would show false precision — and "Released in 4h" is wrong on its own terms.
 it("dates an upcoming film rather than counting down to it", () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-03-15T08:00:00Z"));
@@ -63,7 +63,7 @@ it("dates an upcoming film rather than counting down to it", () => {
   }
 });
 
-it("still says released once the date has passed", () => {
+it("still shows released once the date has passed", () => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-06-01T12:00:00Z"));
   try {

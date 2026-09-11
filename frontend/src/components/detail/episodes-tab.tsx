@@ -66,7 +66,7 @@ export function EpisodesTab({
   // change otherwise, and none of them depend on the selection.
   const counts = useMemo(() => {
     // Exactly ListTitlesWithProgress's definition of tracked, so this strip and
-    // the titles-list bar can never disagree about the same title.
+    // the titles-list bar can never differ on the same title.
     const now = Date.now();
     const aired = (i: WantedItem) =>
       !i.airs_at || parseTimestamp(i.airs_at) <= now;
@@ -103,7 +103,7 @@ export function EpisodesTab({
   const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
   // A zero denominator has two causes, and naming the wrong one is a plain false
   // statement on a series whose episodes have all aired and all been switched off.
-  // A third cause -- no items at all -- returns above rather than reaching here.
+  // A third cause -- no items at all -- returns early, above.
   const empty = total === 0;
   const emptyLabel =
     unmonitored === items.length ? "Nothing monitored" : "Nothing aired yet";
@@ -131,7 +131,7 @@ export function EpisodesTab({
   );
 
   // No items at all is the dead end (#151): nothing else can ever create one,
-  // so the tab owes an explanation and the one action that unsticks it.
+  // so the tab shows an explanation and the one action that unsticks it.
   if (items.length === 0) {
     return (
       <div className="rounded-lg border bg-card px-4 py-10 text-center">
@@ -276,7 +276,7 @@ export function EpisodesTab({
         </div>
       </div>
 
-      {/* Anchored to the viewport: in flow it shoved a thousand rows down under
+      {/* Anchored to the viewport: in flow it shifted a thousand rows down under
           the cursor and scrolled out of reach a few hundred rows in. */}
       {selected.size > 0 && (
         <div className="sticky bottom-4 z-20 mt-3 flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3.5 py-2.5 shadow-lg">
@@ -326,7 +326,7 @@ const EpisodeRow = memo(function EpisodeRow({
       className={cn(item.status === "wanted" && "text-muted-foreground")}
     >
       <TableCell>
-        {/* onClick, not onCheckedChange: it is what carries shiftKey. */}
+        {/* onClick, not onCheckedChange: it is what exposes shiftKey. */}
         <Checkbox
           checked={selected}
           onClick={(e) => onSelect(item.id, e.shiftKey)}

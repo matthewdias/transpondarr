@@ -35,7 +35,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 // value, so the sentinel is a token rather than "".
 const SKIP = "skip";
 
-// parseSummary says what the filename itself claimed, which is the whole reason
+// parseSummary shows what the filename itself claimed, which is the whole reason
 // the row needs a human: an empty summary is exactly why nothing mapped it.
 function parseSummary(file: PayloadFile): string {
   const bits: string[] = [];
@@ -231,7 +231,7 @@ export function RetryImportDialog({
             disabled={retry.isPending || !payload.data}
           >
             {/* An unloaded payload has no files yet, which is not the same as
-                having none — deciding before it lands flickers the label. */}
+                having none — labelling it empty before it lands flickers the label. */}
             {retry.isPending
               ? "Importing…"
               : !payload.isPending && files.length === 0

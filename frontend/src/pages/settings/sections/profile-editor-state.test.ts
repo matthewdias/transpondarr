@@ -80,7 +80,7 @@ describe("fromProfile / toProfileInput", () => {
     ]);
   });
 
-  // Blocking must not yank the row away from the cursor mid-edit; blocked-last
+  // Blocking must not move the row away from the cursor mid-edit; blocked-last
   // is a serialization concern (the test above), not a live-list one.
   it("keeps a newly blocked row under the cursor", () => {
     const state = fromProfile(profile({}));
@@ -128,7 +128,7 @@ describe("fromProfile / toProfileInput", () => {
     expect(state.staleExcludes).toEqual(["1920x1080"]);
   });
 
-  it("separates stored tokens no release can ever carry, without dropping them", () => {
+  it("separates stored tokens no release can ever have, without dropping them", () => {
     const state = fromProfile(profile({ hard_excludes: ["dub", "hardsub"] }));
     expect(state.excludes).toEqual(["hardsub"]);
     expect(state.staleExcludes).toEqual(["dub"]);

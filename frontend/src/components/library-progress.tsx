@@ -2,9 +2,9 @@ import { cn } from "@/lib/utils";
 import type { ItemStatus } from "@/lib/api";
 import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
 
-// tracked is what the series is pursuing -- monitored and already broadcast --
-// so a currently-airing show reads 3 / 3 rather than 3 / 12. The raw total rides
-// along in a parenthetical, and is suppressed when the two agree.
+// tracked counts the monitored, already-broadcast items, so a currently-airing
+// show reads 3 / 3 rather than 3 / 12. The raw total appears in a
+// parenthetical, and is suppressed when the two agree.
 export function LibraryProgress({
   format,
   inLibrary,

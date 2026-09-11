@@ -208,7 +208,7 @@ function ToggleRow({
   );
 }
 
-// Upgrades are cutoff, not chase, so the cutoff is picked from the landmarks the
+// Upgrades stop at a cutoff, so the cutoff is picked from the landmarks the
 // score weights compose rather than typed as a number nobody can rank (#97).
 export function UpgradePolicyFields({
   upgradesEnabled,
@@ -240,7 +240,7 @@ export function UpgradePolicyFields({
     <div className="space-y-3 rounded-md border bg-panel-2/40 px-3 py-3">
       <ToggleRow
         label="Upgrade until cutoff"
-        hint="Re-grab an episode you already have while what holds it scores below the cutoff."
+        hint="Re-grab an episode you already have while its release scores below the cutoff."
         checked={upgradesEnabled}
         onChange={(v) =>
           onChange(
@@ -273,13 +273,13 @@ export function UpgradePolicyFields({
               </SelectContent>
             </Select>
             <span className="mt-1 block text-[11px] text-faint">
-              Once what you hold reaches this, it is good enough — nothing
-              better is chased.
+              Once what you have reaches this, it is good enough — nothing
+              better is grabbed.
             </span>
           </label>
           <ToggleRow
             label="Still take v2s and repacks after cutoff"
-            hint="A re-release of the very file you hold is a fix, not a better release."
+            hint="A re-release of the very file you have is a fix, not a better release."
             checked={upgradeV2AboveCutoff}
             onChange={(v) => onChange({ upgradeV2AboveCutoff: v })}
           />
@@ -323,8 +323,8 @@ export function ExcludePicker({
       </span>
       <span className="mb-2 block text-[11px] text-faint">
         Attributes are read from the release name, so a release that does not
-        label one is not caught. Rank trusted groups and set a minimum score for
-        real protection.
+        label one is not detected. Rank trusted groups and set a minimum score
+        for real protection.
       </span>
       <div className="space-y-2">
         {EXCLUDE_AXES.map((a) => (
@@ -356,8 +356,8 @@ export function ExcludePicker({
       {stale.length > 0 && (
         <div className="mt-2 space-y-1 rounded-md border border-dl/30 px-2.5 py-2">
           <span className="block text-[11px] text-dl">
-            These can never match — no release carries them on any axis the
-            parser reads.
+            These can never match — no release has them on any axis the parser
+            reads.
           </span>
           {stale.map((t) => (
             <div key={t} className="flex items-center gap-2">

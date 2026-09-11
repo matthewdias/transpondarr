@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/item";
 
 // The fields the row reads, shared by the per-series GrabEventDTO and the
-// global ActivityEventDTO (which differs only in carrying title fields).
+// global ActivityEventDTO (which differs only in having title fields).
 // Picked from the generated type so a new status cannot silently drift.
 export type PresentableGrabEvent = Pick<
   GrabEvent,
@@ -19,14 +19,14 @@ export type PresentableGrabEvent = Pick<
 >;
 
 // History is past-tense: a grabbed event is a recorded moment ("Grabbed"), never
-// live progress — the queue and Episodes tab own in-flight state.
+// live progress — the queue and Episodes tab show in-flight state.
 function presentGrabEvent(event: PresentableGrabEvent) {
   switch (event.status) {
     case "imported":
       return { verb: "Imported", icon: Check, tone: "bg-have-weak text-have" };
     case "import_deferred":
       // Since #126 a deferral is one file the importer could not pick out, not a
-      // whole batch it refused — and it is fixable from the queue.
+      // whole batch it deferred — and it is fixable from the queue.
       return {
         verb: "Needs import fix",
         icon: FolderClock,

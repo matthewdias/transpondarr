@@ -1,7 +1,7 @@
 // Typed client for the Transpondarr REST API. The embedded SPA is served at `/`;
 // every `/api/*` call (except health and the auth status/setup/login endpoints)
 // is authorized by the browser's httpOnly session cookie, sent automatically via
-// `credentials: 'same-origin'`. No API key is ever held in JS — the key is for
+// `credentials: 'same-origin'`. No API key is ever stored in JS — the key is for
 // machine clients (`X-Api-Key`) only.
 //
 // Request/response shapes are generated from the backend's OpenAPI 3.1 spec into
@@ -41,11 +41,11 @@ type ProblemBody = {
   errors?: Array<{ message?: string; location?: string } | null> | null;
 } | null;
 
-// An upstream body reaches the toast verbatim, so a proxy's HTML error page
-// must not fill it.
+// An upstream body appears in the toast verbatim, so a proxy's HTML error
+// page must not fill it.
 const MAX_PROBLEM_MESSAGE = 320;
 
-// Huma's errors[] holds the actual cause — the provider's own message on a 502,
+// Huma's errors[] has the actual cause — the provider's own message on a 502,
 // one entry per field on a 422 — where detail is often the handler's summary.
 function problemCause(problem: ProblemBody): string {
   if (!Array.isArray(problem?.errors)) return "";
@@ -87,7 +87,7 @@ function throwApiError(status: number, body: unknown, authEvent = true): never {
   );
 }
 
-// Browser auth rides the httpOnly session cookie (same-origin); openapi-fetch
+// Browser auth uses the httpOnly session cookie (same-origin); openapi-fetch
 // sets Content-Type: application/json for requests with a body.
 const client = createClient<paths>({ credentials: "same-origin" });
 
@@ -215,7 +215,7 @@ export interface AuthStatus {
 // ── Endpoints ─────────────────────────────────────────────────────────────────
 
 // Mutations deliberately take no AbortSignal: a grab or a settings write must
-// not die on a stray unmount.
+// not be aborted by a stray unmount.
 // Mirrors the endpoint's maxItems; a select-all on a long-runner exceeds it.
 const MONITOR_BATCH = 1000;
 
@@ -234,7 +234,7 @@ export class PartialBatchError extends Error {
   }
 }
 
-// Sequential, not parallel: on a failure the caller has to know how much
+// Sequential, not parallel: on a failure the caller needs to report how much
 // landed. The flag is idempotent, so retrying the whole selection is safe.
 async function setItemsMonitoredChunked(itemIds: number[], monitored: boolean) {
   let updated = 0;
@@ -316,8 +316,8 @@ export const api = {
       .GET("/api/v1/titles/{id}", { params: { path: { id } }, signal })
       .then(unwrap),
 
-  // remove_downloads rides as `true` or not at all, so the default request
-  // carries no param.
+  // remove_downloads is sent as `true` or not at all, so the default request
+  // has no param.
   deleteTitle: (id: number, removeDownloads?: boolean) =>
     client
       .DELETE("/api/v1/titles/{id}", {

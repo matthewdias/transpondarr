@@ -18,7 +18,7 @@ import {
 
 // The escape hatch for a title the provider published neither an episode count
 // nor a schedule for. Deliberately never prefilled from a release search:
-// maxItem is the bound decide uses to distrust a release's own numbering, so
+// maxItem is the bound decide checks a release's own numbering against, so
 // letting release names set it would make that guard inert.
 export function SetEpisodeCountDialog({ titleId }: { titleId: number }) {
   const queryClient = useQueryClient();

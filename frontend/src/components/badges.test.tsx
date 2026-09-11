@@ -26,7 +26,7 @@ describe("ItemStatusBadge", () => {
   });
 
   // A film's deferral is a size tie or an unextracted archive (#210), never a
-  // batch, so neither the label nor the advice to grab a single episode holds.
+  // batch, so neither the label nor the advice to grab a single episode applies.
   it("words a deferred film off its kind rather than off episodes", () => {
     render(<ItemStatusBadge status="deferred" movie />);
 
@@ -37,7 +37,7 @@ describe("ItemStatusBadge", () => {
   });
 
   // Every other status stays byte-identical, which is #210's rule: only the
-  // strings a film can reach change.
+  // strings shown for a film change.
   it("leaves the other statuses worded as they are for a film", () => {
     render(<ItemStatusBadge status="stuck" movie />);
     expect(screen.getByText("Import blocked")).toBeInTheDocument();

@@ -46,9 +46,9 @@ describe("FailureMemorySection", () => {
   });
 
   // The diagnosis is the breaker's most valuable output: an operator who wakes
-  // to a wall of failures needs to be told the client looks unwell, not left to
+  // to a wall of failures needs to be told the client looks faulty, not left to
   // infer it from the blocklist.
-  it("says so when the breaker has suppressed failure memory", async () => {
+  it("shows when the breaker has suppressed failure memory", async () => {
     renderSection(
       summary({
         breaker: {
@@ -73,7 +73,7 @@ describe("FailureMemorySection", () => {
   });
 
   // Adjacent to a destructive action with no confirmation is how Sonarr's
-  // equivalent gets misclicked (Radarr #9401), so this one asks first.
+  // equivalent gets misclicked (Radarr #9401), so this one confirms first.
   it("clears the whole library's memory behind a confirmation", async () => {
     let cleared = false;
     renderSection(summary());

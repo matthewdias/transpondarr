@@ -22,7 +22,7 @@ export function stepSeason(ref: SeasonRef, delta: 1 | -1): SeasonRef {
   return { season: SEASONS[i], year: ref.year };
 }
 
-// The API validates season year to a 1940 floor; the picker honors it too.
+// The API validates season year to a 1940 floor; the picker applies it too.
 export const YEAR_FLOOR = 1940;
 
 /** stepSeason bounded to [winter YEAR_FLOOR, fall maxYear]; returns ref at an edge. */

@@ -15,9 +15,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-// The delete confirmation: says in counts what goes (tracking, history,
+// The delete confirmation: shows in counts what goes (tracking, history,
 // blocklist memory) and what stays (library files, always). The checkbox is the
-// only way downloads are touched, and it takes their data with them.
+// only way downloads are removed, and it deletes their data with them.
 export function DeleteTitleDialog({
   detail,
   onDeleted,

@@ -12,7 +12,7 @@ import { SectionShell } from "../section-shell";
 /**
  * The breaker's diagnosis, which is the point of surfacing it at all: an
  * operator waking to a wall of failed grabs should be told the client looks
- * unwell rather than left to infer it from a blocklist that stopped growing.
+ * faulty rather than left to infer it from a blocklist that stopped growing.
  */
 function BreakerNotice({ breaker }: { breaker: BlocklistSummary["breaker"] }) {
   return (

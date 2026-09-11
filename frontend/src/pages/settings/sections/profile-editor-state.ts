@@ -12,7 +12,7 @@ export type EditorState = {
   dualAudio: boolean;
   codecPref: string;
   excludes: string[];
-  staleExcludes: string[]; // stored tokens no release can carry — surfaced, never dropped
+  staleExcludes: string[]; // stored tokens no release can have — surfaced, never dropped
   minScore: number;
   upgradesEnabled: boolean;
   cutoffScore: number;
@@ -109,7 +109,7 @@ export const nextKey = () => `row-${rowKey++}`;
 
 export function fromProfile(p: QualityProfile | null): EditorState {
   const order = p?.resolution_order ?? DEFAULT_RESOLUTIONS;
-  // An off row sits where the catalogue ranks it, not at the end, so switching
+  // An off row stays where the catalogue ranks it, not at the end, so switching
   // 2160p on promotes it above 1080p without a drag.
   const resolutions: ResolutionRow[] = order.map((name) => ({
     key: nextKey(),

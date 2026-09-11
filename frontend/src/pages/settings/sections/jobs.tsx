@@ -24,7 +24,7 @@ function jobLabel(name: string): string {
 }
 
 /**
- * Duration at the precision that unit deserves. Only sub-millisecond runs keep
+ * Duration at a precision suited to its unit. Only sub-millisecond runs keep
  * three decimals — they are the common case and the reason the API reports
  * fractional milliseconds at all, but "4.667 ms" is noise at every other scale.
  */
@@ -36,8 +36,8 @@ function jobDuration(ms: number): string {
 }
 
 // Two polls, because the snapshot on screen is already up to one poll old:
-// import-scan runs every 15s, so without this every render would find its next
-// run in the past and call a perfectly healthy runner overdue.
+// import-scan runs every 15s, so without this every render would show its next
+// run in the past and mark a perfectly healthy runner overdue.
 const OVERDUE_GRACE_MS = 2 * JOBS_POLL_MS;
 
 /**
@@ -117,7 +117,7 @@ export function JobsTable({
                     className="self-center"
                     aria-label={`Run ${label} now`}
                     // A trigger during a run queues a full second pass — and
-                    // `running` lags the poll — so refuse both windows for one.
+                    // `running` lags the poll — so the button is disabled in both.
                     disabled={j.running || busy}
                     onClick={() => onRun(j.name)}
                   >
@@ -161,8 +161,8 @@ export function JobsSection() {
       }),
   });
 
-  // A failed settings read warns rather than assuming automation is on. Only
-  // "off" earns the dialog: a notify-only run rehearses, so it grabs nothing.
+  // A failed settings read warns rather than defaulting to automation on. Only
+  // "off" gets the dialog: a notify-only run rehearses, so it grabs nothing.
   const requiresConfirmation = (name: string) =>
     AUTOMATION_GATED.includes(name) &&
     (settings.data ? settings.data.automation.mode === "off" : true);
@@ -197,8 +197,8 @@ export function JobsSection() {
       {data && (
         <JobsTable
           jobs={data}
-          // Withheld until the kill switch is known, so the button never runs a
-          // gated job without the warning it would have earned.
+          // Left out until the kill switch setting loads, so the button never runs a
+          // gated job without the warning it needs.
           onRun={settings.isPending ? undefined : handleRun}
           busy={run.isPending}
         />

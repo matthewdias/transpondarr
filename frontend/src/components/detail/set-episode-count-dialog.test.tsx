@@ -49,8 +49,8 @@ describe("SetEpisodeCountDialog", () => {
   });
 
   // The count is never prefilled from a release search: maxItem is the bound
-  // decide uses to distrust release numbers, so a release must not set it.
-  it("opens with an empty field and refuses to submit one", async () => {
+  // decide checks release numbers against, so a release must not set it.
+  it("opens with an empty field and cannot submit it", async () => {
     const user = renderDialog();
 
     await user.click(
@@ -103,7 +103,7 @@ describe("SetEpisodeCountDialog", () => {
     await waitFor(() => expect(detailGets).toBe(2));
   });
 
-  it("keeps the dialog open and reports a refusal", async () => {
+  it("keeps the dialog open and reports the error", async () => {
     server.use(
       http.post("/api/v1/titles/7/items", () =>
         HttpResponse.json(

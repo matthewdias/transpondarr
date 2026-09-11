@@ -30,7 +30,7 @@ describe("formatBytes", () => {
     expect(formatBytes(100 * 1024 ** 2)).toBe("100 MB");
   });
 
-  it("caps at TB instead of inventing a larger unit", () => {
+  it("caps at TB instead of using a larger unit", () => {
     expect(formatBytes(1024 ** 5)).toBe("1024 TB");
   });
 });
@@ -151,7 +151,7 @@ describe("nextEpisodeLabel", () => {
     );
   });
 
-  it("copes with a missing episode number", () => {
+  it("handles a missing episode number", () => {
     freeze("2026-07-23T12:00:00Z");
     expect(nextEpisodeLabel(undefined, "2026-07-26T12:30:00Z")).toBe(
       "Next ep in 3d",
@@ -174,7 +174,7 @@ describe("premiereLabel", () => {
     expect(premiereLabel("garbage")).toBeNull();
   });
 
-  // A film's stored date may be a date-only release held at noon UTC, so a
+  // A film's stored date may be a date-only release set to noon UTC, so a
   // countdown would state precision that was never published.
   it("never counts down, however close the date", () => {
     freeze("2026-03-15T08:00:00Z");
@@ -203,7 +203,7 @@ describe("plural", () => {
   });
 
   // "series" is its own plural, and the count line read "2 seriess" before this
-  // helper could say so.
+  // helper took an explicit plural.
   it("takes an explicit plural for words that do not take an s", () => {
     expect(plural(1, "series", "series")).toBe("1 series");
     expect(plural(3, "series", "series")).toBe("3 series");
