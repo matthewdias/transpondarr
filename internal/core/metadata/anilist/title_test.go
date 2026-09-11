@@ -112,7 +112,7 @@ func TestGetTitleFillsANullCountTitleFromOneRequest(t *testing.T) {
 	}
 }
 
-// The next broadcast is the weaker floor: it answers for a title whose schedule
+// The next broadcast is the weaker minimum: it applies to a title whose schedule
 // AniList has not filled in.
 func TestGetTitleFallsBackToTheNextBroadcast(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -133,7 +133,7 @@ func TestGetTitleFallsBackToTheNextBroadcast(t *testing.T) {
 
 // A published count is authoritative in both directions. This is the shape of a
 // real entry (a 12-episode show whose schedule runs 2..13, missing episode 1's
-// record and with one past the end): the floors must neither trim it to the
+// record and with one past the end): the two minimums must neither trim it to the
 // window nor extend it to a phantom 13th item.
 func TestGetTitleKeepsAPublishedCountOverTheSchedule(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -269,7 +269,7 @@ func TestGetTitleReadsAFullStartDate(t *testing.T) {
 	}
 }
 
-// An announced film carries a year long before a day, and January 1st would be
+// An announced film has a year long before a day, and January 1st would be
 // a wrong date on the calendar rather than an honest absence.
 func TestGetTitlePremiereIsZeroWithoutAFullDate(t *testing.T) {
 	url := serveOnce(t, datedMediaResponse("2027", "null", "null"), nil)
@@ -387,7 +387,7 @@ func TestGetTitleOVAWithOneEpisodeUnchanged(t *testing.T) {
 }
 
 // The add form names the episodes "only what hasn't aired" would monitor (#217),
-// which the search row can only answer by including the next broadcast. It is a
+// which the search row can only compute by including the next broadcast. It is a
 // field on media the page already fetches, so it costs no extra request.
 func TestSearchCarriesTheNextBroadcast(t *testing.T) {
 	var query string

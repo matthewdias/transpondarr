@@ -8,12 +8,12 @@ import (
 )
 
 // Why an item is still missing, split by scope (#150): one global answer for
-// the page, one per title group, one per item. The tiers render together
+// the page, one per title group, one per item. The three levels render together
 // instead of one replacing another, which is what let a failed grab and its
 // blocklist entry both be visible.
 //
-// Every reason but the item's pass tier is derived from stored state at request
-// time and so is never stale. The pass tier is the one stored answer (#181):
+// Every reason but the item's pass reason is derived from stored state at request
+// time and so is never stale. The pass reason is the one stored answer (#181):
 // what the last search or poll decided about this item, which is why it is
 // always rendered with its own date.
 const (
@@ -100,7 +100,7 @@ type itemFacts struct {
 // seven, a row shows five. grabbed exists only as the tombstone that
 // invalidates an older refusal -- a listed item's grab plainly did not last,
 // and grab_failed is what that row shows. contended is silent too, because its
-// honest message is "the queue is working", which the group tier already reports.
+// honest message is "the queue is working", which the group's reason already reports.
 func passReason(outcome string) string {
 	switch outcome {
 	case acquire.OutcomeNoMatch:
@@ -118,7 +118,7 @@ func passReason(outcome string) string {
 }
 
 // itemReason is the reason specific to this row, or "" when the group and page
-// cover it all; fromPass reports whether the stored tier won, which is the
+// cover it all; fromPass reports whether the stored pass reason won, which is the
 // one that may show an "as of" date.
 //
 // A pass answer outranks a failed grab because the two differ in kind. A

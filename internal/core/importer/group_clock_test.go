@@ -139,7 +139,7 @@ func assertOneRung(t *testing.T, st *store.Store, titleID int64) {
 // stalls at 0%, and item 2 airs and converges onto the same release hours later
 // (#241), writing a row whose stalled_since is NULL. A pack is one torrent, so
 // the whole group fails in one scan and takes one rung; per-row clocks split it
-// across two scans, which the ladder reads as a repeat and escalates to 7d.
+// across two scans, which counts as a repeat and escalates the expiry to 7d.
 func TestStalledPackWithALateRowTakesOneRung(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedPack(t, st, "abc", 1, 2)

@@ -199,8 +199,8 @@ func TestReplaceWarnsWhenTheOtherLayoutHoldsTheEpisode(t *testing.T) {
 }
 
 // Debris is not the episode: an interrupted copy's .partial and an orphaned
-// sidecar both share the stem, and reporting them as "the other layout holds
-// this" would be a false positive that also hid a real warning.
+// sidecar both share the stem, and reporting them as "this item already has a
+// file under another layout" would be a false positive that also hid a real warning.
 func TestReplaceIgnoresDebrisUnderTheOtherLayout(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -211,7 +211,7 @@ func TestReplaceIgnoresDebrisUnderTheOtherLayout(t *testing.T) {
 		// destDir is <root>/<Name>, which exists, so neither warning applies.
 		{"flat configured", LayoutFlat, "Season 01", false},
 		// destDir is <root>/<Name>/Season 01, which does not exist: the older
-		// warning must still reach the log rather than being swallowed.
+		// warning must still be logged rather than dropped.
 		{"season folders configured", LayoutSeasonFolders, "", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -248,7 +248,7 @@ func TestReplaceIgnoresDebrisUnderTheOtherLayout(t *testing.T) {
 	}
 }
 
-// The two warnings answer different questions, so a layout switch into a folder
+// The two warnings detect different things, so a layout switch into a folder
 // that does not exist must not let one silence the other.
 func TestReplaceWarnsAboutBothTheLayoutAndTheMissingDirectory(t *testing.T) {
 	root := t.TempDir()

@@ -159,7 +159,7 @@ func seedBatchGrab(t *testing.T, st *store.Store, hash string, items int) (title
 	return s.ID, itemIDs
 }
 
-// One failure is one step on the ladder, however many episodes the release
+// One failure escalates the expiry one step, however many episodes the release
 // covered. A batch is N grab rows, and recording each separately walked
 // 24h -> 7d -> permanent in a single incident, so one transient client error
 // blocklisted a healthy 3-episode release forever (#124).
@@ -204,7 +204,7 @@ func regrabBatch(t *testing.T, st *store.Store, itemIDs []int64, hash string) {
 	}
 }
 
-// Aggregating must not cost the ladder its reach: separate incidents still
+// Aggregating must not stop the expiry escalating: separate incidents still
 // escalate, and the third still blocks permanently.
 func TestBatchReachesPermanentOverSeparateIncidents(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -415,7 +415,7 @@ func TestDataMissingRecordsNoBlocklistEntry(t *testing.T) {
 }
 
 // The negative that keeps the split a split: the one path with a cause still
-// writes its entry, at the ladder's first rung. A later simplification folding
+// writes its entry, at the first expiry (24h). A later simplification folding
 // the three paths back together fails here.
 func TestErroredDownloadIsStillRememberedOnTheLadder(t *testing.T) {
 	st := coretest.NewStore(t)

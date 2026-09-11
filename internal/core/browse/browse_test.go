@@ -426,7 +426,7 @@ func TestChartMarksTrackedAndOverlaysLocalAiring(t *testing.T) {
 }
 
 // A synced title with nothing upcoming is local truth too: the snapshot's
-// countdown must not survive on a tracked entry whose schedule has run out.
+// countdown must not remain on a tracked entry whose schedule has run out.
 func TestChartSyncedTitleWithNothingUpcomingDropsSnapshot(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()

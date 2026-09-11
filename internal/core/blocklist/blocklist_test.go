@@ -11,7 +11,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-func TestBlockDurationLadder(t *testing.T) {
+func TestBlockDurationEscalates(t *testing.T) {
 	cases := []struct {
 		failures int
 		want     time.Duration
@@ -175,7 +175,7 @@ func TestExpiryHonoursTheServiceClock(t *testing.T) {
 		t.Fatalf("active entries = %d at the moment of recording, want 1", len(active))
 	}
 
-	// Past the first rung of the ladder, so the entry has lapsed.
+	// Past the first expiry, so the entry has lapsed.
 	at(svc, start.Add(firstBlock+time.Hour))
 	if active, _ := svc.Active(ctx, title.ID); len(active) != 0 {
 		t.Errorf("active entries = %d after the block lapsed, want 0", len(active))

@@ -122,7 +122,7 @@ func TestUpdateAutomationRejectsUnknownMode(t *testing.T) {
 	}
 }
 
-// backedOffTitles inserts a title at the far end of the backoff ladder,
+// backedOffTitles inserts a title at the backoff cap,
 // which is where a stretch of notify-only leaves every rehearsed title.
 func backedOffTitles(t *testing.T, svc *Service) int64 {
 	t.Helper()

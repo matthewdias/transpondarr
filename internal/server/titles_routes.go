@@ -284,7 +284,7 @@ func registerTitleRoutes(api huma.API, deps routeDeps) {
 		OperationID: "set-title-pinned-group",
 		Method:      http.MethodPut,
 		Path:        "/api/v1/titles/{id}/pinned-group",
-		Summary:     "Pin a release group for a title (an absolute tier above profile scoring)",
+		Summary:     "Pin a release group for a title (it outranks any profile score)",
 		Tags:        []string{"titles"},
 	}, h.setPinnedGroup)
 

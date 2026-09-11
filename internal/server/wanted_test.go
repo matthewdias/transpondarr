@@ -232,8 +232,8 @@ func recordPassOutcome(t *testing.T, st *store.Store, titleID int64, number int,
 	}
 }
 
-// #181's tier: what the last pass decided appears on the row, dated, with the
-// release it acted on -- and only when that tier actually won, since an
+// #181's pass reason: what the last pass decided appears on the row, dated, with the
+// release it acted on -- and only when that reason actually won, since an
 // "as of" stamped on a freshly derived answer would misrepresent it.
 func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 	h := wantedHarness(t)
@@ -247,7 +247,7 @@ func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 	recordPassOutcome(t, h.store, titleID, 1, db.UpsertPassOutcomeParams{
 		Outcome: "declined", Source: "sweep",
 		ReleaseTitle: "[SynthSubs] Placeholder Saga - 01 [720p]",
-		Detail:       "below the profile floor",
+		Detail:       "below the profile minimum",
 		RecordedAt:   store.FormatTimestamp(now.Add(-2 * time.Hour)),
 	})
 	recordPassOutcome(t, h.store, titleID, 2, db.UpsertPassOutcomeParams{
@@ -265,7 +265,7 @@ func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 	recordPassOutcome(t, h.store, titleID, 4, db.UpsertPassOutcomeParams{
 		Outcome: "declined", Source: "sweep",
 		ReleaseTitle: "[SynthSubs] Placeholder Saga - 04 [720p]",
-		Detail:       "below the profile floor",
+		Detail:       "below the profile minimum",
 		RecordedAt:   store.FormatTimestamp(now.Add(-6 * time.Hour)),
 	})
 	grabItem(t, h.store, titleID, 4, "failed", "torrent vanished from the client")
@@ -283,7 +283,7 @@ func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 	}
 
 	declined := got[1]
-	if declined.Reason != "declined" || declined.ReasonDetail != "below the profile floor" {
+	if declined.Reason != "declined" || declined.ReasonDetail != "below the profile minimum" {
 		t.Errorf("episode 1 = %+v, want declined with the refusal reason", declined)
 	}
 	if declined.LastPass == nil {
@@ -297,7 +297,7 @@ func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 		t.Errorf("episode 1 carries held_until %q on a decline", declined.LastPass.HeldUntil)
 	}
 
-	// The pass tier never outranks a fact computed fresh, and an unaired row
+	// The pass reason never outranks a fact computed fresh, and an unaired row
 	// must not be dated as though it were the pass's answer.
 	if unaired := got[2]; unaired.Reason != "unaired" || unaired.LastPass != nil {
 		t.Errorf("episode 2 = %+v, want unaired with no last_pass", unaired)
@@ -495,7 +495,7 @@ func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
 	}
 }
 
-// The page-level tier: what stops any search running at all is reported once, not
+// The page-level reason: what stops any search running at all is reported once, not
 // stamped on every row.
 func TestMissingReportsTheGlobalReason(t *testing.T) {
 	h := wantedHarness(t) // automation on, indexer set

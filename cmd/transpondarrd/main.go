@@ -79,7 +79,7 @@ const wantedSearchInterval = 15 * time.Minute
 
 // feedPollInterval matches the sweep's tick but does far more with it: one
 // request covers every title at once, where a sweep pass searches five and then
-// backs each off for an hour or more. 15 minutes is also the floor indexers ask
+// backs each off for an hour or more. 15 minutes is also the minimum indexers ask
 // for — Sonarr's RSS sync defaults here and will not go below 10.
 const feedPollInterval = 15 * time.Minute
 

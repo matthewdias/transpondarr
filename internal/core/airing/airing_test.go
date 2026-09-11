@@ -274,8 +274,8 @@ func searchCadence(t *testing.T, st *store.Store, titleID int64) (backoff int, n
 }
 
 // A gap-filled item has no air date, so airedSince cannot match it and the
-// title that skipped an episode — likely the one that climbed the ladder
-// finding nothing — would wait out its backoff before searching again.
+// title that skipped an episode — likely one whose empty searches doubled its
+// backoff — would wait out that backoff before searching again.
 func TestGapFillResetsSearchCadence(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedTitle(t, st, 100, 0)
@@ -483,9 +483,9 @@ func TestSyncHoldsFinishedTitlesForTheLongCutoff(t *testing.T) {
 	}
 }
 
-// This query's CASE keys on status alone, so the unknown-count tier (#151) must
+// This query's CASE keys on status alone, so the unknown-count TTL (#151) must
 // not apply to it: aired times are immutable whether or not a count was published.
-func TestSyncHoldsAFinishedTitlePastTheUnknownCountTier(t *testing.T) {
+func TestSyncHoldsAFinishedTitlePastTheUnknownCountTTL(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedTitle(t, st, 105, 2)
 	setCachedStatus(t, st, 105, "FINISHED")
@@ -519,7 +519,7 @@ func TestSyncStampsTitleWithNoScheduleData(t *testing.T) {
 	}
 }
 
-// Monitoring gates what automation pursues, not what we know: without a synced
+// Monitoring limits what automation acquires, not what we look up: without a synced
 // schedule the calendar drops an unmonitored title's rows before its own
 // Unmonitored filter can include them (#183).
 func TestSyncIncludesUnmonitoredTitles(t *testing.T) {
@@ -548,7 +548,7 @@ func TestSyncIncludesUnmonitoredTitles(t *testing.T) {
 // once no monitored one is due, however long it has gone unsynced.
 func TestSyncGivesMonitoredTitlesEverySlot(t *testing.T) {
 	st := coretest.NewStore(t)
-	// Five stale monitored title fill the pass; the unmonitored one is
+	// Five stale monitored titles fill the pass; the unmonitored one is
 	// never-synced, so it outranks them on every key but monitoring.
 	for id := int64(300); id < 305; id++ {
 		stale := seedTitle(t, st, id, 1)

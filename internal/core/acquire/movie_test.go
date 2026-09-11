@@ -86,9 +86,9 @@ func TestSweepGrabsAWantedMovie(t *testing.T) {
 	}
 }
 
-// A film nobody is seeding for climbs the same ladder as a title, rather than
+// A film nobody is seeding for backs off the same way as a title, rather than
 // staying at the head of the due queue and costing a search every tick.
-func TestSweepMovieClimbsTheBackoffLadder(t *testing.T) {
+func TestSweepMovieBacksOffLikeATitle(t *testing.T) {
 	h := newSweep(t, nil, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 2019)
 
@@ -119,7 +119,7 @@ func TestSweepMovieClimbsTheBackoffLadder(t *testing.T) {
 
 // A film makes a null air date the common case rather than the degraded one.
 // Neither cadence helper may read that absence as a broadcast: airedSince must
-// not reset the ladder and nextAiring must not clamp the next search.
+// not reset the backoff and nextAiring must not clamp the next search.
 func TestSweepMovieWithNoAirDateLeavesTheCadenceHelpersInert(t *testing.T) {
 	now := time.Now()
 	h := newSweep(t, nil, fakeConfig{})

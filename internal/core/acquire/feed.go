@@ -115,7 +115,7 @@ func (s *Service) PollFeedOnce(ctx context.Context) error {
 // inside the gap. The set is bounded to one sweep pass' worth of titles and
 // ordered furthest-postponed first: a gap is routine on a busy aggregating
 // indexer, so resetting everything would queue more searches than the sweep can
-// run. A failed reset still lets the mark advance — the sweep's ladder remains
+// run. A failed reset still lets the mark advance — the sweep's backoff remains
 // the fallback it already was.
 func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since time.Time, page int) error {
 	now := time.Now()

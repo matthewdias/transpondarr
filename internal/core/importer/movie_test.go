@@ -222,7 +222,7 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 	}
 
 	// The cause is a path-mapping gap, not a bad release: nothing may be
-	// recorded against the release or spent from the failure ladder.
+	// recorded against the release or counted toward its escalating expiry.
 	if blocked, _ := st.Q.ListBlocklistByTitle(ctx, titleID); len(blocked) != 0 {
 		t.Errorf("blocklisted %d release(s); an unconfigured root says nothing about the release", len(blocked))
 	}

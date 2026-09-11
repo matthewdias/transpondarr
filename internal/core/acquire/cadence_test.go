@@ -48,7 +48,7 @@ func TestSweepWithFeedDoesNotResetBackoffOnANewlyAiredItem(t *testing.T) {
 	if state.backoff != 7 {
 		t.Errorf("backoff = %d, want 7 — the broadcast reset belongs to the feedless world", state.backoff)
 	}
-	// Backoff 7 is past the doubling ladder's cap.
+	// Backoff 7 is past the point where doubling reaches the cap.
 	wantNextSearchNear(t, state.nextSearchAt, before.Add(24*time.Hour))
 }
 

@@ -294,8 +294,8 @@ type failedGrab struct {
 }
 
 // remember reports and records one entry per failed release, not per failed
-// row: a batch is a row per episode, and recording each walked the whole ladder
-// in one incident — 24h, 7d, permanent — on a release that had failed once
+// row: a batch is a row per episode, and recording each escalated the expiry all the
+// way in one incident — 24h, 7d, permanent — on a release that had failed once
 // (#124). The grab_failed notification groups the same way: one per incident.
 func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 	if len(failed) == 0 {

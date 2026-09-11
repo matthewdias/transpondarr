@@ -327,14 +327,14 @@ func TestSweepSkipsFutureItemsButTreatsNullAirsAtAsEligible(t *testing.T) {
 	}
 }
 
-// The profile floor is enforcement, not advice, on an automatic grab (PR #57
+// The profile minimum is enforcement, not advice, on an automatic grab (PR #57
 // exempts manual grabs only).
 func TestSweepNeverGrabsIneligibleOnlyCandidate(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	if _, err := h.st.DB.ExecContext(context.Background(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
-		t.Fatalf("raise the profile floor: %v", err)
+		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
@@ -342,7 +342,7 @@ func TestSweepNeverGrabsIneligibleOnlyCandidate(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
-		t.Errorf("grabbed %v below the profile floor, want nothing", got)
+		t.Errorf("grabbed %v below the profile minimum, want nothing", got)
 	}
 	// Nothing grabbed means back off, not retry every tick.
 	if state := readSearchState(t, h.st, id); state.backoff != 1 {

@@ -29,7 +29,7 @@ func walkCandidate(title string, number int, eligible bool) decide.Candidate {
 		Matched: true, Items: []int{number}, Eligible: eligible,
 	}
 	if !eligible {
-		c.IneligibleReason = "below the profile floor"
+		c.IneligibleReason = "below the profile minimum"
 	}
 	return c
 }

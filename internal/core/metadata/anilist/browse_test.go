@@ -148,8 +148,8 @@ func TestBrowseSeasonSparseEntry(t *testing.T) {
 }
 
 // The chart and the search row must not differ about the next broadcast: the
-// add form reads whichever it was opened from, and answers "how many episodes
-// will be monitored" from it (#217). Search gates on the number alone, so this
+// add form reads whichever it was opened from, and computes "how many episodes
+// will be monitored" from it (#217). Search checks the number alone, so this
 // does too, and a missing time is a missing time rather than a missing episode.
 func TestBrowseSeasonKeepsANextEpisodeWithNoAiringTime(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

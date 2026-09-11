@@ -259,7 +259,7 @@ func fresh(status string, episodes int, fetchedAt time.Time) bool {
 // TTLFor keeps finished titles cached far longer than releasing ones (whose
 // episode count and status are still moving). Exported so background refreshes
 // pace themselves by the same status-aware policy instead of inventing a second.
-// A finished title whose count the provider never publishes takes a middle tier:
+// A finished title whose count the provider never publishes gets a middle TTL (7d):
 // re-querying every 6 hours forever returns an answer that will not change (#151).
 func TTLFor(status string, countKnown bool) time.Duration {
 	switch status {

@@ -83,7 +83,7 @@ func contains(list []string, want string) bool {
 }
 
 // The due predicate is the whole budget control for the sweep: it must admit
-// only monitored title that actually have something searchable right now.
+// only monitored titles that actually have something searchable right now.
 func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
@@ -107,7 +107,7 @@ func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 
 	// Excluded: unmonitored.
 	seedSearchItem(t, st, seedSearchTitle(t, st, "unmonitored", 0), 1, 0, &past)
-	// Excluded: monitored title, but the only thing wanted is not.
+	// Excluded: a monitored title, but the only thing wanted is not.
 	unmonitorItem(t, st, seedSearchItem(t, st, seedSearchTitle(t, st, "narrowed-away", 1), 1, 0, &past))
 	// Excluded: everything already had.
 	seedSearchItem(t, st, seedSearchTitle(t, st, "all-had", 1), 1, 1, &past)
@@ -219,7 +219,7 @@ func gapTitles(t *testing.T, st *Store, now, lo, hi time.Time, limit int64) []st
 }
 
 // The gap-recovery set is the sweep's wanted predicate narrowed to a broadcast
-// window and to title the ladder is actually postponing: a reset does nothing
+// window and to titles the backoff is actually postponing: a reset does nothing
 // for a due title, and would use one of the bounded slots.
 func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 	st := tempStore(t)
@@ -272,8 +272,8 @@ func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 	}
 }
 
-// Furthest-postponed first, because the ladder would keep those waiting longest
-// -- and the limit is what keeps a routine gap from resetting more title than
+// Furthest-postponed first, because the backoff would keep those waiting longest
+// -- and the limit is what keeps a routine gap from resetting more titles than
 // the sweep can search.
 func TestListBackedOffTitlesWantedInWindowOrdersFurthestFirstAndLimits(t *testing.T) {
 	st := tempStore(t)
@@ -400,7 +400,7 @@ func readCadence(t *testing.T, st *Store, id int64) (int64, sql.NullString) {
 }
 
 // A reset clears the cadence outright, which is what refresh growth and a
-// re-monitored title need.
+// re-monitored title needs.
 func TestResetTitleSearchState(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()

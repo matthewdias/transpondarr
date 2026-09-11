@@ -651,7 +651,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Pin a release group for a title (an absolute tier above profile scoring) */
+        /** Pin a release group for a title (it outranks any profile score) */
         put: operations["set-title-pinned-group"];
         post?: never;
         delete?: never;
@@ -1594,7 +1594,7 @@ export interface components {
             hard_excludes?: string[];
             /**
              * Format: int64
-             * @description Floor: candidates scoring below are ineligible; zero is no floor
+             * @description Candidates scoring below are ineligible; zero means no minimum
              */
             min_score: number;
             name: string;

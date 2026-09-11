@@ -232,7 +232,7 @@ func TestCutoffUnmetPagesGroupsPastMetTitles(t *testing.T) {
 	}
 }
 
-// Unmonitored title are excluded unless requested: the toggle mirrors the
+// Unmonitored titles are excluded unless requested: the toggle mirrors the
 // calendar's rather than inventing a second meaning.
 func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -267,7 +267,7 @@ func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 func TestCutoffUnmetPageClosesOnTheItemBudget(t *testing.T) {
 	st := coretest.NewStore(t)
 	profileID := upgradingProfile(t, st, "Upgrading", 2300)
-	// Five title of 50 sub-cutoff holds each: the budget allows four (200).
+	// Five titles of 50 sub-cutoff holds each: the budget allows four (200).
 	titles := []string{"Bulk A", "Bulk B", "Bulk C", "Bulk D", "Bulk E"}
 	for _, title := range titles {
 		id := seedTitle(t, st, title, 50)

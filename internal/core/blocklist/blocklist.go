@@ -35,7 +35,7 @@ import (
 // 404 without the store leaking upwards.
 var ErrNotFound = errors.New("blocklist: entry not found")
 
-// The escalation ladder. A third failure blocks permanently.
+// The escalating expiry. A third failure blocks permanently.
 const (
 	firstBlock  = 24 * time.Hour
 	secondBlock = 7 * 24 * time.Hour
@@ -102,7 +102,7 @@ func (s *Service) Record(ctx context.Context, titleID int64, itemIDs []int64, in
 		return false, fmt.Errorf("record blocklist entry for series %d: %w", titleID, err)
 	}
 	// The upsert reports the resulting count only after writing, so a repeat
-	// failure needs a second write to move up the ladder; a first one is already
+	// failure needs a second write to escalate its expiry; a first one is already
 	// at firstBlock.
 	if entry.Failures <= 1 {
 		return true, nil
@@ -150,7 +150,7 @@ func (s *Service) Clear(ctx context.Context, titleID, entryID int64) error {
 
 // ClearTitle deletes every recorded release for one title. Every
 // user-initiated clear discards failure counts, single-entry Clear included: a
-// wrong block's place on the ladder is wrong with it.
+// wrong block's failure count is wrong with it.
 func (s *Service) ClearTitle(ctx context.Context, titleID int64) (int64, error) {
 	rows, err := s.store.Q.DeleteBlocklistByTitle(ctx, titleID)
 	if err != nil {

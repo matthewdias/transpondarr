@@ -76,10 +76,10 @@ type passIndex struct {
 	eligible map[int]bool
 }
 
-// indexCandidates ranks refusals per item without decide's coverage tier:
-// coverage buys grab efficiency (#126) and is no evidence about which release
+// indexCandidates ranks refusals per item without decide's coverage ranking:
+// coverage improves grab efficiency (#126) and is no evidence about which release
 // came closest for one episode, so inheriting it would name a wide low-scoring
-// pack over a high-scoring single covering exactly the episode asked about.
+// pack over a high-scoring single covering exactly the episode in question.
 // Pinned stays on top -- a pin records which group is definitive for a title.
 func indexCandidates(cands []decide.Candidate) passIndex {
 	idx := passIndex{closest: map[int]decide.Candidate{}, eligible: map[int]bool{}}

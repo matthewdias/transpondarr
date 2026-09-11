@@ -68,7 +68,7 @@ func TestTorznabStubParsesWithTheRealAdapter(t *testing.T) {
 		t.Errorf("releases came from %d groups, want competing groups for the reason column to discriminate", len(groups))
 	}
 	if !sawBatch {
-		t.Error("no batch release; the coverage tier has nothing to prefer")
+		t.Error("no batch release; the coverage ranking has nothing to prefer")
 	}
 	if !sawV2 {
 		t.Error("no v2 release; the version tie-break is unexercised")

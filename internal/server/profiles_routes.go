@@ -50,7 +50,7 @@ type profileBody struct {
 	PreferDualAudio bool              `json:"prefer_dual_audio"`
 	CodecPref       string            `json:"codec_pref,omitempty" doc:"h264, h265 or av1; empty for no preference"`
 	HardExcludes    []string          `json:"hard_excludes,omitempty" doc:"Axis values that disqualify a release: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty excludes nothing"`
-	MinScore        int64             `json:"min_score" minimum:"0" doc:"Floor: candidates scoring below are ineligible; zero is no floor"`
+	MinScore        int64             `json:"min_score" minimum:"0" doc:"Candidates scoring below are ineligible; zero means no minimum"`
 	Groups          []profileGroupDTO `json:"groups,omitempty" doc:"Ranked group preference, most preferred first; empty ranks no group"`
 
 	UpgradesEnabled      bool  `json:"upgrades_enabled" doc:"Re-grab a held item while its release scores below the cutoff"`

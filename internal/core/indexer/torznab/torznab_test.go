@@ -230,7 +230,7 @@ func TestSearchURLCategories(t *testing.T) {
 	}
 }
 
-// A cat baked into the feed URL survives an empty field — which is what makes
+// A cat baked into the feed URL is kept when the field is empty — which is what makes
 // the set conditional — and an explicit configuration overrides it.
 func TestSearchURLBakedInCategories(t *testing.T) {
 	raw, err := New("prowlarr", "http://prowlarr:9696/1/api?cat=5070", "k", "").searchURL(indexer.Query{Term: "x"})

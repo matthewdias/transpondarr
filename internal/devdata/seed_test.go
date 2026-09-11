@@ -325,7 +325,7 @@ func TestSeedProducesADatedItemOnAnUnmonitoredTitle(t *testing.T) {
 func TestSeedProducesPostersWithoutReachingAniList(t *testing.T) {
 	st := seeded(t)
 	cache := dbcache.New(st.Q)
-	// Read it back the way the request path does, so the assertion survives a
+	// Read it back the way the request path does, so the assertion stays valid after a
 	// change to how the snapshot is marshalled.
 	for _, id := range []int64{990101, 990109, 990111} {
 		snap, _, ok, err := cache.Get(context.Background(), "anilist", id)
@@ -485,7 +485,7 @@ func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 func TestASeededTitleHasMoreThanOneNameVariant(t *testing.T) {
 	st := seeded(t)
 	ctx := context.Background()
-	// Two services, because the two readers answer from different places and the
+	// Two services, because the two readers fetch from different places and the
 	// cache decorator is read-through: through it, TitleVariants would return the
 	// seeded snapshot and never query the stub at all.
 	fromCache := catalog.NewService(st, metadata.Cached(anilistStub(t), dbcache.New(st.Q)))

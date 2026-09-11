@@ -25,7 +25,7 @@ func blocklistTitle(t *testing.T, st *Store, title string) db.Series {
 }
 
 // A repeat failure of the same release must land on the existing row so the
-// escalation ladder counts how many times it has failed.
+// escalating expiry counts how many times it has failed.
 func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
@@ -133,7 +133,7 @@ func TestListActiveBlocklistFiltersExpiredButKeepsPermanent(t *testing.T) {
 		t.Error("another series' entry leaked into this series' active list")
 	}
 
-	// The expired row must still exist, or the ladder resets every expiry.
+	// The expired row must still exist, or the failure count resets every expiry.
 	all, err := st.Q.ListBlocklistByTitle(ctx, title.ID)
 	if err != nil {
 		t.Fatalf("list by series: %v", err)
