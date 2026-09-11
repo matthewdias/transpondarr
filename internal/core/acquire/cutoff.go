@@ -280,7 +280,7 @@ func (s *Service) rememberParses(ctx context.Context, fills []db.UpsertHeldRelea
 	for start := 0; start < len(fills) && ctx.Err() == nil; start += parseFillBatch {
 		end := min(start+parseFillBatch, len(fills))
 		if err := s.writeParses(ctx, fills[start:end]); err != nil {
-			s.log.Debug("could not remember held release parses; the next request re-parses them", "error", err)
+			s.log.Debug("could not store held release parses; the next request re-parses them", "error", err)
 			return
 		}
 	}

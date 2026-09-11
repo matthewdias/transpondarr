@@ -158,7 +158,7 @@ func TestDefersAPayloadWithNeitherVideoNorArchive(t *testing.T) {
 	}
 
 	events := titleEvents(t, st, titleID)
-	if len(events) != 1 || events[0].Detail != "the payload holds no video file" {
+	if len(events) != 1 || events[0].Detail != "the payload contains no video file" {
 		t.Fatalf("events = %+v, want the plain no-video deferral", events)
 	}
 }

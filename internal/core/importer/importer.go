@@ -632,7 +632,7 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 		}
 		// Unreachable for a movie: its one item is always covered, so a covered item
 		// with nothing left over needs a sibling row this shape cannot have.
-		failed = append(failed, im.failGrab(ctx, g, "the payload held no file for this episode", blameRelease))
+		failed = append(failed, im.failGrab(ctx, g, "the payload contained no file for this episode", blameRelease))
 	}
 	return failed, details
 }

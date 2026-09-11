@@ -40,7 +40,7 @@ type missingItemDTO struct {
 	Name         string       `json:"name,omitempty"`
 	Monitored    bool         `json:"monitored" doc:"False rows appear only under ?unmonitored=true, so the click that hid one can be undone"`
 	AirsAt       string       `json:"airs_at,omitempty" doc:"Broadcast time (RFC 3339 UTC); absent when the provider publishes no schedule"`
-	Reason       string       `json:"reason,omitempty" enum:"unmonitored,unaired,grab_failed,no_match,declined,pin_held,would_grab,add_failed" doc:"This item's own story; absent when the group and page tell it all"`
+	Reason       string       `json:"reason,omitempty" enum:"unmonitored,unaired,grab_failed,no_match,declined,pin_held,would_grab,add_failed" doc:"This item's own reason; absent when the title's reason or global_reason already explains it"`
 	ReasonDetail string       `json:"reason_detail,omitempty" doc:"Why the last grab failed, or why the pass turned a release down"`
 	LastPass     *lastPassDTO `json:"last_pass,omitempty" doc:"Present only when the reason is the last pass's answer, which is dated because it can go stale"`
 }
@@ -72,7 +72,7 @@ type cutoffItemDTO struct {
 	Monitored   bool           `json:"monitored" doc:"False rows appear only under ?unmonitored=true"`
 	AirsAt      string         `json:"airs_at,omitempty" format:"date-time"`
 	Status      string         `json:"status" enum:"in_library,downloading" doc:"Derived acquisition state; downloading while an upgrade is in flight"`
-	HeldRelease string         `json:"held_release" doc:"What the library holds, and what the score below rates"`
+	HeldRelease string         `json:"held_release" doc:"The release in the library, which the score below rates"`
 	Score       int            `json:"score"`
 	UnmetGoals  []scorePartDTO `json:"unmet_goals,omitempty" doc:"Profile axes the held release scores below its best on, each with the points still available"`
 }
@@ -93,7 +93,7 @@ type wantedPageInput struct {
 	Limit       int    `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Title groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items"`
 	Cursor      string `query:"cursor" doc:"Opaque cursor from the previous page's next_cursor"`
 	Unmonitored bool   `query:"unmonitored" doc:"Include items from unmonitored titles"`
-	Unaired     bool   `query:"unaired" doc:"Include items whose broadcast is still ahead; the Calendar owns the forward-looking view"`
+	Unaired     bool   `query:"unaired" doc:"Include items whose broadcast is still ahead; the Calendar shows upcoming broadcasts"`
 }
 
 type missingOutput struct {

@@ -589,7 +589,7 @@ func pollThenGap(t *testing.T, h *feedHarness, since time.Time) {
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, time.Now())}
 }
 
-// The acceptance criterion of #140: a release inside a feed gap is
+// The acceptance criterion of #140: a release published during a feed gap is
 // searched materially sooner than the backoff cap, because the poll resets the
 // sweep for the title whose broadcast happened inside the gap.
 func TestFeedPollGapResetsATitleThatAiredInsideIt(t *testing.T) {

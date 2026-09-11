@@ -212,7 +212,7 @@ export function RetryImportDialog({
               </ul>
             ) : archives.length === 0 ? (
               <p className="text-[13px] text-muted-foreground">
-                This payload holds no video files.
+                This payload contains no video files.
               </p>
             ) : null}
           </div>

@@ -458,7 +458,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 	if !ok {
 		p = parser.Parse(rel.Title)
 	}
-	// Enrich the release with parsed attributes (the fields the indexer left blank).
+	// The indexer leaves these blank; only the release name has them.
 	rel.ReleaseGroup = p.Group
 	rel.Resolution = p.Resolution
 	rel.DualAudio = p.DualAudio

@@ -155,7 +155,7 @@ func collectPayloadFiles(root string) (payload, error) {
 // noVideoReason names why a payload yielded nothing, so a settled deferral
 // reports what to do rather than only what failed.
 func noVideoReason(archives []archive) string {
-	const prefix = "the payload holds no video file"
+	const prefix = "the payload contains no video file"
 	if len(archives) == 0 {
 		return prefix
 	}
