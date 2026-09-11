@@ -35,8 +35,8 @@ func walkCandidate(title string, number int, eligible bool) decide.Candidate {
 }
 
 // covered and the outcome set are maintained side by side rather than merged --
-// covered runs per candidate on the feed's hot path, and leaving it untouched
-// kept the existing suite an honest regression net over a restructured
+// covered runs per candidate on the feed's hot path, and leaving it unchanged
+// kept the existing suite a real regression net over a restructured
 // function. This is the invariant that pairing rests on: an item is covered
 // exactly when a settling outcome closed it.
 func TestCoveredAgreesWithTheSettlingOutcomes(t *testing.T) {
@@ -57,8 +57,8 @@ func TestCoveredAgreesWithTheSettlingOutcomes(t *testing.T) {
 			{ID: 3, Kind: domain.KindEpisode, Number: 3},
 		},
 		Candidates: []decide.Candidate{
-			// The pinned group's own release is taken; another group's waits;
-			// the third is refused outright and reaches the tail.
+			// The pinned group's own release is grabbed; another group's is
+			// delayed; the third is excluded outright and the tail records it.
 			walkCandidate("[PinnedSubs] Placeholder Saga - 01", 1, true),
 			walkCandidate("[OtherSubs] Placeholder Saga - 02", 2, true),
 			walkCandidate("[OtherSubs] Placeholder Saga - 03", 3, false),

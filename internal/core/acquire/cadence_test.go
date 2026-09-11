@@ -13,7 +13,7 @@ import (
 )
 
 // newSweepWithFeed is newSweep against an indexer that also publishes a recent
-// feed, so the sweep sees a configured feed covering the airing window.
+// feed, so the sweep reads a configured feed covering the airing window.
 func newSweepWithFeed(t *testing.T, releases []indexer.Release, cfg fakeConfig) *sweepHarness {
 	t.Helper()
 	st := coretest.NewStore(t)
@@ -27,8 +27,8 @@ func newSweepWithFeed(t *testing.T, releases []indexer.Release, cfg fakeConfig) 
 }
 
 // With a feed configured, a newly aired episode no longer resets the sweep's
-// backoff: the feed is what covers the broadcast window, and resetting would aim
-// the sweep at exactly the moments the feed already handles.
+// backoff: the feed is what covers the broadcast window, and resetting would point
+// the sweep at exactly the moments the feed already covers.
 func TestSweepWithFeedDoesNotResetBackoffOnANewlyAiredItem(t *testing.T) {
 	now := time.Now()
 	justAired := now.Add(-30 * time.Minute)
@@ -52,8 +52,8 @@ func TestSweepWithFeedDoesNotResetBackoffOnANewlyAiredItem(t *testing.T) {
 	wantNextSearchNear(t, state.nextSearchAt, before.Add(24*time.Hour))
 }
 
-// Nor does an upcoming broadcast clamp the next search: the sweep sleeps on its
-// backoff and the feed catches the release when it is published.
+// Nor does an upcoming broadcast clamp the next search: the sweep stays on its
+// backoff and the feed finds the release when it is published.
 func TestSweepWithFeedDoesNotClampToTheNextAirDate(t *testing.T) {
 	now := time.Now()
 	past := now.Add(-3 * time.Hour)
@@ -75,8 +75,8 @@ func TestSweepWithFeedDoesNotClampToTheNextAirDate(t *testing.T) {
 	wantNextSearchNear(t, readSearchState(t, h.st, id).nextSearchAt, before.Add(24*time.Hour))
 }
 
-// The pin-delay window is the sweep's own business — the release already exists,
-// so no feed poll will produce it sooner. Only the broadcast reach is dropped.
+// The pin-delay window stays with the sweep — the release already exists,
+// so no feed poll will produce it sooner. Only the broadcast clamp is dropped.
 func TestSweepWithFeedStillWaitsOutThePinDelay(t *testing.T) {
 	now := time.Now()
 	aired := now.Add(-time.Hour)
@@ -97,6 +97,6 @@ func TestSweepWithFeedStillWaitsOutThePinDelay(t *testing.T) {
 		t.Fatalf("grabbed %v, want nothing while the pin delay holds", got)
 	}
 	// The hold expires 6h after the covered item's broadcast, and the nearer
-	// upcoming air date must not pull it in.
+	// upcoming air date must not bring it forward.
 	wantNextSearchNear(t, readSearchState(t, h.st, id).nextSearchAt, aired.Add(6*time.Hour))
 }

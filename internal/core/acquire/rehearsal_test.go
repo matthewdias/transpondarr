@@ -65,8 +65,8 @@ func wantRehearsalEventOfKind(t *testing.T, fn *coretest.FakeNotifier, kind doma
 }
 
 // #116's headline acceptance: in notify-only the sweep searches and decides for
-// real, names the release it would have grabbed, and nothing reaches the
-// download client or the grab table.
+// real, names the release it would have grabbed, and nothing is sent to the
+// download client or written to the grab table.
 func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 5)},
@@ -159,7 +159,7 @@ func TestNotifyOnlySweepReportsEmptySearch(t *testing.T) {
 }
 
 // A pinned-group hold is a decision too: the rehearsal names the release it is
-// waiting out, which is how a user validates the hold window empirically (#62).
+// delaying, which is how a user validates the hold window empirically (#62).
 func TestNotifyOnlySweepReportsPinHold(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)},
@@ -174,7 +174,7 @@ func TestNotifyOnlySweepReportsPinHold(t *testing.T) {
 	if !strings.Contains(ev.Error, "pinned group") {
 		t.Errorf("outcome = %q, want the pinned-group hold named", ev.Error)
 	}
-	// A push carries a human duration, not a database timestamp.
+	// A push includes a human duration, not a database timestamp.
 	if strings.Contains(ev.Error, "T") || strings.Contains(ev.Error, ":00") {
 		t.Errorf("outcome = %q, want a duration rather than a raw timestamp", ev.Error)
 	}
@@ -216,8 +216,8 @@ func TestNotifyOnlyFeedReportsInsteadOfGrabbing(t *testing.T) {
 	}
 }
 
-// The feed page mostly holds other titles' releases, so a poll that would take
-// nothing for a title stays silent — the searched sweep owns "here's why not".
+// The feed page mostly contains other titles' releases, so a poll that would grab
+// nothing for a title stays silent — the searched sweep reports "here's why not".
 func TestNotifyOnlyFeedStaysSilentWhenNothingWouldBeTaken(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	st := coretest.NewStore(t)
@@ -274,7 +274,7 @@ func TestNotifyOnlyFeedAdvancesItsMark(t *testing.T) {
 }
 
 // A hold covers only its own items. Episodes nothing matched at all must still
-// be reported, or an unrelated pin delay hides exactly the gap being rehearsed.
+// be reported, or an unrelated pin delay suppresses exactly the gap being rehearsed.
 func TestNotifyOnlySweepReportsUncoveredItemsBesideAHold(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 1)},
@@ -305,8 +305,8 @@ func TestNotifyOnlySweepReportsUncoveredItemsBesideAHold(t *testing.T) {
 	}
 }
 
-// A hand-triggered run rehearses too: Run now decides when the job runs, never
-// whether it may grab — notify-only means nothing reaches the download client.
+// A manually triggered run rehearses too: Run now decides when the job runs, never
+// whether it may grab — notify-only means nothing is sent to the download client.
 func TestNotifyOnlyManualRunStillRehearses(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 5)},

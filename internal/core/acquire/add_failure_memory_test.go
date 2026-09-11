@@ -14,8 +14,8 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 )
 
-// A refused add writes no grab row, so the importer never sees it and #118's
-// blocklist could not reach this path at all (#120).
+// A failed add writes no grab row, so the importer never reads it and #118's
+// blocklist did not cover this path at all (#120).
 func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	dead := episodeRelease("Placeholder Saga", 3)
@@ -39,7 +39,7 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	if got.reason == "" {
 		t.Error("recorded no reason; the Releases tab shows it as the ineligible reason")
 	}
-	// The covered items are the breaker's evidence of breadth, so a refused add
+	// The covered items are the breaker's evidence of breadth, so a failed add
 	// has to report which ones it was for.
 	items, err := h.st.Q.ListWantedItems(context.Background(), id)
 	if err != nil {
@@ -50,7 +50,7 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	}
 }
 
-// A torrent whose format we cannot derive an info hash for is remembered — we
+// A torrent whose format we cannot derive an info hash for is recorded — we
 // cannot use it and retrying would only repeat that — but under its own reason.
 // The blocklist entry is what a user reads to understand why a release was
 // blocked, and this cause is neither the fetch failure the other string names
@@ -60,7 +60,7 @@ func TestSweepRemembersAnUnsupportedTorrentUnderItsOwnReason(t *testing.T) {
 	v2 := episodeRelease("Placeholder Saga", 3)
 	h := newSweep(t, []indexer.Release{v2}, fakeConfig{})
 	// The shape resolveAdd produces: badRelease() wraps whatever InfoHashFromMeta
-	// returned, so the new sentinel rides inside ErrBadRelease rather than replacing
+	// returned, so the new sentinel is wrapped in ErrBadRelease rather than replacing
 	// it — which is what keeps AutoGrab recording at all.
 	addErr := fmt.Errorf("%w: %w", download.ErrBadRelease,
 		fmt.Errorf(`%w: its "info" dictionary carries no v1 pieces`, download.ErrNoV1InfoHash))
@@ -88,10 +88,10 @@ func TestSweepRemembersAnUnsupportedTorrentUnderItsOwnReason(t *testing.T) {
 	}
 }
 
-// The loop breaker for a torrent the client holds with its data gone (#241):
-// converging on it would report a grab that can never deliver, so the same
-// release would rank first and "grab" every pass forever. Refusing the add makes
-// it an add failure, which the walk answers with the next-best release in the
+// The loop breaker for a torrent the client has with its data gone (#241):
+// converging on it would report a grab that can never complete, so the same
+// release would rank first and "grab" every pass forever. Rejecting the add makes
+// it an add failure, after which the walk tries the next-best release in the
 // same pass -- and records nothing, because the client's disk is not the
 // release's fault.
 func TestSweepTakesTheNextReleaseWhenADuplicatesDataIsMissing(t *testing.T) {
@@ -132,13 +132,13 @@ func TestSweepTakesTheNextReleaseWhenADuplicatesDataIsMissing(t *testing.T) {
 	if len(grabs) != 1 || grabs[0].ReleaseTitle != next.Title {
 		t.Errorf("grab = %+v, want the next-best release %q", grabs, next.Title)
 	}
-	// Environmental, so it must not reach the blocklist the way ErrBadRelease does.
+	// Environmental, so it must not be recorded in the blocklist the way ErrBadRelease is.
 	if len(h.rec.calls) != 0 {
 		t.Errorf("recorded %+v, want nothing: the client's disk is not the release's fault", h.rec.calls)
 	}
 }
 
-// A client that is down refuses every release, so remembering its refusals
+// A client that is down fails every release, so recording its failures
 // would blocklist a healthy candidate pool for a fault that is not the
 // releases'.
 func TestSweepDoesNotRememberAClientSideRefusal(t *testing.T) {
@@ -157,7 +157,7 @@ func TestSweepDoesNotRememberAClientSideRefusal(t *testing.T) {
 }
 
 // Failure memory is automation's policy, like eligibility (PR #57): a manual
-// grab must not leave a block behind for the sweep to obey.
+// grab must not write a blocklist entry the sweep then applies.
 func TestManualGrabRemembersNothing(t *testing.T) {
 	rel := episodeRelease("Placeholder Saga", 3)
 	h := newSweep(t, []indexer.Release{rel}, fakeConfig{})

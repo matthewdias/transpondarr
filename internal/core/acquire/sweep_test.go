@@ -26,7 +26,7 @@ type sweepItem struct {
 	inLibrary   bool
 	airsAt      *time.Time
 	grab        string
-	heldTitle   string // the release the library holds, for an upgrade pass (#97)
+	heldTitle   string // the release name in the library, for an upgrade pass (#97)
 	unmonitored bool
 }
 
@@ -161,7 +161,7 @@ type recorded struct {
 type fakeRecorder struct {
 	calls []recorded
 	err   error
-	// suppress models the breaker: the record is refused, not failed.
+	// suppress models the breaker: the record is suppressed, not failed.
 	suppress bool
 }
 
@@ -206,7 +206,7 @@ func TestSweepGrabsEligibleAiredItem(t *testing.T) {
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
 		t.Fatalf("grabbed items = %v, want [3]", got)
 	}
-	// A successful grab means more may be waiting: due again next tick.
+	// A successful grab means more may be available: due again next tick.
 	state := readSearchState(t, h.st, id)
 	if state.backoff != 0 || state.nextSearchAt.Valid {
 		t.Errorf("state = %+v, want backoff 0 and next_search_at NULL after a grab", state)
@@ -234,7 +234,7 @@ func TestSweepNoOpsWhenAutomationDisabled(t *testing.T) {
 	}
 }
 
-// A hand-triggered run is explicit intent, so it passes the kill switch the way
+// A manually triggered run is explicit intent, so it passes the kill switch the way
 // a manual grab passes eligibility (PR #57).
 func TestSweepRunsWithAutomationDisabledWhenTriggeredByHand(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -344,13 +344,13 @@ func TestSweepNeverGrabsIneligibleOnlyCandidate(t *testing.T) {
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
 		t.Errorf("grabbed %v below the profile floor, want nothing", got)
 	}
-	// Nothing taken means back off, not retry every tick.
+	// Nothing grabbed means back off, not retry every tick.
 	if state := readSearchState(t, h.st, id); state.backoff != 1 {
 		t.Errorf("backoff = %d, want 1 after an empty pass", state.backoff)
 	}
 }
 
-// An item already downloading must not be grabbed a second time; its siblings
+// An item already downloading must not be grabbed a second time; the other items
 // still can be.
 func TestSweepDoesNotRegrabInFlightItems(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -376,7 +376,7 @@ func TestSweepDoesNotRegrabInFlightItems(t *testing.T) {
 	}
 }
 
-// One pass takes everything it can: the budget is searches, not grabs.
+// One pass grabs everything it can: the budget is searches, not grabs.
 func TestSweepGrabsMultipleReleasesInOnePass(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{
@@ -400,8 +400,8 @@ func TestSweepGrabsMultipleReleasesInOnePass(t *testing.T) {
 	}
 }
 
-// A dead download URL is one release's problem. It must not cost the rest of the
-// title its pass, and it must not skip the cadence write — that would re-search
+// A dead download URL is one release's problem. It must not stop the rest of the
+// title's pass, and it must not skip the cadence write — that would re-search
 // the same title every tick forever.
 func TestSweepContinuesPastAFailedAdd(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -448,8 +448,8 @@ func TestSweepFallsBackToTheNextCandidateForTheSameItem(t *testing.T) {
 	}
 }
 
-// Repeated add failures mean the client is unwell, not that every release is
-// dead: the title gives up rather than walking the whole candidate list.
+// Repeated add failures mean the fault is the client, not that every release is
+// dead: the pass stops rather than walking the whole candidate list.
 func TestSweepStopsAfterRepeatedAddFailures(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	var releases []indexer.Release
@@ -469,22 +469,22 @@ func TestSweepStopsAfterRepeatedAddFailures(t *testing.T) {
 	if len(h.dl.Adds) > 3 {
 		t.Errorf("attempted %d adds against a failing client, want at most 3", len(h.dl.Adds))
 	}
-	// The failure is title-local, so it must still yield its slot: leaving the
-	// cadence due would keep this title at the head of every pass forever.
+	// The failure is title-local, so it must still move to the back of the search
+	// queue: leaving the cadence due would keep this title at the head forever.
 	state := readSearchState(t, h.st, id)
 	if state.backoff != 1 {
 		t.Errorf("backoff = %d, want 1 — a failed pass must still give up its slot", state.backoff)
 	}
 	wantNextSearchNear(t, state.nextSearchAt, before.Add(time.Hour))
-	// last_searched_at stays put: nothing was successfully searched, and moving it
-	// would hide an episode that aired before the failure from airedSince.
+	// last_searched_at does not move: nothing was successfully searched, and moving
+	// it would put an episode that aired before the failure outside airedSince.
 	if state.lastSearched.Valid {
 		t.Error("last_searched_at was written despite the pass failing")
 	}
 }
 
-// An indexer outage is the one failure a title is not charged for: every due
-// title shares it, so backing them all off would idle the whole library on one
+// An indexer outage is the one failure a title is not backed off for: it affects
+// every due title, so backing them all off would idle the whole library on one
 // upstream hiccup.
 func TestSweepIndexerFailureLeavesTheCadenceUntouched(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -502,14 +502,14 @@ func TestSweepIndexerFailureLeavesTheCadenceUntouched(t *testing.T) {
 }
 
 // The starvation the backoff-on-failure exists to prevent: the due query is a
-// small LIMIT ordered by next_search_at, so title that fail without yielding
-// their slot hold the head of the queue and nothing else is ever searched.
+// small LIMIT ordered by next_search_at, so title that fail without moving to the
+// back of the queue stay at its head and nothing else is ever searched.
 func TestSweepFailingTitlesDoNotStarveHealthyOnes(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	var releases []indexer.Release
 	fail := map[string]error{}
 	// Enough failing title to fill the 5-title pass, each with enough dead
-	// releases to trip maxAddFailures.
+	// releases to reach maxAddFailures.
 	for i := range 5 {
 		title := fmt.Sprintf("Broken Saga %d", i)
 		for n := 1; n <= 4; n++ {
@@ -532,7 +532,7 @@ func TestSweepFailingTitlesDoNotStarveHealthyOnes(t *testing.T) {
 	}
 	healthyID := seedSweep(t, h.st, "Healthy Saga", true, sweepItem{number: 1, airsAt: &past})
 
-	// One pass fills entirely with the broken title; the second must reach past
+	// One pass fills entirely with the broken title; the second must search past
 	// them now that a failed pass backs off.
 	for range 2 {
 		_ = h.svc.SweepOnce(context.Background())
@@ -542,7 +542,7 @@ func TestSweepFailingTitlesDoNotStarveHealthyOnes(t *testing.T) {
 	}
 }
 
-// A title nobody is seeding for backs off exponentially rather than asking the
+// A title nobody is seeding for backs off exponentially rather than querying the
 // indexer every tick forever, and the backoff stops growing at the cap.
 func TestSweepEmptySearchBackoffGrowsAndCaps(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -576,7 +576,7 @@ func TestSweepEmptySearchBackoffGrowsAndCaps(t *testing.T) {
 }
 
 // A new episode restarts the clock: whatever the accumulated backoff, an episode
-// that aired since the last search is worth looking for now (#100).
+// that aired since the last search is worth searching for now (#100).
 func TestSweepNewlyAiredItemResetsBackoff(t *testing.T) {
 	now := time.Now()
 	justAired := now.Add(-30 * time.Minute)

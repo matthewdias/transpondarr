@@ -14,8 +14,8 @@ import (
 	"github.com/matthewdias/transpondarr/internal/coretest"
 )
 
-// blockFirstAdd makes the first Add reaching the download client park until the
-// returned release func is called, and reports when it got there. Later adds pass
+// blockFirstAdd makes the first Add sent to the download client block until the
+// returned release func is called, and signals when it did. Later adds pass
 // straight through, so a test that fails still fails on its assertion rather than
 // deadlocking.
 func blockFirstAdd(dl *coretest.FakeDownload) (entered <-chan struct{}, release func()) {
@@ -35,7 +35,7 @@ func blockFirstAdd(dl *coretest.FakeDownload) (entered <-chan struct{}, release 
 
 // The sweep and the feed poll are phase-locked on a 15-minute tick and both read
 // grab state before either writes, so the same just-aired episode is the case
-// they collide on. Exactly one add may reach the download client.
+// they collide on. Exactly one add may be sent to the download client.
 func TestConcurrentSweepAndFeedPollGrabItemOnce(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -50,7 +50,7 @@ func TestConcurrentSweepAndFeedPollGrabItemOnce(t *testing.T) {
 	var pollErr error
 	wg.Go(func() { pollErr = h.svc.PollFeedOnce(ctx) })
 
-	<-entered // the feed poll now holds the claim, inside the client
+	<-entered // the feed poll now has the claim, inside the client
 	sweepErr := h.svc.SweepOnce(ctx)
 	release()
 	wg.Wait()
@@ -66,7 +66,7 @@ func TestConcurrentSweepAndFeedPollGrabItemOnce(t *testing.T) {
 	}
 }
 
-// Automation yields; a human never does. This is PR #57's never-refuse rule
+// Automation skips a claimed item; a human never does. This is PR #57's never-refuse rule
 // expressed against the claim registry, and the guard against someone later
 // "improving" the registry into a gate on the manual path.
 func TestManualGrabIgnoresAnInFlightClaim(t *testing.T) {
@@ -85,7 +85,7 @@ func TestManualGrabIgnoresAnInFlightClaim(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Go(func() { _ = h.svc.PollFeedOnce(ctx) })
-	<-entered // automation holds the claim on item 3
+	<-entered // automation has the claim on item 3
 
 	cand := decide.Candidate{
 		Release: indexer.Release{Title: "[OtherSubs] Placeholder Saga - 03 [1080p]",
@@ -104,8 +104,8 @@ func TestManualGrabIgnoresAnInFlightClaim(t *testing.T) {
 	}
 }
 
-// A claim must not outlive a failed add, or one dead release would lock its item
-// out of the rest of the pass.
+// A claim must be released on a failed add, or one dead release would exclude
+// its item from the rest of the pass.
 func TestClaimIsReleasedWhenAnAddFails(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	dead := episodeRelease("Placeholder Saga", 3)
@@ -132,8 +132,8 @@ func TestClaimIsReleasedWhenAnAddFails(t *testing.T) {
 }
 
 // The sequential interleaving the claim alone does not close: the sweep reads
-// its item list, spends seconds out on the network, and by the time it grabs,
-// the poll has already taken the item and released its claim. Nothing in the
+// its item list, makes network requests for seconds, and by the time it grabs,
+// the poll has already grabbed the item and released its claim. Nothing in the
 // claim stops the sweep acting on that stale read — only re-checking does.
 //
 // The two pick different releases here (the feed page and a title search return
@@ -151,12 +151,12 @@ func TestSweepDoesNotRegrabAnItemThePollTookMidSearch(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		{Release: fromFeed, GUID: "guid-feed", Published: time.Now()},
 	}, fakeConfig{})
-	// The search side answers with a different release for the same episode.
+	// The search side returns a different release for the same episode.
 	h.feed.Releases = []indexer.Release{fromSearch}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
 	ctx := context.Background()
-	// The poll lands while the sweep is out on its search, after the sweep has
+	// The poll lands while the sweep's search is in flight, after the sweep has
 	// already read item 3 as grabbable.
 	var once sync.Once
 	h.feed.SearchHook = func(indexer.Query) {

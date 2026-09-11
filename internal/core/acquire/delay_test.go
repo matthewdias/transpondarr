@@ -26,7 +26,7 @@ func pinTitle(t *testing.T, st *store.Store, id int64, group string, hours int) 
 	}
 }
 
-// The pinned group is what the delay is waiting for, so it never waits.
+// The pinned group is what the delay is for, so it is never delayed.
 func TestSweepGrabsPinnedReleaseImmediately(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
@@ -41,7 +41,7 @@ func TestSweepGrabsPinnedReleaseImmediately(t *testing.T) {
 	}
 }
 
-// #62: within the window, another group's release is held rather than taken, and
+// #62: within the window, another group's release is held rather than grabbed, and
 // the title comes back exactly when the window closes.
 func TestSweepHoldsNonPinnedReleaseInsideTheDelay(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
@@ -62,8 +62,8 @@ func TestSweepHoldsNonPinnedReleaseInsideTheDelay(t *testing.T) {
 	wantNextSearchNear(t, state.nextSearchAt, aired.Add(6*time.Hour))
 }
 
-// Once the window closes the wait is over: the best eligible release wins even
-// though it is not the pinned group.
+// Once the window closes the delay ends: the best eligible release is grabbed
+// even though it is not the pinned group.
 func TestSweepGrabsNonPinnedReleaseAfterTheDelay(t *testing.T) {
 	aired := time.Now().Add(-7 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
@@ -79,7 +79,7 @@ func TestSweepGrabsNonPinnedReleaseAfterTheDelay(t *testing.T) {
 }
 
 // The window measures time since broadcast, so with no broadcast time there is
-// no interval to wait out — grab the best eligible release now.
+// no interval to delay for — grab the best eligible release now.
 func TestSweepDelayIsInapplicableWithoutAnAirDate(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3})
@@ -94,8 +94,8 @@ func TestSweepDelayIsInapplicableWithoutAnAirDate(t *testing.T) {
 }
 
 // An hour count past the duration ceiling wraps int64 when multiplied out, and
-// 3000000h wraps *negative*, which reads as <= 0 and disables the wait outright:
-// the longest wait a user can ask for silently becomes none. Clamped, it holds.
+// 3000000h wraps *negative*, which reads as <= 0 and disables the delay outright:
+// the longest delay a user can ask for silently becomes none. Clamped, it applies.
 func TestSweepClampsAnAbsurdPinDelay(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})

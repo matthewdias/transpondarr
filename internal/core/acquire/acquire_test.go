@@ -64,7 +64,7 @@ func newService(t *testing.T, st *store.Store, idx indexer.Indexer, titles fakeT
 	return acquire.New(st, reg, titles, fakeConfig{}, discardLogger(), nil), reg
 }
 
-// newRegistry holds the fakes acquire reads its clients from (nil = unconfigured).
+// newRegistry contains the fakes acquire reads its clients from (nil = unconfigured).
 func newRegistry(idx indexer.Indexer, dl download.Client) *clients.Registry {
 	reg := clients.New()
 	if idx != nil {
@@ -108,7 +108,7 @@ func seedAniListTitle(t *testing.T, st *store.Store, title string, anilistID int
 	return s.ID
 }
 
-// The sanitized stored title is tried first; a zero-result answer falls back to
+// The sanitized stored title is tried first; a zero-result search falls back to
 // the remaining title variants, and the term that produced results is reported.
 func TestMatchTitleFallsBackToVariantTerm(t *testing.T) {
 	const english = "Fixture of the Sky Side Story"
@@ -146,7 +146,7 @@ func TestMatchTitleFallsBackToVariantTerm(t *testing.T) {
 }
 
 // An unconfigured indexer is reported as its own sentinel, so the HTTP layer can
-// map it to a 503 without core knowing about status codes.
+// map it to a 503 without core referencing status codes.
 func TestMatchTitleWithoutIndexer(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc, _ := newService(t, st, nil, fakeTitles{})

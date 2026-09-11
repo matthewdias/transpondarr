@@ -54,7 +54,7 @@ func wantOutcome(t *testing.T, st *store.Store, titleID, number int64, kind stri
 }
 
 // The headline of #181: a pass that found releases and turned them all down
-// says so, naming the release and the reason -- the case that was previously
+// records it, naming the release and the reason -- the case that was previously
 // indistinguishable from "nothing has looked at this yet".
 func TestSweepRecordsADeclinedRelease(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -89,11 +89,11 @@ func TestSweepRecordsADeclinedRelease(t *testing.T) {
 
 // Blame is per item, not per pass: a pack and a single covering different
 // episodes are different answers, and the coverage tier that ranks the pack
-// first for grab efficiency says nothing about either episode's near miss.
+// first for grab efficiency is no evidence about either episode's near miss.
 func TestSweepBlamesTheReleaseCoveringEachItem(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
-	// The pack ranks first on decide's coverage tier and the single beats it on
-	// seeders, so a blame that inherited the ranking would name the pack twice.
+	// The pack ranks first on decide's coverage tier and the single outranks it on
+	// seeders, so a blame that reused the ranking would name the pack twice.
 	single := episodeRelease("Placeholder Saga", 3)
 	single.Seeders = 999
 	h := newSweep(t, []indexer.Release{packRelease("Placeholder Saga"), single}, fakeConfig{})
@@ -119,8 +119,8 @@ func TestSweepBlamesTheReleaseCoveringEachItem(t *testing.T) {
 	}
 }
 
-// A pin hold never reaches the refusal tail (it marks its items covered), so
-// without its own outcome the best answer an item could carry would be lost.
+// A pin hold never runs the refusal tail (it marks its items covered), so
+// without its own outcome the best answer an item could have would be lost.
 func TestSweepRecordsAPinHoldWithItsWindow(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)},
@@ -151,8 +151,8 @@ func TestSweepRecordsAPinHoldWithItsWindow(t *testing.T) {
 	}
 }
 
-// A search that turned up nothing is a fact worth stating, and only a search
-// may state it.
+// A search that turned up nothing is a fact worth recording, and only a search
+// may record it.
 func TestSweepRecordsNoMatchWhenTheSearchCoveredNothing(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, nil, fakeConfig{})
@@ -168,8 +168,8 @@ func TestSweepRecordsNoMatchWhenTheSearchCoveredNothing(t *testing.T) {
 }
 
 // A feed page is ~100 entries covering the whole library, not a search for this
-// title, so it has no standing to say nothing matched -- that write would
-// clobber a sweep's real refusal on every poll.
+// title, so it may not record no_match -- that write would overwrite a sweep's
+// real refusal on every poll.
 func TestFeedPollNeverRecordsNoMatch(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -186,7 +186,7 @@ func TestFeedPollNeverRecordsNoMatch(t *testing.T) {
 }
 
 // What the feed does decide is real, and is stored under its own source so the
-// reader can tell the two apart.
+// reader can distinguish the two.
 func TestFeedPollRecordsItsOwnRefusalAsFeedSourced(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -208,7 +208,7 @@ func TestFeedPollRecordsItsOwnRefusalAsFeedSourced(t *testing.T) {
 }
 
 // The row is the last pass's answer, so a grab supersedes an earlier refusal
-// rather than sitting beside it.
+// rather than being stored beside it.
 func TestAGrabOverwritesAnEarlierRefusal(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
@@ -235,10 +235,10 @@ func TestAGrabOverwritesAnEarlierRefusal(t *testing.T) {
 	wantOutcome(t, h.st, id, 3, acquire.OutcomeGrabbed)
 }
 
-// The bug the eligible-first ranking hides: rehearseNoAction requires
-// !c.Eligible, so it walks past a candidate lost to claim contention and blames
+// The bug the eligible-first ranking allows: rehearseNoAction requires
+// !c.Eligible, so it skips a candidate lost to claim contention and blames
 // the profile for what was contention. Running the walk on every pass is what
-// exposes it, so contention gets its own outcome.
+// exposes it, so contention has its own outcome.
 func TestContentionIsRecordedAsContendedNotDeclined(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	fromFeed := episodeRelease("Placeholder Saga", 3)
@@ -253,7 +253,7 @@ func TestContentionIsRecordedAsContendedNotDeclined(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
 	ctx := context.Background()
-	// The poll lands and takes item 3 while the sweep is out on its search,
+	// The poll lands and takes item 3 while the sweep's search is in flight,
 	// after the sweep has already read the item as grabbable.
 	var once sync.Once
 	h.feed.SearchHook = func(indexer.Query) {
@@ -273,7 +273,7 @@ func TestContentionIsRecordedAsContendedNotDeclined(t *testing.T) {
 	}
 }
 
-// A client that refused the add is not a release the profile turned down, and
+// A client that failed the add is not a release the profile rejected, and
 // the difference is the whole point of the column.
 func TestAnAddFailureIsRecordedAgainstItsRelease(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -294,9 +294,9 @@ func TestAnAddFailureIsRecordedAgainstItsRelease(t *testing.T) {
 	}
 }
 
-// A pass that gave up partway never examined the remaining candidates, so
-// claiming nothing matched for an item it did not reach would be a lie. What it
-// did decide is real and still lands.
+// A pass that stopped partway never examined the remaining candidates, so
+// recording no_match for an item it never examined would be wrong. What it did
+// decide is real and is still written.
 func TestAPartialPassRecordsWhatItDecidedAndNoNoMatch(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	var releases []indexer.Release
@@ -323,7 +323,7 @@ func TestAPartialPassRecordsWhatItDecidedAndNoNoMatch(t *testing.T) {
 	}
 }
 
-// #116's rehearsal gets the durable home it never had: the decisions land in the
+// #116's rehearsal is stored durably for the first time: the decisions land in the
 // column instead of scrolling past in whatever notifier was configured.
 func TestNotifyOnlyRecordsWouldGrab(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -363,12 +363,12 @@ func TestTheRehearsalBlamesTheReleaseTheRowStores(t *testing.T) {
 			ev.ReleaseTitle, row.ReleaseTitle)
 	}
 	// Episode 2 is covered by nothing at all, so it is the searched pass' own
-	// "nothing matched" rather than an inherited blame.
+	// "nothing matched" rather than a blame reused from another item.
 	wantOutcome(t, h.st, id, 2, acquire.OutcomeNoMatch)
 }
 
 // The upgrade pool is grabbable and had at once (#97). Those rows can never be
-// read back by the Missing listing, so writing them is dead weight on the exact
+// read back by the Missing listing, so writing them is wasted work on the exact
 // hot path the one-row-per-item bound exists to protect.
 func TestAnUpgradePoolItemRecordsNoOutcome(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -414,15 +414,15 @@ func TestRepeatedPassesKeepOneRowPerItem(t *testing.T) {
 	}
 }
 
-// An overlapping candidate is not contention. anyCovered trips on a single
-// shared item, so the rest of the release was merely deferred to a later pass --
-// and claiming it would bury each item's own refusal, which is the one thing
+// An overlapping candidate is not contention. anyCovered returns true on a
+// single shared item, so the rest of the release was merely deferred to a later
+// pass -- and recording it would replace each item's own refusal, which is the one thing
 // this table exists to show. A batch beside weekly singles is a normal search
 // result, not a corner.
 func TestAnOverlappingBatchDoesNotSilenceItsItemsOwnRefusal(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
-	// 480p is hard-excluded below, so only episode 2's single is refused; the
-	// pack stays eligible and overlaps episode 1, which the single takes first.
+	// 480p is hard-excluded below, so only episode 2's single is excluded; the
+	// pack stays eligible and overlaps episode 1, which the single grabs first.
 	refused := episodeRelease("Placeholder Saga", 2)
 	refused.Title = "[ExampleSubs] Placeholder Saga - 02 [480p]"
 	h := newSweep(t, []indexer.Release{
@@ -448,13 +448,13 @@ func TestAnOverlappingBatchDoesNotSilenceItsItemsOwnRefusal(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
-	// Episode 2's refusal is user-actionable and must survive the overlap.
+	// Episode 2's refusal is user-actionable and must not be lost to the overlap.
 	row := wantOutcome(t, h.st, id, 2, acquire.OutcomeDeclined)
 	if !strings.Contains(row.Detail, "excluded by the profile") {
 		t.Errorf("episode 2 detail = %q, want the exclusion that refused it", row.Detail)
 	}
 	// Episode 3 has no refusal of its own: an eligible pack covers it and this
-	// pass took an overlapping release first, so it is next pass's, not a miss.
+	// pass grabbed an overlapping release first, so a later pass covers it.
 	if got := wantOutcome(t, h.st, id, 3, acquire.OutcomeDeferred); got.Outcome != acquire.OutcomeDeferred {
 		t.Errorf("episode 3 outcome = %q", got.Outcome)
 	}

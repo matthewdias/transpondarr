@@ -30,29 +30,29 @@ func QueueCursorTop() QueueCursor { return QueueCursor{Key: "~", ID: 0} }
 // scanBatches bounds how far one request reads past title whose held releases
 // all meet their cutoff. Membership is decided in Go, so a page is filled by
 // scanning; without a cap a library where nearly everything is at cutoff would
-// turn one request into a full-table walk. Hitting it returns a short page with
-// a cursor, which is correct, just not full.
+// turn one request into a full-table walk. Reaching the cap returns a short page
+// with a cursor, which is correct, just not full.
 //
 // It bounds the response, not the work: a batch scores every held item of the
 // title it read, so one request costs up to scanBatches x Limit titles' worth
 // of scoring whatever it returns, worst in the healthy steady state where
 // everything is already at cutoff. Scoring is what decides membership and
-// cannot be pushed into SQL; parsing, which cost ~113x scoring, is remembered
-// per held release instead (#185).
+// cannot be pushed into SQL; parsing, which cost ~113x scoring, is stored per
+// held release instead (#185).
 const scanBatches = 20
 
 // ItemsPerGroup caps what one group of either wanted listing lists; the group's
 // own count (Below here, Missing on the other tab) is the whole truth either way.
 const ItemsPerGroup = 50
 
-// PageItemBudget closes a wanted-queue page early once it carries this many
+// PageItemBudget closes a wanted-queue page early once it contains this many
 // items across its groups. The group limit bounds the seasonal shape (many
 // tiny groups); this bounds the back-catalog shape (few groups at their item
-// cap), where a full page of capped groups would otherwise paint thousands of
-// rows. A page always ships at least one group, however large its cap.
+// cap), where a full page of capped groups would otherwise render thousands of
+// rows. A page always returns at least one group, however large its cap.
 const PageItemBudget = 200
 
-// CutoffUnmetParams selects a page of title groups holding sub-cutoff releases.
+// CutoffUnmetParams selects a page of title groups containing sub-cutoff releases.
 type CutoffUnmetParams struct {
 	Limit              int
 	Cursor             QueueCursor
@@ -60,7 +60,7 @@ type CutoffUnmetParams struct {
 }
 
 // CutoffUnmetItem is one held item whose release scores below its profile's
-// cutoff, with the numbers that say so.
+// cutoff, with the numbers that show it.
 type CutoffUnmetItem struct {
 	ID               int64
 	Number           int
@@ -69,8 +69,8 @@ type CutoffUnmetItem struct {
 	AirsAt           string
 	HeldReleaseTitle string
 	Score            int
-	// UnmetGoals is what the profile still wants that the held release is not:
-	// the axes scoring below their best, with the points each leaves unearned.
+	// UnmetGoals is what the profile specifies that the held release is not:
+	// the axes scoring below their best, with the points each is missing.
 	UnmetGoals []decide.ScorePart
 	Grab       db.Grab
 	HasGrab    bool
@@ -100,7 +100,7 @@ type CutoffUnmetPage struct {
 // title so the pagination unit is the group and a title never splits across
 // pages. Membership is re-derived from the stored release name under the
 // current profile rather than recorded, so editing a profile moves the list
-// immediately; what is remembered is the parse of that name, which no profile
+// immediately; what is stored is the parse of that name, which no profile
 // can change.
 func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffUnmetPage, error) {
 	if p.Limit <= 0 {
@@ -152,7 +152,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 		for _, sr := range titles {
 			// The cursor advances per title examined, not per group kept, so a
 			// resume never re-scores a title whose releases all met the cutoff.
-			// prev survives one iteration for the budget close below, which must
+			// prev is kept for one iteration for the budget close below, which must
 			// resume AT this title rather than after it.
 			prev := cursor
 			cursor = QueueCursor{Key: sr.Title, ID: sr.ID}
@@ -214,7 +214,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 				continue
 			}
 			// The item budget closes the page before this group when taking it
-			// would overweigh the page; the first group always ships.
+			// would exceed the budget; the first group is always returned.
 			if len(out.Groups) > 0 && itemSum+len(group.Items) > PageItemBudget {
 				out.NextCursor = prev
 				return out, nil
@@ -235,7 +235,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 }
 
 // profileByID loads a profile in the domain form decide scores against. The
-// listing carries the profile id so a page loads each one once, however many
+// listing includes the profile id so a page loads each one once, however many
 // title share it.
 func (s *Service) profileByID(ctx context.Context, id int64) (domain.QualityProfile, error) {
 	row, err := s.store.Q.GetQualityProfile(ctx, id)
@@ -249,8 +249,8 @@ func (s *Service) profileByID(ctx context.Context, id int64) (domain.QualityProf
 	return profileFromRows(row, groups)
 }
 
-// heldParse reads a remembered parse of what an item holds. An unreadable one
-// is treated as absent rather than as an error: the parse is derived, so
+// heldParse reads the stored parse of an item's held release name. An unreadable
+// one is treated as absent rather than as an error: the parse is derived, so
 // re-deriving it always succeeds, and the fill that follows overwrites the row.
 func heldParse(stored sql.NullString) (parser.Parsed, bool) {
 	if !stored.Valid || stored.String == "" {
@@ -265,17 +265,17 @@ func heldParse(stored sql.NullString) (parser.Parsed, bool) {
 
 // parseFillBatch chunks the write-back. A first traversal of a large library
 // fills tens of thousands of rows, and one transaction for all of them would
-// hold SQLite's single writer against the importer for the whole of a GET.
+// lock SQLite's single writer against the importer for the whole of a GET.
 const parseFillBatch = 500
 
 // rememberParses stores the parses a scan had to compute, so the next request
-// scores them instead of paying for the parser again -- the whole cost of the
+// scores them instead of running the parser again -- the whole cost of the
 // healthy library, where every held release meets its cutoff and the scan walks
 // its full budget to list nothing (#185). It is a write from a read, bounded to
 // once per held release: a failure costs a re-parse and never the listing,
 // which was already correct without the table. Committed chunk by chunk, so a
-// failure part way through still warms what it got to rather than leaving the
-// next request the same oversized write to fail at again.
+// failure part way through still keeps the chunks it committed rather than
+// leaving the next request the same oversized write to fail at again.
 func (s *Service) rememberParses(ctx context.Context, fills []db.UpsertHeldReleaseParseParams) {
 	for start := 0; start < len(fills) && ctx.Err() == nil; start += parseFillBatch {
 		end := min(start+parseFillBatch, len(fills))
@@ -286,7 +286,7 @@ func (s *Service) rememberParses(ctx context.Context, fills []db.UpsertHeldRelea
 	}
 }
 
-// writeParses commits one chunk of remembered parses.
+// writeParses commits one chunk of collected parses.
 func (s *Service) writeParses(ctx context.Context, fills []db.UpsertHeldReleaseParseParams) error {
 	tx, err := s.store.DB.BeginTx(ctx, nil)
 	if err != nil {

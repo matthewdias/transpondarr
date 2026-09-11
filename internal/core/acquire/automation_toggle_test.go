@@ -14,7 +14,7 @@ import (
 )
 
 // #102's acceptance criterion, against the real settings service rather than a
-// double: the same running sweep must obey a toggle written after it was built,
+// double: the same running sweep must apply a toggle written after it was built,
 // in both directions, with nothing rebuilt in between.
 func TestSweepObeysLiveAutomationToggle(t *testing.T) {
 	ctx := context.Background()

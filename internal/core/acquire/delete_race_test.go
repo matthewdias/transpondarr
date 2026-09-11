@@ -10,7 +10,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 )
 
-// A delete landing while the sweep is out on the network must not fail the pass:
+// A delete landing while the sweep's search is in flight must not fail the pass:
 // no tx is open during the search, and the epoch-guarded cadence write treats
 // zero rows as "reset or removed mid-sweep", not an error.
 func TestSweepSurvivesTitleDeletedMidSearch(t *testing.T) {
@@ -34,8 +34,8 @@ func TestSweepSurvivesTitleDeletedMidSearch(t *testing.T) {
 }
 
 // A delete landing between the client Add (deliberately outside the grab tx) and
-// the grab write hits the wanted_items FK. The pass reports it, records nothing,
-// and the next pass runs clean: no wedge, and the title is not resurrected.
+// the grab write violates the wanted_items FK. The pass reports it, records
+// nothing, and the next pass runs clean: nothing is stuck, the title stays gone.
 func TestSweepReportsButRecoversFromTitleDeletedMidGrab(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})

@@ -7,9 +7,9 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 )
 
-// The precedence the walk depends on: a candidate that settled an item is the
-// last word, while a skip that left the item uncovered must not shout down the
-// lower-ranked candidate that goes on to take it.
+// The precedence the walk depends on: a candidate that settled an item is
+// final, while a skip that left the item uncovered must not overwrite the
+// lower-ranked candidate that goes on to grab it.
 func TestOutcomeSetSettlingOverwritesTentative(t *testing.T) {
 	set := outcomeSet{}
 	set.tentative([]int{1}, outcome{kind: OutcomeContended, release: "contended release"})
@@ -25,7 +25,7 @@ func TestOutcomeSetSettlingOverwritesTentative(t *testing.T) {
 		t.Errorf("outcome = %+v, want the hold to stand: a tentative fills empty slots only", got)
 	}
 
-	// Two tentatives: the first one wins, because the walk is ranked.
+	// Two tentatives: the first one is kept, because the walk is ranked.
 	set = outcomeSet{}
 	set.tentative([]int{3}, outcome{kind: OutcomeContended})
 	set.tentative([]int{3}, outcome{kind: OutcomeDeclined})
@@ -76,7 +76,7 @@ func refused(title string, score, seeders int, pinned bool, items ...int) decide
 }
 
 // Blame drops decide's coverage tier deliberately. Coverage exists for grab
-// efficiency -- one grab instead of N (#126) -- and says nothing about which
+// efficiency -- one grab instead of N (#126) -- and is no evidence about which
 // release came closest for one episode, so inheriting it would let a wide
 // low-scoring pack outrank a high-scoring single covering exactly the episode
 // asked about.
@@ -93,8 +93,8 @@ func TestBestRefusalIgnoresTheCoverageTier(t *testing.T) {
 	}
 }
 
-// Pinned still outranks score: a pin is per-title knowledge about which group
-// is definitive, so its near miss is the one worth reporting.
+// Pinned still outranks score: a pin records which group is definitive for a
+// title, so its near miss is the one worth reporting.
 func TestBestRefusalPrefersThePinnedGroup(t *testing.T) {
 	loud := refused("[LoudSubs] Sample Show - 07", 900, 50, false, 7)
 	pinned := refused("[PinnedSubs] Sample Show - 07", 100, 5, true, 7)
@@ -106,7 +106,7 @@ func TestBestRefusalPrefersThePinnedGroup(t *testing.T) {
 }
 
 // A refusal that covers none of the numbers asked about is not this item's
-// story, and an eligible candidate was refused for something other than the
+// refusal, and an eligible candidate was refused for something other than the
 // profile -- neither may be blamed.
 func TestBestRefusalIgnoresUncoveringAndEligibleCandidates(t *testing.T) {
 	elsewhere := refused("[SynthSubs] Sample Show - 03", 900, 50, false, 3)
