@@ -10,9 +10,9 @@
 
 ## Toolchain
 
-Transpondarr pins its toolchain so builds are reproducible. **mise is optional** —
-it just installs and pins the versions of the same tools you'd otherwise install
-yourself.
+Transpondarr pins its toolchain in `mise.toml` so builds are reproducible. **mise
+is optional**: it installs the same tools you'd otherwise install yourself, at the
+pinned versions.
 
 ### With mise (recommended)
 
@@ -20,12 +20,12 @@ yourself.
 mise install
 ```
 
-This reads `mise.toml` and installs Go, Node, and every dev tool at the pinned
-versions.
+`mise install` reads `mise.toml` and installs Go, Node, and every dev tool at the
+pinned versions.
 
 ### Without mise
 
-Install these yourself (versions are what CI uses; the pinned versions live in
+Install these yourself (versions are what CI uses; the pinned versions are in
 `mise.toml`):
 
 | Tool                        | Version | Install                                                                      |
@@ -38,11 +38,14 @@ Install these yourself (versions are what CI uses; the pinned versions live in
 | goreleaser                  | 2.17+   | `brew install goreleaser`                                                    |
 | air (optional, live reload) | 1.66+   | `go install github.com/air-verse/air@latest`                                 |
 
-sqlc is the one exact pin: its generated output is committed and CI diffs it, so
-`make gen` refuses to run on any other version rather than produce drift.
+sqlc is the one exact pin. Its generated output is committed and CI diffs it, so
+`make gen` exits with an error on any other sqlc version instead of producing
+drift.
 
-The `Makefile` is the canonical task interface and only assumes these are on your
-`PATH`:
+## Building and testing
+
+The `Makefile` is the canonical task interface, and it needs only the tools above
+on your `PATH`:
 
 ```sh
 make build   # frontend + backend -> ./transpondarrd
@@ -55,47 +58,56 @@ make test
 make dev     # live-reload API (air)
 ```
 
-`make test` runs the Go suite under the race detector, which needs a C toolchain
-(`gcc` or `clang`) because the race runtime links via cgo on Linux. The shipped
-binary is still built `CGO_ENABLED=0` and stays pure Go.
+### Tests
+
+`make test` runs the Go suite under the race detector. The race runtime links via
+cgo on Linux, so the race detector needs a C toolchain (`gcc` or `clang`). The
+shipped binary is still built `CGO_ENABLED=0` and stays pure Go.
 
 The frontend suite is split into two vitest projects: `unit` runs the pure-logic
 suites listed in `frontend/vite.config.ts` without a DOM, and `dom` runs
-everything else under happy-dom. New suites land in `dom` by default; add a
-pure-logic one to the list to keep it out of the slower lane.
+everything else under happy-dom. New suites run in the slower `dom` project by
+default; add a pure-logic suite to the list so it runs in `unit` instead.
 
-`make build`, `lint`, or `test` installs a fast pre-commit hook (`git config
-core.hooksPath .githooks`) that runs `gofmt` / `prettier --check` on staged files — the same
-formatting CI enforces, caught before the commit instead of minutes later.
-Bypass with `git commit --no-verify`.
+### Pre-commit hook
 
-CI regenerates every committed generated file and fails if any differs from what
-it produces — `internal/store/db` (`make gen`), `frontend/src/lib/api-types.ts`
-(`make gen-api`), and `THIRD-PARTY-NOTICES.md` (`make notices`). Run the matching
-target before you push.
+`make build`, `lint`, or `test` installs a fast pre-commit hook
+(`git config core.hooksPath .githooks`) that runs `gofmt` / `prettier --check` on
+staged files. The hook checks the same formatting CI enforces, so a formatting
+error fails the commit instead of failing CI minutes later. Bypass it with
+`git commit --no-verify`.
 
-`make notices` has the least obvious trigger, and it is narrower than "touched
-`go.mod`": the file covers Go modules actually linked into the binary (not the
-full module graph) and frontend *production* dependencies, so a devDependency
-bump needs nothing.
+### Generated files
+
+CI regenerates every committed generated file and fails if the result differs
+from the committed copy. Run the matching target before you push:
+
+- `internal/store/db` — `make gen`
+- `frontend/src/lib/api-types.ts` — `make gen-api`
+- `THIRD-PARTY-NOTICES.md` — `make notices`
+
+`make notices` has the least obvious trigger, and it's narrower than "touched
+`go.mod`". `THIRD-PARTY-NOTICES.md` lists the Go modules linked into the binary,
+not the full module graph, and the frontend's *production* dependencies, so a
+devDependency bump needs no regeneration.
 
 ## Local dev configuration
 
 A `.env` file in the working directory is loaded on startup (see
-[`.env.example`](.env.example)); real environment variables override it. Copy it
-to `.env` to pin a dev API key and integration values.
+[`.env.example`](.env.example)); real environment variables override it. Copy
+`.env.example` to `.env` to pin a dev API key and integration values.
 
-`.env.local` is read first and so outranks `.env`. It is the per-checkout tier:
+`.env.local` is read first and so outranks `.env`. Use it for per-checkout values:
 put anything true of *this* working copy alone there — a port, a stub endpoint —
-and keep `.env` for what every checkout shares. Neither file is committed. This
-matters most in a git worktree, where `.env` is often shared with the main
+and keep `.env` for what every checkout shares. Neither file is committed. The
+split matters most in a git worktree, where `.env` is often shared with the main
 checkout, so editing it would change every checkout at once.
 
 ## Seeding a dev database
 
-A library that has been running for weeks is the population that shows layout
-bugs; two hand-added titles and a lot of empty states is not. `make seed` builds
-one, and serves the stubs the two live-fetching screens need:
+Layout bugs show up in a library that has been running for weeks, not in two
+hand-added titles and a lot of empty states. `make seed` builds a database like
+that, and serves the AniList and Torznab stubs the two live-fetching screens need:
 
 ```
 make seed                      # seed ./data and serve the stubs until ctrl-c
@@ -103,17 +115,21 @@ go run ./cmd/devseed --reset   # wipe and reseed an existing database
 go run ./cmd/devseed --seed-only
 ```
 
-It prints the endpoints its stubs bound to — they take port 0, so several
-worktrees can run their own at once — along with the environment lines that
-point the server at them. Put those in `.env.local`, or pass
-`--write-env-local` to have the command write the file itself. Then run the
-server as usual; every screen including Releases and Discovery has something on
-it, with no network access and no real credentials.
+`make seed` prints the endpoints its stubs bound to, along with the environment
+lines that point the server at them. The stubs take port 0, so several worktrees
+can run their own at once. Put those lines in `.env.local`, or pass
+`--write-env-local` to have devseed write the file. Then run the server as usual;
+every screen including Releases and Discovery has something on it, with no network
+access and no real credentials.
 
-The fixtures live in `internal/devdata`. The seeder and both stubs read one set,
-so a search for a seeded title returns release names that fit its run; those
+### Fixtures
+
+The fixtures are in `internal/devdata`. The seeder and both stubs read the same
+set, so a search for a seeded title returns release names that fit its run; those
 release names are synthetic. Three further titles are served by the stubs and
 deliberately not seeded, so the add dialog still has something to add offline.
+
+### No fake download client
 
 There is deliberately no fake download client. The seeded grab rows produce
 every status the Activity queue derives — downloading, stuck and deferred — and
@@ -125,16 +141,21 @@ qBittorrent it would find none of the seeded info hashes and fail every seeded
 grab row after five minutes. If your `.env.local` already sets that variable,
 blank it yourself — devseed won't overwrite an existing `.env.local`.
 
-Seeding refuses to write over an existing database unless you pass `--reset`,
-and `--reset` refuses a database outside the working directory unless you also
+### Overwriting a database
+
+Seeding won't write over an existing database unless you pass `--reset`, and
+`--reset` won't wipe a database outside the working directory unless you also
 pass `--force`.
 
-One seeded state doesn't survive the server starting. The calendar footer
-separates a title nobody has asked the provider about from one the provider
-publishes no dates for, and `airing-sync` runs at startup and stamps the first
-kind, so within a tick every seeded title reads as asked. That's the job doing
-its work, not a gap in the fixtures: `--seed-only` leaves the unasked title in
-place. That is where `TestSeedProducesBothCalendarAbsences` reads it.
+### The calendar after startup
+
+One seeded calendar state doesn't survive the server starting. The calendar
+footer separates a title the provider hasn't been asked about from one the
+provider publishes no dates for. `airing-sync` runs at startup and stamps the
+unasked title as asked, so after its first run every seeded title shows as asked.
+The stamp is the job doing its work, not a gap in the fixtures: `--seed-only`
+leaves the unasked title in place, and `TestSeedProducesBothCalendarAbsences`
+reads it there.
 
 ## Architecture
 
@@ -185,13 +206,12 @@ So add the entry in the PR that changes the behaviour, under `[Unreleased]`:
 - **Add an `Upgrade notes` section** when an existing install changes on its own
   after upgrading — a migration that rewrites rows, a default that flips, a
   background pass that now creates data it didn't before. Say what changes, how
-  it will look, what it costs, and how to opt out. These are the entries people
-  are angriest to find out about afterwards.
+  it will look, what it costs, and how to opt out.
 
 Before tagging a release, read the whole `[Unreleased]` section back:
 
-1. Check it against `git log` since the last tag — a behaviour change that
-   landed without an entry is invisible from here.
+1. Check it against `git log` since the last tag — only `git log` shows a
+   behaviour change that landed without an entry.
 2. Merge entries that describe one user-visible change across several PRs, and
    drop anything that turned out to be internal.
 3. Rename the heading to the version and date, and open the release with a short
@@ -199,6 +219,6 @@ Before tagging a release, read the whole `[Unreleased]` section back:
 
 ## Conventions
 
-- Keep new release sources / download clients / library targets behind their
-  existing interfaces.
+- Keep new indexers / download clients / library targets behind their existing
+  interfaces.
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
