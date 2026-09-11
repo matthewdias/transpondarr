@@ -69,7 +69,7 @@ func TestMovieScheduleUpsertsKindMovie(t *testing.T) {
 }
 
 // A node numbered past 1 would create items 2..N and break the one-item
-// invariant the whole movie Format rests on.
+// invariant the whole movie Format depends on.
 func TestMovieScheduleNeverCreatesASecondItem(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedMovie(t, st, 301)
@@ -89,7 +89,7 @@ func TestMovieScheduleNeverCreatesASecondItem(t *testing.T) {
 }
 
 // Most films never broadcast, so their release date is the only date there is.
-// It rides the title metadata the refresh already fetches.
+// It comes with the title metadata the refresh already fetches.
 func TestMovieTakesItsPremiereFromTheStartDate(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedMovie(t, st, 310)
@@ -112,7 +112,7 @@ func TestMovieTakesItsPremiereFromTheStartDate(t *testing.T) {
 }
 
 // A start date fills a hole; a broadcast instant is real and always wins. The
-// case that bites is the second pass: a tail sync returns no aired node, so an
+// case that matters is the second pass: a tail sync returns no aired node, so an
 // unguarded write would replace a film's real 22:00 premiere with its release
 // day every time the sync came round.
 func TestMoviePremiereNeverOverwritesABroadcastNode(t *testing.T) {
@@ -130,7 +130,7 @@ func TestMoviePremiereNeverOverwritesABroadcastNode(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
-	// The premiere has aired, so the tail the next sync asks for is empty.
+	// The premiere has aired, so the tail the next sync requests is empty.
 	prov.schedules[311] = nil
 	setSyncedAt(t, st, titleID, time.Now().Add(-60*24*time.Hour))
 	if err := svc.SyncOnce(context.Background()); err != nil {
@@ -183,7 +183,7 @@ func TestTitleIsNeverDatedFromAStartDate(t *testing.T) {
 }
 
 // The stamp-even-when-empty behaviour is what stops an unschedulable title being
-// re-asked every tick; a movie is the common case of one.
+// re-queried every tick; a movie is the common case of one.
 func TestMovieWithNoScheduleIsStampedAndNotReasked(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedMovie(t, st, 302)

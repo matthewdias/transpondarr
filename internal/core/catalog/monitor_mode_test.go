@@ -90,7 +90,7 @@ func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 		},
 		{
 			// A FINISHED title, or a cache snapshot written before NextItem existed.
-			// Falling back past the end degrades to "no back-catalogue chase", which
+			// Falling back past the end degrades to "no back-catalogue search", which
 			// is the safe direction; deriving 1 would be the failure this exists for.
 			name: "future only without a next broadcast falls past the end",
 			mode: MonitorFuture, next: 0,
@@ -107,9 +107,9 @@ func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 		},
 		{
 			// Having aired outranks the schedule, which is why the arms are in this
-			// order: a title AniList calls unstarted while scheduling its third
-			// broadcast is inconsistent upstream data, and cutting at 3 would strand
-			// two items that are still to come.
+			// order: a title AniList reports as unstarted while scheduling its third
+			// broadcast is inconsistent upstream data, and cutting at 3 would leave
+			// two items that are still to come unmonitored.
 			name: "not started outranks a schedule that begins late",
 			mode: MonitorFuture, status: "NOT_YET_RELEASED", next: 3,
 			wantItems: []int{1, 2, 3, 4, 5, 6},
@@ -146,7 +146,7 @@ func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 }
 
 // The zero value must not read as a choice: coercing it to "all" would have a
-// caller that forgot the argument silently chase a back catalogue.
+// caller that forgot the argument silently search a back catalogue.
 func TestAddTitleRejectsAModeItDoesNotKnow(t *testing.T) {
 	for _, mode := range []MonitorMode{"", "none", "nonsense"} {
 		st := coretest.NewStore(t)

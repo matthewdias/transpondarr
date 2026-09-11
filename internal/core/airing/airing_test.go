@@ -16,15 +16,15 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// fakeProvider is a metadata.Provider that publishes a schedule, recording what
-// each title was asked for.
+// fakeProvider is a metadata.Provider that publishes a schedule, recording which
+// titles were requested.
 type fakeProvider struct {
 	schedules map[int64][]metadata.Airing
 	titles    map[int64]metadata.TitleMeta
 	errs      map[int64]error
 
 	calls         []int64 // provider ids, in call order
-	titleCalls    []int64 // provider ids GetTitle was asked for, in call order
+	titleCalls    []int64 // provider ids GetTitle was called with, in call order
 	notYetAired   map[int64]bool
 	onGetSchedule func() // runs mid-fetch, for interleaving concurrent writers
 }
@@ -174,7 +174,7 @@ func TestSyncWritesAirDatesForANeverSyncedTitle(t *testing.T) {
 		t.Errorf("item 2 airs_at = %q (set=%t), want 2026-01-11 15:30:00", got, ok)
 	}
 	// Item 3 is outside the schedule AniList published; it must stay null rather
-	// than pick up a neighbour's date.
+	// than take a neighbour's date.
 	if got, ok := airsAt(t, st, titleID, 3); ok {
 		t.Errorf("item 3 airs_at = %q, want null", got)
 	}
@@ -204,7 +204,7 @@ func itemState(t *testing.T, st *store.Store, titleID int64, number int) (inLibr
 
 // A null-count long-runner (AniList never publishes an episode total mid-run)
 // has no items for the count-driven refresh to create; the schedule the sync
-// already fetched is the only source that knows those episodes exist.
+// already fetched is the only source that shows those episodes exist.
 func TestSyncCreatesItemsTheScheduleKnowsAbout(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedTitle(t, st, 100, 0)
@@ -233,7 +233,7 @@ func TestSyncCreatesItemsTheScheduleKnowsAbout(t *testing.T) {
 
 // AniList lists no entry when two episodes share a broadcast slot, so the
 // schedule reads 1, 3, 4. With a null count nothing else would ever create
-// episode 2 — the gap is invisible because nothing claims the item should exist.
+// episode 2 — the gap is invisible because nothing reports that it should exist.
 func TestSyncFillsTheGapsAScheduleSkips(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedTitle(t, st, 100, 0)
@@ -273,9 +273,9 @@ func searchCadence(t *testing.T, st *store.Store, titleID int64) (backoff int, n
 	return backoff, next
 }
 
-// A gap-filled item carries no air date, so airedSince cannot see it and the
+// A gap-filled item has no air date, so airedSince cannot match it and the
 // title that skipped an episode — likely the one that climbed the ladder
-// finding nothing — would wait out its backoff before looking.
+// finding nothing — would wait out its backoff before searching again.
 func TestGapFillResetsSearchCadence(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedTitle(t, st, 100, 0)
@@ -300,7 +300,7 @@ func TestGapFillResetsSearchCadence(t *testing.T) {
 	}
 }
 
-// A sync that fills nothing must not hand a backed-off title a free retry.
+// A sync that fills nothing must not give a backed-off title a free retry.
 func TestSyncKeepsSearchCadenceWhenNothingIsFilled(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedTitle(t, st, 100, 2)
@@ -484,7 +484,7 @@ func TestSyncHoldsFinishedTitlesForTheLongCutoff(t *testing.T) {
 }
 
 // This query's CASE keys on status alone, so the unknown-count tier (#151) must
-// not reach it: aired times are immutable whether or not a count was published.
+// not apply to it: aired times are immutable whether or not a count was published.
 func TestSyncHoldsAFinishedTitlePastTheUnknownCountTier(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedTitle(t, st, 105, 2)
@@ -501,7 +501,7 @@ func TestSyncHoldsAFinishedTitlePastTheUnknownCountTier(t *testing.T) {
 }
 
 // AniList's coverage thins out badly before ~2015. An empty schedule is a normal
-// answer, and re-asking every tick would burn the request budget for nothing.
+// answer, and re-querying every tick would burn the request budget for nothing.
 func TestSyncStampsTitleWithNoScheduleData(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedTitle(t, st, 104, 2)
@@ -545,7 +545,7 @@ func TestSyncIncludesUnmonitoredTitles(t *testing.T) {
 }
 
 // The budget's priority is unchanged: an unmonitored title takes a slot only
-// once no monitored one wants it, however long it has gone unsynced.
+// once no monitored one is due, however long it has gone unsynced.
 func TestSyncGivesMonitoredTitlesEverySlot(t *testing.T) {
 	st := coretest.NewStore(t)
 	// Five stale monitored title fill the pass; the unmonitored one is
@@ -755,7 +755,7 @@ func TestSyncCollapsesIdenticalFailures(t *testing.T) {
 }
 
 // Collapsing duplicates is the point; aggregation is not -- two genuinely
-// different failures still both reach last_error.
+// different failures are still both recorded in last_error.
 func TestSyncKeepsDistinctFailures(t *testing.T) {
 	st := coretest.NewStore(t)
 	unreachable := errors.New("dial tcp: connection refused")

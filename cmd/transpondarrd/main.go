@@ -63,16 +63,16 @@ const sessionCleanupInterval = 24 * time.Hour
 const airingSyncInterval = 15 * time.Minute
 
 // metadataRefreshInterval ticks on the same rhythm as the airing sync and for
-// the same reason: per-title TTL cutoffs decide what actually gets fetched, so
+// the same reason: per-title TTL cutoffs select what actually gets fetched, so
 // an idle tick costs one query and no requests.
 const metadataRefreshInterval = 15 * time.Minute
 
 // seasonRefreshInterval ticks on the same rhythm again: per-season TTL cutoffs
-// decide what actually gets fetched, so an idle tick costs one query and no
+// select what actually gets fetched, so an idle tick costs one query and no
 // requests.
 const seasonRefreshInterval = 15 * time.Minute
 
-// wantedSearchInterval ticks on the same rhythm: the per-title backoff decides
+// wantedSearchInterval ticks on the same rhythm: the per-title backoff selects
 // what a pass actually searches, and it is persisted, so running at start costs
 // an idle tick rather than an indexer stampede after a restart loop.
 const wantedSearchInterval = 15 * time.Minute
@@ -80,7 +80,7 @@ const wantedSearchInterval = 15 * time.Minute
 // feedPollInterval matches the sweep's tick but does far more with it: one
 // request covers every title at once, where a sweep pass searches five and then
 // backs each off for an hour or more. 15 minutes is also the floor indexers ask
-// for — Sonarr's RSS sync defaults here and refuses to go below 10.
+// for — Sonarr's RSS sync defaults here and will not go below 10.
 const feedPollInterval = 15 * time.Minute
 
 func main() {
@@ -117,7 +117,7 @@ func run(logger *slog.Logger) error {
 	}
 
 	// The Docker image starts as root only so this can fix ownership of /config
-	// (Docker creates a missing bind-mount dir root-owned); privileges are shed
+	// (Docker creates a missing bind-mount dir root-owned); privileges are dropped
 	// to PUID/PGID before anything else runs. No-op outside the container.
 	if uid, gid, err := privdrop.Drop(cfg.DataDir); err != nil {
 		return err
@@ -150,7 +150,7 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 
-	// The registry holds the live download/indexer/library clients; the settings
+	// The registry contains the live download/indexer/library clients; the settings
 	// service builds them from the env baseline overlaid with persisted overrides
 	// and swaps them on a config change. Handlers and the importer read the
 	// current client from the registry each time, so edits take effect live.
@@ -165,8 +165,8 @@ func run(logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	// One provider process-wide: it carries the AniList rate limiter, so a second
-	// instance would put two independent callers inside one budget.
+	// One provider process-wide: it is where the AniList rate limiter lives, so a
+	// second instance would put two independent callers inside one budget.
 	if cfg.AnilistEndpoint != "" {
 		logger.Warn("metadata is not coming from AniList", "endpoint", cfg.AnilistEndpoint)
 	}
@@ -198,7 +198,7 @@ func run(logger *slog.Logger) error {
 		Run:        browse.New(st, provider, logger).RefreshOnce,
 	})
 	// One blocklist for the whole daemon: the sweep and the importer are the two
-	// paths that record a failed release, and they must not each hold their own.
+	// paths that record a failed release, and neither may have one of its own.
 	blocklistSvc := blocklist.New(st, logger)
 
 	// One acquire service for both entry points, so they share the one matcher and
@@ -209,7 +209,7 @@ func run(logger *slog.Logger) error {
 	// Both are always registered; each no-ops when automation is off or either
 	// client is unconfigured, all read per run — so flipping the Settings toggle or
 	// configuring an integration takes effect without a restart. The feed poll is
-	// the hot path and the sweep is the safety net: the feed catches anything
+	// the hot path and the sweep is the safety net: the feed finds anything
 	// published between passes for one request, and the sweep covers what scrolled
 	// off it, plus every indexer with no feed at all.
 	runner.Add(jobs.Job{
@@ -292,8 +292,8 @@ func run(logger *slog.Logger) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 
-	// Drained concurrently so they share the one budget; the store must outlive
-	// whatever is still writing to it.
+	// Drained concurrently so they share the one budget; the store must stay open
+	// until nothing is still writing to it.
 	srvErr := make(chan error, 1)
 	go func() { srvErr <- srv.Shutdown(shutdownCtx) }()
 	select {
@@ -307,7 +307,7 @@ func run(logger *slog.Logger) error {
 }
 
 // straggling names what is still running at the shutdown deadline, so the warning
-// says which job to blame rather than only that something overran.
+// names which job overran rather than only that something did.
 func straggling(runner *jobs.Runner) []string {
 	var names []string
 	for _, s := range runner.Status() {

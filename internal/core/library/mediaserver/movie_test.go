@@ -115,7 +115,7 @@ func TestRootsAreTrimmed(t *testing.T) {
 }
 
 // Format is the discriminator, item count never is: a one-item OVA is still
-// series-shaped, which is also where Plex and Jellyfin expect to find it.
+// series-shaped, which is also where Plex and Jellyfin scan for it.
 func TestPlaceSingleItemOVAStaysInTheSeriesRoot(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	series, movies := t.TempDir(), t.TempDir()
@@ -170,7 +170,7 @@ func TestPlaceMovieUpgradeReplacesAndClearsStemMates(t *testing.T) {
 }
 
 // The orphan case (#213) is not repaired here, so the log is the only evidence
-// a user or a bug report has that the library holds this item elsewhere.
+// a user or a bug report has that this item is already in the library elsewhere.
 func TestReplaceIntoAMissingDirectoryWarns(t *testing.T) {
 	var buf bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))

@@ -168,7 +168,7 @@ type torznabAttr struct {
 
 // torznabError models the <error code=.. description=..> failure root. Because
 // its XMLName pins the root to "error", unmarshalling a normal <rss> feed into
-// it fails — which is exactly how parseFeed tells the two apart.
+// it fails — which is exactly how parseFeed distinguishes the two.
 type torznabError struct {
 	XMLName     xml.Name `xml:"error"`
 	Code        string   `xml:"code,attr"`
@@ -225,8 +225,8 @@ var pubDateLayouts = []string{
 	time.RFC1123Z, time.RFC1123, time.RFC822Z, time.RFC822, time.RFC3339,
 }
 
-// parsePubDate reports false rather than guessing for a shape it does not know;
-// the caller's seen set dedupes without a timestamp.
+// parsePubDate reports false rather than guessing for a shape it does not
+// recognize; the caller's seen set dedupes without a timestamp.
 func parsePubDate(s string) (time.Time, bool) {
 	s = strings.TrimSpace(s)
 	if s == "" {

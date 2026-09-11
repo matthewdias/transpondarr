@@ -1,7 +1,7 @@
 // Package browse serves seasonal discovery charts from a per-season cache. A
 // chart is a ~50-title query result refreshed by a job on the runner, never on
 // a page view — a view reads the cache even when stale, and only a season
-// nobody has ever cached pays for a live fetch, once.
+// nobody has ever cached triggers a live fetch, once.
 package browse
 
 import (
@@ -19,7 +19,7 @@ import (
 )
 
 // seasonsPerPass bounds how much of the request budget one refresh pass can
-// spend: a season costs one paged query, and the budget is shared with the
+// use: a season costs one paged query, and the budget is shared with the
 // metadata and airing jobs.
 const seasonsPerPass = 2
 
@@ -35,8 +35,8 @@ type Service struct {
 	log      *slog.Logger
 }
 
-// New builds a Service over the shared provider. Sharing matters: the provider
-// carries the rate limiter, so a private instance would double the request rate.
+// New builds a Service over the shared provider. Sharing matters: the rate limiter
+// lives on the provider, so a private instance would double the request rate.
 func New(st *store.Store, provider metadata.Provider, log *slog.Logger) *Service {
 	return &Service{store: st, provider: provider, log: log}
 }
@@ -47,7 +47,7 @@ func (s *Service) ProviderName() string { return s.provider.Name() }
 
 // Season returns a season's chart, from cache whatever its age — staleness is
 // the refresh job's problem, not the page view's. Only a never-cached season is
-// fetched live. A provider that cannot browse yields an empty chart, not an
+// fetched live. A provider that cannot browse returns an empty chart, not an
 // error.
 func (s *Service) Season(ctx context.Context, season metadata.Season, year int) ([]metadata.SeasonEntry, error) {
 	row, err := s.store.Q.GetSeasonCache(ctx, db.GetSeasonCacheParams{
@@ -78,7 +78,7 @@ func (s *Service) Season(ctx context.Context, season metadata.Season, year int) 
 	return entries, nil
 }
 
-// Entry is one chart row as the discovery page sees it: the provider snapshot
+// Entry is one chart row as the discovery page reads it: the provider snapshot
 // plus this library's view of the same title.
 type Entry struct {
 	metadata.SeasonEntry
@@ -90,7 +90,7 @@ type Entry struct {
 // the library is marked as such, and once the airing job has synced it, local
 // wanted_items.airs_at replaces the snapshot's countdown — same AniList fact,
 // fresher schedule. A never-synced title has no local truth yet, so its
-// snapshot stands.
+// snapshot is used unchanged.
 func (s *Service) Chart(ctx context.Context, season metadata.Season, year int) ([]Entry, error) {
 	entries, err := s.Season(ctx, season, year)
 	if err != nil {
@@ -174,7 +174,7 @@ type seasonRef struct {
 	year   int
 }
 
-// due lists the seasons worth spending budget on this pass: the current season
+// due lists the seasons worth a request this pass: the current season
 // when missing or stale (always first — it is the acceptance-critical one),
 // then any cached season past its TTL.
 func (s *Service) due(ctx context.Context) ([]seasonRef, error) {
@@ -224,7 +224,7 @@ func (s *Service) put(ctx context.Context, season metadata.Season, year int, ent
 	})
 }
 
-// ttl paces a season by where it sits relative to now: a past season's chart is
+// ttl paces a season by where it falls relative to now: a past season's chart is
 // effectively settled, while the current and upcoming ones still move.
 func ttl(ref seasonRef, curSeason metadata.Season, curYear int) time.Duration {
 	if ref.year < curYear || (ref.year == curYear && seasonIndex(ref.season) < seasonIndex(curSeason)) {

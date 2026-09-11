@@ -12,9 +12,9 @@ import (
 
 const titleResponse = `{"data":{"Media":{"id":1,"title":{"romaji":"Synthetic Show"},"format":"TV","episodes":1,"status":"FINISHED"}}}`
 
-// A 429 observed by one caller must hold back every caller: the second GetTitle
-// here never sees a 429 itself, yet must not hit the server before the backoff
-// deadline the first caller's 429 established.
+// A 429 observed by one caller must throttle every caller: the second GetTitle
+// here never receives a 429 itself, yet must not call the server before the
+// backoff deadline the first caller's 429 established.
 func TestBackoffIsSharedAcrossCallers(t *testing.T) {
 	var mu sync.Mutex
 	var requests int
@@ -83,7 +83,7 @@ func TestBackoffInThePastDoesNotDelay(t *testing.T) {
 func TestConcurrentCallersShareOneBackoffWindow(t *testing.T) {
 	var mu sync.Mutex
 	var times []time.Time
-	// Barrier: hold both first attempts until each caller has arrived, so the two
+	// Barrier: block both first attempts until each caller has arrived, so the two
 	// 429s always land in one window. Without it a late-scheduled caller lets the
 	// other absorb both 429s serially, retrying into the second one — which times
 	// at ~2s and never exercises sharing at all.

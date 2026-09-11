@@ -36,7 +36,7 @@ func (f *fakeProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, []m
 	return f.meta, f.items, nil
 }
 
-// fakeCachedProvider is a provider carrying metadata's cache-read capability.
+// fakeCachedProvider is a provider with metadata's cache-read capability.
 type fakeCachedProvider struct {
 	fakeProvider
 	cachedMeta metadata.TitleMeta
@@ -153,7 +153,7 @@ func TestAddTitlePersistsTitleAndItems(t *testing.T) {
 		t.Errorf("identity = (%q, %d), want (%q, 42)", title.Provider, title.ProviderID, prov.Name())
 	}
 
-	// Verify the rows actually landed in the DB, not just the returned struct.
+	// Verify the rows were actually written to the DB, not just the returned struct.
 	srow, err := st.Q.GetTitleByProviderID(context.Background(), db.GetTitleByProviderIDParams{
 		Provider:   sql.NullString{String: prov.Name(), Valid: true},
 		ProviderID: sql.NullInt64{Int64: 42, Valid: true},
@@ -208,7 +208,7 @@ func TestAddTitleIsIdempotentByProviderID(t *testing.T) {
 }
 
 // Idempotency is keyed on the pair, so an id that collides across id spaces is
-// not mistaken for a title we already track. Deduping the two as one title needs
+// not treated as a title we already track. Deduping the two as one title needs
 // the cross-reference layer (#189) and is deliberately not attempted here.
 func TestAddTitleIdempotencyIsScopedToTheProvider(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -222,7 +222,7 @@ func TestAddTitleIdempotencyIsScopedToTheProvider(t *testing.T) {
 		t.Fatalf("first AddSeries: %v", err)
 	}
 	// The same number in another id space is another title, and this provider
-	// cannot read it -- so it is refused for naming an unreachable id space, never
+	// cannot read it -- so it is rejected for naming an unreachable id space, never
 	// for colliding with the row above.
 	_, err := svc.AddTitle(context.Background(), "mal", 7, true, MonitorAll, 0)
 	if !errors.Is(err, ErrUnknownProvider) {
@@ -230,7 +230,7 @@ func TestAddTitleIdempotencyIsScopedToTheProvider(t *testing.T) {
 	}
 }
 
-// A releasing title with an unknown episode count yields zero items; the title
+// A releasing title with an unknown episode count creates zero items; the title
 // is still created so a later refresh can fill items in.
 func TestAddTitleWithUnknownEpisodeCount(t *testing.T) {
 	st := coretest.NewStore(t)

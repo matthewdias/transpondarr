@@ -76,7 +76,7 @@ func itemNumbers(items []metadata.ItemMeta) []int {
 }
 
 // A releasing title whose count AniList never publishes must still come back
-// with its known items — from the one request the add already pays for — and the
+// with its known items — from the one request the add already makes — and the
 // episode the schedule skips (episodes 1 and 2 sharing a broadcast slot) must be
 // filled in rather than silently absent.
 func TestGetTitleFillsANullCountTitleFromOneRequest(t *testing.T) {
@@ -133,7 +133,7 @@ func TestGetTitleFallsBackToTheNextBroadcast(t *testing.T) {
 
 // A published count is authoritative in both directions. This is the shape of a
 // real entry (a 12-episode show whose schedule runs 2..13, missing episode 1's
-// record and carrying one past the end): the floors must neither trim it to the
+// record and with one past the end): the floors must neither trim it to the
 // window nor extend it to a phantom 13th item.
 func TestGetTitleKeepsAPublishedCountOverTheSchedule(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -251,7 +251,7 @@ func datedMediaResponse(year, month, day string) string {
 }
 
 // A film has no broadcast schedule, so its startDate is the only date we get.
-// It rides the existing title query, costing no extra AniList request.
+// It comes with the existing title query, costing no extra AniList request.
 func TestGetTitleReadsAFullStartDate(t *testing.T) {
 	var query string
 	url := serveOnce(t, datedMediaResponse("2026", "3", "15"), &query)
@@ -286,9 +286,9 @@ func TestGetTitlePremiereIsZeroWithoutAFullDate(t *testing.T) {
 	}
 }
 
-// startDate.year is primary: AniList assigns a season later than a year becomes
-// known, and its WINTER bucket spans December, so seasonYear can name the year
-// after the premiere release names carry.
+// startDate.year is primary: AniList assigns a season later than a year is
+// published, and its WINTER bucket spans December, so seasonYear can name the
+// year after the premiere release names use.
 func TestGetTitlePrefersStartDateOverSeasonYear(t *testing.T) {
 	var query string
 	url := serveOnce(t, mediaResponse("MOVIE", "1", "2021", "2020"), &query)
@@ -305,8 +305,8 @@ func TestGetTitlePrefersStartDateOverSeasonYear(t *testing.T) {
 	}
 }
 
-// An announced film carries a year before it is assigned a season, which is the
-// coverage startDate.year buys over seasonYear.
+// An announced film has a year before it is assigned a season, which is the
+// coverage startDate.year adds over seasonYear.
 func TestGetTitleYearSurvivesANullSeasonYear(t *testing.T) {
 	url := serveOnce(t, mediaResponse("MOVIE", "1", "null", "2027"), nil)
 
@@ -343,7 +343,7 @@ func TestGetTitleYearUnknownWhenNeitherPublished(t *testing.T) {
 	}
 }
 
-// An unreleased film has no count and no schedule, which today yields zero items.
+// An unreleased film has no count and no schedule, which today creates zero items.
 func TestGetTitleExpandsMovieToOneItem(t *testing.T) {
 	url := serveOnce(t, mediaResponse("MOVIE", "null", "null", "2027"), nil)
 
@@ -357,7 +357,7 @@ func TestGetTitleExpandsMovieToOneItem(t *testing.T) {
 }
 
 // Format is the discriminator; the count is never consulted. Three shorts
-// released as one film carry episodes: 3 and are still one acquirable item.
+// released as one film report episodes: 3 and are still one acquirable item.
 func TestGetTitleMovieIgnoresEpisodeCount(t *testing.T) {
 	url := serveOnce(t, mediaResponse("MOVIE", "3", "2007", "2007"), nil)
 
@@ -387,7 +387,7 @@ func TestGetTitleOVAWithOneEpisodeUnchanged(t *testing.T) {
 }
 
 // The add form names the episodes "only what hasn't aired" would monitor (#217),
-// which the search row can only answer by carrying the next broadcast. It is a
+// which the search row can only answer by including the next broadcast. It is a
 // field on media the page already fetches, so it costs no extra request.
 func TestSearchCarriesTheNextBroadcast(t *testing.T) {
 	var query string
@@ -431,7 +431,7 @@ func TestSearchCarriesTheNextBroadcast(t *testing.T) {
 	}
 }
 
-// The search row and the stored title must not disagree about a movie's year.
+// The search row and the stored title must not differ about a movie's year.
 func TestSearchYearSurvivesANullSeasonYear(t *testing.T) {
 	var query string
 	url := serveOnce(t, `{"data":{"Page":{"media":[{

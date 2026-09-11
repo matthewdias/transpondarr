@@ -155,7 +155,7 @@ func searchMedia(term string, now time.Time) []any {
 }
 
 // browseMedia answers only the first page: the fixture chart is smaller than one
-// page, and hasNextPage false is what stops the client asking for a second.
+// page, and hasNextPage false is what stops the client requesting a second.
 func browseMedia(page float64, now time.Time) []any {
 	if page > 1 {
 		return nil
@@ -186,7 +186,7 @@ func nextBroadcast(t title, now time.Time) (int, time.Time, bool) {
 }
 
 // providerFormat renders the domain format back in AniList's vocabulary, since
-// the fixtures hold the mapped value and the adapter maps it again on the way in.
+// the fixtures store the mapped value and the adapter maps it again on the way in.
 func providerFormat(f domain.Format) string {
 	switch f {
 	case domain.FormatMovie:

@@ -13,7 +13,7 @@ import (
 
 func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
-// The whole point of the warning is naming the worker to blame, so a job still
+// The whole point of the warning is naming the worker that overran, so a job still
 // inside its Run must appear.
 func TestStragglingNamesARunningJob(t *testing.T) {
 	entered := make(chan struct{})

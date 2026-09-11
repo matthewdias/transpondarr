@@ -151,8 +151,8 @@ func (s *Service) AddTitle(ctx context.Context, provider string, providerID int6
 	}
 
 	if profileID != 0 {
-		// Inside the tx: a profile that does not exist takes the title with it,
-		// rather than leaving one on a profile the caller never asked for.
+		// Inside the tx: a profile that does not exist rolls the title back with it,
+		// rather than leaving one on a profile the caller never set.
 		rows, err := q.SetTitleProfile(ctx, db.SetTitleProfileParams{
 			QualityProfileID: profileID, ID: srow.ID, ID_2: profileID,
 		})
@@ -203,7 +203,7 @@ func (s *Service) AddTitle(ctx context.Context, provider string, providerID int6
 
 // monitorCut turns the add-time mode into the stored numeric boundary. A
 // "future" on a title that has aired and has no scheduled broadcast falls past
-// the last item: erring high monitors nothing existing, erring low chases a
+// the last item: erring high monitors nothing existing, erring low monitors a
 // back catalogue.
 func monitorCut(mode MonitorMode, meta metadata.TitleMeta, itemCount int) (sql.NullInt64, error) {
 	switch mode {
@@ -214,8 +214,8 @@ func monitorCut(mode MonitorMode, meta metadata.TitleMeta, itemCount int) (sql.N
 		switch {
 		// Nothing has aired, so there is no back catalogue to exclude and the
 		// fallback below would monitor nothing at all, forever (#217). Checked
-		// above the schedule: a cut past 1 would strand an item that is still
-		// to come, which is the same bug in miniature.
+		// above the schedule: a cut past 1 would leave an item that is still to
+		// come unmonitored, which is the same bug in miniature.
 		case meta.NotYetReleased():
 		case meta.NextItem > 0:
 			from = meta.NextItem

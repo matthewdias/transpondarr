@@ -20,7 +20,7 @@ var (
 )
 
 // CheckEnvWritable reports whether the run may write path later. It is checked
-// up front because the stub endpoints it would carry only exist while the
+// up front because the stub endpoints it would name only exist while the
 // process does, so failing after binding them loses them.
 func CheckEnvWritable(path string) error {
 	if _, err := os.Stat(path); err == nil {
@@ -31,7 +31,7 @@ func CheckEnvWritable(path string) error {
 	return nil
 }
 
-// CheckTarget decides whether a seed run may proceed. It keys on the resolved
+// CheckTarget reports whether a seed run may proceed. It keys on the resolved
 // path because the dangerous case is a data dir pointing somewhere shared.
 func CheckTarget(dbPath, workingDir string, reset, force bool) error {
 	if _, err := os.Stat(dbPath); err != nil {
@@ -53,8 +53,8 @@ func CheckTarget(dbPath, workingDir string, reset, force bool) error {
 	return nil
 }
 
-// within resolves both ends before comparing, since a data dir reached through a
-// symlink is an ordinary NAS shape and would otherwise read as outside.
+// within resolves both ends before comparing, since a data dir behind a symlink
+// is an ordinary NAS shape and would otherwise read as outside.
 func within(path, dir string) (bool, error) {
 	absDir, err := resolve(dir)
 	if err != nil {

@@ -37,7 +37,7 @@ type Candidate struct {
 	Year       int
 	CoverURL   string
 	// NextItem is the next scheduled broadcast's number, 0 when nothing is
-	// scheduled. Carried on the search row so the add form can name the items a
+	// scheduled. It is on the search row so the add form can name the items a
 	// monitor choice would cover before it is made (#217).
 	NextItem int
 }
@@ -55,7 +55,7 @@ type TitleMeta struct {
 	// Premiere is the release date of a title the provider dates but does not
 	// schedule (a film), zero when it publishes no full one. It names a calendar
 	// day rather than a moment, so it is not the Japanese broadcast clock Airing
-	// carries; the adapter fixes the instant that reads as that day.
+	// uses; the adapter fixes the instant that reads as that day.
 	Premiere time.Time
 	// NextItem is the number of the next scheduled broadcast, 0 when nothing is
 	// scheduled. It lives here rather than on ItemMeta because it describes the
@@ -64,7 +64,7 @@ type TitleMeta struct {
 }
 
 // NotYetReleased reports a title none of whose items have aired. The provider's
-// own status is the only thing that says so: the population it matters for
+// own status is the only thing that reports it: the population it matters for
 // (#217) is defined by publishing no schedule at all.
 func (m TitleMeta) NotYetReleased() bool { return m.Status == statusNotYetReleased }
 
@@ -82,8 +82,8 @@ type Provider interface {
 }
 
 // Airing is one item's scheduled broadcast. AirsAt is the provider's own clock —
-// AniList publishes the Japanese broadcast time, which is the right one to hang
-// fansub delay windows off.
+// AniList publishes the Japanese broadcast time, which is the right one to base
+// fansub delay windows on.
 type Airing struct {
 	Number int       `json:"number"`
 	AirsAt time.Time `json:"airs_at"`
@@ -129,7 +129,7 @@ type BrowseProvider interface {
 // schedule costs many requests, and GetTitle is on the request path.
 type AiringProvider interface {
 	// GetSchedule returns a title's known broadcast times. notYetAired limits the
-	// fetch to the upcoming tail — aired times never change, so a resync pays for
+	// fetch to the upcoming tail — aired times never change, so a resync fetches
 	// history once.
 	GetSchedule(ctx context.Context, id int64, notYetAired bool) ([]Airing, error)
 }
@@ -145,12 +145,12 @@ type Cache interface {
 }
 
 // CachedTitleReader is an optional Provider capability: a composed provider that
-// can answer GetTitle from a local snapshot without spending a request.
+// can answer GetTitle from a local snapshot without a provider request.
 type CachedTitleReader interface {
 	TitleFromCache(ctx context.Context, id int64) (TitleMeta, []ItemMeta, bool, error)
 }
 
-// Cached wraps a provider in a read-through title cache. The wrapper carries an
+// Cached wraps a provider in a read-through title cache. The wrapper exposes an
 // optional capability (AiringProvider, BrowseProvider) only when inner implements
 // it, so asserting a capability on a composed provider still answers for the
 // adapter underneath.
@@ -181,7 +181,7 @@ type cachedAiring struct {
 }
 
 // GetSchedule passes through uncached: schedules are persisted per item by the
-// airing sync, not held in the title snapshot this cache stores.
+// airing sync, not stored in the title snapshot this cache keeps.
 func (c *cachedAiring) GetSchedule(ctx context.Context, id int64, notYetAired bool) ([]Airing, error) {
 	return c.airing.GetSchedule(ctx, id, notYetAired)
 }
@@ -192,7 +192,7 @@ type cachedBrowse struct {
 }
 
 // BrowseSeason passes through uncached: season charts are persisted per season
-// in their own table, not held in the title snapshot this cache stores.
+// in their own table, not stored in the title snapshot this cache keeps.
 func (c *cachedBrowse) BrowseSeason(ctx context.Context, season Season, year int) ([]SeasonEntry, error) {
 	return c.browse.BrowseSeason(ctx, season, year)
 }
@@ -221,7 +221,7 @@ func (c *cached) GetTitle(ctx context.Context, id int64) (TitleMeta, []ItemMeta,
 	meta, items, err := c.inner.GetTitle(ctx, id)
 	if err != nil {
 		// The provider failed (typically a 429 — the exact rate-limit
-		// pressure this cache exists to absorb). If we still hold a stale snapshot,
+		// pressure this cache exists to absorb). If a stale snapshot is still cached,
 		// serve it rather than failing: a slightly out-of-date title beats none.
 		if cacheErr == nil && ok {
 			return snap.Title, snap.Items, nil
@@ -234,7 +234,7 @@ func (c *cached) GetTitle(ctx context.Context, id int64) (TitleMeta, []ItemMeta,
 }
 
 // TitleFromCache deliberately ignores the TTL: applying it would miss on exactly
-// the airing titles this exists to serve, and names outlive the counts fresh guards.
+// the airing titles this serves, and names change less than the count fresh guards.
 func (c *cached) TitleFromCache(ctx context.Context, id int64) (TitleMeta, []ItemMeta, bool, error) {
 	snap, _, ok, err := c.cache.Get(ctx, c.inner.Name(), id)
 	if err != nil || !ok {
@@ -260,7 +260,7 @@ func fresh(status string, episodes int, fetchedAt time.Time) bool {
 // episode count and status are still moving). Exported so background refreshes
 // pace themselves by the same status-aware policy instead of inventing a second.
 // A finished title whose count the provider never publishes takes a middle tier:
-// re-asking every 6 hours forever buys an answer that will not change (#151).
+// re-querying every 6 hours forever returns an answer that will not change (#151).
 func TTLFor(status string, countKnown bool) time.Duration {
 	switch status {
 	case "FINISHED", "CANCELLED":

@@ -9,8 +9,8 @@ import (
 	"github.com/matthewdias/transpondarr/internal/coretest"
 )
 
-// movieProvider is a film as the adapter hands one over: one item, whatever the
-// upstream episode count said.
+// movieProvider is a film as the adapter returns one: one item, whatever the
+// upstream episode count reported.
 func movieProvider(year, next int) *fakeProvider {
 	return &fakeProvider{
 		meta: metadata.TitleMeta{

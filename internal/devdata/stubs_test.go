@@ -114,7 +114,7 @@ func TestTorznabStubServesRecentFeed(t *testing.T) {
 	if titles != len(entries) {
 		t.Errorf("%d of %d entries are seeded releases, want all of them", titles, len(entries))
 	}
-	// Newest first is what a real endpoint does and what the mark assumes.
+	// Newest first is what a real endpoint does and what the mark depends on.
 	for i := 1; i < len(entries); i++ {
 		if entries[i].Published.After(entries[i-1].Published) {
 			t.Fatalf("entry %d is newer than the one before it; the feed is not ordered newest first", i)

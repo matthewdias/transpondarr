@@ -15,7 +15,7 @@ import (
 )
 
 // Options configures a seed run. Now exists for reproducibility: a bug found
-// against a seeded library has to be reachable again from the same clock.
+// against a seeded library has to be reproducible from the same clock.
 type Options struct {
 	Now time.Time
 }
@@ -266,8 +266,8 @@ func seedGrab(ctx context.Context, st *store.Store, g grab, titleID, itemID, num
 func seedBlocklist(ctx context.Context, st *store.Store, t title, titleID int64, now time.Time) error {
 	for _, b := range t.blocklist {
 		var row db.ReleaseBlocklist
-		// The upsert is what increments failures, so a rung is reached by
-		// repeating the entry rather than by writing the count.
+		// The upsert is what increments failures, so the count rises by repeating
+		// the entry rather than by writing it.
 		for i := 0; i < max(b.failures, 1); i++ {
 			var err error
 			row, err = st.Q.UpsertBlocklistEntry(ctx, db.UpsertBlocklistEntryParams{

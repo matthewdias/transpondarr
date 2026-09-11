@@ -85,8 +85,8 @@ func TestSweepStagingRemovesAStalePartial(t *testing.T) {
 	assertKept(t, fresh, "a fresh .partial may be a copy still running")
 }
 
-// The upgrade staging link is the same shape and the worse leak: it holds a
-// hardlink to the payload, so it keeps those bytes alive after the torrent goes.
+// The upgrade staging link is the same shape and the worse leak: it is a
+// hardlink to the payload, so those bytes are not freed when the torrent goes.
 func TestSweepStagingRemovesAStaleUpgradeStaging(t *testing.T) {
 	root := t.TempDir()
 	dir := seasonDir(root)
@@ -100,7 +100,7 @@ func TestSweepStagingRemovesAStaleUpgradeStaging(t *testing.T) {
 	assertKept(t, fresh, "a fresh .upgrade may be an upgrade mid-rename")
 }
 
-// The guarantee the whole feature rests on: the sweep considers only the staging
+// The guarantee the whole feature depends on: the sweep examines only the staging
 // names this package writes, and deletes nothing else, ever.
 func TestSweepStagingLeavesEverythingElseAlone(t *testing.T) {
 	root := t.TempDir()
@@ -150,7 +150,7 @@ func TestSweepStagingSparesAHardlinkedEpisode(t *testing.T) {
 	}
 }
 
-// Either root can hold a staging file, and a single-directory config must not walk twice
+// Either root can contain a staging file, and a single-directory config must not walk twice
 // and count the same file twice.
 func TestSweepStagingCoversBothRoots(t *testing.T) {
 	t.Run("distinct roots", func(t *testing.T) {
@@ -177,9 +177,9 @@ func TestSweepStagingCoversBothRoots(t *testing.T) {
 	})
 
 	// A nested root is enumerated by both walks and de-duping the roots cannot
-	// catch it, so the second sighting reaches the removal already gone. Counting
+	// prevent it, so the removal finds the second one already gone. Counting
 	// it or reporting it would both be wrong, and the quiet log is the only
-	// evidence of the second: the count alone cannot tell the two apart.
+	// evidence of the second: the count alone cannot distinguish the two.
 	t.Run("movies root nested in the series root", func(t *testing.T) {
 		series := t.TempDir()
 		movies := filepath.Join(series, "Movies")
@@ -215,7 +215,7 @@ func TestSweepStagingResolvesASymlinkedRoot(t *testing.T) {
 }
 
 // The other side of resolving the root: WalkDir does not follow links inside the
-// tree, so a link planted in the library cannot aim the sweep outside it.
+// tree, so a link inside the library cannot point the sweep outside it.
 func TestSweepStagingDoesNotEscapeARootThroughASymlink(t *testing.T) {
 	root, outside := t.TempDir(), t.TempDir()
 	stale := seedAged(t, outside, "Placeholder Saga - S01E01.mkv.partial", 48*time.Hour)
@@ -230,7 +230,7 @@ func TestSweepStagingDoesNotEscapeARootThroughASymlink(t *testing.T) {
 }
 
 // os.Remove on a symlink drops the link, so a link named like a staging file is a
-// file of someone else's the sweep must decline. Age cannot make this call — a
+// file of someone else's the sweep must not remove. Age cannot distinguish it — a
 // fresh link would pass a real threshold too — so the threshold is made inert.
 func TestSweepStagingDeclinesASymlink(t *testing.T) {
 	root := t.TempDir()
@@ -288,7 +288,7 @@ func TestSweepStagingSkipsAStagingFileInFlight(t *testing.T) {
 }
 
 // End to end over the real copy path: a sweep running throughout must not break
-// the import, with the threshold inert so only the registry can save it.
+// the import, with the threshold inert so only the registry can protect it.
 func TestSweepStagingSparesACopyInFlight(t *testing.T) {
 	src := filepath.Join(t.TempDir(), "raw.mkv")
 	if err := os.WriteFile(src, make([]byte, 8<<20), 0o644); err != nil {
@@ -321,8 +321,8 @@ func TestSweepStagingSparesACopyInFlight(t *testing.T) {
 	}
 }
 
-// A registration outliving its transfer would make the file permanently
-// unsweepable, so both the settled and the aborted path must let go.
+// A registration left behind after its transfer would make the file permanently
+// unsweepable, so both the settled and the aborted path must unregister it.
 func TestPlaceLeavesNoStagingRegistration(t *testing.T) {
 	staged := func(t *testing.T, target *Target) int {
 		t.Helper()

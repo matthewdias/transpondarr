@@ -15,7 +15,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// fakeProvider answers GetTitle from a fixture map, recording who was asked.
+// fakeProvider answers GetTitle from a fixture map, recording which were requested.
 type fakeProvider struct {
 	episodes map[int64]int
 	errs     map[int64]error
@@ -214,7 +214,7 @@ func TestRefreshClearsAiringStampWhenTheTitleGrows(t *testing.T) {
 	}
 }
 
-// A new episode is worth looking for now, whatever backoff the sweep had
+// A new episode is worth searching for now, whatever backoff the sweep had
 // accumulated while the title had nothing left to find.
 func TestGrowthResetsSearchCadence(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -242,7 +242,7 @@ func TestGrowthResetsSearchCadence(t *testing.T) {
 	}
 }
 
-// A refresh that inserts nothing must not hand a backed-off title a free retry.
+// A refresh that inserts nothing must not give a backed-off title a free retry.
 func TestRefreshKeepsSearchCadenceWhenNothingNew(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
@@ -333,7 +333,7 @@ func TestRefreshRefetchesFinishedTitlesPastTheLongCutoff(t *testing.T) {
 
 // Replaces TestRefreshUsesShortCutoffWhenTheCountIsUnknown, whose assertion this
 // change deliberately inverts: a count AniList will never publish is not worth
-// re-asking every 6 hours (#151).
+// re-querying every 6 hours (#151).
 func TestRefreshHoldsAnUnknownCountTitleForTheMiddleCutoff(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
@@ -386,7 +386,7 @@ func TestRefreshHoldsAKnownCountTitleForTheLongCutoff(t *testing.T) {
 
 // An unmonitored title's cached status would otherwise freeze at its add-time
 // value, and the airing sync reads that status to pick its TTL tier -- so one
-// added while RELEASING would ride the 6h tier forever, never reaching 30d (#183).
+// added while RELEASING would stay on the 6h tier forever, never moving to 30d (#183).
 func TestRefreshIncludesUnmonitoredTitles(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
@@ -411,7 +411,7 @@ func TestRefreshIncludesUnmonitoredTitles(t *testing.T) {
 }
 
 // The budget's priority is unchanged: an unmonitored title takes a slot only
-// once no monitored one wants it, however long it has gone unfetched.
+// once no monitored one is due, however long it has gone unfetched.
 func TestRefreshGivesMonitoredTitlesEverySlot(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
@@ -526,7 +526,7 @@ func TestRefreshContinuesPastAFailingTitle(t *testing.T) {
 // Refresh growth reads the same cut, with the two consequences of an insert
 // disentangled: the air-date sync ignores monitoring entirely, so the stamp
 // still clears, while the search cadence is only worth resetting for something
-// the sweep will actually look for.
+// the sweep will actually search for.
 func TestRefreshHonoursTheTitleMonitorCut(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()

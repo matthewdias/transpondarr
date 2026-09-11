@@ -160,7 +160,7 @@ func TestFlatUpgradeClearsStemMatesAndSparesLongerNumbers(t *testing.T) {
 // new shape and leaves the old file behind. Switched to flat is the direction
 // with no other evidence: the series folder still exists, so the
 // missing-directory warning cannot fire. Switched back, Season 01 is missing and
-// that warning does fire too, naming the folder rather than the held file.
+// that warning does fire too, naming the folder rather than the placed file.
 func TestReplaceWarnsWhenTheOtherLayoutHoldsTheEpisode(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

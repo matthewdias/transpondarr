@@ -11,7 +11,7 @@ import (
 )
 
 // staticProvider answers GetTitle with one fixed snapshot, so a test can vary
-// the format and year the refresh sees.
+// the format and year the refresh reads.
 type staticProvider struct {
 	meta  metadata.TitleMeta
 	items []metadata.ItemMeta

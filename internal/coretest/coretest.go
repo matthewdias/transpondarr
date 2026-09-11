@@ -36,7 +36,7 @@ func NewStore(t testing.TB) *store.Store {
 // --- fake indexer -----------------------------------------------------------
 
 // FakeIndexer returns a fixed set of releases (or an error) for every search and
-// records the queries it was asked, standing in for a Torznab endpoint.
+// records the queries it received, standing in for a Torznab endpoint.
 type FakeIndexer struct {
 	NameStr  string
 	Releases []indexer.Release
@@ -121,22 +121,22 @@ type FakeDownload struct {
 	Statuses  []download.Status
 	StatusErr error
 
-	// AddHook runs at the top of every Add. A test can block in it to hold one
+	// AddHook runs at the top of every Add. A test can block in it to stall one
 	// grab inside the client while another grab runs.
 	AddHook func(download.AddOptions)
 
-	// RemoveErr fails Remove, so a test can model a client that refuses deletes.
+	// RemoveErr fails Remove, so a test can model a client that rejects deletes.
 	RemoveErr error
 
 	// mu guards Adds and Removes: with the claim registry under test, two grabs
-	// can reach the client at once, and an unguarded slice would report that as a
+	// can call the client at once, and an unguarded slice would report that as a
 	// data race rather than as the assertion failure it is.
 	mu      sync.Mutex
 	Adds    []download.AddOptions // recorded, in call order
 	Removes []RemoveCall          // recorded, in call order
 }
 
-// RemoveCall records one Remove request handed to the fake client.
+// RemoveCall records one Remove request passed to the fake client.
 type RemoveCall struct {
 	Hashes     []string
 	DeleteData bool
@@ -223,7 +223,7 @@ func (f *FakeNotifier) Send(_ context.Context, ev notify.Event) error {
 
 // --- fake library target ----------------------------------------------------
 
-// FakeLibrary records the import requests it was handed and returns a fixed
+// FakeLibrary records the import requests it received and returns a fixed
 // destination path, standing in for the media-server layout target.
 type FakeLibrary struct {
 	NameStr string

@@ -3,7 +3,7 @@
 // instead of a bare `go` per feature: jobs are registered by name before Start,
 // each gets its own goroutine, a panic is contained to the single run that
 // caused it, and Start's channel closes only once every in-flight run has
-// returned — which is what lets the caller close the store knowing nothing is
+// returned — which is what lets the caller close the store once nothing is
 // still writing.
 //
 // It is deliberately not a cron library and not a queue: intervals only, no
@@ -33,14 +33,14 @@ func WithManualRun(ctx context.Context) context.Context {
 	return context.WithValue(ctx, manualRunKey{}, true)
 }
 
-// ManualRun reports whether this run was asked for by hand.
+// ManualRun reports whether an operator requested this run.
 func ManualRun(ctx context.Context) bool {
 	v, _ := ctx.Value(manualRunKey{}).(bool)
 	return v
 }
 
-// Job is a unit of periodic work. Run must honour ctx — cancellation is the
-// only shutdown signal it gets.
+// Job is a unit of periodic work. Run must return when ctx is cancelled; that
+// is the only shutdown signal it gets.
 type Job struct {
 	Name       string
 	Interval   time.Duration
@@ -70,7 +70,7 @@ type job struct {
 	nextRun time.Time
 }
 
-// Runner owns the registered jobs and their goroutines.
+// Runner tracks the registered jobs and their goroutines.
 type Runner struct {
 	log *slog.Logger
 
@@ -108,7 +108,7 @@ func (r *Runner) Add(j Job) {
 
 // Start launches every registered job and returns a channel closed once ctx is
 // cancelled and every in-flight run has returned — the signal that nothing is
-// still writing and the store is safe to close. It owns the goroutines so that
+// still writing and the store is safe to close. It starts every goroutine, so
 // registration closes synchronously here: an Add afterwards always panics
 // instead of racing the launch. With no jobs registered the channel closes
 // immediately, so it is not a "block until shutdown" primitive.
@@ -202,7 +202,7 @@ func (r *Runner) runOnce(ctx context.Context, j *job, manual bool) {
 }
 
 // call contains a panic to the single run that caused it: recovering here rather
-// than in loop is what lets the job's own loop reschedule instead of dying.
+// than in loop is what lets the job's own loop reschedule instead of exiting.
 func (r *Runner) call(ctx context.Context, j *job, manual bool) (err error) {
 	if manual {
 		ctx = WithManualRun(ctx)
@@ -235,7 +235,7 @@ func (r *Runner) Status() []JobStatus {
 	return out
 }
 
-// Trigger asks a job to run now, returning as soon as the request is queued. The
+// Trigger requests a run now, returning as soon as that request is queued. The
 // run happens on the job's own goroutine, so a job never runs concurrently with
 // itself and a pending trigger is coalesced; a manual run re-anchors the interval.
 func (r *Runner) Trigger(name string) error {

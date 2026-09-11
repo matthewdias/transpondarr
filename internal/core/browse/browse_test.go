@@ -22,8 +22,8 @@ type seasonKey struct {
 	year   int
 }
 
-// fakeProvider is a metadata.Provider that can chart seasons, recording what it
-// was asked for.
+// fakeProvider is a metadata.Provider that can chart seasons, recording which
+// seasons were requested.
 type fakeProvider struct {
 	entries map[seasonKey][]metadata.SeasonEntry
 	errs    map[seasonKey]error
@@ -110,7 +110,7 @@ func TestSeasonMissFetchesAndCaches(t *testing.T) {
 		t.Fatalf("got %+v, want the provider's 2 entries", got)
 	}
 
-	// Second view is served from cache: no further provider spend.
+	// Second view is served from cache: no further provider request.
 	if _, err := svc.Season(context.Background(), metadata.SeasonSpring, 2026); err != nil {
 		t.Fatalf("Season (cached): %v", err)
 	}
@@ -119,8 +119,8 @@ func TestSeasonMissFetchesAndCaches(t *testing.T) {
 	}
 }
 
-// A stale cached season is still served without provider spend: refresh belongs
-// to the job, never the page view.
+// A stale cached season is still served without a provider request: refresh
+// belongs to the job, never the page view.
 func TestSeasonStaleStillServedFromCache(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
@@ -354,7 +354,7 @@ func TestCurrentSeason(t *testing.T) {
 
 // ── Chart: the discovery view over Season ────────────────────────────────────
 
-// trackTitle creates a title carrying an AniList id; synced controls whether
+// trackTitle creates a title with an AniList id; synced controls whether
 // the airing job has ever stamped it.
 func trackTitle(t *testing.T, st *store.Store, anilistID int64, synced bool) int64 {
 	t.Helper()
@@ -447,7 +447,7 @@ func TestChartSyncedTitleWithNothingUpcomingDropsSnapshot(t *testing.T) {
 }
 
 // Before the airing job's first pass there is no local truth to prefer, so the
-// snapshot's countdown stands.
+// snapshot's countdown is used.
 func TestChartNeverSyncedTitleKeepsSnapshot(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
