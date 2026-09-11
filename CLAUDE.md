@@ -185,12 +185,12 @@ What stays here is what applies before you know which package you are in.
   backend schema change regenerates it and every concurrent branch conflicts there.
   Resolve by re-running `make gen-api` against the merged spec — never by hand-editing
   the conflict, which produces types that pass review and don't match the server.
-- **Quality profiles inform manual actions; they gate only automation.** A manual
+- **Quality profiles inform manual actions; they restrict only automation.** A manual
   grab always succeeds in one request — the grab endpoint evaluates eligibility
   server-side at grab time and returns `ineligible_reason` on the 201, but never
   rejects the request (no confirm flag, no 422). Enforcement belongs to the scheduler's
-  automatic choices; a manual grab is explicit user intent. Don't reintroduce a
-  gate on manual paths (decided in PR #57).
+  automatic choices; a manual grab is explicit user intent. Don't make a manual
+  path reject an ineligible grab again (decided in PR #57).
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
 - **Format is the discriminator everywhere; item count never is (#208).** Movie
   treatment — title+year matching (#209), movie naming (#198), no episodes table
@@ -213,7 +213,8 @@ What stays here is what applies before you know which package you are in.
   Query key `["titles"]`. What deliberately kept the old word is the *other*
   meaning, which Movies made true rather than false — `mediaserver.Roots.Series`
   is the Shows root opposite Movies, `ErrNoSeriesRoot` and `seriesShape` are
-  its path arm, and `library.series_layout` (#129) shapes that arm alone. So
+  its branch of the path code, and `library.series_layout` (#129) shapes that
+  branch alone. So
   `series` in a name is now a claim about format, and a reviewer should read it
   as one. Three things sit outside the rename by construction and must stay:
   the **`series` table and its columns** (SQLite has no DROP CONSTRAINT, and a
@@ -241,8 +242,8 @@ none, and prefer a better name or a small helper over an explanation.
   parsed attributes` above three assignments to `rel.ReleaseGroup/Resolution/
   DualAudio` is noise.
 - **Keep only these:** a non-obvious *why* (a constraint, a rejected alternative,
-  an external quirk), a deliberate limitation, or a load-bearing invariant a
-  reader would otherwise break.
+  an external quirk), a deliberate limitation, or an invariant a reader would
+  otherwise break.
 - **Package doc comments** are the one place for design stance — a short
   paragraph, stated once, not repeated on the functions inside.
 - Durable rationale (why AniList numbering degrades, why a payload conflict defers)

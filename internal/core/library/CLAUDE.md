@@ -17,7 +17,7 @@ layout (shape within a root) are deliberately different axes.
   different axes: #198 defines the root, #129 the shape.
 - **Layout parameterizes the shape inside a branch, never the branch itself
   (#129).** `library.series_layout` (`season_folders` default, `flat`) is read
-  only by `destination`'s series arm, so format stays the sole discriminator and
+  only by `destination`'s series branch, so format stays the sole discriminator and
   a one-item OVA loses its season folder along with every other series — the
   movie shape is identical under either layout. It is a string enum rather than
   a bool for two reasons: `libraryInput` is `omitempty` throughout, where a bool
@@ -37,10 +37,10 @@ layout (shape within a root) are deliberately different axes.
   either alone. `heldElsewhere` therefore matches a *video* at the exact stem
   rather than any stem-mate, or an interrupted copy's `.partial` would report a
   layout switch that never happened and suppress the real warning.
-- **`removeStemMates`' trailing dot is load-bearing and only a two- against
+- **`removeStemMates`' trailing dot is necessary and only a two- against
   three-digit pair tests it.** `seasonNumber` is hardcoded to 1, so every episode
   of an entry already shares a directory and the flat layout adds no neighbours
-  to the one it scans — the blast radius is unchanged either way. But E03/E30
+  to the one it scans — the set of files it can remove is unchanged either way. But E03/E30
   diverge at the first digit and pass with the guard removed; E10/E100 is the
   pair that catches it.
 - **The staging sweep deletes using rules instead of enumerating the library

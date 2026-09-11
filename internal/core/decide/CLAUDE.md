@@ -7,7 +7,7 @@ never touches the client, the library or the store.
 - **A batch is matched, eligible, and preferred on coverage (#126).** #125
   refused a pack in `ineligibleReason` because the importer could only *defer* a
   multi-episode payload; per-file import removed the reason, so the refusal is
-  gone. Three things follow. The comparator gained a **coverage tier** — `Items`
+  gone. Three things follow. The comparator gained a **coverage ranking** — `Items`
   descending, between Pinned and Score — because lifting the refusal alone would
   make the winner between a pack and a single score- and seeder-arbitrary; a
   pack covering six wanted items is one grab instead of N. Weekly singles tie at
@@ -33,9 +33,9 @@ never touches the client, the library or the store.
   releases differ and there is nothing to share. And `Match` stores a held item's
   **membership without its parse** when `profile.UpgradesEnabled` is false (the
   schema default), because every read of the parsed value is guarded by that flag
-  while the reason wording at the batch, single and movie arms only ever checks
+  while the reason wording at the batch, single and movie branches only ever checks
   `_, ok := held[n]`. Two things a reader would otherwise break. **The membership
-  write is load-bearing**: leaving `held` empty instead trips
+  write is necessary**: leaving `held` empty instead trips
   `applyUpgradePolicy`'s `len(held) == 0` early return, so covered items are never
   marked `UpgradeBlocked`, stay in `TakeItems()`, and the sweep grabs an upgrade on
   a profile that has upgrades switched off — deleting that one line is the
@@ -60,18 +60,18 @@ never touches the client, the library or the store.
   anyway, which is exactly the case the old single field could not express.
   **Item monitoring (#188) is one more input to `Grabbable`, which is why it
   costs `decide` and the importer nothing**: `wanted_items.monitored` is
-  conjoined into `loadSweepItems`' single grabbability line, so it gates sweep
+  conjoined into `loadSweepItems`' single grabbability line, so it applies to sweep
   search, feed grab and the upgrade pool at once, while `maxItem` still spans
   the item and a pack covering an unmonitored episode still matches the rest.
-  Two things sit deliberately outside that gate. **Monitoring never gates a
-  manual path** — search, grab, and later file adoption (#157) — which
+  Two things sit deliberately outside that condition. **Monitoring never
+  restricts a manual path** — search, grab, and later file adoption (#157) — which
   generalises PR #57 rather than enumerating the paths that exist today; and the
-  importer keeps no gate at all, so a pack grabbed for its monitored neighbours
+  importer doesn't check monitoring at all, so a pack grabbed for its monitored neighbours
   still places every file it contains. The bytes are already spent, a hardlink
   costs no disk, and the hole is transitional: `unclaimedItem` already excludes a
   had item, so adoption closes it with no importer change.
 - **A batch token on a movie release is an eligibility rule, not a matching one
-  (#211).** Movie mode's two numeric gates both read what a release *names*, and
+  (#211).** Movie mode's two numeric checks both read what a release *names*, and
   a numberless pack names neither an episode nor a year — so `[Grp] Placeholder
   Saga (Complete Series)` matched the film `Placeholder Saga: The Final`
   eligibly, the sweep grabbed it, and the importer placed one of the *series'*
@@ -104,7 +104,7 @@ never touches the client, the library or the store.
   against the variants (#209).** anitogo fills `AnimeYear` only from a
   *bracket-isolated* token, so `[Grp] Film (2019)` yields a year while the scene
   form `Film.2019.1080p.x264-GRP` glues it into the anime title and reports
-  none — which would have left the year gate inert on the naming form films most
+  none — which would have left the year check inert on the naming form films most
   often ship in. `parser.Parsed.Year` keeps that narrow reading, since the parser
   deliberately ignores identity, and `decide.releaseYear` derives from
   either source — the isolated token, else the **rightmost** in-range four-digit
@@ -114,7 +114,7 @@ never touches the client, the library or the store.
   year that appears in an accepted variant is part of the film's name
   (`Placeholder Legend 1979`), not a release year. Checking only the scanned source made the two forms of one
   release disagree, and it was the bracketed one that got refused. A collision
-  reports *no* year, so the gate passes rather than refuses — deliberate, because
+  reports *no* year, so the year check passes rather than refuses — deliberate, because
   a wrong year is a **matching** refusal and an unmatched release is
   `grabRelease`'s 422, so over-reading a year would block the manual grab PR #57
   protects. The null-year *title* is the other half and is never a refusal — it

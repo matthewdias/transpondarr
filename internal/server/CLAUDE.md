@@ -100,7 +100,7 @@ service side is in [`../core/settings/CLAUDE.md`](../core/settings/CLAUDE.md).
   **The quality-profile body takes the same rule, and being one body for create
   and update is why it has to.** A create that omitted a field did not take the
   column's default — `CreateQualityProfile` writes every column explicitly, so
-  it wrote the *zero* over `resolution_order`'s three tiers and
+  it wrote the *zero* over `resolution_order`'s three resolutions and
   `upgrade_v2_above_cutoff`'s on, which is the opposite of what both the schema
   and the editor present as a new profile's starting point. So the usual "POST
   defaults what it omits" idiom was never true here, and splitting create from

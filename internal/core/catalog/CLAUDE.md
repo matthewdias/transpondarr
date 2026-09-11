@@ -17,17 +17,18 @@ How a title enters the app, what identifies it, and how many items it gets.
   title with zero items** (409 otherwise): raising `maxItem` on a healthy title
   is the same hazard human-triggered, and a numberless pack would then claim the
   inflated range. PR #57 does not apply to it — that doctrine is about *eligibility*
-  gating a grab, not about creating items — and a title with a *partial*
+  checks on a grab, not about creating items — and a title with a *partial*
   schedule stays unfixable, which is the issue's scope and broadens additively.
   **The cadence keys on the count, not the item count**: `TTLFor(status,
-  countKnown)` gives a FINISHED/CANCELLED title with a null count a middle 7d
-  tier, applied to *both* `fresh()` and `ListTitlesDueMetadataRefresh`'s CASE,
-  which is one two-armed rule and must be mutated arm by arm (#176's lesson).
+  countKnown)` gives a FINISHED/CANCELLED title with a null count a 7d TTL,
+  between the 6h and 30d ones, applied to *both* `fresh()` and
+  `ListTitlesDueMetadataRefresh`'s CASE, which is one rule in two halves, and each
+  half must be mutated separately (#176's lesson).
   Reading the item count was itself the defect the mirror exposes: a FINISHED
   title whose *schedule* filled items but whose count was null got 30d from
   `fresh()` and 6h from the SQL, so the two halves of one rule disagreed. The
   airing sync passes `countKnown` true always — its own CASE keys on status
-  alone, because aired times are immutable — so the tier deliberately never
+  alone, because aired times are immutable — so the 7d TTL deliberately never
   applies to it.
 - **A title's identity is `(provider, provider_id)`, and the two are never
   separated (#74).** The pair is what the `series` table is keyed on, what `catalog.AddTitle`

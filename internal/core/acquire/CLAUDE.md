@@ -5,7 +5,7 @@ a pass records about what it decided.
 
 - **Two entry points, one decision layer (#101).** The `feed-poll` job and the
   `wanted-search` sweep both build a `Match` through `Service.evaluate` and act
-  on it through `grabPass`, so profile floor, blocklist, pinned-group delay and
+  on it through `grabPass`, so the profile's minimum score, the blocklist, pinned-group delay and
   the coverage ranking are written once. The feed is only a cheaper *trigger*: it
   inverts the sweep's lookup (a release title needing a series, rather than a
   series needing releases), which is why it is series × entry — deliberately
@@ -68,7 +68,7 @@ a pass records about what it decided.
 - **A pass stores what it decided; the page surfaces less than it stores
   (#181).** `walkCandidates` writes one `pass_outcomes` row per wanted item,
   upserted in place, so the table is bounded by `wanted_items` rather than by
-  pass count. Three constants are load-bearing. **The stored set is wider than
+  pass count. **The stored set is wider than
   the surfaced set** — eight outcomes stored, five reach a row: `grabbed` exists
   only as the tombstone that invalidates an older refusal (a listed item's grab
   plainly failed, and `grab_failed` is that row's reason), while `contended` and
@@ -79,9 +79,9 @@ a pass records about what it decided.
   but it introduces a second, permanent staleness source, since a pass never
   writes for an unmonitored item and nothing later invalidates what it wrote
   before the toggle. That one the read side **suppresses** (`itemReason` returns
-  `unmonitored` above every other tier) rather than invalidating, so the stored
+  `unmonitored` ahead of every other reason) rather than invalidating, so the stored
   answer returns intact when the item is monitored again.
-  **Blame drops decide's coverage tier** and re-ranks Pinned → Score → Seeders,
+  **Blame drops decide's coverage ranking** and re-ranks Pinned → Score → Seeders,
   because coverage improves grab efficiency (#126) and shows nothing about which
   release came closest *for one episode* — inheriting it would let a wide
   low-scoring pack outrank a high-scoring single covering exactly the episode
@@ -131,7 +131,7 @@ a pass records about what it decided.
   notify event instead of grabbing, and the sweep also reports the wanted items
   the walk left uncovered, with the best refusal's reason (the feed stays silent
   there — per-series silence is a feed page's normal state).
-  `AutomationEnabled()` stays the run/don't-run gate (true in notify-only) and
+  `AutomationEnabled()` stays the run/don't-run check (true in notify-only) and
   `NotifyOnly()` is the rehearse switch; a manual "Run now" bypasses only `off`,
   so notify-only means nothing reaches the download client no matter who
   triggered the run.
@@ -139,18 +139,18 @@ a pass records about what it decided.
   switching to `on` resets every series' cadence** (`ResetAllTitlesSearchState`,
   in the same transaction as the settings write). A rehearsed pass returns a grab
   count of 0 — nothing settled, so counting would-grabs would re-decide the same
-  items every tick — which means it takes the no-grab branch and climbs the
-  backoff ladder to its daily cap. Meanwhile the feed mark advances as usual (not
+  items every tick — which means it takes the no-grab branch and doubles its
+  backoff up to the daily cap. Meanwhile the feed mark advances as usual (not
   advancing it would make a 15-minute poll a repeating firehose), so a rehearsed
   entry never comes around again. Without the reset on resume, "flip to on and it
   grabs" would wait out a backoff the rehearsal itself accrued, for releases the
   feed will not re-offer; with it, the sweep re-searches and finds them.
-- **The two cadence helpers gate on `monitored`, not on `grabbable`.** An unaired
+- **The two cadence helpers filter on `monitored`, not on `grabbable`.** An unaired
   item is never grabbable by construction, so filtering `nextAiring` on
   grabbability would return the zero time always and silently delete #100's
-  next-broadcast clamp for every feedless install. `airedSince` takes the same
-  gate for a weaker reason — the grabbable filter is merely over-broad there, and
-  would also stop an in-flight grab resetting the ladder.
+  next-broadcast clamp for every feedless install. `airedSince` uses the same
+  filter for a weaker reason — the grabbable filter is merely over-broad there, and
+  would also stop an in-flight grab resetting the backoff.
 - **Neither automation entry point filters on format (#211).** The sweep's due
   query briefly did — #208 parked movies there because decide could not match one,
   so `next_search_at` would never advance and the film would occupy a slot at the

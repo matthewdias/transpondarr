@@ -61,7 +61,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   `settleGroup` takes the whole `payload` rather than its files. Nothing left
   over at all → `failGrab`, so the item reverts to wanted and the sweep
   self-heals with a single; it flows through the same `remember()` grouping, so
-  one payload is one step on the blocklist ladder. A file for an item the
+  one payload counts as one failure toward the blocklist's escalating expiry. A file for an item the
   release never covered is placed too,
   guarded on the item existing, not being had, and having no unsettled grab,
   and **holding the `acquire` claim** (`TryClaimItems`/`ReleaseClaims`) so a
@@ -100,14 +100,14 @@ item. The root `CLAUDE.md` covers everything above this layer.
   grab row is per wanted item and the next attempt overwrites it — without that
   memory the sweep re-derived the same ranking and re-grabbed the same doomed
   release forever. `decide` reads it through the existing `ineligibleReason`,
-  so the sweep's eligibility gate, the Releases tab's reason column and manual
+  so the sweep's eligibility check, the Releases tab's reason column and manual
   grab's freedom from eligibility (PR #57) all hold unchanged. Two constants are
-  load-bearing rather than arbitrary: identity is the **info hash or the
+  deliberate rather than arbitrary: identity is the **info hash or the
   normalized title**, because Torznab often omits the hash; and the expiry
   **escalates** (24h, 7d, then permanent) because the `failed` paths fire for
   environmental reasons that can fail many grabs at once, so permanent-on-first
   would blocklist a whole in-flight set on one qBit incident. Expired entries are
-  filtered, never deleted — the row stores the failure count the ladder reads.
+  filtered, never deleted — the row stores the failure count `blockDuration` reads.
   An *import* failure deliberately records nothing: it stays `grabbed` and
   retries, because its causes are path-mapping gaps rather than bad releases.
 - **An absent torrent is not a verdict (#241).** `failed` settles two different
@@ -154,7 +154,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   its own clock, crossed the threshold in a *later* scan, and so fell outside
   `remember()`'s per-scan grouping — one incident, two `Record` calls, and since
   the upsert is keyed on `(title, normalized title)` that counts as `failures = 2`
-  and jumps the ladder to 7d rather than writing a second row. The seam is here
+  and escalates the expiry to 7d rather than writing a second row. The seam is here
   and not in `remember()`, whose per-scan grouping is #124's design and correct;
   widening *it* would need cross-scan state the design avoids. Three
   consequences. **Earliest, not `now`** — the clock belongs to the torrent, and
