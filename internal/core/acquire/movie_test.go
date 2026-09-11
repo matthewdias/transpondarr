@@ -211,7 +211,7 @@ func TestSweepMovieIgnoresThePinDelayWithNoAirDate(t *testing.T) {
 	}
 }
 
-// The wrong grab both of movie mode's numeric gates allow through: a numberless
+// The wrong grab both of movie mode's numeric checks allow through: a numberless
 // season pack of the film's parent title names no episode and has no year,
 // so nothing excludes it and the importer then hardlinks the title's episode 1
 // into the Movies root under the film's name. Automation must not grab it; the
@@ -304,7 +304,7 @@ func TestFeedPollGrabsAWantedMovie(t *testing.T) {
 	}
 }
 
-// The null-year gate is a property of the decision layer, so it holds through
+// The null-year check is a property of the decision layer, so it holds through
 // the trigger that never issues a search either.
 func TestFeedPollNeverGrabsANullYearMovie(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -419,7 +419,7 @@ func TestNotifyOnlySweepReportsAWouldGrabMovie(t *testing.T) {
 	}
 }
 
-// A rehearsal reports a refusal as readily as a take, so the null-year gate is
+// A rehearsal reports a refusal as readily as a take, so the null-year check is
 // visible before automation is switched on rather than after it grabs nothing.
 func TestNotifyOnlySweepReportsANullYearMovieRefusal(t *testing.T) {
 	h := newRehearsal(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2019)},

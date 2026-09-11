@@ -68,7 +68,7 @@ func TestConcurrentSweepAndFeedPollGrabItemOnce(t *testing.T) {
 
 // Automation skips a claimed item; a human never does. This is PR #57's never-refuse rule
 // expressed against the claim registry, and the guard against someone later
-// "improving" the registry into a gate on the manual path.
+// "improving" the registry into a block on the manual path.
 func TestManualGrabIgnoresAnInFlightClaim(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -100,7 +100,7 @@ func TestManualGrabIgnoresAnInFlightClaim(t *testing.T) {
 	release()
 	wg.Wait()
 	if n := h.dl.AddCount(); n != 2 {
-		t.Errorf("download Add called %d times, want 2 — the manual grab must not be gated", n)
+		t.Errorf("download Add called %d times, want 2 — the manual grab must not be blocked", n)
 	}
 }
 

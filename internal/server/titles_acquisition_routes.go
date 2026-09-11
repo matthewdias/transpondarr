@@ -31,7 +31,7 @@ type candidateReleaseDTO struct {
 	Pinned           bool           `json:"pinned" doc:"Release group is the title's pinned group; ranks above profile score when eligible"`
 
 	UpgradeItems   []int               `json:"upgrade_items,omitempty" doc:"Covered items already in the library that this release may replace"`
-	UpgradeBlocked []upgradeBlockedDTO `json:"upgrade_blocked,omitempty" doc:"Covered items automation would not replace, and why; a manual grab is not gated by it"`
+	UpgradeBlocked []upgradeBlockedDTO `json:"upgrade_blocked,omitempty" doc:"Covered items automation would not replace, and why; a manual grab is not blocked by it"`
 }
 
 // upgradeBlockedDTO is one held item the upgrade policy rejected (#97).

@@ -231,7 +231,7 @@ func TestNotifyOnlyRehearsesAnUpgrade(t *testing.T) {
 }
 
 // A manual search offers releases for what is already in the library: profiles inform
-// manual actions, they gate only automation (PR #57).
+// manual actions, they restrict only automation (PR #57).
 func TestManualMatchOffersReleasesForHeldItems(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
 		episodeRelease("Placeholder Saga", 3),

@@ -62,8 +62,8 @@ func TestMovieRejectsAWrongYear(t *testing.T) {
 	}
 }
 
-// A release naming no year is not refused: the gate fires only on a mismatch,
-// exactly as the season gate lets a season-less release through.
+// A release naming no year is not refused: the year check fires only on a mismatch,
+// exactly as the season check lets a season-less release through.
 func TestMovieWithoutAReleaseYearStillMatches(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Sample Film [BD 1080p][Dual Audio]", Seeders: 40},
@@ -78,7 +78,7 @@ func TestMovieWithoutAReleaseYearStillMatches(t *testing.T) {
 
 // The scene form glues the year into the parsed title, so the parser reports
 // none; decide recovers it from the title's trailing token and still rejects a
-// wrong year. Without this the gate would be inert on the form films ship in.
+// wrong year. Without this the year check would be inert on the form films ship in.
 func TestMovieRecoversASceneFormYear(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "Sample.Film.2019.2160p.WEB-DL.H.264-EXGRP", Seeders: 40},
@@ -102,7 +102,7 @@ func TestMovieRecoversASceneFormYear(t *testing.T) {
 	}
 }
 
-// The title gate is fuzzy containment, so a long-runner sharing a name prefix
+// The title check is fuzzy containment, so a long-runner sharing a name prefix
 // with a film is evaluated on the movie path. A film has no episode 250, and skipping
 // the episode-mapping apparatus must not mean skipping that: unrefused, this is
 // a release the feed poll grabs into the film's single item.
@@ -318,7 +318,7 @@ func TestMovieAlreadyHadIsNotMatched(t *testing.T) {
 }
 
 // The mode keys on the Format, never on item count: a one-item OVA is
-// title-shaped, so its releases are matched by number and never year-gated.
+// title-shaped, so its releases are matched by number and never year-checked.
 func TestSingleItemOVAStillMatchesEpisodically(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Sample Work - 01 [1080p]", Seeders: 40},
@@ -334,7 +334,7 @@ func TestSingleItemOVAStillMatchesEpisodically(t *testing.T) {
 	}
 }
 
-// A null-year OVA is eligible: the null-year gate is movie-only, so it cannot
+// A null-year OVA is eligible: the null-year check is movie-only, so it cannot
 // leak onto the formats that never had a year to match on.
 func TestSingleItemOVAWithNoYearIsEligible(t *testing.T) {
 	releases := []indexer.Release{
@@ -380,7 +380,7 @@ func TestZeroFormatDoesNotRefuse(t *testing.T) {
 }
 
 // A release for a different title keeps the honest reason: the movie path comes
-// after the title gate, not before it. The gate is the one reason string a film
+// after the title check, not before it. The check is the one reason string a film
 // gets before movieCandidate, so it is the one movieCandidate does not supply.
 func TestMovieKeepsTheTitleMismatchReason(t *testing.T) {
 	releases := []indexer.Release{
@@ -397,7 +397,7 @@ func TestMovieKeepsTheTitleMismatchReason(t *testing.T) {
 	}
 }
 
-// The wrong grab neither numeric gate applies to: a numberless season pack of
+// The wrong grab neither numeric check applies to: a numberless season pack of
 // the film's parent title names no episode and has no year, so nothing above
 // rejects it, and the importer would then place the title's episode 1 as the
 // film. It is an eligibility rule rather than a matching one -- the pack may
@@ -481,7 +481,7 @@ func TestPackReasonYieldsToAProfileRule(t *testing.T) {
 }
 
 // A batch token on a title release keeps meaning exactly what it always has:
-// the pack matches the items it covers and is eligible. The new rule is gated on
+// the pack matches the items it covers and is eligible. The new rule is conditional on
 // Format, and this is what proves it.
 func TestSeriesSeasonPackIsUnaffectedByTheMoviePackRule(t *testing.T) {
 	items := []Item{{Number: 1, Grabbable: true}, {Number: 2, Grabbable: true}}

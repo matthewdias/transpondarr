@@ -139,7 +139,7 @@ func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
 // always succeeds (PR #57), so enforcement belongs to the sweep, which checks
 // Eligible before calling. It acquires an unconditional claim for the same
 // reason — the claim exists to make automation skip a grab in flight, never to
-// gate one. titleID must be the title the items belong to — nothing cross-checks
+// block one. titleID must be the title the items belong to — nothing cross-checks
 // it, and history events are recorded under it.
 func (s *Service) Grab(ctx context.Context, titleID int64, cand decide.Candidate, items []domain.WantedItem, paused bool) (GrabResult, error) {
 	dl := s.clients.Download()

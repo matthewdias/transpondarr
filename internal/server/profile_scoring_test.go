@@ -193,7 +193,7 @@ func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 	code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),
 		map[string]any{"download_url": url}, &out)
 	if code != http.StatusCreated {
-		t.Fatalf("grab status = %d, want 201 — the profile informs, it does not gate", code)
+		t.Fatalf("grab status = %d, want 201 — the profile informs, it does not block", code)
 	}
 	if out.InfoHash != "hashX" {
 		t.Errorf("infohash = %q, want hashX", out.InfoHash)
@@ -208,7 +208,7 @@ func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 
 // A client that already has this torrent with its data gone rejects the add
 // (#241), so the manual grab reports it rather than returning a 201 whose grab
-// fails moments later. Not a PR #57 gate: eligibility never blocks a grab, and this is
+// fails moments later. Not what PR #57 forbids: eligibility never blocks a grab, and this is
 // the client rejecting the add, exactly as a dead download URL does.
 func TestGrabReportsARefusalWhenTheClientHasLostTheData(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:eeee"

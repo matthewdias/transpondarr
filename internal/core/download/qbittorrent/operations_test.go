@@ -169,8 +169,8 @@ func TestAddConvergesWhenAFailedAddWasADuplicate(t *testing.T) {
 	}
 }
 
-// Only the pre-check arm errors. Here our own add may be what landed, so erroring
-// would leave a torrent no grab row references -- the orphan this arm exists to
+// Only the pre-check branch errors. Here our own add may be what landed, so erroring
+// would leave a torrent no grab row references -- the orphan this branch exists to
 // prevent (#134). The loop still ends: the next pass finds the torrent
 // pre-existing and errors there, so converging costs one cycle, not a loop.
 func TestAddConvergesOnADataMissingDuplicateFoundByTheRecheck(t *testing.T) {

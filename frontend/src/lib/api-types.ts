@@ -726,7 +726,7 @@ export interface paths {
         head?: never;
         /**
          * Set whether automation pursues these wanted items
-         * @description Monitoring gates search and grab, never a manual action: a manual search or grab on an unmonitored item still works, and a pack grabbed for its monitored neighbours still imports the file.
+         * @description Monitoring limits search and grab, never a manual action: a manual search or grab on an unmonitored item still works, and a pack grabbed for its monitored neighbours still imports the file.
          */
         patch: operations["set-wanted-items-monitored"];
         trace?: never;
@@ -1076,7 +1076,7 @@ export interface components {
             /** Format: int64 */
             size: number;
             title: string;
-            /** @description Covered items automation would not replace, and why; a manual grab is not gated by it */
+            /** @description Covered items automation would not replace, and why; a manual grab is not blocked by it */
             upgrade_blocked?: components["schemas"]["UpgradeBlockedDTO"][];
             /** @description Covered items already in the library that this release may replace */
             upgrade_items?: number[];

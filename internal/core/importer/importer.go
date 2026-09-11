@@ -506,7 +506,7 @@ func stallReason(timeout time.Duration) string {
 }
 
 // failGrab settles one grab as failed and reports it for the scan to remember
-// (#118). Settling before recording is load-bearing: a grab left in "grabbed"
+// (#118). Settling before recording is necessary: a grab left in "grabbed"
 // would never free its item.
 func (im *Importer) failGrab(ctx context.Context, g db.ListGrabsByStatusRow, reason string, b blame) failedGrab {
 	im.settle(ctx, g, statusFailed, reason)
