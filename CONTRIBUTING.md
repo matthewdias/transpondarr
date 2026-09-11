@@ -115,6 +115,10 @@ go run ./cmd/devseed --reset   # wipe and reseed an existing database
 go run ./cmd/devseed --seed-only
 ```
 
+Seeding won't write over an existing database unless you pass `--reset`, and
+`--reset` won't wipe a database outside the working directory unless you also
+pass `--force`.
+
 `make seed` prints the endpoints its stubs bound to, along with the environment
 lines that point the server at them. The stubs take port 0, so several worktrees
 can run their own at once. Put those lines in `.env.local`, or pass
@@ -140,12 +144,6 @@ sets `TRANSPONDARR_QBIT_URL` to nothing. If the importer connected to a real
 qBittorrent it would find none of the seeded info hashes and fail every seeded
 grab row after five minutes. If your `.env.local` already sets that variable,
 blank it yourself — devseed won't overwrite an existing `.env.local`.
-
-### Overwriting a database
-
-Seeding won't write over an existing database unless you pass `--reset`, and
-`--reset` won't wipe a database outside the working directory unless you also
-pass `--force`.
 
 ### The calendar after startup
 
