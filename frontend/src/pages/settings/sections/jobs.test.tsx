@@ -38,7 +38,7 @@ describe("JobsTable", () => {
       <JobsTable
         jobs={[
           // 90m rather than a round quarter-hour: the countdown floors, so a
-          // value sitting on a unit boundary renders one unit short by the time
+          // value on a unit boundary renders one unit short by the time
           // the assertion runs.
           job({
             name: "wanted-search",
