@@ -4,7 +4,7 @@ An anime-focused PVR — Sonarr's job, built around anime-native tooling and
 metadata. It monitors anime series and films, finds releases on anime indexers,
 drives a download client, and organizes the results into a media library.
 
-> **Status:** Beta. The acquisition loop runs end-to-end and unattended — add a
+> **Status:** Beta. The acquisition loop runs end-to-end and unattended. Add a
 > series or a film from AniList, and what you monitor is searched, graded against
 > your quality profile, grabbed via qBittorrent, and hardlinked into a
 > Plex/Jellyfin-ready library. Automation ships off by default; flip it on in
@@ -15,7 +15,7 @@ drives a download client, and organizes the results into a media library.
 
 Anime breaks Sonarr's assumptions: messy fansub filenames, absolute vs.
 per-season numbering, release-group/dual-audio/sub preferences, and metadata
-that lives on AniList/AniDB rather than TVDB.
+that comes from AniList/AniDB rather than TVDB.
 
 ## Features
 
@@ -25,55 +25,57 @@ that lives on AniList/AniDB rather than TVDB.
   a seasonal discovery chart, and see upcoming episodes and film premieres on an
   airing calendar keyed to Japanese broadcast times.
 - **Series and films, each handled as itself** — an episode is matched by number
-  and filed under its show; a film is matched by title and release year and
+  and filed under its show; a film is matched by its name and release year and
   filed into a movies library as `Placeholder Film (2019)/Placeholder Film
-  (2019).mkv`. Plex and Jellyfin want those in different places, so Transpondarr
-  keeps them there: each library takes its own root, and a film waits in the
-  queue rather than landing in the wrong one until the movies root is set.
-  Format decides and episode count never does, so a one-episode OVA is a series
-  and files with them. A film's year is what automation matches on, so it waits
-  for one to be published rather than guessing; searching and grabbing by hand
-  work throughout.
+  (2019).mkv`. Plex and Jellyfin use separate libraries for films and shows, so
+  each library gets its own root in Transpondarr. Until the movies root is set, a
+  grabbed film stays in the Activity queue instead of being imported into the
+  wrong library. Which handling a title gets depends on its format, never its
+  episode count, so a one-episode OVA is a series and files with them. A film's
+  year is what automation matches on, so automation doesn't grab a film until its
+  year is published; searching and grabbing by hand work throughout.
 - **Automated acquisition** — recent-feed polling grabs new releases within
-  minutes of them appearing, and a scheduled sweep backs it up for everything
-  that already existed. Monitoring is per title **and per episode** — choose at
-  add time whether to chase a whole back catalogue or only what airs next, and
-  unmonitor anything you don't want chased — under a global off / notify-only /
-  on switch (off until you enable it). **Notify-only** rehearses the whole thing —
-  real searches and real decisions, reported rather than grabbed. Requests can be
-  filtered to specific indexer categories, and a poll that misses a page puts the
-  series that aired inside the gap back at the front of the search queue.
-- **A Wanted queue that says why** — everything still missing across the
-  library, and everything you hold that scores below its profile's cutoff, each
-  with the reason it hasn't been grabbed: automation off, unmonitored, waiting
-  its turn in the search queue, blocklisted — or the release the last pass found
-  and declined, and why.
+  minutes of them appearing, and a scheduled search sweep queries the indexer for
+  everything that already existed. Monitoring is per title **and per episode**:
+  choose at add time whether to search for a whole back catalogue or only what
+  airs next, and unmonitor anything you don't want searched for. Automation runs
+  under a global off / notify-only / on switch (off until you enable it).
+  **Notify-only** rehearses the whole pipeline — real searches and real
+  decisions, reported instead of grabbed. Requests can be filtered to specific
+  indexer categories, and if a feed poll misses a page, the series that aired
+  inside the gap go back to the front of the search queue.
+- **A Wanted queue that shows why** — everything still missing across the
+  library, and everything you have that scores below its profile's cutoff, each
+  with the reason it hasn't been grabbed: automation off, unmonitored, queued for
+  search, blocklisted — or the release the last pass found and declined, and why.
 - **Notifications and an activity feed** — Discord, generic webhook, and ntfy,
   with per-event toggles and a test button each; an Activity page collects the
   in-flight queue, the grab/import history across every title, and any download
-  left in the client that nothing is waiting on.
+  left in the client that no grab is linked to.
 - **Anime-aware quality profiles** — release group is the dominant axis, then
-  resolution/source, dual audio, and sub preferences, with a score floor and hard
-  excludes. A profile is chosen when you add a title and can be reassigned from
-  its page later. A per-title **pinned group** can also mean *wait for* — hold
-  new episodes for the pinned group's release before settling for another. Opt a
-  profile into **upgrades** and an episode you already have is re-grabbed while
-  what holds it scores below the cutoff, then left alone for good.
+  resolution/release source, dual audio, and sub preferences, with a minimum
+  score and hard excludes. A profile is chosen when you add a title and can be
+  reassigned from its page later. A per-title **pinned group** can also mean
+  *wait for*: automation holds new episodes for the pinned release group's
+  release before taking another group's. Opt a profile into **upgrades** and an
+  episode you already have is re-grabbed while its file scores below the cutoff,
+  then left alone for good.
 - **Failure memory** — a failed release is blocklisted with escalating expiry
-  instead of re-grabbed forever, an environmental-fault breaker stops one bad
-  afternoon from blocklisting the library, and everything is visible and
-  unblockable in the UI.
+  instead of re-grabbed forever. If many grabs fail within minutes of each other,
+  a breaker treats the failures as an environmental fault and stops blocklisting,
+  so one bad afternoon doesn't blocklist the library. Everything is visible in
+  the UI, and a blocklisted release can be unblocked there.
 - **Manual control that's never refused** — search and grab any release by hand,
   with an episode's Search opening the release list focused on that episode;
-  profiles inform manual actions but only gate automation.
+  profiles are advisory on manual actions and enforced only on automation.
 - **Seeding-safe library import** — hardlink (or copy) into Plex/Jellyfin-ready
   naming, without breaking the seeding torrent. Episodes file into season
-  folders or flat, whichever your scanner prefers. Season packs import episode
-  by episode, so a back catalogue arrives in one grab, and anything the importer
-  can't place by itself is fixable by hand from the Activity queue. Archived
-  payloads aren't unpacked: a RAR-set download says so and names what to
-  extract, and extracting it in place then retrying from **Fix import**
-  completes the import.
+  folders or flat, whichever suits your media server's scanner. Season packs
+  import episode by episode, so a back catalogue arrives in one grab, and
+  anything the importer can't place can be fixed by hand from the Activity
+  queue. Archived payloads aren't unpacked: a RAR-set download is deferred with
+  a reason listing what to extract, and extracting it in place then retrying
+  from **Fix import** completes the import.
 - **Self-hosted, single binary** — embedded web UI, login + API key auth, REST
   API with an OpenAPI spec, observable background jobs, and live-editable
   settings — no restarts.
@@ -82,12 +84,12 @@ that lives on AniList/AniDB rather than TVDB.
 [milestones](https://github.com/matthewdias/transpondarr/milestones)):
 
 - Post-1.0: AniList account sync (auto-monitor your Watching list), adopting a
-  pre-existing library and noticing when it changes on disk, more indexers and
+  pre-existing library and detecting when it changes on disk, more indexers and
   download clients with per-title routing between them, and Sonarr-API
   compatibility for existing dashboard/mobile apps.
 - Post-1.0: first-class handling for series whose releases aren't numbered the way
   AniList numbers them — continuously-airing long-runners, fan re-cuts, and a
-  per-series override for when the automatic mapping is simply wrong.
+  per-series override for when the automatic mapping is wrong.
 
 ## Install
 
@@ -124,10 +126,11 @@ To build from source instead, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 The server listens on `:9797`. The **web UI uses a login** (username + password):
 on first run you create an admin account, or set `TRANSPONDARR_AUTH_USERNAME`/
-`_PASSWORD` to bootstrap one. A separate **API key** guards `/api/*` for machine
-clients (dashboards, scripts, a future HA integration) via the `X-Api-Key` header
-— it's generated and persisted on first run and shown in **Settings → API access**
-(set `TRANSPONDARR_API_KEY` to pin one). Health check (public):
+`_PASSWORD` to bootstrap one. Machine clients (dashboards, scripts, a future Home
+Assistant integration) authenticate to `/api/*` with a separate **API key**, sent
+in the `X-Api-Key` header. The key is generated and persisted on first run and
+shown in **Settings → API access** (set `TRANSPONDARR_API_KEY` to pin one).
+Health check (public):
 
 ```sh
 curl localhost:9797/api/v1/health
@@ -136,9 +139,9 @@ curl localhost:9797/api/v1/health
 ## Configuration
 
 Integrations are set through `TRANSPONDARR_*` environment variables **or edited at
-runtime in the Settings UI** (those DB overrides take precedence over the
-environment and apply live, without a restart). Unset, unconfigured integrations
-are simply disabled — the server still starts.
+runtime in the Settings UI**. A Settings UI edit is stored in the DB, takes
+precedence over the environment, and applies live, without a restart. An
+integration left unconfigured is disabled, and the server still starts.
 
 | Variable                                   | Default                   | Purpose                                                                                                   |
 | ------------------------------------------ | ------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -151,24 +154,24 @@ are simply disabled — the server still starts.
 | `TRANSPONDARR_QBIT_URL`                    | —                         | qBittorrent WebUI root; unset ⇒ no download client.                                                       |
 | `TRANSPONDARR_QBIT_USER` / `_PASSWORD`     | —                         | qBittorrent credentials.                                                                                  |
 | `TRANSPONDARR_QBIT_CATEGORY`               | `transpondarr`            | Category applied to grabbed torrents.                                                                     |
-| `TRANSPONDARR_STALL_TIMEOUT_HOURS`         | `6`                       | Hours a download may sit having transferred nothing at all before its grab is failed and the release remembered; `0` waits forever. Covers a download the client reports as stalled and one still fetching a magnet's metadata. A download with any progress is never abandoned. |
+| `TRANSPONDARR_STALL_TIMEOUT_HOURS`         | `6`                       | Hours a download may go without transferring anything before its grab is failed and the release remembered; `0` disables the timeout. Covers a download the client reports as stalled and one still fetching a magnet's metadata. A download with any progress is never abandoned. |
 | `TRANSPONDARR_TORZNAB_URL`                 | —                         | Torznab feed (Prowlarr/Jackett); unset ⇒ no indexer.                                                      |
 | `TRANSPONDARR_TORZNAB_APIKEY`              | —                         | Torznab API key.                                                                                          |
 | `TRANSPONDARR_TORZNAB_NAME`                | `torznab`                 | Display name for the indexer.                                                                             |
 | `TRANSPONDARR_TORZNAB_CATEGORIES`          | —                         | Comma-separated Newznab category IDs sent as `cat=` on every search and the recent feed (anime is usually `5070`); unset ⇒ no filter. |
 | `TRANSPONDARR_LIBRARY_DIR`                 | —                         | Library root episodes import into; unset ⇒ episodes do not import.                                                        |
-| `TRANSPONDARR_LIBRARY_MOVIES_DIR`          | —                         | Library root films place into, separate from the root above; unset ⇒ a grabbed film waits in the Activity queue instead of importing. |
+| `TRANSPONDARR_LIBRARY_MOVIES_DIR`          | —                         | Library root films are placed into, separate from `TRANSPONDARR_LIBRARY_DIR`; unset ⇒ a grabbed film stays in the Activity queue instead of importing. |
 | `TRANSPONDARR_LIBRARY_SERIES_LAYOUT`       | `season_folders`          | Path shape inside the series root: `season_folders` \| `flat`. Films are unaffected, and switching applies to future imports only. |
 | `TRANSPONDARR_IMPORT_MODE`                 | `auto`                    | `auto` (hardlink, copy across filesystems) \| `hardlink` \| `copy`.                                       |
 | `TRANSPONDARR_AUTOMATION_ENABLED`          | `false`                   | `off` \| `notify_only` \| `on` (bools also accepted). `notify_only` rehearses: it reports what automation would grab, without grabbing. |
-| `TRANSPONDARR_PIN_DELAY_HOURS`             | `0`                       | Hours automation waits for a series' pinned group before taking another; per-series overrides in the UI.  |
+| `TRANSPONDARR_PIN_DELAY_HOURS`             | `0`                       | Hours automation holds a grab for a series' pinned release group before taking another group's release; per-series overrides in the UI. |
 | `PUID` / `PGID`                            | `1000` / `1000`           | Docker only: the uid:gid the container drops to after fixing `/config` ownership on start.                |
 
 > **Auth & reverse proxies.** The `local` auth mode skips login only for requests
-> from loopback/private addresses **with no forwarding headers**, so reverse-proxied
-> requests (which set `X-Forwarded-For`) always require login — a same-host proxy
-> can't turn local-bypass into open access. Session cookies are marked `Secure`
-> automatically when the proxy sets `X-Forwarded-Proto: https`.
+> from loopback/private addresses **with no forwarding headers**. A reverse proxy
+> sets `X-Forwarded-For`, so reverse-proxied requests always require login, and a
+> same-host proxy can't turn the `local` bypass into open access. Session cookies
+> are marked `Secure` automatically when the proxy sets `X-Forwarded-Proto: https`.
 
 ## Docker deployment
 
@@ -178,12 +181,13 @@ For a real deployment alongside qBittorrent and a media server, use
 - **Imports hardlink from the path qBittorrent reports.** Mount your shared
   downloads/library volume into Transpondarr at the _same path_ qBittorrent uses,
   with both on one filesystem (a hardlink can't cross filesystems). The standard
-  single-mount layout (`/data/torrents` + `/data/media`) satisfies this. The
-  movies root is one more directory under the same mount, not a second one.
-- **Ownership.** Set `PUID`/`PGID` to the UID:GID that owns your media volume —
-  the container starts as root, fixes `/config` ownership, and drops to that user
+  single-mount layout (`/data/torrents` + `/data/media`) satisfies both
+  requirements. The movies root is one more directory under the same mount, not
+  a second mount.
+- **Ownership.** Set `PUID`/`PGID` to the UID:GID that owns your media volume.
+  The container starts as root, fixes `/config` ownership, and drops to that user
   before serving, so hardlinks into the library land with the right ownership.
-  Persist the `/config` volume (it holds the SQLite DB).
+  Persist the `/config` volume (it contains the SQLite DB).
 
 Verify a running deployment (the second call needs your API key):
 
