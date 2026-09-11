@@ -35,7 +35,7 @@ func setTitleProfile(t *testing.T, st *Store, titleID, profileID int64) {
 }
 
 // seedHeldItem inserts an item already in the library, with the release that
-// holds it and the grab status that release settled at.
+// filled it and the grab status that release settled at.
 func seedHeldItem(t *testing.T, st *Store, titleID int64, number int, heldTitle, grabStatus string) int64 {
 	t.Helper()
 	id := seedSearchItem(t, st, titleID, number, 1, nil)
@@ -64,7 +64,7 @@ func feedTitles(t *testing.T, st *Store, now time.Time) []string {
 }
 
 // The feed's due predicate is the only one that widens for upgrades (#97): a
-// complete title re-enters it when its profile opts in and it holds a release
+// complete title re-enters it when its profile enables them and it has a release
 // worth beating. The sweep's predicate deliberately does not move.
 func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 	st := tempStore(t)
@@ -75,7 +75,7 @@ func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 	// Included: the ordinary wanted item, on a profile with upgrades off.
 	seedSearchItem(t, st, seedSearchTitle(t, st, "wanted", 1), 1, 0, &past)
 
-	// Included: complete, but holding a release the profile may beat.
+	// Included: complete, but with a release the profile may beat.
 	held := seedSearchTitle(t, st, "held-imported", 1)
 	setTitleProfile(t, st, held, profile)
 	seedHeldItem(t, st, held, 1, "[ExampleSubs] Some Show - 01 (480p)", "imported")
@@ -131,7 +131,7 @@ func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 		t.Errorf("feed set = %v, want exactly the wanted series plus the two upgradable ones", got)
 	}
 
-	// The sweep spends a search per title, so upgrades ride the flat-cost feed
+	// The sweep costs a search per title, so upgrades go on the flat-cost feed
 	// alone: its predicate must be unchanged.
 	if due := dueTitles(t, st, now, 100); len(due) != 1 || due[0] != "wanted" {
 		t.Errorf("due set = %v, want only the series with something still wanted", due)
@@ -139,7 +139,7 @@ func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 }
 
 // held_release_title is the identity an upgrade compares against, so an existing
-// library must arrive carrying it rather than sitting outside the pool forever.
+// library must be backfilled with it rather than stay outside the pool forever.
 func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
@@ -153,7 +153,7 @@ func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 	// whose row was overwritten by a later failed grab.
 	imported := seedPreUpgradeItem(t, st, titleID, 1, 1, "[ExampleSubs] Some Show - 01 (1080p)", "imported")
 	overwritten := seedPreUpgradeItem(t, st, titleID, 2, 1, "[OtherSubs] Some Show - 02 (1080p)", "failed")
-	// Not held at all: nothing to remember.
+	// Not held at all: nothing to record.
 	wanted := seedPreUpgradeItem(t, st, titleID, 3, 0, "[ExampleSubs] Some Show - 03 (1080p)", "grabbed")
 
 	if err := goose.Up(st.DB, "migrations"); err != nil {

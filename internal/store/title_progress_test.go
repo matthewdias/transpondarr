@@ -26,8 +26,8 @@ func progressOf(t *testing.T, st *Store, now time.Time, title string) db.ListTit
 	return db.ListTitlesWithProgressRow{}
 }
 
-// The denominator is what the title is pursuing, not what it will ever have.
-// The raw total rides along untouched so an API client that read it still can.
+// The denominator is what the title is tracking, not what it will ever have.
+// The raw total is still reported unchanged so an API client that read it still can.
 func TestListTitlesWithProgressCountsMonitoredAndAired(t *testing.T) {
 	st := tempStore(t)
 	now := time.Now()
@@ -39,7 +39,7 @@ func TestListTitlesWithProgressCountsMonitoredAndAired(t *testing.T) {
 	seedSearchItem(t, st, id, 1, 1, &past)
 	// Tracked, still missing.
 	seedSearchItem(t, st, id, 2, 0, &past)
-	// A null air date must read as aired: AniList's coverage thins out badly, so
+	// A null air date must count as aired: AniList's coverage thins out badly, so
 	// the inverted form would make half the library read 100%.
 	seedSearchItem(t, st, id, 3, 0, nil)
 	// Not tracked: unmonitored, in either possession state.
@@ -56,19 +56,19 @@ func TestListTitlesWithProgressCountsMonitoredAndAired(t *testing.T) {
 	if got.TrackedItems != 3 {
 		t.Errorf("tracked_items = %d, want 3 (monitored and aired)", got.TrackedItems)
 	}
-	// Counted without the aired half, so a zero denominator can say which of the
+	// Counted without the aired half, so a zero denominator can show which of the
 	// two emptied it rather than asserting the wrong one.
 	if got.MonitoredItems != 5 {
 		t.Errorf("monitored_items = %d, want 5 (monitored, aired or not)", got.MonitoredItems)
 	}
-	// The numerator carries the identical filter, or the held unaired and held
+	// The numerator uses the identical filter, or the held unaired and held
 	// unmonitored items above would push this past its own denominator.
 	if got.InLibraryItems != 1 {
 		t.Errorf("in_library_items = %d, want 1", got.InLibraryItems)
 	}
 }
 
-// A title with no items at all must read 0 / 0 rather than tripping the
+// A title with no items at all must read 0 / 0 rather than turning the
 // LEFT JOIN's NULL row into a phantom count.
 func TestListTitlesWithProgressHandlesAnEmptyTitle(t *testing.T) {
 	st := tempStore(t)

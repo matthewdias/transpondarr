@@ -1,5 +1,5 @@
-// Package store owns the SQLite database: connection, embedded goose migrations,
-// and the sqlc-generated query layer (internal/store/db).
+// Package store is responsible for the SQLite database: connection, embedded
+// goose migrations, and the sqlc-generated query layer (internal/store/db).
 package store
 
 import (
@@ -24,7 +24,7 @@ type Store struct {
 // Open opens (creating if needed) the SQLite database at path and applies all
 // pending migrations.
 func Open(path string) (*Store, error) {
-	// Pragmas must ride the DSN: database/sql pools connections, and a plain
+	// Pragmas must be set in the DSN: database/sql pools connections, and a plain
 	// `PRAGMA` Exec would apply to only the one connection that ran it, leaving
 	// foreign keys unenforced on the rest. busy_timeout makes concurrent writers
 	// (importer tick vs. request handlers) wait instead of failing SQLITE_BUSY.

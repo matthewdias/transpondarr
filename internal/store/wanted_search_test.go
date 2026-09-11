@@ -146,7 +146,7 @@ func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 }
 
 // unmonitorItem narrows one item, which is what the sweep and feed predicates
-// have to see.
+// have to read.
 func unmonitorItem(t *testing.T, st *Store, itemID int64) int64 {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
@@ -219,8 +219,8 @@ func gapTitles(t *testing.T, st *Store, now, lo, hi time.Time, limit int64) []st
 }
 
 // The gap-recovery set is the sweep's wanted predicate narrowed to a broadcast
-// window and to title the ladder is actually postponing: a reset buys a due
-// title nothing, and would spend one of the bounded slots.
+// window and to title the ladder is actually postponing: a reset does nothing
+// for a due title, and would use one of the bounded slots.
 func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 	st := tempStore(t)
 	now := time.Now()
@@ -237,16 +237,16 @@ func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 
 	// Excluded: unmonitored.
 	setNextSearchAt(t, st, mustSeed(t, st, "unmonitored", 0, 1, 0, &inside), later)
-	// Excluded: the item that aired inside the gap is not monitored, so no reset
-	// buys anything -- the sweep would drop the title again on arrival.
+	// Excluded: the item that aired inside the gap is not monitored, so a reset
+	// does nothing -- the sweep would drop the title again on arrival.
 	narrowed := mustSeed(t, st, "narrowed-away", 1, 1, 0, &inside)
 	unmonitorItem(t, st, itemOf(t, st, narrowed))
 	setNextSearchAt(t, st, narrowed, later)
-	// Excluded: already due -- the sweep reaches it on the next tick regardless.
+	// Excluded: already due -- the sweep takes it on the next tick regardless.
 	setNextSearchAt(t, st, mustSeed(t, st, "already-due", 1, 1, 0, &inside), now.Add(-time.Minute))
 	// Excluded: never searched, so it is at the front of the queue already.
 	mustSeed(t, st, "never-searched", 1, 1, 0, &inside)
-	// Excluded: aired before the window opened -- the feed never owed it.
+	// Excluded: aired before the window opened -- the feed never covered it.
 	setNextSearchAt(t, st, mustSeed(t, st, "aired-before", 1, 1, 0, ptr(now.Add(-5*time.Hour))), later)
 	// Excluded: the window is half-open, so a broadcast at hi belongs to the next one.
 	setNextSearchAt(t, st, mustSeed(t, st, "aired-at-hi", 1, 1, 0, &hi), later)
@@ -256,7 +256,7 @@ func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 	setNextSearchAt(t, st, mustSeed(t, st, "unscheduled", 1, 1, 0, nil), later)
 	// Excluded: already in the library.
 	setNextSearchAt(t, st, mustSeed(t, st, "all-had", 1, 1, 1, &inside), later)
-	// Excluded: a settled grab holds the item.
+	// Excluded: the item already has a settled grab.
 	settled := mustSeed(t, st, "in-flight", 1, 1, 0, &inside)
 	seedSearchGrab(t, st, itemOf(t, st, settled), "grabbed")
 	setNextSearchAt(t, st, settled, later)
@@ -321,9 +321,9 @@ func ptr(t time.Time) *time.Time { return &t }
 
 // The write is guarded on the value read at selection so a concurrent reset — a
 // title that just grew, or was re-monitored — wins over a stale backoff.
-// The guard has to survive the case that motivated it: a due title carries
+// The guard has to cover the case that motivated it: a due title has
 // next_search_at NULL, and a reset writes NULL too, so the column alone cannot
-// tell "nobody touched this" from "a reset landed while I searched".
+// distinguish "nobody touched this" from "a reset landed while I searched".
 func TestSetTitleSearchStateGuardsOnReadEpoch(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
@@ -337,7 +337,7 @@ func TestSetTitleSearchStateGuardsOnReadEpoch(t *testing.T) {
 		t.Fatalf("interleave a reset: %v", err)
 	}
 
-	// Zero rows is how the caller learns its write lost, rather than assuming it
+	// Zero rows is how the caller detects its write lost, rather than assuming it
 	// landed.
 	rows, err := st.Q.SetTitleSearchState(ctx, db.SetTitleSearchStateParams{
 		ID:             id,
@@ -420,13 +420,13 @@ func TestResetTitleSearchState(t *testing.T) {
 	if backoff != 0 || next.Valid {
 		t.Errorf("after reset backoff = %d, next_search_at = %+v, want 0 and NULL", backoff, next)
 	}
-	// The bump is what an in-flight sweep's guard trips over.
+	// The bump is what an in-flight sweep's guard detects.
 	if got := readEpoch(t, st, id); got != before+1 {
 		t.Errorf("search_epoch = %d, want %d", got, before+1)
 	}
 }
 
-// The sweep needs each item's grab status alongside the item, so it can tell an
+// The sweep needs each item's grab status alongside the item, so it can distinguish an
 // in-flight episode from a wanted one without a second query per item.
 func TestListWantedItemsWithGrabState(t *testing.T) {
 	st := tempStore(t)

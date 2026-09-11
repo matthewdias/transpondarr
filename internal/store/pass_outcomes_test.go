@@ -23,8 +23,8 @@ func outcomeItem(t *testing.T, st *Store, titleID int64, number int64) int64 {
 
 // The table is bounded by wanted_items, not by pass count: a second pass
 // overwrites the first's row rather than appending. Every column takes the new
-// pass's value, so an outcome carrying no hold clears a stale held_until --
-// otherwise a pin window that has since closed outlives the decision it came
+// pass's value, so an outcome with no hold clears a stale held_until --
+// otherwise a pin window that has since closed stays past the decision it came
 // from.
 func TestUpsertPassOutcomeReplacesInPlace(t *testing.T) {
 	st := tempStore(t)
@@ -81,7 +81,7 @@ func TestUpsertPassOutcomeReplacesInPlace(t *testing.T) {
 }
 
 // Nothing else deletes these rows, so the title cascade is the only thing that
-// bounds the table. It has to reach them, or a removed title leaves orphans no
+// bounds the table. It has to include them, or a removed title leaves orphans no
 // query can ever read.
 func TestPassOutcomeCascadesWithItsTitle(t *testing.T) {
 	st := tempStore(t)

@@ -13,7 +13,7 @@ import (
 // movieItem is a movie's whole item list: one item, per #208's add.
 func movieItem() []Item { return []Item{{Number: 1, Grabbable: true}} }
 
-// movieOpts is the per-title matcher input a movie carries.
+// movieOpts is the per-title matcher input for a movie.
 func movieOpts(year int) MatchOpts {
 	return MatchOpts{Format: domain.FormatMovie, Year: year}
 }
@@ -62,7 +62,7 @@ func TestMovieRejectsAWrongYear(t *testing.T) {
 	}
 }
 
-// A release naming no year is not refused: the gate fires only on disagreement,
+// A release naming no year is not refused: the gate fires only on a mismatch,
 // exactly as the season gate lets a season-less release through.
 func TestMovieWithoutAReleaseYearStillMatches(t *testing.T) {
 	releases := []indexer.Release{
@@ -77,7 +77,7 @@ func TestMovieWithoutAReleaseYearStillMatches(t *testing.T) {
 }
 
 // The scene form glues the year into the parsed title, so the parser reports
-// none; decide recovers it from the title's trailing token and still refuses a
+// none; decide recovers it from the title's trailing token and still rejects a
 // wrong year. Without this the gate would be inert on the form films ship in.
 func TestMovieRecoversASceneFormYear(t *testing.T) {
 	releases := []indexer.Release{
@@ -103,7 +103,7 @@ func TestMovieRecoversASceneFormYear(t *testing.T) {
 }
 
 // The title gate is fuzzy containment, so a long-runner sharing a name prefix
-// with a film reaches the movie path. A film has no episode 250, and skipping
+// with a film is evaluated on the movie path. A film has no episode 250, and skipping
 // the episode-mapping apparatus must not mean skipping that: unrefused, this is
 // a release the feed poll grabs into the film's single item.
 func TestMovieRefusesAnEpisodeItCannotHave(t *testing.T) {
@@ -124,7 +124,7 @@ func TestMovieRefusesAnEpisodeItCannotHave(t *testing.T) {
 	}
 }
 
-// A film cannot span episodes, so a pack naming a range is refused whatever the
+// A film cannot span episodes, so a pack naming a range is rejected whatever the
 // range is.
 func TestMovieRefusesAnEpisodeRange(t *testing.T) {
 	releases := []indexer.Release{
@@ -141,8 +141,8 @@ func TestMovieRefusesAnEpisodeRange(t *testing.T) {
 	}
 }
 
-// A numbered sequel film reads as an episode, so the refusal above must not eat
-// it: the number is the film's own name, which the variants are what can say.
+// A numbered sequel film parses as an episode, so the refusal above must not
+// apply to it: the number is the film's own name, which only the variants show.
 func TestMovieKeepsASequelNumberInItsName(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Sample Film 2 (2021) [1080p]", Seeders: 900},
@@ -156,8 +156,8 @@ func TestMovieKeepsASequelNumberInItsName(t *testing.T) {
 	}
 }
 
-// The same, zero-padded: a film named with a padded number must not be refused
-// over a formatting difference in the number anitogo handed back.
+// The same, zero-padded: a film named with a padded number must not be rejected
+// over a formatting difference in the number anitogo returned.
 func TestMovieKeepsAZeroPaddedNumberInItsName(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Legend 0080 [BD 1080p]", Seeders: 900},
@@ -197,9 +197,9 @@ func TestMovieReadsAYearBehindSceneTags(t *testing.T) {
 }
 
 // Bracket style is a naming convention, not a fact about the film, so the two
-// forms of one release must reach the same verdict. They disagree the moment the
+// forms of one release must produce the same verdict. They differ the moment the
 // variant check is applied to only one of the two sources a year can come from —
-// and the bracketed form is the one that then refuses, blocking a manual grab.
+// and the bracketed form is the one then rejected, blocking a manual grab.
 func TestMovieYearReadingAgreesAcrossReleaseForms(t *testing.T) {
 	variants := []string{"Placeholder Legend 1979"}
 	forms := map[string]string{
@@ -223,9 +223,9 @@ func TestMovieYearReadingAgreesAcrossReleaseForms(t *testing.T) {
 	}
 }
 
-// A title that carries its own trailing year keeps it: the number is in an
+// A title that has its own trailing year keeps it: the number is in an
 // accepted variant, so it names the film rather than the release. Reading it as
-// a release year would refuse every release the film has.
+// a release year would reject every release the film has.
 func TestMovieDoesNotReadATitlesOwnYearAsAReleaseYear(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Legend 1979 [BD 1080p]", Seeders: 40},
@@ -241,7 +241,7 @@ func TestMovieDoesNotReadATitlesOwnYearAsAReleaseYear(t *testing.T) {
 // #208 parked movie matching behind a hard stop; #209 lifts it. A film release
 // matches -- and with no year on record the match is ineligible, so automation
 // cannot take it while a manual grab stays free. The fixture deliberately
-// carries no batch token, which earns an ineligible reason of its own.
+// has no batch token, which would add an ineligible reason of its own.
 func TestMovieWithNoYearOnRecordMatchesButIsIneligible(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Sample Film [1080p][HEVC]", Seeders: 40},
@@ -366,7 +366,7 @@ func TestNumberlessPackStillCoversASeries(t *testing.T) {
 	}
 }
 
-// The zero-value Format must read as non-movie, so a caller that passes no
+// The zero-value Format must be non-movie, so a caller that passes no
 // MatchOpts at all is unaffected.
 func TestZeroFormatDoesNotRefuse(t *testing.T) {
 	releases := []indexer.Release{
@@ -379,9 +379,9 @@ func TestZeroFormatDoesNotRefuse(t *testing.T) {
 	}
 }
 
-// A release for a different title keeps the honest reason: the movie path sits
+// A release for a different title keeps the honest reason: the movie path comes
 // after the title gate, not before it. The gate is the one reason string a film
-// reaches before movieCandidate takes over, so it is the one that words itself.
+// gets before movieCandidate, so it is the one movieCandidate does not supply.
 func TestMovieKeepsTheTitleMismatchReason(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Unrelated Work - 01 [1080p]", Seeders: 40},
@@ -397,11 +397,11 @@ func TestMovieKeepsTheTitleMismatchReason(t *testing.T) {
 	}
 }
 
-// The wrong grab both numeric gates are blind to: a numberless season pack of
-// the film's parent title names no episode and carries no year, so nothing
-// above refuses it, and the importer would then place the title's episode 1 as
-// the film. It is an eligibility rule rather than a matching one -- the pack may
-// genuinely be a multi-part film, so only automation is held back (PR #57).
+// The wrong grab neither numeric gate applies to: a numberless season pack of
+// the film's parent title names no episode and has no year, so nothing above
+// rejects it, and the importer would then place the title's episode 1 as the
+// film. It is an eligibility rule rather than a matching one -- the pack may
+// genuinely be a multi-part film, so only automation is blocked (PR #57).
 func TestMovieWithholdsASeasonPackFromAutomation(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga (Complete Series) [1080p]", Seeders: 900},
@@ -426,7 +426,7 @@ func TestMovieWithholdsASeasonPackFromAutomation(t *testing.T) {
 }
 
 // The rule is per release, not per title: an ordinary film release beside a pack
-// is still taken, so one suspicious candidate never mutes the whole search.
+// is still taken, so one suspicious candidate never blocks the whole search.
 func TestMovieStillTakesAPlainReleaseBesideAPack(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Sample Film (Complete Series) [1080p]", Seeders: 900},
@@ -505,10 +505,10 @@ func TestSeriesSeasonPackIsUnaffectedByTheMoviePackRule(t *testing.T) {
 	}
 }
 
-// The guard above only bit when the film's title was longer than the release's
+// The guard above only applied when the film's title was longer than the release's
 // parsed title. Reverse the lengths and fuzzy containment made it inert: the
 // rebuilt name contains the variant by construction, so a long-runner's episode
-// was matched and grabbed as the film. Both directions must refuse.
+// was matched and grabbed as the film. Both directions must be rejected.
 func TestMovieRefusesAnEpisodeWhateverTheNameLengths(t *testing.T) {
 	for _, tc := range []struct {
 		name    string

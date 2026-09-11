@@ -3,7 +3,7 @@ package store
 import "time"
 
 // TimestampLayout is SQLite's datetime('now') output (UTC, no zone) — the form
-// every timestamp column in this database holds.
+// every timestamp column in this database uses.
 const TimestampLayout = "2006-01-02 15:04:05"
 
 // FormatTimestamp renders t in the stored form.

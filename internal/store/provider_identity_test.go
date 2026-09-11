@@ -7,10 +7,10 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-// The provider-identity migration rebuilds title to shed the single-column
+// The provider-identity migration rebuilds title to drop the single-column
 // UNIQUE on anilist_id, and title has three ON DELETE CASCADE children. A
-// rebuild that lets the cascade fire empties the user's library silently, so the
-// survival of every child is the acceptance criterion, not a nicety.
+// rebuild that lets the cascade fire empties the user's library silently, so
+// every child still existing is the acceptance criterion, not a nicety.
 func TestProviderIdentityMigrationKeepsCascadeChildren(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
@@ -26,7 +26,7 @@ func TestProviderIdentityMigrationKeepsCascadeChildren(t *testing.T) {
 		t.Fatalf("seed series: %v", err)
 	}
 	// A second row with no provider id at all: the CHECK must accept it, and the
-	// rebuild must not invent a provider for it.
+	// rebuild must not supply a provider for it.
 	var untrackedID int64
 	if err := st.DB.QueryRowContext(ctx,
 		`INSERT INTO series (title, format, monitored) VALUES ('No Provider', 'TV', 1) RETURNING id`).Scan(&untrackedID); err != nil {
@@ -84,8 +84,8 @@ func TestProviderIdentityMigrationKeepsCascadeChildren(t *testing.T) {
 		}
 	}
 
-	// Every other column the eight accumulated ALTERs added must survive the
-	// rebuild with its value, not just its name.
+	// Every other column the eight accumulated ALTERs added must still exist after
+	// the rebuild with its value, not just its name.
 	var (
 		provider      string
 		providerID    int64
@@ -134,7 +134,7 @@ func TestProviderIdentityMigrationKeepsCascadeChildren(t *testing.T) {
 }
 
 // The pair is the identity: the same id in two provider spaces is two titles,
-// which the old single-column UNIQUE could not express.
+// which the old single-column UNIQUE could not represent.
 func TestTitleIdentityIsThePair(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()

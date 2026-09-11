@@ -23,7 +23,7 @@ func TestNormalizeReleaseTitle(t *testing.T) {
 }
 
 // The blocklist is the actionable reason, so it is reported ahead of a profile
-// one when a release trips both.
+// one when a release matches both.
 func TestBlocklistedTitleIsIneligible(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga - 03 [1080p]", Seeders: 500},

@@ -5,7 +5,7 @@
 // heuristic problem better handled by a maintained library than by hand.
 //
 // The parser is deliberately dumb about *identity*: it extracts what the release
-// name says, and never decides which title or wanted item it belongs to — that
+// name contains, and never decides which title or wanted item it belongs to — that
 // reconciliation is the decide layer's job.
 package parser
 
@@ -18,7 +18,7 @@ import (
 )
 
 // Parsed is the structured view of a release title. Zero values mean "absent"
-// (Season/EpisodeStart/EpisodeEnd == 0 when the title carried no such token).
+// (Season/EpisodeStart/EpisodeEnd == 0 when the title had no such token).
 type Parsed struct {
 	Title      string // AnimeTitle, e.g. "Some Show"
 	Group      string // release group, e.g. "ExampleSubs"
@@ -37,7 +37,7 @@ type Parsed struct {
 	Year int
 
 	// AbsoluteEpisode is anitogo's alternate number — the absolute count when the
-	// title gives a season-relative number plus an absolute one (e.g. "S3 - 01 (51)").
+	// title has a season-relative number plus an absolute one (e.g. "S3 - 01 (51)").
 	// 0 when absent.
 	AbsoluteEpisode int
 
@@ -54,7 +54,7 @@ type Parsed struct {
 
 // Version identifies what Parse's output means. Bump it whenever a change here,
 // to Parsed, or to anitogo can make Parse read the same title differently: a
-// stored parse is reusable only while the parser that made it still agrees.
+// stored parse is reusable only while the parser that made it still produces it.
 const Version = 1
 
 // Parse extracts structured fields from a release title.
@@ -96,12 +96,12 @@ func Parse(title string) Parsed {
 	p.Repack = repackRe.MatchString(rem)
 
 	// A release is a batch when it spans an episode range, or when it names a
-	// season/anime but carries no single episode number (a season/complete pack).
+	// season/anime but has no single episode number (a season/complete pack).
 	p.Batch = end > start || (start == 0 && looksLikePack(e, title))
 
 	// Dual-titled scene releases end in an alt-title parenthetical that anitogo
-	// misreads as the group. A blob-shaped group is distrusted outright; a short
-	// alt-title looks plausible, so a disagreeing codec-dash group overrides it.
+	// misreads as the group. A blob-shaped group is rejected outright; a short
+	// alt-title is plausible, so a conflicting codec-dash group overrides it.
 	if p.Group != "" {
 		if implausibleGroup(p.Group) {
 			p.Group = sceneGroup(title)
@@ -114,14 +114,14 @@ func Parse(title string) Parsed {
 	return p
 }
 
-// implausibleGroup flags anitogo output that reads as an alt-title blob, not a
-// group name — real groups never carry commas or run to three-plus words.
+// implausibleGroup flags anitogo output shaped like an alt-title blob, not a
+// group name — real groups never contain commas or run to three-plus words.
 func implausibleGroup(g string) bool {
 	return strings.Contains(g, ",") || len(strings.Fields(g)) >= 3
 }
 
 // groupFromTrailingParen reports whether anitogo read the group out of a
-// trailing parenthetical — the only position an alt-title masquerades in.
+// trailing parenthetical — the only position an alt-title appears in.
 func groupFromTrailingParen(raw, g string) bool {
 	return strings.HasSuffix(strings.TrimSpace(raw), "("+g+")")
 }
@@ -164,7 +164,7 @@ func codecDashGroup(raw string) string {
 
 // sceneGroup recovers a scene-style group from the raw title: the codec-dash
 // form is the strongest signal, then a trailing -GROUP once any trailing
-// parenthetical is stripped; "" when neither convinces.
+// parenthetical is stripped; "" when neither matches.
 func sceneGroup(raw string) string {
 	if g := codecDashGroup(raw); g != "" {
 		return g
@@ -204,8 +204,8 @@ var (
 	resWidths  = map[int]string{640: "480p", 704: "480p", 720: "480p", 848: "480p", 1280: "720p", 1920: "1080p", 3840: "2160p"}
 )
 
-// heightSuffix pulls the height out of anitogo's start-unanchored matches, so a
-// glued prefix ("BD1080p") folds instead of escaping as junk.
+// heightSuffix extracts the height from anitogo's start-unanchored matches, so a
+// glued prefix ("BD1080p") folds instead of being reported as junk.
 var heightSuffix = regexp.MustCompile(`(\d{3,4})[pP]$`)
 
 // normalizeResolution folds anitogo's dimension form to the height form quality
@@ -234,7 +234,7 @@ func normalizeResolution(s string) (res, raw string) {
 }
 
 // dimensions splits a "1920x1080" token; ok is false for anything else, which is
-// how the already-canonical "1080p" form passes through untouched.
+// how the already-canonical "1080p" form passes through unchanged.
 func dimensions(s string) (w, h int, ok bool) {
 	parts := strings.FieldsFunc(s, func(r rune) bool { return r == 'x' || r == 'X' || r == '×' })
 	if len(parts) != 2 {
@@ -259,11 +259,11 @@ func looksLikePack(e *anitogo.Elements, title string) bool {
 		}
 	}
 	lower := strings.ToLower(title)
-	// A named season with no episode number reads as a full-season pack.
+	// A named season with no episode number means a full-season pack.
 	return len(e.AnimeSeason) > 0 || strings.Contains(lower, "batch") || strings.Contains(lower, "complete")
 }
 
-// anitogo's keyword tables miss the bare WEB / WEB-DL tag, REPACK/PROPER, and
+// anitogo's keyword tables omit the bare WEB / WEB-DL tag, REPACK/PROPER, and
 // AV1 entirely, and tokenize scene-style dot names unevenly — hence the raw-title
 // regex fallbacks below.
 var (
@@ -286,7 +286,7 @@ func remainderOf(raw string, e *anitogo.Elements) string {
 	rem := foldDelims(raw)
 	strip := []string{strings.TrimSpace(foldDelims(e.AnimeTitle))}
 	// anitogo misfiles unrecognized scene tags (REPACK, x264-GRP) as episode
-	// titles; only a multi-word episode title free of tag tokens is trusted as
+	// titles; only a multi-word episode title free of tag tokens is accepted as
 	// a real name — a dual-title release can misfile a whole multi-word tag run.
 	if t := strings.TrimSpace(foldDelims(e.EpisodeTitle)); strings.Contains(t, " ") && !tagRun(t) {
 		strip = append(strip, t)
@@ -308,8 +308,8 @@ func foldDelims(s string) string {
 	}, strings.ToLower(s))
 }
 
-// tagRun reports whether a folded episode title reads as a misfiled scene tag
-// run. Only tokens no real episode name carries qualify — strict WEB-DL, a
+// tagRun reports whether a folded episode title is a misfiled scene tag
+// run. Only tokens no real episode name contains qualify — strict WEB-DL, a
 // codec, a sub-type — never bare "web" ("The Web of Fate" is a real name).
 func tagRun(t string) bool {
 	return webDLRe.MatchString(t) || h264Re.MatchString(t) || h265Re.MatchString(t) ||
@@ -393,8 +393,8 @@ func firstInt(vals []string) int {
 	return atoi(vals[0])
 }
 
-// atoi treats unparseable or negative values as "absent" (0) — anitogo can emit
-// a negative token (e.g. "-1" from "(-1)0") that must not reach the decide layer.
+// atoi maps unparseable or negative values to "absent" (0) — anitogo can emit a
+// negative token (e.g. "-1" from "(-1)0") that decide must never receive.
 func atoi(s string) int {
 	n, err := strconv.Atoi(strings.TrimSpace(s))
 	if err != nil || n < 0 {

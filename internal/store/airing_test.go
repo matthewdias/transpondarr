@@ -7,7 +7,7 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-// The unique identity index is what lets the refresh upsert say "this episode
+// The unique identity index is what lets the refresh upsert detect "this episode
 // already exists" instead of inserting a second row for it.
 func TestWantedItemIdentityIsUnique(t *testing.T) {
 	st := tempStore(t)
@@ -23,8 +23,8 @@ func TestWantedItemIdentityIsUnique(t *testing.T) {
 	}
 }
 
-// A live database that already holds duplicates must survive the upgrade rather
-// than fail the index creation, keeping the row that carries state. Driven by
+// A live database that already contains duplicates must still upgrade rather
+// than fail the index creation, keeping the row that has state. Driven by
 // rolling the airing migration back, dirtying the data, and re-applying it.
 func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 	st := tempStore(t)
@@ -38,7 +38,7 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 	}
 
 	// The held row is inserted last, so "keep the survivor with state" and "keep
-	// the lowest id" disagree — only the former passes. The column is still named
+	// the lowest id" differ — only the former passes. The column is still named
 	// have at this schema version; 00019 renames it.
 	for _, have := range []int{0, 1} {
 		if _, err := st.DB.ExecContext(ctx,

@@ -8,7 +8,7 @@ import (
 )
 
 // An hour count past the duration ceiling wraps int64 when multiplied out, and
-// 3000000h wraps *negative*, which reads as <= 0 and disables the wait outright:
+// 3000000h wraps *negative*, which is <= 0 and disables the wait outright:
 // the longest wait a user can ask for silently becomes none. Clamped, it holds.
 func TestPinDelayClampsBothEnds(t *testing.T) {
 	cases := []struct {

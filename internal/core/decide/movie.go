@@ -10,8 +10,8 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/parser"
 )
 
-// anitogo's own bounds, so both readings of a four-digit token agree on what
-// could be a year at all.
+// anitogo's own bounds, so both readings of a four-digit token use the same
+// range of years.
 const (
 	minReleaseYear = 1900
 	maxReleaseYear = 2050
@@ -19,10 +19,10 @@ const (
 
 // movieCandidate is the movie path (#209): title, already gated by the caller,
 // plus year. Episode numbers, season markers and batch tokens all appear on movie
-// names and cannot map onto a film, so none of the episode-mapping apparatus is
-// reached. Skipping the mapping is not skipping the numeric guards, though — the
+// names and cannot map onto a film, so none of the episode-mapping apparatus
+// runs. Skipping the mapping is not skipping the numeric guards, though — the
 // title gate is fuzzy containment, so a long-runner sharing a name prefix with a
-// film reaches here carrying an episode number the film plainly does not have.
+// film is evaluated here with an episode number the film plainly does not have.
 func movieCandidate(c Candidate, variants []string, itemSet map[int]bool, held map[int]heldRelease, titleYear int) Candidate {
 	p := c.Parsed
 	if p.EpisodeStart > 0 && !numberNamesTheFilm(p, variants) {
@@ -35,8 +35,8 @@ func movieCandidate(c Candidate, variants []string, itemSet map[int]bool, held m
 		return c
 	}
 
-	// A title with no year on record still matches — the refusal it earns is an
-	// ineligible reason, so a manual grab stays free (PR #57).
+	// A title with no year on record still matches — its refusal is an ineligible
+	// reason, so a manual grab stays free (PR #57).
 	if y := releaseYear(p, variants); y != 0 && titleYear != 0 && y != titleYear {
 		c.Reason = fmt.Sprintf("year %d does not match this entry (year %d)", y, titleYear)
 		return c
@@ -60,9 +60,9 @@ func movieCandidate(c Candidate, variants []string, itemSet map[int]bool, held m
 
 // numberNamesTheFilm reports whether the number anitogo read as an episode is
 // really part of the film's name — a sequel number, "Sample Film 2" — by
-// reattaching it to the parsed title and asking the variants, the only thing
-// that can tell the two apart. Padded widths are tried because a release writes
-// "0080" where anitogo hands back 80.
+// reattaching it to the parsed title and comparing against the variants, the
+// only thing that can distinguish the two. Padded widths are tried because a
+// release writes "0080" where anitogo returns 80.
 //
 // Compared exactly, not by titleBelongs' containment: on a name we assembled
 // ourselves, any variant prefixing the parsed title is contained by
@@ -84,9 +84,9 @@ func numberNamesTheFilm(p parser.Parsed, variants []string) bool {
 }
 
 // releaseYear is the year a release names, resolving the ambiguity the parser
-// deliberately leaves alone: anitogo reports a year only when the name isolates
+// deliberately does not settle: anitogo reports a year only when the name isolates
 // one in brackets, so the scene form glues it onto the title instead. Whichever
-// source it came from, a year an accepted variant carries names the film rather
+// source it came from, a year an accepted variant contains names the film rather
 // than the release ("Placeholder Legend 1979") — so the variant check is applied
 // once, after the derivation, and bracket style cannot change the verdict. A
 // collision reports no year and so passes the gate, which is the direction a
@@ -103,7 +103,7 @@ func releaseYear(p parser.Parsed, variants []string) int {
 }
 
 // yearInTitle is the year a scene-form name glued onto the title: the rightmost
-// four-digit token in range, since unrecognized scene tags trail it — but never
+// four-digit token in range, since unrecognized scene tags come after it — but never
 // the first token, which is the film naming itself.
 func yearInTitle(title string) int {
 	fields := strings.Fields(title)
