@@ -7,13 +7,13 @@ a pass records about what it decided.
   `wanted-search` sweep both build a `Match` through `Service.evaluate` and act
   on it through `grabPass`, so the profile's minimum score, the blocklist, pinned-group delay and
   the coverage ranking are written once. The feed is only a cheaper *trigger*: it
-  inverts the sweep's lookup (a release title needing a series, rather than a
-  series needing releases), which is why it is series × entry — deliberately
+  inverts the sweep's lookup (a release name needing a title, rather than a
+  title needing releases), which is why it is title × entry — deliberately
   unoptimised, since a page is ~100 entries and the due query already drops any
-  series with nothing wanted. It writes no search cadence: nothing was searched,
-  and a grab settles its item, so the sweep's `EXISTS` drops the series anyway.
+  title with nothing wanted. It writes no search cadence: nothing was searched,
+  and a grab settles its item, so the sweep's `EXISTS` drops the title anyway.
   The one exception is a poll that detects a missing page (#140): it
-  resets the sweep for the series that aired inside the gap, bounded to
+  resets the sweep for the titles that aired inside the gap, bounded to
   `titlesPerPass` per gap event so a routine gap on a busy indexer queues no more
   searches than one pass can run.
   **A feed page proves coverage only by containing the mark's own instant
@@ -47,7 +47,7 @@ a pass records about what it decided.
   releases published while it is polling, and the sweep handles what already
   existed, plus everything when no feed is configured. **Cadence follows that division; grab scope deliberately does
   not** — a sweep search that turns up a current release still grabs it, because
-  the feed's dedupe is one-shot and an entry seen before its series or item
+  the feed's dedupe is one-shot and an entry seen before the title or item it matches
   existed never comes around again. Concretely, `writeSearchState` drops the
   aired-since reset and the next-broadcast clamp when a feed exists (both are
   #100's answer to "search a weekly show at air time", which the feed now handles);
@@ -130,13 +130,13 @@ a pass records about what it decided.
   the real decision walk in `grabPass`, but every take dispatches a `rehearsal`
   notify event instead of grabbing, and the sweep also reports the wanted items
   the walk left uncovered, with the best refusal's reason (the feed stays silent
-  there — per-series silence is a feed page's normal state).
+  there — per-title silence is a feed page's normal state).
   `AutomationEnabled()` stays the run/don't-run check (true in notify-only) and
   `NotifyOnly()` is the rehearse switch; a manual "Run now" bypasses only `off`,
   so notify-only means nothing reaches the download client no matter who
   triggered the run.
 - **A rehearsal rehearses the search cadence but not the grab-driven reset, so
-  switching to `on` resets every series' cadence** (`ResetAllTitlesSearchState`,
+  switching to `on` resets every title's cadence** (`ResetAllTitlesSearchState`,
   in the same transaction as the settings write). A rehearsed pass returns a grab
   count of 0 — nothing settled, so counting would-grabs would re-decide the same
   items every tick — which means it takes the no-grab branch and doubles its

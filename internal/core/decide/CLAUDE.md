@@ -12,7 +12,7 @@ never touches the client, the library or the store.
   make the winner between a pack and a single score- and seeder-arbitrary; a
   pack covering six wanted items is one grab instead of N. Weekly singles tie at
   1 and fall through to score unchanged, and the pin stays *above* coverage
-  deliberately: a pin is per-series knowledge ("this group is definitive"), so
+  deliberately: a pin is per-title knowledge ("this group is definitive"), so
   coverage only breaks ties among equally pinned candidates. And `batchItems` gained
   the guard it never had: an explicit range past `maxItem` is now **unmatched**
   with the single-episode path's absolute/season-mismatch reason, so a `01-48`

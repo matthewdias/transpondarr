@@ -10,7 +10,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   error. `internal/core/airing` syncs it in the background off the job runner and
   stamps `series.airing_synced_at` even when the provider returns nothing, which
   is what stops an unschedulable title being re-requested every tick. Aired times are
-  immutable, so only a never-synced series pages full history; a resync passes
+  immutable, so only a never-synced title pages full history; a resync passes
   `notYetAired` and fetches the tail.
 - **A schedule is densified, never transcribed (#152).** `airingSchedule` is a
   field on `Media`, not a root query, so one page of it plus
@@ -21,7 +21,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   filled-in ones — a schedule listing 1, 3, 4 means episode 2 shared a broadcast
   slot, and with a null count nothing else would ever create it. Over-creating
   leaves an item permanently wanted that no release matches (a sweep slot, and a
-  series that shows as incomplete) but cannot cause a wrong grab, since `decide`
+  title that shows as incomplete) but cannot cause a wrong grab, since `decide`
   refuses anything numbered past `maxItem` regardless; under-creating loses an
   episode nobody notices is missing. Three bounds, each measured against the live
   API rather than assumed:
@@ -42,7 +42,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   materializes its whole run in the add's transaction. That is deliberate: it
   is the same set the sync would reach for the tail, plus a back catalogue
   *nothing* creates today, and it costs no extra AniList requests, because the
-  sweep runs one search per *series* regardless of item count. Numbers only —
+  sweep runs one search per *title* regardless of item count. Numbers only —
   passing dates through the add would pull in `ItemMeta`, `CreateWantedItem` and
   the sqlc layer for a column `internal/core/airing` already writes. A gap-filled
   item does reset the search cadence (`ResetTitleSearchState`, as `refresh`
@@ -64,7 +64,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   the unmonitored tail is reached *at all* is what the second pass in each
   `GivesMonitoredTitlesEverySlot` test pins, since ordering last and starving
   forever are otherwise indistinguishable. **Both queries had to move
-  together**: nothing else calls the provider's `GetTitle` for a series (the
+  together**: nothing else calls the provider's `GetTitle` for a title (the
   title-detail page reads `store.Q.GetTitle`, the DB), so an unmonitored title's
   cached status freezes at its add-time value — and since the airing query picks
   its TTL from that status, opening it alone would leave a title added

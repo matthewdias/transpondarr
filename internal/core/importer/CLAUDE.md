@@ -96,14 +96,14 @@ item. The root `CLAUDE.md` covers everything above this layer.
   *correct* for a movie and the payload is a contract (#207 broke it once,
   deliberately and with an upgrade note).
 - **`failed` also means "this release is remembered" (`internal/core/blocklist`,
-  #118).** Both `failed` paths record a per-series blocklist entry, because the
+  #118).** Both `failed` paths record a per-title blocklist entry, because the
   grab row is per wanted item and the next attempt overwrites it — without that
   memory the sweep re-derived the same ranking and re-grabbed the same doomed
   release forever. `decide` reads it through the existing `ineligibleReason`,
   so the sweep's eligibility check, the Releases tab's reason column and manual
   grab's freedom from eligibility (PR #57) all hold unchanged. Two constants are
   deliberate rather than arbitrary: identity is the **info hash or the
-  normalized title**, because Torznab often omits the hash; and the expiry
+  normalized release name** (`normalized_title`), because Torznab often omits the hash; and the expiry
   **escalates** (24h, 7d, then permanent) because the `failed` paths fire for
   environmental reasons that can fail many grabs at once, so permanent-on-first
   would blocklist a whole in-flight set on one qBit incident. Expired entries are

@@ -267,18 +267,18 @@ Concretely, in `internal/core/decide`:
   per-episode metadata** — cache aggressively, and degrade to absolute numbering
   rather than depending on TVDB.
 - **The indexer is the scheduled sweep's scarce resource.** A pass costs one
-  search per series (two when the zero-result title-variant fallback fires), so
+  search per title (two when the zero-result title-variant fallback fires), so
   `titlesPerPass` × the job interval sets the whole search rate. Cost scales with
-  series carrying *unfilled* items, not library size: the due query's `EXISTS`
-  drops a series as soon as nothing is wanted, so a complete library is free and a
+  titles carrying *unfilled* items, not library size: the due query's `EXISTS`
+  drops a title as soon as nothing is wanted, so a complete library is free and a
   satisfied one leaves the queue instead of taking a second slot. To raise
   **back-catalog drain rate**, shorten the interval rather than widen the pass —
   the ratio sets throughput, the width sets peak burst, and a pass issues its
   searches back-to-back with no pacing. That is now the only thing the ratio
   controls: the feed sets acquisition latency for a current release.
 - **The recent feed inverts that cost, which is why it is the hot path.** One
-  request covers every series, so `feed-poll` is flat in library size while the
-  sweep is linear in due series. That is what makes the sweep affordable as a
+  request covers every title, so `feed-poll` is flat in library size while the
+  sweep is linear in due titles. That is what makes the sweep affordable as a
   safety net rather than the mechanism. Don't shorten `feedPollInterval` below
   15 minutes: indexer operators ask for it, and Sonarr — which sets the
   community's expectation here — defaults to 15 and rejects anything below 10.
