@@ -1,7 +1,8 @@
 // Mirrors the score weights in internal/core/decide/decide.go, so an upgrade
 // cutoff is chosen as a landmark ("top group, best resolution") rather than as a
-// bare number nobody can rank. A Go guard test pins the two the ladder is built
-// from (TestScoreLandmarksArePinned), so a reweighting has to move this file too.
+// bare number nobody can rank. A Go guard test pins the two the landmarks are
+// built from (TestScoreLandmarksArePinned), so a reweighting has to move this
+// file too.
 const GROUP_BASE = 2000;
 const GROUP_MIN = 1000;
 const RES_BASE = 400;
@@ -9,7 +10,7 @@ const RES_STEP = 100;
 
 export type ScoreLandmark = { score: number; label: string };
 
-// Worst first, so the select reads as a ladder of "good enough".
+// Worst first, so each option down the select is a stricter "good enough".
 export const SCORE_LANDMARKS: ScoreLandmark[] = [
   { score: RES_BASE, label: "Best resolution, any group" },
   { score: GROUP_MIN, label: "Any ranked group" },

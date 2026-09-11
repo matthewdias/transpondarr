@@ -267,7 +267,7 @@ it("warns when a film is added with no movies root configured", async () => {
   const note = await screen.findByRole("link", { name: noMoviesRoot });
   expect(note).toHaveAttribute("href", "/settings");
 
-  // Never blocking: gating a manual path is what #198 and PR #57 both rule out.
+  // Never blocked: #198 and PR #57 both rule out blocking a manual path.
   await user.click(screen.getByRole("button", { name: "Add Sample Film" }));
   await waitFor(() => expect(bodies).toHaveLength(1));
 });

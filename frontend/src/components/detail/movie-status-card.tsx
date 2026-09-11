@@ -48,7 +48,7 @@ export function MovieStatusCard({
           )}
         </div>
         <div className="flex items-center gap-2 sm:ml-auto">
-          {/* Unconditional, like the episode row: nothing gates a manual path. */}
+          {/* Unconditional, like the episode row: a manual path is never blocked. */}
           <Button variant="outline" size="sm" onClick={onSearch}>
             <Search className="size-4" /> Search
           </Button>

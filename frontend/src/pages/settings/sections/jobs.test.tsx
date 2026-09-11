@@ -37,8 +37,8 @@ describe("JobsTable", () => {
     render(
       <JobsTable
         jobs={[
-          // 90m rather than a round quarter-hour: the countdown floors, so a
-          // value on a unit boundary renders one unit short by the time
+          // 90m rather than a round quarter-hour: the countdown rounds down, so
+          // a value on a unit boundary renders one unit short by the time
           // the assertion runs.
           job({
             name: "wanted-search",

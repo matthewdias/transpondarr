@@ -366,9 +366,9 @@ const EpisodeRow = memo(function EpisodeRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex items-center justify-end gap-2">
-          {/* Unconditional: nothing gates a manual path (PR #57, generalised by
-              #188), and this is only a shortcut to the Releases tab, which grabs
-              at any status anyway -- a condition here would gate nothing. */}
+          {/* Unconditional: a manual path is never blocked (PR #57, generalised
+              by #188), and this is only a shortcut to the Releases tab, which grabs
+              at any status anyway -- a condition here would block nothing. */}
           <button
             className="text-sm font-medium text-accent-foreground hover:underline"
             onClick={() => onSearch(item.number)}

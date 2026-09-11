@@ -245,9 +245,9 @@ const filmResults = [
   }),
 ];
 
-// A gated handler keeps the search in flight so the loading header can be
-// asserted, then lets it land in the same test rather than leaving a dangling
-// request for teardown to reset.
+// With `gated`, the handler keeps the search in flight so the loading header
+// can be asserted, then lets it land in the same test rather than leaving a
+// dangling request for teardown to reset.
 function renderReleases(
   focusItem: number | null,
   gated = false,
