@@ -115,7 +115,7 @@ describe("GroupCell", () => {
 
   // The marker explains a ranking outcome, and an unmatched release has none —
   // a foreign-title reject still parses a group, so it would otherwise be
-  // marked on a row that has nothing to do with this series.
+  // marked on a row that has nothing to do with this title.
   it("omits the pin from an unmatched release", () => {
     render(
       <GroupCell
@@ -365,7 +365,7 @@ describe("ReleasesTab episode focus", () => {
     expect(onClearFocus).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves the series-wide view untouched with no focus", async () => {
+  it("leaves the title-wide view untouched with no focus", async () => {
     renderReleases(null);
 
     expect(

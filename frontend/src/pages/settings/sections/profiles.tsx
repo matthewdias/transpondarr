@@ -652,7 +652,7 @@ function ProfileEditor({
 }
 
 // The prompt-to-migrate delete flow: a profile in use is never deleted from
-// under its series — the user picks where those series go first.
+// under its titles — the user picks where those titles go first.
 function DeleteProfileDialog({
   open,
   profile,

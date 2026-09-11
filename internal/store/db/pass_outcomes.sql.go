@@ -58,7 +58,7 @@ type UpsertPassOutcomeParams struct {
 // NOTE: keep comments in this file ASCII-only. sqlc's sqlite codegen miscounts
 // byte vs. rune offsets and a multi-byte character in a doc comment silently
 // truncates the emitted SQL. See CLAUDE.md.
-// One row per item, replaced in place. Every column takes the new pass's value
+// One outcome row per item, replaced in place. Every column takes the new pass's value
 // so an outcome with no hold clears a stale held_until, rather than leaving
 // a closed pin window attached to a decision that no longer includes it.
 func (q *Queries) UpsertPassOutcome(ctx context.Context, arg UpsertPassOutcomeParams) error {

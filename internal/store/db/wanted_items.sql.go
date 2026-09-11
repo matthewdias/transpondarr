@@ -182,8 +182,8 @@ FROM wanted_items
 WHERE id IN (/*SLICE:ids*/?) AND monitored = 0
 `
 
-// The series a re-monitor will actually change, so the cadence reset lands once
-// per series and only where something moved. Read before the update, in the
+// The titles a re-monitor will actually change, so the cadence reset lands once
+// per title and only where something moved. Read before the update, in the
 // same transaction, since the update reports only a row count.
 func (q *Queries) ListTitleIDsForUnmonitoredItems(ctx context.Context, ids []int64) ([]int64, error) {
 	query := listTitleIDsForUnmonitoredItems
@@ -232,7 +232,7 @@ type ListUnscheduledTitlesRow struct {
 	ScheduleChecked bool   `json:"schedule_checked"`
 }
 
-// Series still missing an episode the provider gives no air date for, so the
+// Titles still missing an episode the provider gives no air date for, so the
 // calendar can surface them instead of silently omitting them. The first param
 // mirrors the grid's own unmonitored filter: a footer explaining an absence
 // must cover exactly the population the grid displays (#183).
@@ -369,7 +369,7 @@ type SetWantedItemsMonitoredParams struct {
 }
 
 // The bulk state-setter behind both monitoring UIs. Unknown ids are simply not
-// matched, which is what lets a concurrent series delete cost only those ids.
+// matched, which is what lets a concurrent title delete cost only those ids.
 func (q *Queries) SetWantedItemsMonitored(ctx context.Context, arg SetWantedItemsMonitoredParams) (int64, error) {
 	query := setWantedItemsMonitored
 	var queryParams []interface{}
@@ -404,7 +404,7 @@ type UpsertWantedItemParams struct {
 }
 
 // DO NOTHING keeps refresh from ever clobbering an existing item's in_library,
-// title or monitored; a row count of 1 means the series grew.
+// title or monitored; a row count of 1 means the title grew.
 func (q *Queries) UpsertWantedItem(ctx context.Context, arg UpsertWantedItemParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, upsertWantedItem,
 		arg.SeriesID,

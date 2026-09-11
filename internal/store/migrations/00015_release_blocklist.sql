@@ -1,8 +1,8 @@
 -- +goose Up
--- Per-series failure memory for a specific release (issue #118). A grab row is
+-- Per-title failure memory for a specific release (issue #118). A grab row is
 -- per wanted item and is overwritten by the next attempt, so nothing outlived a
 -- failure and the sweep re-derived the same ranking forever. Expired entries are
--- filtered, never deleted: the row counts failures, so deleting on expiry would
+-- filtered, never deleted: the blocklist row counts failures, so deleting on expiry would
 -- reset the escalating expiry and no release could ever become permanent.
 CREATE TABLE release_blocklist (
     id               INTEGER PRIMARY KEY,
@@ -17,8 +17,8 @@ CREATE TABLE release_blocklist (
     updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- Torznab often omits the infohash, so the normalized title is the identity that
--- always exists. Hash matching runs in Go over the series' loaded rows, so it
+-- Torznab often omits the infohash, so the normalized release name is the identity that
+-- always exists. Hash matching runs in Go over the title's loaded blocklist rows, so it
 -- needs no index of its own.
 CREATE UNIQUE INDEX idx_release_blocklist_title ON release_blocklist(series_id, normalized_title);
 

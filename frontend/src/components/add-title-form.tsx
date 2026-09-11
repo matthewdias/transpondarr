@@ -41,7 +41,7 @@ export type AddTitle = Pick<
 
 type AddedTitle = Awaited<ReturnType<typeof api.addTitle>>;
 
-// Before the add, not after: a new series sorts to the front of the sweep queue
+// Before the add, not after: a new title sorts to the front of the sweep queue
 // and one pass grabs everything eligible.
 const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
   { value: "all", label: "All episodes", hint: "Including the back catalogue" },
@@ -124,7 +124,7 @@ export function AddTitleForm({
   onBack?: () => void;
 }) {
   const [monitorItems, setMonitorItems] = useState<MonitorItems>("all");
-  // A movie is one item, so all vs. future adds nothing to the series-level
+  // A movie is one item, so all vs. future adds nothing to the title-level
   // Monitored switch.
   const isMovie = target.format === "MOVIE";
   // Both choices resolve to the same cut before anything has aired (#217), so

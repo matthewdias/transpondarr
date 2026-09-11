@@ -98,9 +98,9 @@ describe("PinnedGroupChip", () => {
     expect(save()).toBeDisabled();
   });
 
-  // #62: the wait is per-series, and a blank field means "use the global
+  // #62: the wait is per-title, and a blank field means "use the global
   // default" rather than "wait zero hours".
-  it("sends a per-series wait, and omits it when blank", async () => {
+  it("sends a per-title wait, and omits it when blank", async () => {
     const sent: unknown[] = [];
     server.use(
       http.put("/api/v1/titles/7/pinned-group", async ({ request }) => {
@@ -277,7 +277,7 @@ describe("ProfilePicker", () => {
     ).not.toBeInTheDocument();
   });
 
-  // A failed fetch used to be indistinguishable from a series with no profile
+  // A failed fetch used to be indistinguishable from a title with no profile
   // control at all, and nothing let you ask again.
   it("reports the failure and retries when the profiles cannot be read", async () => {
     server.use(
@@ -450,7 +450,7 @@ describe("TitleDetailPage episode search", () => {
   }
 
   // The switch to Releases is programmatic, so it must not read as the
-  // series-wide intent of a direct tab click.
+  // title-wide intent of a direct tab click.
   it("focuses the Releases tab on the searched episode, and a tab click clears it", async () => {
     const user = renderPage();
 
@@ -480,7 +480,7 @@ describe("TitleDetailPage episode search", () => {
       screen.queryByRole("button", { name: /covering e2/i }),
     ).not.toBeInTheDocument();
 
-    // The header button is the series-wide intent, so it has to drop a focus a
+    // The header button is the title-wide intent, so it has to drop a focus a
     // row button set earlier rather than search inside it.
     await user.click(screen.getByRole("tab", { name: /episodes/i }));
     await user.click(
@@ -545,9 +545,9 @@ describe("TitleDetailPage episode search", () => {
     ).not.toBeInTheDocument();
   });
 
-  // Unreachable today — nothing links series to series — but a focus that
-  // outlasted its series would filter the new one on a number from the old.
-  it("drops the focus when the page moves to another series", async () => {
+  // Unreachable today — nothing links title to title — but a focus that
+  // outlasted its title would filter the new one on a number from the old.
+  it("drops the focus when the page moves to another title", async () => {
     const user = renderPage();
 
     await user.click(
@@ -594,20 +594,20 @@ describe("MonitoringToggle", () => {
   // Monitored means "will be grabbed automatically", so the global kill switch
   // makes that label false -- show that beside the label rather than only in
   // Settings.
-  it("flags the global kill switch on a monitored series", () => {
+  it("flags the global kill switch on a monitored title", () => {
     renderToggle(true, "off");
     const note = screen.getByRole("link", { name: /automation is off/i });
     expect(note).toHaveAttribute("href", "/settings");
   });
 
   // Notify-only makes the label half true: searched and reported, not grabbed.
-  it("flags a notify-only rehearsal on a monitored series", () => {
+  it("flags a notify-only rehearsal on a monitored title", () => {
     renderToggle(true, "notify_only");
     const note = screen.getByRole("link", { name: /notify-only rehearsal/i });
     expect(note).toHaveAttribute("href", "/settings");
   });
 
-  it("stays quiet on an unmonitored series, which the switch already explains", () => {
+  it("stays quiet on an unmonitored title, which the switch already explains", () => {
     renderToggle(false, "off");
     expect(screen.getByText("Unmonitored")).toBeInTheDocument();
     expect(screen.queryByText(/automation is off/i)).not.toBeInTheDocument();

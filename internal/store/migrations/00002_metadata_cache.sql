@@ -2,7 +2,7 @@
 -- Read-through cache for external metadata providers (AniList first). Hybrid
 -- shape: a few queryable columns the refresh job filters/sorts on, plus a raw
 -- JSON blob containing the provider-agnostic snapshot so new fields don't churn the
--- schema. Keyed by (provider, provider_id) — one AniList media entry per row.
+-- schema. Keyed by (provider, provider_id) — one AniList media entry per cache row.
 CREATE TABLE metadata_cache (
     provider      TEXT    NOT NULL,          -- e.g. 'anilist'
     provider_id   INTEGER NOT NULL,          -- provider's media id

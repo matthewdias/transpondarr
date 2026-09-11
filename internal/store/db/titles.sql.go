@@ -15,7 +15,7 @@ UPDATE series SET airing_synced_at = NULL WHERE id = ?
 `
 
 // Forces the next airing pass to re-page full history, so items inserted after
-// the last sync get air dates without waiting out the series' TTL.
+// the last sync get air dates without waiting out the title's TTL.
 func (q *Queries) ClearTitleAiringSyncedAt(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, clearTitleAiringSyncedAt, id)
 	return err
@@ -179,7 +179,7 @@ type ListMovieItemStatesRow struct {
 // legacy movie's episodes to kind 'movie' without collapsing them -- so the
 // ordering is necessary: the caller takes the first by number, which is the
 // item the detail page renders.
-// Cost: driving from wanted_items scans them all and probes grabs per row,
+// Cost: driving from wanted_items scans them all and probes grabs per item row,
 // measured at 5.5ms over a 400-title library against 0.1ms with a forced join
 // order. Left alone: it is roughly what ListTitlesWithProgress already costs on
 // the same request. Nothing here runs ANALYZE.
@@ -284,14 +284,14 @@ type ListTitlesDueAiringSyncParams struct {
 	Limit            int64          `json:"limit"`
 }
 
-// Series whose broadcast schedule has never been synced or has gone stale. A
+// Titles whose broadcast schedule has never been synced or has gone stale. A
 // finished title's aired times are immutable, so it uses the long cutoff
-// while anything still moving uses the short one. A series with no cache
+// while anything still moving uses the short one. A title with no cache
 // row has unknown status and deliberately uses the short cutoff: unknown is
 // likelier a transient anomaly than a finished title, and the cost is one tail
-// request per short TTL. Unmonitored series are ordered last rather than
+// request per short TTL. Unmonitored titles are ordered last rather than
 // filtered out (#183): monitoring limits what automation acts on, not what we
-// know, and without a synced schedule the calendar drops their rows before its
+// know, and without a synced schedule the calendar drops their item rows before its
 // own unmonitored filter can include them. Among equals never-synced sort
 // first; the limit bounds how much of the request budget one pass can burn.
 // Scoped to one provider because the id this passes to it is only meaningful in
@@ -367,13 +367,13 @@ type ListTitlesDueMetadataRefreshParams struct {
 	Limit       int64          `json:"limit"`
 }
 
-// Series whose cached title snapshot is missing or stale under the status-aware
+// Titles whose cached title snapshot is missing or stale under the status-aware
 // TTL policy. Only a finished title with a known episode count gets the long
 // cutoff; a finished one whose count the provider never publishes takes a
 // middle cutoff, and anything still moving uses the short one, mirroring the
-// freshness rule in metadata.Cached. Unmonitored series are ordered last rather
+// freshness rule in metadata.Cached. Unmonitored titles are ordered last rather
 // than filtered out, and had to stop being filtered when the airing sync did
-// (#183): nothing else calls the provider's GetTitle for a series, so their
+// (#183): nothing else calls the provider's GetTitle for a title, so their
 // status would freeze at its add-time value and one added while RELEASING would
 // stay on that query's short cutoff forever, never moving to the long one. Among
 // equals never-fetched sort first; the limit bounds how much of the request
@@ -474,7 +474,7 @@ type ListTitlesWithProgressRow struct {
 
 // Progress is measured against what automation acts on (#188): monitored and
 // already broadcast, numerator and denominator applying the identical filter so
-// a held unaired item cannot push a series past its own total. A null air date
+// a held unaired item cannot push a title past its own total. A null air date
 // reads as aired, as everywhere else here, and so does a movie: its date is the
 // theatrical premiere rather than the moment it becomes acquirable, so an
 // announced film is being waited on now and must not read "Nothing aired yet"
@@ -560,7 +560,7 @@ type ListTrackedNextAiringRow struct {
 	NextAirsAt     sql.NullString `json:"next_airs_at"`
 }
 
-// Discovery overlay rows: every series keyed on the given provider, joined to
+// Discovery overlay rows: every title keyed on the given provider, joined to
 // its next item scheduled after the given instant. airing_synced_at is returned
 // so the caller can distinguish "synced, nothing upcoming" from "never synced".
 func (q *Queries) ListTrackedNextAiring(ctx context.Context, arg ListTrackedNextAiringParams) ([]ListTrackedNextAiringRow, error) {
@@ -603,7 +603,7 @@ type SetTitleAiringSyncedAtParams struct {
 }
 
 // Guarded on the value read at selection: a refresh that cleared the stamp
-// mid-sync must win, so the next airing pass re-pages the grown series.
+// mid-sync must win, so the next airing pass re-pages the grown title.
 func (q *Queries) SetTitleAiringSyncedAt(ctx context.Context, arg SetTitleAiringSyncedAtParams) error {
 	_, err := q.db.ExecContext(ctx, setTitleAiringSyncedAt, arg.ID, arg.AiringSyncedAt)
 	return err
@@ -650,7 +650,7 @@ type SetTitlePinnedGroupParams struct {
 	ID            int64          `json:"id"`
 }
 
-// NULL clears the pin; execrows lets the handler 404 an unknown series. The
+// NULL clears the pin; execrows lets the handler 404 an unknown title. The
 // delay is set alongside because it means nothing without a group to wait for,
 // so PUT-replacing one must replace the other.
 func (q *Queries) SetTitlePinnedGroup(ctx context.Context, arg SetTitlePinnedGroupParams) (int64, error) {

@@ -21,7 +21,7 @@ WHERE w.series_id = ?
 ORDER BY g.created_at DESC;
 
 -- name: ListGrabsByInfoHash :many
--- One release's rows, in episode order: the group the importer settles together.
+-- One release's grab rows, in episode order: the group the importer settles together.
 -- item_in_library is selected because it is what makes an import a replacement (#97);
 -- format and year are selected because the library target routes and names on them (#198).
 -- The three grab row shapes stay parallel: a retry converts between two of them.

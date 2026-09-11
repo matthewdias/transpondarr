@@ -1,4 +1,4 @@
--- The cross-series wanted queue (issue #150): Missing and Cutoff Unmet, both
+-- The cross-title wanted queue (issue #150): Missing and Cutoff Unmet, both
 -- keyset-paginated. A missing set is unbounded -- a fresh library add can put
 -- hundreds of items in it at once -- so neither list may load whole.
 -- NOTE: keep comments in this file ASCII-only. sqlc's sqlite codegen miscounts
@@ -6,19 +6,19 @@
 -- character. See CLAUDE.md.
 
 -- name: ListMissingTitlesPage :many
--- The Missing tab's pagination unit is the series, so a group can never split
+-- The Missing tab's pagination unit is the title, so a group can never split
 -- across a page boundary. The wanted half is the sweep's predicate character
 -- for character (the EXISTS body of ListTitlesDueWantedSearch), which is what
 -- keeps this page accurate about what automation will search for; an in-flight
 -- grab is absent by construction, being Activity's to show. Monitoring and the
--- unaired cut are display filters, not exclusions: a row has to stay visible
+-- unaired cut are display filters, not exclusions: an item row has to stay visible
 -- after the click that hid it, or there is no way back. The unaired cut skips a
 -- movie because its date means something else: an episode's air date is when it
 -- becomes acquirable, so withholding it until then is complete information,
 -- while a film's is the theatrical premiere -- only the earliest it could be,
 -- months ahead of anything grabbable. Hiding it would drop the whole title from
--- this page, where hiding one episode still leaves its series listed. Groups are ordered
--- newest missing broadcast first, all-undated series last: COALESCE sorts a
+-- this page, where hiding one episode still leaves its title listed. Groups are ordered
+-- newest missing broadcast first, all-undated titles last: COALESCE sorts a
 -- null air date below every timestamp, and lexicographic compare on the one
 -- stored layout is chronological. The keyset is in HAVING because it binds
 -- on the aggregate; a first page passes a sentinel above every stored value so
@@ -40,12 +40,12 @@ ORDER BY MAX(COALESCE(w.airs_at, '')) DESC, s.id
 LIMIT ?;
 
 -- name: ListMissingItemsByTitle :many
--- The items behind one page of groups. Same predicates as the series page, so a
--- group and its items are computed from one reading of the world; the series
--- half of the monitoring filter is left to the series page, since every id
--- here came from it. Number ascends within a series deliberately: a back catalogue
+-- The items behind one page of groups. Same predicates as ListMissingTitlesPage, so a
+-- group and its items are computed from one reading of the world; the title
+-- half of the monitoring filter is left to ListMissingTitlesPage, since every id
+-- here came from it. Number ascends within a title deliberately: a back catalogue
 -- drains forwards, and episodes enumerate forwards however their dates fall.
--- Both joins are 1:1, so neither multiplies rows. The grab's created_at is
+-- Both joins are 1:1, so neither multiplies item rows. The grab's created_at is
 -- selected because the reason column ranks a stored pass outcome against it: an
 -- answer older than the grab is one the grab has already superseded.
 SELECT w.*,
@@ -70,14 +70,14 @@ WHERE w.series_id IN (sqlc.slice('title_ids'))
 ORDER BY w.series_id, w.number;
 
 -- name: ListCutoffTitlesPage :many
--- Candidate groups for Cutoff Unmet: series on an upgrading profile with
+-- Candidate groups for Cutoff Unmet: titles on an upgrading profile with
 -- any item the upgrade pool could act on. The status set is the sweep's pool
 -- (imported, failed -- see loadSweepItems) plus grabbed, which is an upgrade
 -- already in flight and worth showing as such. import_deferred is deliberately
 -- out: that item's fix is the Activity queue's, and a grab from here would
--- overwrite the deferred row and orphan its payload. Whether a held release
+-- overwrite the deferred grab row and orphan its payload. Whether a held release
 -- actually scores below the cutoff needs the parser and is settled in Go, so a
--- series here may contribute no group and the caller scans on. Ordered by title
+-- title here may contribute no group and the caller scans on. Ordered by title
 -- -- this listing is an inventory, not a queue, so alphabetical reads best --
 -- with the id tie-break ascending and a zero cursor as the natural top.
 SELECT s.id, s.title, s.format, s.monitored,
@@ -104,10 +104,10 @@ LIMIT ?;
 
 -- name: ListCutoffItemsByTitle :many
 -- Every rateable held item behind one page of candidate groups; scoring and the
--- cutoff test happen in Go under the one profile snapshot per series. The grab
--- join is inner and its status set matches the series page's, so a group's
--- items are exactly what made its series a candidate. The parse join matches on
--- the title and the parser version it was made under, so neither a superseded
+-- cutoff test happen in Go under the one profile snapshot per title. The grab
+-- join is inner and its status set matches ListCutoffTitlesPage's, so a group's
+-- items are exactly what made its title a candidate. The parse join matches on
+-- the release name and the parser version it was made under, so neither a superseded
 -- release nor a parser that has since changed can match, and the caller parses
 -- afresh.
 SELECT w.*,
@@ -129,9 +129,9 @@ WHERE w.series_id IN (sqlc.slice('title_ids'))
 ORDER BY w.series_id, w.number;
 
 -- name: ListActiveBlocklistCounts :many
--- How many releases are currently refused per series, for the reason column.
--- Per series rather than per item because that is the blocklist's own scope.
--- Scoped to the page's series, like the item fetches beside it: the whole table
+-- How many releases are currently refused per title, for the reason column.
+-- Per title rather than per item because that is the blocklist's own scope.
+-- Scoped to the page's titles, like the item fetches beside it: the whole table
 -- was aggregated to read out at most one page's worth. A NULL blocked_until is
 -- permanent.
 SELECT series_id, COUNT(*) AS entries
@@ -141,14 +141,14 @@ WHERE series_id IN (sqlc.slice('title_ids'))
 GROUP BY series_id;
 
 -- name: CountTitlesByIDs :one
--- How many of these ids are real series, so a bulk action can reject an unknown
+-- How many of these ids are real titles, so a bulk action can reject an unknown
 -- one in a single round trip rather than a lookup per id.
 SELECT COUNT(*) FROM series WHERE id IN (sqlc.slice('ids'));
 
 -- name: UpsertHeldReleaseParse :exec
 -- Stores the parse of an item's held release, so the next Cutoff Unmet request
 -- scores it instead of parsing it again. Keyed on the item, so a changed held
--- release overwrites its own row rather than accumulating one per release ever
+-- release overwrites its own parse row rather than accumulating one per release ever
 -- held.
 INSERT INTO held_release_parses (wanted_item_id, release_title, parser_version, parsed)
 VALUES (?, ?, ?, ?)

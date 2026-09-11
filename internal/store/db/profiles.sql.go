@@ -65,7 +65,7 @@ type CountTitlesPerProfileRow struct {
 }
 
 // Usage counts for every profile at once, for the unpaginated list endpoint. A
-// profile no series uses has no row, so the caller's zero value is the answer.
+// profile no title uses has no result row, so the caller's zero value is the answer.
 func (q *Queries) CountTitlesPerProfile(ctx context.Context) ([]CountTitlesPerProfileRow, error) {
 	rows, err := q.db.QueryContext(ctx, countTitlesPerProfile)
 	if err != nil {

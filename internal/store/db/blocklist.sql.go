@@ -34,7 +34,7 @@ const deleteAllBlocklist = `-- name: DeleteAllBlocklist :execrows
 DELETE FROM release_blocklist
 `
 
-// Library-wide clear: an environmental fault is not confined to one series,
+// Library-wide clear: an environmental fault is not confined to one title,
 // so recovery from one is not either.
 func (q *Queries) DeleteAllBlocklist(ctx context.Context) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteAllBlocklist)
@@ -49,7 +49,7 @@ DELETE FROM release_blocklist
 WHERE series_id = ?
 `
 
-// Bulk unblock for one series. Scoped like the single-entry delete.
+// Bulk unblock for one title. Scoped like the single-entry delete.
 func (q *Queries) DeleteBlocklistByTitle(ctx context.Context, seriesID int64) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteBlocklistByTitle, seriesID)
 	if err != nil {
@@ -68,7 +68,7 @@ type DeleteBlocklistEntryParams struct {
 	SeriesID int64 `json:"series_id"`
 }
 
-// Scoped to the series so an unblock cannot delete another series' entry.
+// Scoped to the title so an unblock cannot delete another title's entry.
 func (q *Queries) DeleteBlocklistEntry(ctx context.Context, arg DeleteBlocklistEntryParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteBlocklistEntry, arg.ID, arg.SeriesID)
 	if err != nil {
@@ -226,7 +226,7 @@ type UpsertBlocklistEntryParams struct {
 // NOTE: keep comments in this file ASCII-only. sqlc's sqlite codegen miscounts
 // byte vs. rune offsets and a multi-byte character in a doc comment silently
 // truncates the emitted SQL. See CLAUDE.md.
-// A repeat failure of the same release bumps the existing row so the escalating
+// A repeat failure of the same release bumps the existing blocklist row so the escalating
 // expiry can read the count; hash, reason and expiry take the latest attempt's.
 func (q *Queries) UpsertBlocklistEntry(ctx context.Context, arg UpsertBlocklistEntryParams) (ReleaseBlocklist, error) {
 	row := q.db.QueryRowContext(ctx, upsertBlocklistEntry,

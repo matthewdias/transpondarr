@@ -32,14 +32,14 @@ function renderSection(body: BlocklistSummary) {
 }
 
 describe("FailureMemorySection", () => {
-  it("reports how much is blocked and across how many series", async () => {
+  it("reports how much is blocked and across how many titles", async () => {
     renderSection(summary());
     expect(await screen.findByText(/4 releases/i)).toBeInTheDocument();
     // "series" is its own plural; the count line read "2 seriess" until it was.
     expect(screen.getByText(/skipped across 2 titles\./i)).toBeInTheDocument();
   });
 
-  it("does not pluralize a single release or a lone series", async () => {
+  it("does not pluralize a single release or a lone title", async () => {
     renderSection(summary({ blocked: 1, titles: 1 }));
     expect(await screen.findByText(/1 release/)).toBeInTheDocument();
     expect(screen.getByText(/across 1 title\./i)).toBeInTheDocument();

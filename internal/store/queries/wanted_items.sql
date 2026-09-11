@@ -11,7 +11,7 @@ RETURNING *;
 
 -- name: UpsertWantedItem :execrows
 -- DO NOTHING keeps refresh from ever clobbering an existing item's in_library,
--- title or monitored; a row count of 1 means the series grew.
+-- title or monitored; a row count of 1 means the title grew.
 INSERT INTO wanted_items (series_id, kind, number, title, in_library, monitored)
 VALUES (?, ?, ?, ?, 0, ?)
 ON CONFLICT (series_id, kind, number) DO NOTHING;
@@ -27,12 +27,12 @@ WHERE w.series_id = ? AND w.kind = ? AND w.number = ?;
 
 -- name: SetWantedItemsMonitored :execrows
 -- The bulk state-setter behind both monitoring UIs. Unknown ids are simply not
--- matched, which is what lets a concurrent series delete cost only those ids.
+-- matched, which is what lets a concurrent title delete cost only those ids.
 UPDATE wanted_items SET monitored = ? WHERE id IN (sqlc.slice('ids'));
 
 -- name: ListTitleIDsForUnmonitoredItems :many
--- The series a re-monitor will actually change, so the cadence reset lands once
--- per series and only where something moved. Read before the update, in the
+-- The titles a re-monitor will actually change, so the cadence reset lands once
+-- per title and only where something moved. Read before the update, in the
 -- same transaction, since the update reports only a row count.
 SELECT DISTINCT series_id
 FROM wanted_items
@@ -63,7 +63,7 @@ WHERE w.airs_at IS NOT NULL AND w.airs_at >= ? AND w.airs_at < ?
 ORDER BY w.airs_at, s.title, w.number;
 
 -- name: ListUnscheduledTitles :many
--- Series still missing an episode the provider gives no air date for, so the
+-- Titles still missing an episode the provider gives no air date for, so the
 -- calendar can surface them instead of silently omitting them. The first param
 -- mirrors the grid's own unmonitored filter: a footer explaining an absence
 -- must cover exactly the population the grid displays (#183).

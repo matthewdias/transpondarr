@@ -109,7 +109,7 @@ const airing: AddTitle = { ...title, status: "RELEASING", next_item: 7 };
 const finished: AddTitle = { ...title, status: "FINISHED" };
 
 // All vs. future is meaningless for a single-item run: the add-time choice
-// presents as monitored yes/no, which the series-level switch already is.
+// presents as monitored yes/no, which the title-level switch already is.
 it("hides the monitor mode for a movie and sends all", async () => {
   const bodies = captureAdd();
   const user = renderForm(movie, "Sample Film");

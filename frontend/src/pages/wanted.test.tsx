@@ -136,7 +136,7 @@ function renderPage() {
   return client;
 }
 
-// The three reason levels render together: the series' story on its group
+// The three reason levels render together: the title's story on its group
 // header, an item's own story on its row, and rows with nothing to add stay
 // quiet. Per-row Search routes into the episode-targeted Releases tab.
 it("renders group and item reasons at their own levels", async () => {
@@ -306,8 +306,8 @@ it("shows the global reason as one banner", async () => {
   ).toBeInTheDocument();
 });
 
-// A capped group still states its full size and offers the series page.
-it("links to the series for episodes past the group cap", async () => {
+// A capped group still states its full size and offers the title-detail page.
+it("links to the title for episodes past the group cap", async () => {
   useHandlers({
     pages: {
       "": {
@@ -393,8 +393,8 @@ it("pages whole groups with the cursor the previous page returned", async () => 
   expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
 });
 
-// Selection is per group because a search is per series: the sweep's unit.
-it("queues a search for the selected groups' series", async () => {
+// Selection is per group because a search is per title: the sweep's unit.
+it("queues a search for the selected groups' titles", async () => {
   const bodies: { title_ids?: number[] }[] = [];
   useHandlers({
     pages: {

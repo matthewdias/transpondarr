@@ -176,7 +176,7 @@ describe("HistoryTab blocked releases", () => {
     expect(await screen.findByText("Unblocks in 20h")).toBeInTheDocument();
   });
 
-  // A failed blocklist fetch must show an error, not silently render an unblocked series.
+  // A failed blocklist fetch must show an error, not silently render an unblocked title.
   it("reports a blocklist that could not be loaded", async () => {
     renderTab([event({})], [], true);
     expect(
@@ -215,8 +215,8 @@ describe("HistoryTab blocked releases", () => {
   });
 
   // The affordance a fan-out needs: an environmental fault can block a whole
-  // series' candidate pool, and clearing it one entry at a time is the problem.
-  it("unblocks the whole series in one request", async () => {
+  // title's candidate pool, and clearing it one entry at a time is the problem.
+  it("unblocks the whole title in one request", async () => {
     let cleared = false;
     renderTab([], [blocklistEntry(), blocklistEntry({ id: 12 })]);
     server.use(
