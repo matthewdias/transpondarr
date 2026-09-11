@@ -224,7 +224,7 @@ func TestMetadataStalledPackWithALateRowTakesOneRung(t *testing.T) {
 }
 
 // A group is never half-stamped by the widened predicate: the same StuckAtZero
-// gates the clearing loop and the switch arm, so a scan either converges every
+// drives the clearing loop and the switch case, so a scan either converges every
 // row on the earliest clock or clears them all.
 func TestMetadataStallStampsAndClearsTheWholeGroup(t *testing.T) {
 	st := coretest.NewStore(t)

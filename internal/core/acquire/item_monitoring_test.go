@@ -78,7 +78,7 @@ func TestSweepDoesNotUpgradeAnUnmonitoredHeldItem(t *testing.T) {
 }
 
 // The feed is the other entry point through the same decision layer, so it must
-// exclude the same item without a second gate written for it.
+// exclude the same item without a second check written for it.
 func TestFeedPollNeverNewlyGrabsAnUnmonitoredItem(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -118,7 +118,7 @@ func TestSweepLeavesAnInFlightGrabOnAnUnmonitoredItemAlone(t *testing.T) {
 }
 
 // #100's next-broadcast clamp is the sweep's only forward-looking rule, and an
-// unwanted recap must not trigger it: gating the clamp on grabbable rather than on
+// unwanted recap must not trigger it: filtering the clamp on grabbable rather than on
 // monitored would delete it outright, since an unaired item is never grabbable.
 func TestSweepDoesNotClampToAnUnmonitoredUpcomingBroadcast(t *testing.T) {
 	now := time.Now()

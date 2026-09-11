@@ -17,11 +17,11 @@ const (
 	maxReleaseYear = 2050
 )
 
-// movieCandidate is the movie path (#209): title, already gated by the caller,
+// movieCandidate is the movie path (#209): title, already checked by the caller,
 // plus year. Episode numbers, season markers and batch tokens all appear on movie
 // names and cannot map onto a film, so none of the episode-mapping apparatus
 // runs. Skipping the mapping is not skipping the numeric guards, though — the
-// title gate is fuzzy containment, so a long-runner sharing a name prefix with a
+// title check is fuzzy containment, so a long-runner sharing a name prefix with a
 // film is evaluated here with an episode number the film plainly does not have.
 func movieCandidate(c Candidate, variants []string, itemSet map[int]bool, held map[int]heldRelease, titleYear int) Candidate {
 	p := c.Parsed
@@ -89,7 +89,7 @@ func numberNamesTheFilm(p parser.Parsed, variants []string) bool {
 // source it came from, a year an accepted variant contains names the film rather
 // than the release ("Placeholder Legend 1979") — so the variant check is applied
 // once, after the derivation, and bracket style cannot change the verdict. A
-// collision reports no year and so passes the gate, which is the direction a
+// collision reports no year and so passes the year check, which is the direction a
 // manual grab must never be blocked in.
 func releaseYear(p parser.Parsed, variants []string) int {
 	y := p.Year

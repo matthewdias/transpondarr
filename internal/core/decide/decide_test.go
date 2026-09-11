@@ -337,7 +337,7 @@ func TestSeasonTwoPackRejectedForSeasonOneEntry(t *testing.T) {
 	}
 }
 
-// The series half of the title gate's wording, pinned so the movie branch cannot
+// The series half of the title check's wording, pinned so the movie branch cannot
 // be widened over it: most titles are series, and "series" is accurate for them.
 func TestTitleMismatchStaysSeriesWordedForASeries(t *testing.T) {
 	rels := []indexer.Release{

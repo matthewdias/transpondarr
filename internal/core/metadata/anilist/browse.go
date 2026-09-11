@@ -83,7 +83,7 @@ func (m media) seasonEntry() metadata.SeasonEntry {
 	if len(m.Studios.Nodes) > 0 {
 		e.Studio = m.Studios.Nodes[0].Name
 	}
-	// Gated on the number alone, as the search row is: a chart entry and a search
+	// Checks the number alone, as the search row does: a chart entry and a search
 	// hit for one title must not differ about what the next broadcast is, since
 	// the add form reads whichever it was opened from. A missing time leaves
 	// AirsAt zero, which the DTO omits.

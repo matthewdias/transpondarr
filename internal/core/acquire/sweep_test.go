@@ -292,7 +292,7 @@ func TestSweepNoOpsWithoutIndexerOrDownloadClient(t *testing.T) {
 	}
 }
 
-// Monitoring is what gates automation (half of #102): an unmonitored title is
+// Monitoring is what limits automation (half of #102): an unmonitored title is
 // never swept, however wanted its items are.
 func TestSweepSkipsUnmonitoredTitles(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)

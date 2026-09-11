@@ -106,7 +106,7 @@ func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 			wantCut:   sql.NullInt64{Int64: 1, Valid: true},
 		},
 		{
-			// Having aired outranks the schedule, which is why the arms are in this
+			// Having aired outranks the schedule, which is why the branches are in this
 			// order: a title AniList reports as unstarted while scheduling its third
 			// broadcast is inconsistent upstream data, and cutting at 3 would leave
 			// two items that are still to come unmonitored.

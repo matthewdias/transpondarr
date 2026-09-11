@@ -95,7 +95,7 @@ type Recorder interface {
 // the next sweep rather than the next restart.
 type Config interface {
 	DownloadCategory() string
-	// AutomationEnabled gates whether unattended work runs at all; NotifyOnly
+	// AutomationEnabled controls whether unattended work runs at all; NotifyOnly
 	// makes a run that does happen rehearse (#116): evaluate, notify, never grab.
 	AutomationEnabled() bool
 	NotifyOnly() bool
@@ -178,7 +178,7 @@ func (s *Service) MatchTitle(ctx context.Context, id int64) (Match, error) {
 
 // loadItems reads a title and every wanted item belonging to it. A manual pass
 // matches against every item: one already in the library is offered as an
-// upgrade, since profiles inform manual actions and gate only automation
+// upgrade, since profiles inform manual actions and restrict only automation
 // (PR #57). A held item with no recorded release matches as a plain one.
 func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passItem, error) {
 	title, err := s.store.Q.GetTitle(ctx, id)

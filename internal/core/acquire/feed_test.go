@@ -836,7 +836,7 @@ func TestFeedPollUndatedEntryDedupesButIsNotCoverage(t *testing.T) {
 
 // The rewind path merges an older page's ids into the kept mark so they are not
 // re-processed, and one of those must not then make the page appear to show the mark:
-// that is #176's failure via the id arm instead of the date arm.
+// that is #176's failure via the id check instead of the date check.
 func TestFeedPollGapSurvivesAStaleRememberedID(t *testing.T) {
 	now := time.Now()
 	stale := feedEntry("Dead Tracker Sticky", 7, now.Add(-30*time.Hour))
@@ -868,7 +868,7 @@ func TestFeedPollGapSurvivesAStaleRememberedID(t *testing.T) {
 	}
 }
 
-// Why the id arm survives being narrowed rather than dropped: an aggregator that
+// Why the id check was kept when the rule narrowed, rather than dropped: an aggregator that
 // renders a tracker's relative date ("2 days ago") recomputes it every poll, so
 // the entry published at the mark comes back at a slightly different instant.
 func TestFeedPollRecognisesTheMarkWhenTheIndexerRedatesIt(t *testing.T) {

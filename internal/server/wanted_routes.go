@@ -182,7 +182,7 @@ func registerWantedRoutes(api huma.API, deps routeDeps) {
 		Method:      http.MethodPatch,
 		Path:        "/api/v1/wanted/items",
 		Summary:     "Set whether automation pursues these wanted items",
-		Description: "Monitoring gates search and grab, never a manual action: a manual search or grab on an unmonitored item still works, and a pack grabbed for its monitored neighbours still imports the file.",
+		Description: "Monitoring limits search and grab, never a manual action: a manual search or grab on an unmonitored item still works, and a pack grabbed for its monitored neighbours still imports the file.",
 		Tags:        []string{"wanted"},
 	}, h.setItemsMonitored)
 }

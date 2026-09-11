@@ -68,7 +68,7 @@ func TestFailsGrabFetchingMetadataAtZeroPastTimeout(t *testing.T) {
 		t.Errorf("status = %q, want failed: a download that never started is the stall the timeout is for", g.Status)
 	}
 	assertItemFreed(t, st, titleID, 5)
-	// Blame is inherited from #242's arm rather than re-decided: the client still manages
+	// Blame is inherited from #242's branch rather than re-decided: the client still manages
 	// the torrent and reports no swarm, which is observed, not inferred (#241).
 	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
 	if err != nil {
@@ -101,8 +101,8 @@ func TestLeavesAFetchingMetadataDownloadWithProgressAlone(t *testing.T) {
 	}
 }
 
-// The clearing loop and the switch arm must read the *same* predicate. If only
-// the arm widened, a metadata stall would have its clock cleared and restarted
+// The clearing loop and the switch case must read the *same* predicate. If only
+// that case widened, a metadata stall would have its clock cleared and restarted
 // every scan, so the timeout would never accumulate and the grab would stay open
 // forever -- the bug being fixed, still there after the fix.
 func TestKeepsMetadataStallClockAcrossScans(t *testing.T) {

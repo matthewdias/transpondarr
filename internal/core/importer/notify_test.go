@@ -157,7 +157,7 @@ func TestStuckImportNotifiesOncePerIncident(t *testing.T) {
 		t.Errorf("event = %+v, want the series and a reason", ev)
 	}
 
-	// Same failure next tick: the unchanged-message guard must also gate the event.
+	// Same failure next tick: the unchanged-message guard must also apply to the event.
 	if err := im.ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan 2: %v", err)
 	}

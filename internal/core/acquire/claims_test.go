@@ -40,7 +40,7 @@ func TestClaimsCountHolders(t *testing.T) {
 	}
 }
 
-// Acquire always succeeds — that is the manual path's never-gated rule (PR #57)
+// Acquire always succeeds — that is the manual path's never-blocked rule (PR #57)
 // expressed in the registry.
 func TestAcquireNeverBlocks(t *testing.T) {
 	c := newClaims()

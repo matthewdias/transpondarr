@@ -321,8 +321,8 @@ func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 }
 
 // assertItemFreed checks the item is back to wanted, by the two fields
-// deriveItemState reads. The grab-status arm is the one doing work here; the
-// in_library arm is a tripwire for a future path that marks it on failure.
+// deriveItemState reads. The grab-status branch is the one doing work here; the
+// in_library branch is a tripwire for a future path that marks it on failure.
 func assertItemFreed(t *testing.T, st *store.Store, titleID int64, number int) {
 	t.Helper()
 	item, err := st.Q.GetWantedItemByNumber(context.Background(), db.GetWantedItemByNumberParams{
@@ -372,7 +372,7 @@ func TestGrabGoneFromClientRecordsNoBlocklistEntry(t *testing.T) {
 		t.Errorf("recorded %+v, want nothing: an absence says nothing about the release", entries)
 	}
 	// The memory and the re-fronting are one blamed failure's two consequences,
-	// so an unblamed one takes neither (the breaker arm's precedent, #120).
+	// so an unblamed one takes neither (the breaker branch's precedent, #120).
 	if backoff, hasNext := readSearchBackoff(t, st, titleID); backoff == 0 || !hasNext {
 		t.Errorf("search state = backoff %d, next set %v; want the backdated cadence left as it was",
 			backoff, hasNext)

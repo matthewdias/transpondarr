@@ -163,7 +163,7 @@ func TestAuthLocalModeBypassAndGuards(t *testing.T) {
 	}
 }
 
-// TestAuthEnabledModeIgnoresLocalAddress confirms local admission is gated on the
+// TestAuthEnabledModeIgnoresLocalAddress confirms local admission depends on the
 // required-mode: in "enabled" mode a loopback request with no credentials is
 // still rejected, while the public health endpoint stays open.
 func TestAuthEnabledModeIgnoresLocalAddress(t *testing.T) {

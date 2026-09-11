@@ -6,7 +6,7 @@ import "testing"
 
 // The parser reports a year only when the release *isolates* one in brackets —
 // anitogo's rule, pinned here so a dependency bump that changes it fails loudly
-// rather than silently widening what decide's year gate compares.
+// rather than silently widening what decide's year check compares.
 func TestParseYear(t *testing.T) {
 	tests := []struct {
 		name  string

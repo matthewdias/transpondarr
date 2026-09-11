@@ -481,7 +481,7 @@ func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 
 // Variants are Romaji, English and Native deduped (catalog.dedupeNonEmpty), so a
 // fixture altName that matches none of them leaves #107's variant-fallback
-// search unexercisable and makes altNames look load-bearing when it is not.
+// search unexercisable and makes altNames look necessary when it is not.
 func TestASeededTitleHasMoreThanOneNameVariant(t *testing.T) {
 	st := seeded(t)
 	ctx := context.Background()

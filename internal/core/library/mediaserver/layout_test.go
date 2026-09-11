@@ -111,8 +111,8 @@ func TestFlatLayoutKeepsASingleItemOVASeriesShaped(t *testing.T) {
 
 // seasonNumber is hardcoded to 1, so every episode of an entry already shared a
 // directory: flat removes a path level and adds no neighbours to the one
-// removeStemMates scans. The blast radius is unchanged, which is the point of
-// asserting it here — the trailing-dot guard has been load-bearing and untested
+// removeStemMates scans. What it can remove is unchanged, which is the point of
+// asserting it here — the trailing-dot guard has been necessary and untested
 // since it was written, and only a two- against three-digit pair exercises it
 // (E03/E30 diverge at the first digit, so they need no guard at all).
 func TestFlatUpgradeClearsStemMatesAndSparesLongerNumbers(t *testing.T) {

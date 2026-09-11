@@ -357,7 +357,7 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 		return fmt.Sprintf("score %d is below the profile minimum %d", score, profile.MinScore)
 	}
 	// A numberless pack names no episode and has no year, so neither of movie
-	// mode's numeric gates applies to it and the parent title's pack would be
+	// mode's numeric checks applies to it and the parent title's pack would be
 	// placed as the film. Eligibility rather than matching, because a multi-part
 	// film release is indistinguishable from one: only automation is blocked.
 	if o.Format == domain.FormatMovie && p.Batch {
@@ -466,7 +466,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 	c := Candidate{Release: rel, Parsed: p}
 
 	if !titleBelongs(p.Title, variants) {
-		// The gate runs before the movie branch below, so it is the one reason for a
+		// The check runs before the movie branch below, so it is the one reason for a
 		// film that the movie path does not supply itself.
 		c.Reason = "title does not match this series"
 		if o.Format == domain.FormatMovie {
@@ -479,7 +479,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 		return movieCandidate(c, variants, itemSet, held, o.Year)
 	}
 
-	// Season gate: a release that explicitly names a different season is not this
+	// Season check: a release that explicitly names a different season is not this
 	// entry (releases with no season token pass — that's the common S1/absolute case).
 	if p.Season != 0 && p.Season != expectedSeason {
 		c.Reason = fmt.Sprintf("season %d does not match this entry (season %d)", p.Season, expectedSeason)
