@@ -7,8 +7,8 @@
 -- UNIQUE` creates an implicit index that no DROP INDEX can remove, and it is
 -- over-strict on the pair (MAL 123 alongside AniList 123). A CHECK cannot be
 -- bolted on afterwards either -- SQLite has no ADD CONSTRAINT, and ADD COLUMN
--- validates existing rows, which no constant default can satisfy for both a
--- tracked and an untracked row.
+-- validates existing title rows, which no constant default can satisfy for both a
+-- tracked and an untracked title row.
 --
 -- The rebuild is dangerous because series has three ON DELETE CASCADE children
 -- and foreign keys are enforced on every pooled connection (store/db.go): with
@@ -87,7 +87,7 @@ CREATE TABLE series_old (
     pin_delay_hours    INTEGER,
     search_epoch       INTEGER NOT NULL DEFAULT 0
 );
--- A row keyed on any other provider has no anilist_id to go back to, so it
+-- A title row keyed on any other provider has no anilist_id to go back to, so it
 -- downgrades to an untracked title rather than storing an id in the wrong space.
 INSERT INTO series_old (
     id, anilist_id, title, format, monitored, created_at,

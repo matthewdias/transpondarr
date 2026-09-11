@@ -31,7 +31,7 @@ const server = setupServer(
       ],
     }),
   ),
-  // The add invalidates the series list, which this page never observes;
+  // The add invalidates the title list, which this page never observes;
   // tolerate the request if something does.
   http.get("/api/v1/titles", () => HttpResponse.json({ titles: [] })),
   // The form reads the movies root for a film, so a movie row fetches this.
@@ -223,8 +223,8 @@ it("sends both choices when they are made", async () => {
 });
 
 // "none" would store a cut that monitors nothing new forever, and nothing can
-// edit the cut after the add. "Track it but grab nothing" is the series switch.
-it("offers no way to add a series that monitors nothing", async () => {
+// edit the cut after the add. "Track it but grab nothing" is the title switch.
+it("offers no way to add a title that monitors nothing", async () => {
   const user = await openWithResults();
 
   await user.click(

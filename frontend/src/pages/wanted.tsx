@@ -62,7 +62,7 @@ const releasesLink = (titleId: number, format: string, number: number) =>
     : `/titles/${titleId}?tab=releases&item=${number}`;
 
 // The reason levels' vocabulary (#150): the page shows what blocks everything,
-// a group header shows where its series is in the sweep queue, and a row
+// a group header shows where its title is in the sweep queue, and a row
 // shows a reason only when it has its own story. Tone separates "you have to do
 // something" from "the queue is working".
 const globalReasonText: Record<GlobalMissingReason, string> = {
@@ -196,7 +196,7 @@ function MissingTab({
   const groups = data?.pages.flatMap((p) => p.groups) ?? [];
   const globalReason = data?.pages[0]?.global_reason;
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  // Changing scope changes which series are listed at all, and a selection the
+  // Changing scope changes which titles are listed at all, and a selection the
   // user can no longer see would still be queued by "Search selected".
   useEffect(() => setSelected(new Set()), [unaired, unmonitored]);
 
@@ -344,7 +344,7 @@ function RowMonitorToggle({
   );
 }
 
-// overflowRow links to the series for what the group cap left out.
+// overflowRow links to the title for what the group cap left out.
 function OverflowRow({ titleId, label }: { titleId: number; label: string }) {
   return (
     <Link

@@ -15,7 +15,7 @@ ALTER TABLE quality_profiles ADD COLUMN upgrade_v2_above_cutoff INTEGER NOT NULL
 ALTER TABLE wanted_items ADD COLUMN held_release_title TEXT NOT NULL DEFAULT '';
 
 -- Backfill from the grab that imported the item; the scalar subquery is safe
--- because grabs is UNIQUE (wanted_item_id). A held item whose row was since
+-- because grabs is UNIQUE (wanted_item_id). A held item whose grab row was since
 -- overwritten by a failed grab backfills to '' and stays outside the upgrade
 -- pool until its next import, which is accepted rather than guessed at.
 UPDATE wanted_items

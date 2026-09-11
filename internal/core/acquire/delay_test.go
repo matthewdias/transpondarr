@@ -116,7 +116,7 @@ func TestSweepClampsAnAbsurdPinDelay(t *testing.T) {
 func TestSweepPerTitleDelayOverridesTheGlobalDefault(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 
-	t.Run("series waits where the global would not", func(t *testing.T) {
+	t.Run("title waits where the global would not", func(t *testing.T) {
 		h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 		id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 		pinTitle(t, h.st, id, "OtherSubs", 6)
@@ -129,7 +129,7 @@ func TestSweepPerTitleDelayOverridesTheGlobalDefault(t *testing.T) {
 		}
 	})
 
-	t.Run("series grabs where the global would wait", func(t *testing.T) {
+	t.Run("title grabs where the global would wait", func(t *testing.T) {
 		h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
 		id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 		pinTitle(t, h.st, id, "OtherSubs", 0)

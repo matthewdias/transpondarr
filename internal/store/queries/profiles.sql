@@ -59,7 +59,7 @@ WHERE quality_profile_id = ?;
 
 -- name: CountTitlesPerProfile :many
 -- Usage counts for every profile at once, for the unpaginated list endpoint. A
--- profile no series uses has no row, so the caller's zero value is the answer.
+-- profile no title uses has no result row, so the caller's zero value is the answer.
 SELECT quality_profile_id, COUNT(*) AS title_count
 FROM series
 GROUP BY quality_profile_id;

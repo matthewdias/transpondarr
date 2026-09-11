@@ -240,7 +240,7 @@ export function ReleasesTab({
   // A film has one item, so filtering to it selects every release: the chip and
   // focused empty state below would state a distinction that is not there (#231).
   const focus = format === "MOVIE" ? null : focusItem;
-  // The search itself stays series-wide; focusing narrows what is shown, so a
+  // The search itself stays title-wide; focusing narrows what is shown, so a
   // release covering the episode inside a batch is still on offer.
   const shown = focus == null ? results : filterCovering(results, focus);
 

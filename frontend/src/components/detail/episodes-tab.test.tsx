@@ -43,7 +43,7 @@ function renderTab(items: WantedItem[]) {
 
 describe("EpisodesTab search buttons", () => {
   // The row button's intent is "find me this episode", so it must send the
-  // number rather than falling through to the series-wide search.
+  // number rather than falling through to the title-wide search.
   it("sends the row's number from a wanted and a deferred episode", async () => {
     const { onSearchAll, onSearchItem, user } = renderTab([
       item({ id: 1, number: 7, status: "wanted" }),
@@ -84,7 +84,7 @@ describe("EpisodesTab search buttons", () => {
     expect(onSearchItem).toHaveBeenCalledWith(6);
   });
 
-  it("keeps the header button series-wide", async () => {
+  it("keeps the header button title-wide", async () => {
     const { onSearchAll, onSearchItem, user } = renderTab([
       item({ number: 7, status: "wanted" }),
     ]);

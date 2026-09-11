@@ -1,4 +1,4 @@
-// `items` is the numbers a release covers for this series, so membership is the
+// `items` is the numbers a release covers for this title, so membership is the
 // whole test; an unmatched release has none.
 export function filterCovering<T extends { items?: number[] | null }>(
   results: T[],

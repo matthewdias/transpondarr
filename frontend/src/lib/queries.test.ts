@@ -37,7 +37,7 @@ describe("query key factories", () => {
     expect(grabsQuery(1).queryKey).not.toEqual(grabsQuery(2).queryKey);
   });
 
-  it("keeps the series list key a prefix of the detail key, so one invalidation covers both", () => {
+  it("keeps the title list key a prefix of the detail key, so one invalidation covers both", () => {
     const list = titlesQuery().queryKey;
     const detail = titleDetailQuery(42).queryKey;
     expect(detail.slice(0, list.length)).toEqual([...list]);

@@ -1,8 +1,8 @@
 -- +goose Up
--- Per-series cadence for the scheduled search sweep (issue #100). The backoff
+-- Per-title cadence for the scheduled search sweep (issue #100). The backoff
 -- delay itself has no clean SQLite expression, so next_search_at is precomputed
 -- in Go and this column is only read: NULL means due now, which is also what a
--- freshly added or reset series starts at.
+-- freshly added or reset title starts at.
 ALTER TABLE series ADD COLUMN last_searched_at TEXT;
 ALTER TABLE series ADD COLUMN search_backoff INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE series ADD COLUMN next_search_at TEXT;

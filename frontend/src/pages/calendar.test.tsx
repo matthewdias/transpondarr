@@ -76,7 +76,7 @@ function renderPage() {
 }
 
 describe("CalendarPage", () => {
-  it("renders today's episodes on the month grid and names unscheduled series", async () => {
+  it("renders today's episodes on the month grid and names unscheduled titles", async () => {
     server.use(
       calendarHandler(
         [item({})],
@@ -86,7 +86,7 @@ describe("CalendarPage", () => {
 
     renderPage();
 
-    // Month view is the wide-screen default; the entry links to its series.
+    // Month view is the wide-screen default; the entry links to its title's page.
     const entry = await screen.findByRole("link", {
       name: /04 signal anomaly/i,
     });
@@ -96,7 +96,7 @@ describe("CalendarPage", () => {
       "Signal Anomaly — episode 4 (wanted)",
     );
 
-    // A series with no schedule data is surfaced, not silently omitted.
+    // A title with no schedule data is surfaced, not silently omitted.
     expect(screen.getByText(/no schedule data/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dusty Archive" })).toHaveAttribute(
       "href",

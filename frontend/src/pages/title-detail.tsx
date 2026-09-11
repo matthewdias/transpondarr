@@ -79,8 +79,8 @@ export function TitleDetailPage() {
   // Radix unmounts an inactive panel, so the page stores the focused episode,
   // not the Releases tab.
   const [focusItem, setFocusItem] = useState<number | null>(linkedItem);
-  // The page persists across a series-to-series navigation, and an episode number from
-  // the series you left means something else in the one you arrived at.
+  // The page persists across a title-to-title navigation, and an episode number from
+  // the title you left means something else in the one you arrived at.
   useEffect(() => {
     setFocusItem(linkedItem);
     if (linkedTab) setTab(linkedTab);
@@ -256,7 +256,7 @@ export function TitleDetailPage() {
             <Tabs
               value={activeTab}
               // Radix fires this only on a user-driven change, which is exactly
-              // the seam: clicking the tab is the series-wide intent.
+              // the seam: clicking the tab is the title-wide intent.
               onValueChange={(v) => {
                 setFocusItem(null);
                 setTab(v as TabKey);
@@ -414,7 +414,7 @@ export function ProfilePicker({ detail }: { detail: TitleDetail }) {
   );
 }
 
-// PinnedGroupChip is the per-series "this group is definitive" knob (#61): free
+// PinnedGroupChip is the per-title "this group is definitive" knob (#61): free
 // text because the pinned group need not be in the profile's ranked list.
 export function PinnedGroupChip({ detail }: { detail: TitleDetail }) {
   const queryClient = useQueryClient();
@@ -564,7 +564,7 @@ export function PinnedGroupChip({ detail }: { detail: TitleDetail }) {
 /**
  * Monitoring switch. Monitored now means "will be searched and grabbed
  * automatically", so the global kill switch makes that label false — the only
- * case worth annotating, since an unmonitored series already shows it will not
+ * case worth annotating, since an unmonitored title already shows it will not
  * run.
  */
 export function MonitoringToggle({

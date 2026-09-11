@@ -3,7 +3,7 @@
 -- truncates the emitted SQL. See CLAUDE.md.
 
 -- name: UpsertBlocklistEntry :one
--- A repeat failure of the same release bumps the existing row so the escalating
+-- A repeat failure of the same release bumps the existing blocklist row so the escalating
 -- expiry can read the count; hash, reason and expiry take the latest attempt's.
 INSERT INTO release_blocklist (series_id, info_hash, release_title, normalized_title, reason, blocked_until)
 VALUES (?, ?, ?, ?, ?, ?)
@@ -35,12 +35,12 @@ WHERE series_id = ?
 ORDER BY updated_at DESC;
 
 -- name: DeleteBlocklistEntry :execrows
--- Scoped to the series so an unblock cannot delete another series' entry.
+-- Scoped to the title so an unblock cannot delete another title's entry.
 DELETE FROM release_blocklist
 WHERE id = ? AND series_id = ?;
 
 -- name: DeleteBlocklistByTitle :execrows
--- Bulk unblock for one series. Scoped like the single-entry delete.
+-- Bulk unblock for one title. Scoped like the single-entry delete.
 DELETE FROM release_blocklist
 WHERE series_id = ?;
 
@@ -50,7 +50,7 @@ DELETE FROM release_blocklist
 WHERE series_id = ? AND blocked_until IS NOT NULL AND blocked_until <= ?;
 
 -- name: DeleteAllBlocklist :execrows
--- Library-wide clear: an environmental fault is not confined to one series,
+-- Library-wide clear: an environmental fault is not confined to one title,
 -- so recovery from one is not either.
 DELETE FROM release_blocklist;
 

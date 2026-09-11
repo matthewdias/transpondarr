@@ -10,7 +10,7 @@ import {
   ItemMedia,
 } from "@/components/ui/item";
 
-// The fields the row reads, shared by the per-series GrabEventDTO and the
+// The fields the row reads, shared by the per-title GrabEventDTO and the
 // global ActivityEventDTO (which differs only in having title fields).
 // Picked from the generated type so a new status cannot silently drift.
 export type PresentableGrabEvent = Pick<

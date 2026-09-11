@@ -1,6 +1,6 @@
 -- +goose Up
 -- Browser login sessions (forms-based auth). The opaque token is the
--- cookie value; the server looks it up here. Rows are deleted on logout, on a
+-- cookie value; the server looks it up here. Session rows are deleted on logout, on a
 -- password change (DeleteSessionsForUser), and lazily once expired. Machine API
 -- clients use the API key instead and never create sessions.
 CREATE TABLE sessions (

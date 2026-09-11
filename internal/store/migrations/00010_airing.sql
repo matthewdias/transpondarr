@@ -5,11 +5,11 @@
 -- treat "no air date" as normal rather than as an error.
 ALTER TABLE wanted_items ADD COLUMN airs_at TEXT;
 
--- Drives "monitored series never synced, or stale" without a second table.
+-- Drives "monitored titles never synced, or stale" without a second table.
 ALTER TABLE series ADD COLUMN airing_synced_at TEXT;
 
 -- Duplicates should not exist (AddSeries expands 1..N exactly once), but a live
--- upgrade must not fail on one. The row kept is the one with state — had
+-- upgrade must not fail on one. The item row kept is the one with state — had
 -- first, then grabbed, then oldest — since deleting it would cascade its grab away.
 DELETE FROM wanted_items WHERE id IN (
     SELECT id FROM (

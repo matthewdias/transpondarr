@@ -20,11 +20,11 @@ CREATE TABLE quality_profiles (
     created_at        TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
--- Exactly one default profile; it is what new series start on, and it cannot be
+-- Exactly one default profile; it is what new titles start on, and it cannot be
 -- deleted from the UI.
 CREATE UNIQUE INDEX idx_quality_profiles_default ON quality_profiles (is_default) WHERE is_default = 1;
 
--- Ranked group preference, rank 1 most preferred. A blocked row is the
+-- Ranked group preference, rank 1 most preferred. A blocked profile group row is the
 -- never-take list; its rank has no meaning.
 CREATE TABLE quality_profile_groups (
     id         INTEGER PRIMARY KEY,
@@ -37,11 +37,11 @@ CREATE TABLE quality_profile_groups (
 
 INSERT INTO quality_profiles (id, name, is_default) VALUES (1, 'Default', 1);
 
--- Existing series keep working with no backfill: everything starts on Default.
+-- Existing titles keep working with no backfill: everything starts on Default.
 -- No REFERENCES clause: SQLite rejects ADD COLUMN with both a foreign key and a
 -- non-NULL default while foreign_keys is on (our DSN enforces it). The queries
 -- enforce the integrity instead: SetSeriesProfile requires the profile to exist,
--- DeleteQualityProfile deletes nothing while any series still points at it.
+-- DeleteQualityProfile deletes nothing while any title still points at it.
 ALTER TABLE series ADD COLUMN quality_profile_id INTEGER NOT NULL DEFAULT 1;
 
 -- +goose Down
