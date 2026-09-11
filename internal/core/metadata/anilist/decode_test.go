@@ -23,7 +23,7 @@ func TestDecodeReportsTheEnvelopeMessageOnANon200(t *testing.T) {
 	}
 }
 
-// A provider that is down often answers with a proxy's error page, which has
+// A provider that is down often responds with a proxy's error page, which has
 // no message to extract — reporting nothing would be worse than the raw dump.
 func TestDecodeFallsBackToTheBodyWhenItIsNotAnEnvelope(t *testing.T) {
 	body := "<html><head><title>Gateway timed out</title></head></html>"

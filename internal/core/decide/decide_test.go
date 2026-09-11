@@ -138,7 +138,7 @@ func TestBatchOutranksASingleItCovers(t *testing.T) {
 	}
 }
 
-// Coverage is a tier above score, not a replacement for it: equal coverage — the
+// Coverage ranks above score without replacing it: equal coverage — the
 // weekly single-episode case — still falls through to the profile score.
 func TestEqualCoverageFallsThroughToScore(t *testing.T) {
 	profile := domain.QualityProfile{Groups: []string{"BestSubs", "OkSubs"}}
@@ -385,7 +385,7 @@ func TestScoreRanksGroupAboveResolutionAndSeeders(t *testing.T) {
 		t.Fatalf("first = %q, want TrustedCorp despite fewer seeders", got[0].Release.ReleaseGroup)
 	}
 	if !got[0].Eligible || !got[1].Eligible {
-		t.Errorf("both candidates should be eligible with no floor set")
+		t.Errorf("both candidates should be eligible with no minimum score set")
 	}
 	if got[0].Score <= got[1].Score {
 		t.Errorf("scores = %d vs %d, want the trusted group strictly higher", got[0].Score, got[1].Score)
@@ -556,14 +556,14 @@ func TestMinScoreFloorMeansNothingYet(t *testing.T) {
 	}
 	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof)
 	if got[0].Release.ReleaseGroup != "TrustedCorp" || !got[0].Eligible {
-		t.Fatalf("trusted release should rank first and clear the floor")
+		t.Fatalf("trusted release should rank first and clear the minimum score")
 	}
 	below := got[1]
 	if below.Eligible {
-		t.Fatal("unknown-group release should fall below the 500 floor")
+		t.Fatal("unknown-group release should fall below the 500 minimum")
 	}
 	if !strings.Contains(below.IneligibleReason, "below") {
-		t.Errorf("reason = %q, want a below-the-floor explanation", below.IneligibleReason)
+		t.Errorf("reason = %q, want a below-the-minimum explanation", below.IneligibleReason)
 	}
 }
 
@@ -652,7 +652,7 @@ func TestScorePartsSumToScore(t *testing.T) {
 	}
 }
 
-// A pinned group is a tier, not points: an eligible pinned release outranks a
+// A pinned group is a rank, not points: an eligible pinned release outranks a
 // rank-1 listed group with every bonus the other axes can add.
 func TestPinnedGroupOutranksHigherScoringEligible(t *testing.T) {
 	prof := domain.QualityProfile{
@@ -714,10 +714,10 @@ func TestPinnedBelowMinScoreStaysIneligible(t *testing.T) {
 	}
 	got := Match(items(12), []string{"Placeholder Saga"}, rels, prof, MatchOpts{PinnedGroup: "UnknownRip"})
 	if got[0].Release.ReleaseGroup != "TrustedCorp" {
-		t.Fatalf("first = %q, want the eligible TrustedCorp above the pinned below-floor release", got[0].Release.ReleaseGroup)
+		t.Fatalf("first = %q, want the eligible TrustedCorp above the pinned below-minimum release", got[0].Release.ReleaseGroup)
 	}
 	if got[1].Eligible {
-		t.Error("pinned release below the floor should stay ineligible")
+		t.Error("pinned release below the minimum score should stay ineligible")
 	}
 }
 
@@ -762,6 +762,6 @@ func TestZeroProfileScoresZeroAndEligible(t *testing.T) {
 		t.Errorf("score = %d, want 0 with an empty profile", got[0].Score)
 	}
 	if !got[0].Eligible {
-		t.Error("everything is eligible when the profile expresses no floor")
+		t.Error("everything is eligible when the profile expresses no minimum score")
 	}
 }

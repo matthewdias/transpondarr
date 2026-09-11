@@ -124,11 +124,11 @@ type QualityProfile struct {
 	PreferDualAudio bool
 	CodecPref       string   // "h264", "h265" or "av1"; "" for no preference
 	HardExcludes    []string // axis tokens (e.g. "hardsub") a release must never contain
-	MinScore        int      // floor: a candidate scoring below this is ineligible
+	MinScore        int      // a candidate scoring below this is ineligible
 
 	// Upgrades are cutoff, not chase: automation re-grabs a held item only while
 	// the release in the library scores below CutoffScore, whose zero value means
-	// "met" the way MinScore's means "no floor".
+	// "met" the way MinScore's means "no minimum".
 	UpgradesEnabled      bool
 	CutoffScore          int
 	UpgradeV2AboveCutoff bool // a v2/repack of the held release is a fix, so it passes the cutoff

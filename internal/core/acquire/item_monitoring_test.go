@@ -182,7 +182,7 @@ func TestSweepDoesNotResetBackoffForAnUnmonitoredBroadcast(t *testing.T) {
 }
 
 // persistOutcomes already skips non-grabbable items, so an unmonitored one has
-// no row -- which is why the read side suppresses the tier rather than
+// no row -- which is why the read side suppresses the pass reason rather than
 // invalidating it (decision 9).
 func TestSweepRecordsNoPassOutcomeForAnUnmonitoredItem(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)

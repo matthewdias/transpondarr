@@ -60,7 +60,7 @@ func itemID(t *testing.T, st *store.Store, titleID int64, number int) int64 {
 }
 
 // The calendar returns only items whose air time falls in [start, end), and
-// only for monitored title unless unmonitored is requested.
+// only for monitored titles unless unmonitored is requested.
 func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	titleID := seedTitle(t, h.store, "Airing Show", 5)

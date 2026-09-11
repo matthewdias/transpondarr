@@ -32,7 +32,7 @@ const (
 // many adds: past a couple, the fault is the client rather than the releases.
 const maxAddFailures = 3
 
-// A pass that grabbed nothing backs off from an hour, doubling to a daily floor.
+// A pass that grabbed nothing backs off from an hour, doubling to a daily cap.
 const (
 	backoffBase = time.Hour
 	backoffCap  = 24 * time.Hour

@@ -101,7 +101,7 @@ func (f *syncFailure) summary() error {
 func (s *Service) due(ctx context.Context) ([]db.Series, error) {
 	now := time.Now()
 	// Always countKnown: aired times are immutable, so this query's CASE keys on
-	// status alone and the unknown-count tier (#151) does not apply here.
+	// status alone and the unknown-count TTL (#151) does not apply here.
 	cutoff := func(status string) sql.NullString {
 		return sql.NullString{String: store.FormatTimestamp(now.Add(-metadata.TTLFor(status, true))), Valid: true}
 	}

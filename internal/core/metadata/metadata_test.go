@@ -227,7 +227,7 @@ func TestTTLFor(t *testing.T) {
 	}{
 		{"FINISHED", true, long},
 		{"CANCELLED", true, long},
-		// A count the provider never publishes is the middle tier: much less
+		// A count the provider never publishes gets the middle TTL: much less
 		// often than 6 hours, and still re-checked (#151).
 		{"FINISHED", false, unknown},
 		{"CANCELLED", false, unknown},
@@ -264,7 +264,7 @@ func TestFresh(t *testing.T) {
 	}
 }
 
-// The tier reads the count, not how many items the schedule filled: a FINISHED
+// The TTL reads the count, not how many items the schedule filled: a FINISHED
 // title with a schedule but no published count still re-checks (#151).
 func TestCachedGetTitleRefetchesAScheduledTitleWithAnUnknownCount(t *testing.T) {
 	items := make([]ItemMeta, 0, 12)
@@ -347,8 +347,8 @@ func TestTitleFromCacheCacheErrorDoesNotFetch(t *testing.T) {
 	}
 }
 
-// Every wrapper shape genuinely contains a cache, so the capability must survive the
-// embedding Cached picks per inner provider.
+// Every wrapper shape genuinely contains a cache, so the capability must
+// stay visible through the embedding Cached picks per inner provider.
 func TestEveryCachedWrapperReadsTheCache(t *testing.T) {
 	for name, prov := range map[string]Provider{
 		"plain":  &fakeProvider{},

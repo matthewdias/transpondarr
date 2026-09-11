@@ -61,7 +61,7 @@ func TestSweepRecordsADeclinedRelease(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	if _, err := h.st.DB.ExecContext(context.Background(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
-		t.Fatalf("raise the profile floor: %v", err)
+		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
@@ -88,18 +88,18 @@ func TestSweepRecordsADeclinedRelease(t *testing.T) {
 }
 
 // Blame is per item, not per pass: a pack and a single covering different
-// episodes are different answers, and the coverage tier that ranks the pack
+// episodes are different answers, and the coverage ranking that puts the pack
 // first for grab efficiency is no evidence about either episode's near miss.
 func TestSweepBlamesTheReleaseCoveringEachItem(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
-	// The pack ranks first on decide's coverage tier and the single outranks it on
+	// The pack ranks first on decide's coverage ranking and the single outranks it on
 	// seeders, so a blame that reused the ranking would name the pack twice.
 	single := episodeRelease("Placeholder Saga", 3)
 	single.Seeders = 999
 	h := newSweep(t, []indexer.Release{packRelease("Placeholder Saga"), single}, fakeConfig{})
 	if _, err := h.st.DB.ExecContext(context.Background(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
-		t.Fatalf("raise the profile floor: %v", err)
+		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	items := make([]sweepItem, 0, 6)
 	for n := 1; n <= 6; n++ {
@@ -194,7 +194,7 @@ func TestFeedPollRecordsItsOwnRefusalAsFeedSourced(t *testing.T) {
 	}, fakeConfig{})
 	if _, err := h.st.DB.ExecContext(context.Background(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
-		t.Fatalf("raise the profile floor: %v", err)
+		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
@@ -215,7 +215,7 @@ func TestAGrabOverwritesAnEarlierRefusal(t *testing.T) {
 	ctx := context.Background()
 	if _, err := h.st.DB.ExecContext(ctx,
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
-		t.Fatalf("raise the profile floor: %v", err)
+		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
@@ -226,7 +226,7 @@ func TestAGrabOverwritesAnEarlierRefusal(t *testing.T) {
 
 	if _, err := h.st.DB.ExecContext(ctx,
 		`UPDATE quality_profiles SET min_score = 0 WHERE id = 1`); err != nil {
-		t.Fatalf("lower the profile floor: %v", err)
+		t.Fatalf("lower the profile minimum: %v", err)
 	}
 	makeTitleDue(t, h.st, id)
 	if err := h.svc.SweepOnce(ctx); err != nil {
@@ -348,7 +348,7 @@ func TestTheRehearsalBlamesTheReleaseTheRowStores(t *testing.T) {
 		fakeConfig{notifyOnly: true})
 	if _, err := h.st.DB.ExecContext(context.Background(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
-		t.Fatalf("raise the profile floor: %v", err)
+		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 1, airsAt: &past}, sweepItem{number: 2, airsAt: &past})
@@ -377,7 +377,7 @@ func TestAnUpgradePoolItemRecordsNoOutcome(t *testing.T) {
 	enableUpgrades(t, h.st, 9000)
 	if _, err := h.st.DB.ExecContext(context.Background(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
-		t.Fatalf("raise the profile floor: %v", err)
+		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})

@@ -74,7 +74,7 @@ func TestSweepSkipsBlocklistedReleaseAndTakesTheNextBest(t *testing.T) {
 	}
 }
 
-// An expired entry stops blocking: the ladder needs the release retried so a
+// An expired entry stops blocking: the escalating expiry needs the release retried so a
 // repeat failure can escalate it.
 func TestSweepTakesAReleaseWhoseBlockExpired(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)

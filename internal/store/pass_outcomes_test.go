@@ -48,7 +48,7 @@ func TestUpsertPassOutcomeReplacesInPlace(t *testing.T) {
 		Outcome:      "declined",
 		Source:       "feed",
 		ReleaseTitle: "[SynthSubs] Sample Show - 01 [720p]",
-		Detail:       "below the profile floor",
+		Detail:       "below the profile minimum",
 		RecordedAt:   "2026-08-05T07:00:00Z",
 	}); err != nil {
 		t.Fatalf("second upsert: %v", err)
@@ -61,7 +61,7 @@ func TestUpsertPassOutcomeReplacesInPlace(t *testing.T) {
 	if got.Outcome != "declined" || got.Source != "feed" {
 		t.Errorf("outcome/source = %q/%q, want the second pass's declined/feed", got.Outcome, got.Source)
 	}
-	if got.ReleaseTitle != "[SynthSubs] Sample Show - 01 [720p]" || got.Detail != "below the profile floor" {
+	if got.ReleaseTitle != "[SynthSubs] Sample Show - 01 [720p]" || got.Detail != "below the profile minimum" {
 		t.Errorf("release/detail = %q/%q, want the second pass's", got.ReleaseTitle, got.Detail)
 	}
 	if got.RecordedAt != "2026-08-05T07:00:00Z" {

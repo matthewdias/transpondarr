@@ -56,7 +56,7 @@ func TestAddTitleAppliesTheChosenProfile(t *testing.T) {
 }
 
 // An omitted profile is not a choice: the column default (the seeded is-default
-// profile) has to survive, or every caller would have to name one.
+// profile) has to stay in effect, or every caller would have to name one.
 func TestAddTitleWithoutAProfileKeepsTheDefault(t *testing.T) {
 	st, svc := profileService(t)
 

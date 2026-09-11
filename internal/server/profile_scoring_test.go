@@ -83,7 +83,7 @@ func TestSearchDemotesBlockedGroup(t *testing.T) {
 	}
 }
 
-// #61: a title's pinned group is an absolute tier above profile score — the
+// #61: a title's pinned group is an absolute rank above profile score — the
 // pinned unlisted group outranks the profile's rank-1 group over HTTP.
 func TestSearchRanksPinnedGroupFirst(t *testing.T) {
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{

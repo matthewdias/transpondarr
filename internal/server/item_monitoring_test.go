@@ -25,7 +25,7 @@ func declinedOutcome() db.UpsertPassOutcomeParams {
 	return db.UpsertPassOutcomeParams{
 		Outcome: "declined", Source: "sweep",
 		ReleaseTitle: "[SynthSubs] Placeholder Saga - 01 [720p]",
-		Detail:       "below the profile floor",
+		Detail:       "below the profile minimum",
 		RecordedAt:   store.FormatTimestamp(time.Now().Add(-2 * time.Hour)),
 	}
 }

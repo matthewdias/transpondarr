@@ -367,7 +367,7 @@ func TestRefreshRefetchesAnUnknownCountTitlePastTheMiddleCutoff(t *testing.T) {
 }
 
 // A count the provider does publish keeps the long cutoff, which is what makes
-// the middle tier a third arm rather than a demotion of every finished title.
+// the 7d TTL a third branch rather than a demotion of every finished title.
 func TestRefreshHoldsAKnownCountTitleForTheLongCutoff(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
@@ -385,8 +385,8 @@ func TestRefreshHoldsAKnownCountTitleForTheLongCutoff(t *testing.T) {
 }
 
 // An unmonitored title's cached status would otherwise freeze at its add-time
-// value, and the airing sync reads that status to pick its TTL tier -- so one
-// added while RELEASING would stay on the 6h tier forever, never moving to 30d (#183).
+// value, and the airing sync reads that status to pick its TTL -- so one
+// added while RELEASING would stay on the 6h TTL forever, never moving to 30d (#183).
 func TestRefreshIncludesUnmonitoredTitles(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
@@ -415,7 +415,7 @@ func TestRefreshIncludesUnmonitoredTitles(t *testing.T) {
 func TestRefreshGivesMonitoredTitlesEverySlot(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
-	// Five stale monitored title fill the pass; the unmonitored one is
+	// Five stale monitored titles fill the pass; the unmonitored one is
 	// never-fetched, so it outranks them on every key but monitoring.
 	for id := int64(1); id <= 5; id++ {
 		prov.episodes[id] = 12
@@ -458,7 +458,7 @@ func TestRefreshGivesMonitoredTitlesEverySlot(t *testing.T) {
 func TestRefreshBoundsEachPassAndPrioritizesNeverFetched(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()
-	// Six stale title and one never fetched: a pass is capped at five, and the
+	// Six stale titles and one never fetched: a pass is capped at five, and the
 	// never-fetched one must make the cut.
 	for i := int64(1); i <= 6; i++ {
 		prov.episodes[i] = 12

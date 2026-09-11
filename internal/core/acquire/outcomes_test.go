@@ -70,17 +70,17 @@ func refused(title string, score, seeders int, pinned bool, items ...int) decide
 		Items:            items,
 		Score:            score,
 		Eligible:         false,
-		IneligibleReason: "below the profile floor",
+		IneligibleReason: "below the profile minimum",
 		Pinned:           pinned,
 	}
 }
 
-// Blame drops decide's coverage tier deliberately. Coverage exists for grab
+// Blame drops decide's coverage ranking deliberately. Coverage exists for grab
 // efficiency -- one grab instead of N (#126) -- and is no evidence about which
 // release came closest for one episode, so inheriting it would let a wide
 // low-scoring pack outrank a high-scoring single covering exactly the episode
 // asked about.
-func TestBestRefusalIgnoresTheCoverageTier(t *testing.T) {
+func TestBestRefusalIgnoresTheCoverageRanking(t *testing.T) {
 	pack := refused("[Batchers] Sample Show 01-12", 100, 10, false, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
 	single := refused("[SynthSubs] Sample Show - 07", 900, 5, false, 7)
 
@@ -88,7 +88,7 @@ func TestBestRefusalIgnoresTheCoverageTier(t *testing.T) {
 	if release != single.Release.Title {
 		t.Errorf("blamed %q, want the high-scoring single covering episode 7", release)
 	}
-	if reason != "below the profile floor" {
+	if reason != "below the profile minimum" {
 		t.Errorf("reason = %q, want the candidate's own", reason)
 	}
 }

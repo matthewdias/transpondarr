@@ -10,9 +10,9 @@ import (
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 )
 
-// Each reason tier is a ranking, not a set: a slot states the one fact that
+// Each reason level is a ranking, not a set: a slot states the one fact that
 // most explains its scope, so the order between reasons is the whole contract.
-// The tiers never replace one another -- the page shows all three at once.
+// The levels never replace one another -- the page shows all three at once.
 
 func TestGlobalReasonRanking(t *testing.T) {
 	cases := []struct {
@@ -126,7 +126,7 @@ func TestItemReasonRanking(t *testing.T) {
 // The stored set and the surfaced set differ on purpose. grabbed is only the
 // tombstone that invalidates an older refusal -- a listed item's grab plainly
 // did not last, and grab_failed is what that row shows -- and contention's honest
-// message is "the queue is working", which the group tier already reports.
+// message is "the queue is working", which the group's reason already reports.
 func TestGrabbedAndContendedSurfaceNothing(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
 	for _, outcome := range []string{acquire.OutcomeGrabbed, acquire.OutcomeContended} {

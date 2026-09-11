@@ -80,7 +80,7 @@ func TestReplaceRemovesTheStemMatesItSupersedes(t *testing.T) {
 	dir := filepath.Join(root, "Placeholder Saga", "Season 01")
 	seedLibraryFile(t, root, "Placeholder Saga - S01E03.mkv", 4096)
 	seedLibraryFile(t, root, "Placeholder Saga - S01E03.en.srt", 10)
-	// A different episode whose number merely starts the same: E30 must survive
+	// A different episode whose number merely starts the same: E30 must be kept
 	// an upgrade of E3.
 	survivor := seedLibraryFile(t, root, "Placeholder Saga - S01E30.mkv", 20)
 

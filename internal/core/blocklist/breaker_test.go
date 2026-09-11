@@ -31,8 +31,8 @@ func record(t *testing.T, svc *Service, titleID, itemID int64, title string) boo
 }
 
 // The fan-out #120 is about: an environmental fault fails a different release
-// every time, so the escalation ladder never fires and the whole candidate pool
-// is blocked at 24h apiece. Breadth across items is the signal the ladder lacks.
+// every time, so the expiry never escalates and the whole candidate pool
+// is blocked at 24h apiece. Breadth across items is the signal the escalating expiry lacks.
 func TestBreakerTripsWhenManyDistinctItemsFail(t *testing.T) {
 	svc, _, title := newService(t)
 	start := time.Now()
@@ -68,7 +68,7 @@ func TestBreakerTripsWhenManyDistinctItemsFail(t *testing.T) {
 }
 
 // The other direction, and the one that matters more: one item cycling through
-// its candidate pool is exactly what the ladder exists for. However fast it
+// its candidate pool is exactly what the escalating expiry exists for. However fast it
 // churns, it is one item, so it must never trip the breaker.
 func TestBreakerIgnoresOneItemExhaustingItsCandidates(t *testing.T) {
 	svc, _, title := newService(t)
@@ -77,7 +77,7 @@ func TestBreakerIgnoresOneItemExhaustingItsCandidates(t *testing.T) {
 	for n := range breakerItems * 2 {
 		release := fmt.Sprintf("[Group%02d] Placeholder Saga - 03", n)
 		if !record(t, svc, title.ID, 1, release) {
-			t.Fatalf("candidate %d for the same item was suppressed; the ladder needs every one", n)
+			t.Fatalf("candidate %d for the same item was suppressed; the escalating expiry needs every one", n)
 		}
 	}
 	if st := svc.BreakerState(); st.Open || st.Items != 1 {
@@ -124,7 +124,7 @@ func TestBreakerRemembersABatchFailingItemByItem(t *testing.T) {
 	}
 }
 
-// Depth again, one level up: a batch's candidate pool churning is the ladder's
+// Depth again, one level up: a batch's candidate pool churning is the escalating expiry's
 // job, exactly as a single episode's is.
 func TestBreakerIgnoresOneBatchExhaustingItsCandidates(t *testing.T) {
 	svc, _, title := newService(t)

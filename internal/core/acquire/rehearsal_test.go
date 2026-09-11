@@ -119,7 +119,7 @@ func TestNotifyOnlySweepReportsNothingEligible(t *testing.T) {
 		fakeConfig{notifyOnly: true})
 	if _, err := h.st.DB.ExecContext(context.Background(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
-		t.Fatalf("raise the profile floor: %v", err)
+		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 1, airsAt: &past}, sweepItem{number: 2, airsAt: &past})

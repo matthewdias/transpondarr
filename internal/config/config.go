@@ -84,7 +84,7 @@ type Config struct {
 // overriding variables already set in the real environment.
 func Load() (*Config, error) {
 	// .env.local first: loadDotEnv never overwrites, so reading it before .env is
-	// what makes it the higher-precedence tier. It is the per-checkout file, and
+	// what makes it the higher-precedence file. It is the per-checkout file, and
 	// the only override a worktree sharing one .env with the main checkout can set.
 	loadDotEnv(".env.local")
 	loadDotEnv(".env")

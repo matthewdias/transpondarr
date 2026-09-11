@@ -5,8 +5,8 @@
 // wanted-item numbers — surfacing a human-readable reason for every decision so
 // the matching can be reviewed before it drives an automatic grab. Matched
 // candidates are then ranked by a pure, profile-driven score (group first — see
-// the weights), below an absolute tier for a title's pinned group; an explicit
-// floor lets the answer be "nothing yet".
+// the weights), except that a title's pinned group outranks every score; an
+// explicit minimum score lets the answer be "nothing yet".
 //
 // v1 is deliberately transparent rather than clever: reconciling absolute vs
 // season-relative numbering is genuinely ambiguous without per-episode metadata,
@@ -149,8 +149,8 @@ type heldRelease struct {
 // other titles. Results are ranked matched-first, then eligible-first, then
 // pinned-first, then by how many still-wanted items they cover, then by profile
 // score; seeders are only the tie-break between equal scores. A pin is an
-// absolute tier, never a score: it wins only among eligible releases, so it can
-// never bypass a block, exclude, or the floor.
+// absolute rank, never a score: it wins only among eligible releases, so it can
+// never bypass a block, exclude, or the minimum score.
 func Match(items []Item, titleVariants []string, releases []indexer.Release, profile domain.QualityProfile, opts ...MatchOpts) []Candidate {
 	// maxItem spans every item, grabbable or not, so however a caller scoped the
 	// pass, absolute-numbering detection below is unaffected.
@@ -228,7 +228,7 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 	return out
 }
 
-// Fixed axis weights: group dominates by construction — its floor exceeds the
+// Fixed axis weights: group dominates by construction — its lowest weight exceeds the
 // 850 max every other axis can sum to, so any listed group beats every unlisted
 // one. Within listed groups, bonuses may flip adjacent ranks by design.
 const (
@@ -329,9 +329,9 @@ func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) 
 	return total, parts
 }
 
-// ineligibleReason is the floor from #16: the way the answer can be "nothing
+// ineligibleReason is the eligibility check from #16: the way the answer can be "nothing
 // yet" instead of the least-bad release available. "" means eligible. Scores
-// are never negative, so the zero-value MinScore is no floor.
+// are never negative, so the zero-value MinScore is no minimum.
 func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.QualityProfile, o MatchOpts, score int) string {
 	// The blocklist first: when a release matches both, "this one already failed"
 	// is the more actionable answer than a profile rule.
@@ -580,10 +580,10 @@ func matchesVariant(got string, variants []string) bool {
 			return true
 		}
 		// Substring (fuzzy) match only when the shorter, contained title is long
-		// enough to be meaningful. Without a floor, short or prefix names — "K",
+		// enough to be meaningful. Without a minimum length, short or prefix names — "K",
 		// "Air", "Fate" — match unrelated shows ("Fairy Tail", "Fate/Zero") whose
 		// normalized title happens to contain them. Exact matches above still cover
-		// legitimately short-titled title against their own releases.
+		// legitimately short-named titles against their own releases.
 		shorter := got
 		if len(v) < len(shorter) {
 			shorter = v

@@ -312,9 +312,9 @@ func TestFeedPollGrabsNothingForIneligibleEntries(t *testing.T) {
 	}
 }
 
-// The profile floor excludes the release, and the feed applies that refusal
+// The profile minimum excludes the release, and the feed applies that refusal
 // because it drives the same decide layer.
-func TestFeedPollHonoursTheProfileFloor(t *testing.T) {
+func TestFeedPollHonoursTheProfileMinimum(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 3, time.Now()),
@@ -322,14 +322,14 @@ func TestFeedPollHonoursTheProfileFloor(t *testing.T) {
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 	if _, err := h.st.DB.ExecContext(context.Background(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
-		t.Fatalf("raise the profile floor: %v", err)
+		t.Fatalf("raise the profile minimum: %v", err)
 	}
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 0 {
-		t.Errorf("download Add called %d times, want 0 — the release is below the floor", len(h.dl.Adds))
+		t.Errorf("download Add called %d times, want 0 — the release is below the minimum", len(h.dl.Adds))
 	}
 }
 
@@ -616,7 +616,7 @@ func TestFeedPollGapResetsATitleThatAiredInsideIt(t *testing.T) {
 
 // The other half of #140's acceptance: a routine gap on a high-volume indexer
 // must not become a library-wide reset, so a title whose broadcast is nowhere
-// near the gap keeps its place on the ladder.
+// near the gap keeps its place in the backoff.
 func TestFeedPollGapLeavesTitlesOutsideTheWindowAlone(t *testing.T) {
 	now := time.Now()
 	h := newFeedPoll(t, nil, fakeConfig{})
@@ -745,7 +745,7 @@ func TestFeedPollRecoversAGapOnAPageWithNothingFresh(t *testing.T) {
 }
 
 // The other half of #176: a page that still shows the mark's own entry overlaps
-// it however much new sits on top, so the ladder is unchanged.
+// it however much new sits on top, so the backoff is unchanged.
 func TestFeedPollOverlappingPageIsNotAGap(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)

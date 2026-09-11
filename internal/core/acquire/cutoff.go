@@ -236,7 +236,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 
 // profileByID loads a profile in the domain form decide scores against. The
 // listing includes the profile id so a page loads each one once, however many
-// title share it.
+// titles share it.
 func (s *Service) profileByID(ctx context.Context, id int64) (domain.QualityProfile, error) {
 	row, err := s.store.Q.GetQualityProfile(ctx, id)
 	if err != nil {
