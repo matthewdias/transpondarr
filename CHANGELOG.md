@@ -123,8 +123,9 @@ All notable changes to this project are documented here. The format is based on
   to the front of the search queue as soon as the poll notices.
 - **The example `docker-compose.yml` now starts.** Its hardening dropped the
   permissions the container needs for a moment at start-up to fix `/config`
-  ownership and switch to `PUID`/`PGID`, so it exited on every start. It now adds
-  those back, and the switch to `PUID`/`PGID` clears them before anything is served.
+  ownership and drop to `PUID`/`PGID`, so it exited on every start unless `PUID=0`
+  was set. It now adds those back, and the drop to `PUID`/`PGID` clears them before
+  anything is served.
 
 ### Upgrade notes
 

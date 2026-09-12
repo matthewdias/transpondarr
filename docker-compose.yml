@@ -51,14 +51,13 @@ services:
       - ./config:/config              # SQLite DB + state (ownership is fixed automatically on start)
       - "${DATA_DIR:-/data}:/data"     # SAME host path qBittorrent mounts, at the SAME container path
     # Hardening: the app only ever writes under /config and /data (both mounted
-    # writable above) and never escalates privileges. The four capabilities are
-    # for the root start-up (chown /config, switch to PUID:PGID); the switch clears them.
+    # writable above) and never escalates privileges.
     read_only: true
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    cap_add:
+    cap_add:                          # root start-up only; the drop to PUID:PGID clears them (PUID=0 keeps them)
       - CHOWN
       - SETUID
       - SETGID
