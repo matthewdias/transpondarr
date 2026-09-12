@@ -75,7 +75,8 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   exits at startup with an error naming the uid it runs as.
   With `cap_drop: ALL`, the root phase needs `CHOWN`, `SETUID`, `SETGID` and
   `DAC_READ_SEARCH` added back, as [`docker-compose.yml`](docker-compose.yml) does;
-  the drop clears them before serving.
+  the drop clears them before serving. `PUID=0` has no drop, so the server keeps
+  all four for as long as it runs: remove `cap_add` if you run as root.
 
 ## Known limitations (deferred hardening)
 
