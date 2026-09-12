@@ -51,12 +51,18 @@ services:
       - ./config:/config              # SQLite DB + state (ownership is fixed automatically on start)
       - "${DATA_DIR:-/data}:/data"     # SAME host path qBittorrent mounts, at the SAME container path
     # Hardening: the app only ever writes under /config and /data (both mounted
-    # writable above), needs no capabilities, and never escalates privileges.
+    # writable above) and never escalates privileges. The four capabilities are
+    # for the root start-up (chown /config, switch to PUID:PGID); the switch clears them.
     read_only: true
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_READ_SEARCH   # walk a /config that is not world-readable
     # Docker's 10s default is exactly the app's own drain budget, so a shutdown
     # that uses all of it would be killed at the moment it finished.
     stop_grace_period: 30s

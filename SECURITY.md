@@ -73,6 +73,9 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   `PUID`/`PGID` are ignored, so `/config` must already be writable by that user.
   Docker creates a missing bind-mount directory owned by root, and the server then
   exits at startup with an error naming the uid it runs as.
+  With `cap_drop: ALL`, the root phase needs `CHOWN`, `SETUID`, `SETGID` and
+  `DAC_READ_SEARCH` added back, as [`docker-compose.yml`](docker-compose.yml) does;
+  the drop clears them before serving.
 
 ## Known limitations (deferred hardening)
 
