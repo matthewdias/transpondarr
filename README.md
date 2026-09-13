@@ -190,9 +190,11 @@ For a real deployment alongside qBittorrent and a media server, use
   single-mount layout (`/data/torrents` + `/data/media`) satisfies both
   requirements. The movies root is one more directory under the same mount, not
   a second mount.
-- **Ownership.** Set `PUID`/`PGID` to the UID:GID that owns your media volume.
-  The container starts as root, fixes `/config` ownership, and drops to that user
-  before serving. The folders Transpondarr creates in the library, and any file it
+- **Ownership.** `PUID`/`PGID` must be able to write into your library root and to
+  hardlink qBittorrent's downloads (see the next point). qBittorrent's own UID:GID
+  usually can do both, since qBittorrent already writes to the same volume; check
+  that it can also write to `/data/media`. The container starts as root, fixes
+  `/config` ownership, and drops to that user before serving. The folders Transpondarr creates in the library, and any file it
   copies there (`copy` import mode, or `auto` across filesystems), are owned by that
   user. A hardlink is the downloaded file under a second name, so it has the same
   owner as the download, usually the user qBittorrent runs as.
@@ -203,11 +205,13 @@ For a real deployment alongside qBittorrent and a media server, use
   permitted" unless the user making it owns the file or can both read and write it.
   qBittorrent normally saves downloads writable only by its own user. So if `PUID`
   is a different user, `auto` import mode copies every file instead of linking it,
-  using twice the disk space and logging nothing, and `hardlink` import mode fails
-  the import. The simplest fix is to set `PUID` and `PGID` to the UID:GID
-  qBittorrent runs as. Alternatively, give both containers the same `PGID` and set
-  qBittorrent's umask to `002` (eg. `UMASK=002` in the linuxserver image), so new
-  downloads are group-writable. Files downloaded before the umask change stay
+  using twice the disk space and logging nothing, and in `hardlink` import mode the
+  grab waits in the Activity queue with an "operation not permitted" error,
+  retrying on every scan until the permissions change. The simplest fix is to set
+  `PUID` and `PGID` to the UID:GID qBittorrent runs as. Alternatively, give both
+  containers the same `PGID`, make the library root writable by that group, and
+  set qBittorrent's umask to `002` (eg. `UMASK=002` in the linuxserver image), so
+  new downloads are group-writable. Files downloaded before the umask change stay
   read-only to the group until you `chmod g+w` them.
 
 Verify a running deployment (the second call needs your API key):
