@@ -126,6 +126,11 @@ All notable changes to this project are documented here. The format is based on
   ownership and drop to `PUID`/`PGID`, so it exited on every start unless `PUID=0`
   was set. It now adds those back, and the drop to `PUID`/`PGID` clears them before
   anything is served.
+- **The Docker instructions now say which user lets imports hardlink.** On Linux,
+  if `PUID` is not the user qBittorrent runs as, the kernel blocks hardlinks to its
+  downloads, and `auto` import mode copies every file without a word, using twice
+  the disk space. The README's Docker section explains the two ways to fix it, and
+  the example `docker-compose.yml` no longer claims `PUID` sets a hardlink's owner.
 
 ### Upgrade notes
 

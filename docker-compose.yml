@@ -25,9 +25,8 @@ services:
     ports:
       - "9797:9797"
     environment:
-      # Match your media stack's user so hardlinks land with the right ownership
-      # and the container can write into /data/media. The container starts as
-      # root, fixes /config ownership, then drops to this uid:gid before serving.
+      # qBittorrent's uid:gid, or Linux blocks hardlinking its downloads and auto mode copies (README).
+      # Owner of library folders and copies Transpondarr makes; a hardlink keeps the download's owner.
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
       # --- server ---

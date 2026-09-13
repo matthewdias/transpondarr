@@ -182,7 +182,7 @@ integration left unconfigured is disabled, and the server still starts.
 ## Docker deployment
 
 For a real deployment alongside qBittorrent and a media server, use
-[`docker-compose.yml`](docker-compose.yml) as a template. Two things matter:
+[`docker-compose.yml`](docker-compose.yml) as a template. Three things matter:
 
 - **Imports hardlink from the path qBittorrent reports.** Mount your shared
   downloads/library volume into Transpondarr at the _same path_ qBittorrent uses,
@@ -197,6 +197,18 @@ For a real deployment alongside qBittorrent and a media server, use
   user. A hardlink is the downloaded file under a second name, so it has the same
   owner as the download, usually the user qBittorrent runs as.
   Persist the `/config` volume (it contains the SQLite DB).
+- **On Linux, `PUID` needs permission to hardlink qBittorrent's downloads.** The
+  kernel setting `fs.protected_hardlinks` is on by default on most distributions
+  and in Docker Desktop. With it on, a hardlink to a file fails with "operation not
+  permitted" unless the user making it owns the file or can both read and write it.
+  qBittorrent normally saves downloads writable only by its own user. So if `PUID`
+  is a different user, `auto` import mode copies every file instead of linking it,
+  using twice the disk space and logging nothing, and `hardlink` import mode fails
+  the import. The simplest fix is to set `PUID` and `PGID` to the UID:GID
+  qBittorrent runs as. Alternatively, give both containers the same `PGID` and set
+  qBittorrent's umask to `002` (eg. `UMASK=002` in the linuxserver image), so new
+  downloads are group-writable. Files downloaded before the umask change stay
+  read-only to the group until you `chmod g+w` them.
 
 Verify a running deployment (the second call needs your API key):
 
