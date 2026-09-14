@@ -298,7 +298,7 @@ func TestMovieUpgradesAHeldFile(t *testing.T) {
 }
 
 // A film already had and not offered as an upgrade is not re-matched, so the
-// sweep cannot re-grab it.
+// search sweep cannot re-grab it.
 func TestMovieAlreadyHadIsNotMatched(t *testing.T) {
 	its := []Item{{Number: 1, Grabbable: false}}
 	releases := []indexer.Release{
@@ -317,7 +317,7 @@ func TestMovieAlreadyHadIsNotMatched(t *testing.T) {
 	}
 }
 
-// The mode keys on the Format, never on item count: a one-item OVA is
+// Movie mode keys on the Format, never on item count: a one-item OVA is
 // title-shaped, so its releases are matched by number and never year-checked.
 func TestSingleItemOVAStillMatchesEpisodically(t *testing.T) {
 	releases := []indexer.Release{

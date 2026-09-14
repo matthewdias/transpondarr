@@ -34,7 +34,7 @@ func TestAlreadyHadEpisodeNotMatched(t *testing.T) {
 	}
 }
 
-// A non-candidate item still counts toward the entry's range, so scoping a pass
+// A non-candidate item still counts toward the AniList entry's range, so scoping a pass
 // cannot make an in-range release count as absolute numbering from another season.
 func TestNonCandidateItemStillSpansTheRange(t *testing.T) {
 	its := items(12)
@@ -167,7 +167,7 @@ func TestPinnedSingleStillOutranksAnUnpinnedPack(t *testing.T) {
 }
 
 // The guard the lift required: an absolute-numbered pack whose range runs past
-// this entry must not match its items 1-12 as though it were a first season.
+// this AniList entry must not match its items 1-12 as though it were a first season.
 func TestBatchRangeBeyondEntryRangeIsUnmatched(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[Batchers] Placeholder Saga (01-48) [1080p][Batch]", Seeders: 50},
@@ -183,7 +183,7 @@ func TestBatchRangeBeyondEntryRangeIsUnmatched(t *testing.T) {
 }
 
 // A pack naming no numbers has no range to check, so it still fills the
-// entry -- which is what a season pack is.
+// AniList entry -- which is what a season pack is.
 func TestNumberlessPackStillMatchesTheWholeEntry(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[Batchers] Placeholder Saga [1080p][Batch]", Seeders: 50},
@@ -207,7 +207,7 @@ func TestShortTitleDoesNotOverMatch(t *testing.T) {
 	}
 }
 
-// An episode number beyond this entry's range (absolute numbering from a
+// An episode number beyond this AniList entry's range (absolute numbering from a
 // multi-season run) must be surfaced, not silently mismatched.
 func TestAbsoluteNumberBeyondRangeIsFlagged(t *testing.T) {
 	rels := []indexer.Release{
@@ -284,14 +284,14 @@ func TestAccentedTitleMatchesPlainASCIIRelease(t *testing.T) {
 	}
 }
 
-// The season-collision bug: a season-2 release must NOT match a season-1 entry
+// The season-collision bug: a season-2 release must NOT match a season-1 AniList entry
 // just because the episode numbers match.
 func TestSeasonTwoReleaseRejectedForSeasonOneEntry(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga 2nd Season S2E05 [1080p]", Seeders: 100},
 		{Title: "[Group] Placeholder Saga S02E05 [1080p]", Seeders: 90},
 	}
-	got := Match(items(28), []string{"Placeholder Saga"}, rels, domain.QualityProfile{}) // entry has no season marker -> S1
+	got := Match(items(28), []string{"Placeholder Saga"}, rels, domain.QualityProfile{}) // AniList entry has no season marker -> S1
 	for _, c := range got {
 		if c.Matched {
 			t.Errorf("season-2 release matched an S1 entry: %q -> items %v", c.Release.Title, c.Items)
@@ -302,7 +302,7 @@ func TestSeasonTwoReleaseRejectedForSeasonOneEntry(t *testing.T) {
 	}
 }
 
-// A season-2 entry (its title has the marker) should match season-2 releases.
+// A season-2 AniList entry (its title has the marker) should match season-2 releases.
 func TestSeasonTwoEntryMatchesSeasonTwoRelease(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga 2nd Season S2E05 [1080p]", Seeders: 100},
@@ -314,7 +314,7 @@ func TestSeasonTwoEntryMatchesSeasonTwoRelease(t *testing.T) {
 	}
 }
 
-// A release with no explicit season (absolute/S1 style) still matches an S1 entry.
+// A release with no explicit season (absolute/S1 style) still matches an S1 AniList entry.
 func TestNoSeasonReleaseMatchesSeasonOneEntry(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[FakeGroup] Placeholder Saga - 24 (1080p) [ABCD1234].mkv", Seeders: 40},
@@ -326,7 +326,7 @@ func TestNoSeasonReleaseMatchesSeasonOneEntry(t *testing.T) {
 	}
 }
 
-// A season-2 pack must not fill a season-1 entry's items.
+// A season-2 pack must not fill a season-1 AniList entry's items.
 func TestSeasonTwoPackRejectedForSeasonOneEntry(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[Batchers] Placeholder Saga S2 (01-10) [1080p][Batch]", Seeders: 30},

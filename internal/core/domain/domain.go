@@ -83,7 +83,7 @@ func PinDelay(hours int64) time.Duration {
 }
 
 // How long a download the client reports as trying may make no progress before
-// its grab is failed. Long enough not to fail a slow start, short enough that a
+// its grab row is failed. Long enough not to fail a slow start, short enough that a
 // dead release does not block its episode all day. The bound is MaxPinDelayHours'
 // for the same wrapping reason.
 const (
