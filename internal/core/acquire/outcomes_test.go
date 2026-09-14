@@ -25,7 +25,7 @@ func TestOutcomeSetSettlingOverwritesTentative(t *testing.T) {
 		t.Errorf("outcome = %+v, want the hold to stand: a tentative fills empty slots only", got)
 	}
 
-	// Two tentatives: the first one is kept, because the walk is ranked.
+	// Two tentatives: the first one is kept, because the candidate walk is ranked.
 	set = outcomeSet{}
 	set.tentative([]int{3}, outcome{kind: OutcomeContended})
 	set.tentative([]int{3}, outcome{kind: OutcomeDeclined})
@@ -93,7 +93,7 @@ func TestBestRefusalIgnoresTheCoverageRanking(t *testing.T) {
 	}
 }
 
-// Pinned still outranks score: a pin records which group is definitive for a
+// Pinned still outranks score: a pin records which release group is definitive for a
 // title, so its near miss is the one worth reporting.
 func TestBestRefusalPrefersThePinnedGroup(t *testing.T) {
 	loud := refused("[LoudSubs] Sample Show - 07", 900, 50, false, 7)

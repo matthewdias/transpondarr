@@ -1,5 +1,5 @@
 // Package acquire is responsible for search, decide, and grab, shared by the
-// manual HTTP routes, the scheduled sweep and the feed poll so all three drive
+// manual HTTP routes, the scheduled search sweep and the feed poll so all three drive
 // exactly one matcher.
 //
 // The two automatic entry points divide by which releases each can find. The

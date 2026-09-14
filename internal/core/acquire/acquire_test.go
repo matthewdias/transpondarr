@@ -34,7 +34,7 @@ func (f fakeTitles) TitleVariants(_ context.Context, id int64) ([]string, error)
 }
 
 // fakeConfig stands in for settings.Service. Automation is on unless a test
-// turns it off, since the sweep is what most of these exercise.
+// turns it off, since the search sweep is what most of these exercise.
 type fakeConfig struct {
 	category      string
 	automationOff bool

@@ -41,7 +41,7 @@ func TestSweepGrabsPinnedReleaseImmediately(t *testing.T) {
 	}
 }
 
-// #62: within the window, another group's release is held rather than grabbed, and
+// #62: within the window, another group's release is held until the delay ends rather than grabbed, and
 // the title comes back exactly when the window closes.
 func TestSweepHoldsNonPinnedReleaseInsideTheDelay(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)

@@ -28,7 +28,7 @@ type QueueCursor struct {
 func QueueCursorTop() QueueCursor { return QueueCursor{Key: "~", ID: 0} }
 
 // scanBatches bounds how far one request reads past title whose held releases
-// all meet their cutoff. Membership is decided in Go, so a page is filled by
+// all meet their cutoff. Membership is decided in Go, so a results page is filled by
 // scanning; without a cap a library where nearly everything is at cutoff would
 // turn one request into a full-table walk. Reaching the cap returns a short page
 // with a cursor, which is correct, just not full.
@@ -201,7 +201,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 					HeldReleaseTitle: r.HeldReleaseTitle,
 					Score:            score,
 					UnmetGoals:       decide.UnmetGoals(parsed, profile),
-					// The join is inner now, so every listed item has a grab.
+					// The join is inner now, so every listed item has a grab row.
 					Grab: db.Grab{
 						Status:       r.GrabStatus,
 						ReleaseTitle: r.GrabReleaseTitle,
@@ -235,7 +235,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 }
 
 // profileByID loads a profile in the domain form decide scores against. The
-// listing includes the profile id so a page loads each one once, however many
+// listing includes the profile id so a results page loads each one once, however many
 // titles share it.
 func (s *Service) profileByID(ctx context.Context, id int64) (domain.QualityProfile, error) {
 	row, err := s.store.Q.GetQualityProfile(ctx, id)

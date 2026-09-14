@@ -19,7 +19,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// The default profile lists no groups, so a held release scores on resolution
+// The default profile lists no release groups, so a held release scores on resolution
 // alone: 1080p 400, 720p 300, 480p 200.
 const heldSD = "[ExampleSubs] Placeholder Saga - 03 [480p]"
 const heldHD = "[ExampleSubs] Placeholder Saga - 03 [1080p]"
@@ -118,7 +118,7 @@ func TestFeedPollLeavesHeldItemsAloneWhenUpgradesAreOff(t *testing.T) {
 }
 
 // A failed upgrade leaves the item held, so the next poll may try again — which
-// is what puts a 'failed' grab back in the pool.
+// is what puts a 'failed' grab row back in the pool.
 func TestFeedPollRetriesAfterAFailedUpgrade(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
@@ -158,7 +158,7 @@ func TestFeedPollLeavesUnsettledUpgradesAlone(t *testing.T) {
 }
 
 // The sweep issues no search for an upgrade, but a search it issued anyway passes
-// its page to the same decision layer, so a held item is evaluated for free.
+// its page of search results to the same decision layer, so a held item is evaluated for free.
 func TestSweepUpgradesHeldItemsItSearchedForAnyway(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{

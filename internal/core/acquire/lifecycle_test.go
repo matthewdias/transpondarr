@@ -16,7 +16,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/coretest"
 )
 
-// A swept grab is an ordinary grab: the importer treats one the sweep made and
+// A swept grab is an ordinary grab: the importer treats one the search sweep made and
 // one a user clicked the same, so an unattended episode goes all the way to the
 // library.
 func TestSweepThenImportLifecycle(t *testing.T) {

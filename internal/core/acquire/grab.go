@@ -74,10 +74,10 @@ func (s *Service) AutoGrab(ctx context.Context, titleID int64, cand decide.Candi
 	return res, err
 }
 
-// anySettled reports whether any of ids already has a grab this pass may not
+// anySettled reports whether any of ids already has a grab row this pass may not
 // take. Settled is every status but failed, matching what loadSweepItems calls
 // ungrabbable — one definition, so a re-check cannot differ from the read it
-// is guarding — with the one exception an upgrade is: an imported grab is
+// is guarding — with the one exception an upgrade is: an imported grab row is
 // exactly what an approved upgrade replaces.
 func (s *Service) anySettled(ctx context.Context, titleID int64, ids []int64, upgrades map[int64]bool) (bool, error) {
 	grabs, err := s.store.Q.ListGrabsByTitle(ctx, titleID)
@@ -100,7 +100,7 @@ func (s *Service) anySettled(ctx context.Context, titleID int64, ids []int64, up
 	return false, nil
 }
 
-// itemIDSet resolves item numbers to the ids a grab is keyed on.
+// itemIDSet resolves item numbers to the ids a grab row is keyed on.
 func itemIDSet(numbers []int, items []domain.WantedItem) map[int64]bool {
 	if len(numbers) == 0 {
 		return nil
@@ -134,7 +134,7 @@ func coveredItemIDs(cand decide.Candidate, items []domain.WantedItem) []int64 {
 	return ids
 }
 
-// Grab sends a candidate to the download client and records a grab per covered
+// Grab sends a candidate to the download client and records a grab row per covered
 // item. It never checks eligibility: a manual grab is explicit user intent and
 // always succeeds (PR #57), so enforcement belongs to the sweep, which checks
 // Eligible before calling. It acquires an unconditional claim for the same
@@ -192,7 +192,7 @@ func (s *Service) Grab(ctx context.Context, titleID int64, cand decide.Candidate
 		}); err != nil {
 			return GrabResult{}, fmt.Errorf("record grab for item %d: %w", n, err)
 		}
-		// Same tx as the grab row: the history row and the state it explains are atomic.
+		// Same tx as the grab row: the history row and the grab state it explains are atomic.
 		if err := q.AppendGrabEvent(ctx, db.AppendGrabEventParams{
 			SeriesID:     titleID,
 			WantedItemID: id,

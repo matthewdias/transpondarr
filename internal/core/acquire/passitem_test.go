@@ -20,7 +20,7 @@ func TestPassItemsCarriesHeldIdentityToTheMatcher(t *testing.T) {
 }
 
 // The contract the split exists for: grabbable is the pass's answer, InLibrary
-// is the library's. Nothing downstream reads InLibrary off a sweep, so a
+// is the library's. Nothing downstream reads InLibrary off a search sweep, so a
 // regression to the old InLibrary: !grabbable would compile and stay invisible
 // until #97 needed it.
 func TestPassItemsReportsPossessionAndCandidacySeparately(t *testing.T) {

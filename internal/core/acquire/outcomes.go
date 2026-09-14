@@ -68,7 +68,7 @@ func (s outcomeSet) tentative(numbers []int, o outcome) {
 
 // passIndex records per item number the two things finalizeOutcomes needs: which
 // refused release came closest, and whether an eligible one covers it at all.
-// Built in one walk, because computing it per item would be
+// Built in one walk of the candidates, because computing it per item would be
 // O(items x candidates x pack size) -- and a back-catalogue pass against
 // absolute-numbered packs makes all three large at once.
 type passIndex struct {
@@ -80,7 +80,7 @@ type passIndex struct {
 // coverage improves grab efficiency (#126) and is no evidence about which release
 // came closest for one episode, so inheriting it would name a wide low-scoring
 // pack over a high-scoring single covering exactly the episode in question.
-// Pinned stays on top -- a pin records which group is definitive for a title.
+// Pinned stays on top -- a pin records which release group is definitive for a title.
 func indexCandidates(cands []decide.Candidate) passIndex {
 	idx := passIndex{closest: map[int]decide.Candidate{}, eligible: map[int]bool{}}
 	for _, c := range cands {

@@ -117,7 +117,7 @@ func TestSweepLeavesAnInFlightGrabOnAnUnmonitoredItemAlone(t *testing.T) {
 	}
 }
 
-// #100's next-broadcast clamp is the sweep's only forward-looking rule, and an
+// #100's next-broadcast clamp is the search sweep's only forward-looking rule, and an
 // unwanted recap must not trigger it: filtering the clamp on grabbable rather than on
 // monitored would delete it outright, since an unaired item is never grabbable.
 func TestSweepDoesNotClampToAnUnmonitoredUpcomingBroadcast(t *testing.T) {

@@ -12,7 +12,7 @@ a pass records about what it decided.
   unoptimised, since a page is ~100 entries and the due query already drops any
   title with nothing wanted. It writes no search cadence: nothing was searched,
   and a grab settles its item, so the sweep's `EXISTS` drops the title anyway.
-  The one exception is a poll that detects a missing page (#140): it
+  The one exception is a poll that detects a missing feed page (#140): it
   resets the sweep for the titles that aired inside the gap, bounded to
   `titlesPerPass` per gap event so a routine gap on a busy indexer queues no more
   searches than one pass can run.
@@ -65,7 +65,7 @@ a pass records about what it decided.
   `LastRssSyncReleaseInfo` shape. Two entry ids matter — the GUID is unreliable
   across Torznab implementations (Sonarr keys on the download URL for exactly
   that reason), and a feed publishing no dates dedupes on ids alone.
-- **A pass stores what it decided; the page surfaces less than it stores
+- **A pass stores what it decided; the Missing page surfaces less than it stores
   (#181).** `walkCandidates` writes one `pass_outcomes` row per wanted item,
   upserted in place, so the table is bounded by `wanted_items` rather than by
   pass count. **The stored set is wider than
@@ -92,7 +92,7 @@ a pass records about what it decided.
   "older than `grabs.created_at` → dropped" needs no timestamp arithmetic and no
   index. `covered` stays a separate map from the outcome set (it runs per
   candidate on the feed's hot path); they agree by invariant, tested rather than
-  merged. Only a sweep that ran to the end writes `no_match`: a hard return never
+  merged. Only a search sweep that ran to the end writes `no_match`: a hard return never
   evaluated the rest of the candidates, and a feed poll read one feed page, not
   search results.
 - **Cutoff Unmet caches the parse and never the score (#185).** Membership is

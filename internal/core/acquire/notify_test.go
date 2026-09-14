@@ -14,7 +14,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/coretest"
 )
 
-// withNotifier routes every kind through a FakeNotifier on the registry.
+// withNotifier routes every notification kind through a FakeNotifier on the registry.
 func withNotifier(reg *clients.Registry) *coretest.FakeNotifier {
 	fn := coretest.NewFakeNotifier()
 	kinds := map[notify.Kind]bool{
@@ -54,7 +54,7 @@ func TestSweepGrabDispatchesGrabbedEvent(t *testing.T) {
 		if ev.ItemNumber != 5 {
 			t.Errorf("item = %d, want the single covered episode", ev.ItemNumber)
 		}
-		// The kind is what keeps an adapter from labelling a movie "Episode 1"; a
+		// The item kind is what keeps an adapter from labelling a movie "Episode 1"; a
 		// title must still have the episode kind that produces the label.
 		if ev.ItemKind != domain.KindEpisode {
 			t.Errorf("item kind = %q, want episode", ev.ItemKind)

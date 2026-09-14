@@ -181,7 +181,7 @@ func passItems(sweep []sweepItem) []passItem {
 
 // grabPass walks the ranked candidates once, grabbing every eligible release
 // whose items no earlier release covered. It returns how many releases were
-// grabbed and the earliest moment a held release becomes grabbable (zero when
+// grabbed and the earliest moment a pin-held release becomes grabbable (zero when
 // none is held). source names the entry point that drove it — the sweep or the
 // feed poll — so a log line names which of the two acted.
 //
@@ -246,7 +246,7 @@ func (s *Service) walkCandidates(ctx context.Context, title db.Series, m Match, 
 		// Eligibility is enforcement here, unlike a manual grab (PR #57). The take
 		// set is Items minus the held items the upgrade policy excluded; a blocked
 		// item is deliberately left uncovered, so a lower-ranked release that does
-		// qualify -- its own group's v2 -- is still tried this pass.
+		// qualify -- its own release group's v2 -- is still tried this pass.
 		take := c.TakeItems()
 		if !c.Matched || !c.Eligible || len(take) == 0 {
 			continue
@@ -336,7 +336,7 @@ func (s *Service) walkCandidates(ctx context.Context, title db.Series, m Match, 
 	return res, nil
 }
 
-// finalizeOutcomes fills in what the walk did not record: an uncovered item
+// finalizeOutcomes fills in what the candidate walk did not record: an uncovered item
 // records the refused candidate that came closest to covering it, and failing
 // that the pass records no_match — but only a sweep that ran to the end may. A
 // hard return never examined the remaining candidates, and a feed poll examined
@@ -440,7 +440,7 @@ func (s *Service) dispatchRehearsal(ctx context.Context, title db.Series, items 
 
 // rehearseNoAction reports the wanted items a searched pass would not have
 // grabbed, naming the best matched-but-refused candidate when there is one. It
-// reports on what the walk did not cover rather than on "nothing happened", so a
+// reports on what the candidate walk did not cover rather than on "nothing happened", so a
 // title whose episode 1 was pin-held still reports that 2 and 3 went unmatched —
 // the mismatch a rehearsal exists to surface.
 func (s *Service) rehearseNoAction(ctx context.Context, title db.Series, idx passIndex, sweep []sweepItem, covered map[int]bool) {
@@ -479,7 +479,7 @@ func (s *Service) writeSearchState(ctx context.Context, title db.Series, sweep [
 		// Something landed, so more may be available: due again next tick.
 		backoff = 0
 	case !held.IsZero():
-		// A held item is never backed off past its own window. The pin delay stays
+		// A pin-held item is never backed off past its own window. The pin delay stays
 		// with the sweep either way: the release already exists, so no feed
 		// poll will produce it sooner.
 		backoff = 0
@@ -630,7 +630,7 @@ func nullTimestamp(t time.Time) sql.NullString {
 }
 
 // pinHold reports when a candidate becomes grabbable, and whether it must be
-// delayed at all (#62). Only another group's release is ever delayed, and only
+// delayed at all (#62). Only another release group's release is ever delayed, and only
 // while the window since the latest covered broadcast is still open — a covered
 // item with no air date makes that window unmeasurable, so the delay does not
 // apply rather than measuring from now, which would restart it on every restart.
