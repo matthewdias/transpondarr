@@ -19,7 +19,7 @@
   --card-foreground: #0e1416;
   --popover: #ffffff;
   --popover-foreground: #0e1416;
-  --primary: #0d8b80;
+  --primary: #027e74;
   --primary-foreground: #ffffff;
   --secondary: #fbfcfc;
   --secondary-foreground: #0e1416;
@@ -27,30 +27,30 @@
   --muted-foreground: #5b6b6e;
   --accent: #d7efec;
   --accent-foreground: #076259;
-  --destructive: #dc2626;
+  --destructive: #c70213;
   --destructive-foreground: #ffffff;
   --border: #e3e7e8;
   --input: #e3e7e8;
-  --ring: #0d8b80;
+  --ring: #027e74;
 
   /* extra design tokens (not part of shadcn's default set) */
   --panel-2: #fbfcfc;
   --border-strong: #cfd5d6;
-  --faint: #8a999c;
-  --have: #16a34a;
+  --faint: #657376;
+  --have: #007c34;
   --have-weak: #dcf5e3;
-  --dl: #c47a04;
+  --dl: #985d02;
   --dl-weak: #faedcf;
-  --miss: #dc2626;
+  --miss: #c70213;
 
   --sidebar: #ffffff;
   --sidebar-foreground: #5b6b6e;
-  --sidebar-primary: #0d8b80;
+  --sidebar-primary: #027e74;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #d7efec;
   --sidebar-accent-foreground: #076259;
   --sidebar-border: #e3e7e8;
-  --sidebar-ring: #0d8b80;
+  --sidebar-ring: #027e74;
 }
 
 .dark {
@@ -76,7 +76,7 @@
 
   --panel-2: #171c1e;
   --border-strong: #333c40;
-  --faint: #6b797c;
+  --faint: #78878a;
   --have: #37c26b;
   --have-weak: #10241a;
   --dl: #e0a52b;

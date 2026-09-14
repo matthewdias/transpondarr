@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 type RGB = [number, number, number];
@@ -51,7 +51,9 @@ function resolve(tokens: Record<string, string>, surface: Surface): RGB {
 }
 
 const label = (s: Surface) =>
-  typeof s === "string" ? s : `${s.token}/${s.alpha * 100} over ${s.over}`;
+  typeof s === "string"
+    ? s
+    : `${s.token}/${Math.round(s.alpha * 100)} over ${s.over}`;
 
 // Tokens that carry small copy, on the surfaces they are laid out over.
 const copyTokens = [
@@ -64,10 +66,17 @@ const copyTokens = [
   "dl",
   "destructive",
 ];
-const plainSurfaces = ["background", "card", "popover", "panel-2"];
+const plainSurfaces = [
+  "background",
+  "card",
+  "popover",
+  "panel-2",
+  "secondary",
+  "sidebar",
+];
 
 // Filled pairs as the components set them: badges, event tones, buttons, the sidebar.
-const filledPairs: [string, Surface][] = [
+const filledPairs: [Surface, Surface][] = [
   ["accent-foreground", "accent"],
   ["have", "have-weak"],
   ["dl", "dl-weak"],
@@ -77,42 +86,16 @@ const filledPairs: [string, Surface][] = [
   ["destructive-foreground", "destructive"],
   ["sidebar-foreground", "sidebar"],
   ["sidebar-accent-foreground", "sidebar-accent"],
+  // The inactive tab trigger and the Wanted item name.
+  [{ token: "foreground", alpha: 0.6, over: "muted" }, "muted"],
+  [{ token: "foreground", alpha: 0.9, over: "card" }, "card"],
 ];
 
-const pairs: [string, Surface][] = [
+const pairs: [Surface, Surface][] = [
   ...copyTokens.flatMap((t) =>
-    plainSurfaces.map((s): [string, Surface] => [t, s]),
+    plainSurfaces.map((s): [Surface, Surface] => [t, s]),
   ),
   ...filledPairs,
-];
-
-// Below WCAG AA today; #163 re-derives these, and each fix must remove its entry.
-const knownBelowAA = [
-  "light: faint on background (2.77)",
-  "light: faint on card (2.95)",
-  "light: faint on popover (2.95)",
-  "light: faint on panel-2 (2.87)",
-  "light: primary on background (3.93)",
-  "light: primary on card (4.18)",
-  "light: primary on popover (4.18)",
-  "light: primary on panel-2 (4.07)",
-  "light: have on background (3.10)",
-  "light: have on card (3.30)",
-  "light: have on popover (3.30)",
-  "light: have on panel-2 (3.21)",
-  "light: dl on background (3.22)",
-  "light: dl on card (3.42)",
-  "light: dl on popover (3.42)",
-  "light: dl on panel-2 (3.33)",
-  "light: have on have-weak (2.86)",
-  "light: dl on dl-weak (2.95)",
-  "light: destructive on destructive/15 over card (3.82)",
-  "light: destructive on destructive/5 over background (4.21)",
-  "light: primary-foreground on primary (4.18)",
-  "dark: faint on background (4.29)",
-  "dark: faint on card (3.96)",
-  "dark: faint on popover (3.96)",
-  "dark: faint on panel-2 (3.81)",
 ];
 
 describe("contrast", () => {
@@ -128,16 +111,39 @@ describe("contrast", () => {
     }
   });
 
-  it("holds small copy at AA (4.5:1) in both themes, except the listed debt", () => {
+  it("holds small copy at AA (4.5:1) in both themes", () => {
     const below = Object.entries(themes).flatMap(([theme, tokens]) =>
       pairs
         .map(([fg, bg]) => ({
-          pair: `${theme}: ${fg} on ${label(bg)}`,
+          pair: `${theme}: ${label(fg)} on ${label(bg)}`,
           ratio: contrast(resolve(tokens, fg), resolve(tokens, bg)),
         }))
         .filter(({ ratio }) => ratio < 4.5)
         .map(({ pair, ratio }) => `${pair} (${ratio.toFixed(2)})`),
     );
-    expect(below).toEqual(knownBelowAA);
+    expect(below).toEqual([]);
+  });
+
+  it("lists every opacity-modified text colour the components use", () => {
+    const src = new URL("..", import.meta.url);
+    const used = new Set(
+      readdirSync(src, { recursive: true, encoding: "utf8" })
+        .filter((f) => f.endsWith(".tsx") && !f.endsWith(".test.tsx"))
+        .flatMap((f) => [
+          ...readFileSync(new URL(f, src), "utf8").matchAll(
+            /\btext-([a-z-]+)\/(\d+)\b/g,
+          ),
+        ])
+        .filter((m) => m[1] in themes.light)
+        .map((m) => `${m[1]}/${m[2]}`),
+    );
+    const listed = new Set(
+      pairs.flatMap(([fg]) =>
+        typeof fg === "string"
+          ? []
+          : [`${fg.token}/${Math.round(fg.alpha * 100)}`],
+      ),
+    );
+    expect([...used].filter((u) => !listed.has(u))).toEqual([]);
   });
 });
