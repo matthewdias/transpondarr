@@ -231,7 +231,7 @@ func TestSyncCreatesItemsTheScheduleKnowsAbout(t *testing.T) {
 	}
 }
 
-// AniList lists no entry when two episodes share a broadcast slot, so the
+// AniList lists no schedule entry when two episodes share a broadcast slot, so the
 // schedule reads 1, 3, 4. With a null count nothing else would ever create
 // episode 2 — the gap is invisible because nothing reports that it should exist.
 func TestSyncFillsTheGapsAScheduleSkips(t *testing.T) {

@@ -105,7 +105,7 @@ func TestPlaceCopyReclaimsStrayPartial(t *testing.T) {
 }
 
 // An aborted copy must surface the cancellation and leave neither a destination
-// nor a .partial, so the retried grab starts fresh.
+// nor a .partial, so the retried grab row starts fresh.
 func TestPlaceCopyAbortsOnCancel(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	root := t.TempDir()
@@ -158,7 +158,7 @@ func TestPlaceReclaimsTruncatedDest(t *testing.T) {
 	}
 }
 
-// Link mode reclaims too: the truncated name must be removed first, since
+// Link import mode reclaims too: the truncated name must be removed first, since
 // os.Link cannot replace an existing file.
 func TestPlaceHardlinkReclaimsTruncatedDest(t *testing.T) {
 	src := writeSource(t, "raw.mkv")

@@ -107,7 +107,7 @@ func TestReplaceRemovesTheStemMatesItSupersedes(t *testing.T) {
 	}
 }
 
-// Link mode cannot link onto an occupied name, so a replacement links beside the
+// Link import mode cannot link onto an occupied name, so a replacement links beside the
 // destination and renames over it: the library never loses the episode.
 func TestReplaceInLinkModeSwapsAtomically(t *testing.T) {
 	root := t.TempDir()

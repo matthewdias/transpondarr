@@ -50,7 +50,7 @@ type TitleMeta struct {
 	Status     string
 	CoverURL   string
 	// Year is the release year, 0 when the provider publishes none. Both movie
-	// matching (#209) and movie naming (#198) read it.
+	// release matching (#209) and movie naming (#198) read it.
 	Year int
 	// Premiere is the release date of a title the provider dates but does not
 	// schedule (a film), zero when it publishes no full one. It names a calendar

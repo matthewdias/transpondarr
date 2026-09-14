@@ -46,20 +46,20 @@ var videoExts = map[string]bool{
 }
 
 // partialSuffix and upgradeSuffix name the staging files a transfer writes beside
-// its destination; the sweep reads them from here so the two cannot drift (#132).
+// its destination; the staging sweep reads them from here so the two cannot drift (#132).
 const (
 	partialSuffix = ".partial"
 	upgradeSuffix = ".upgrade"
 )
 
-// seasonNumber is the season every entry is filed under. Each AniList entry is
+// seasonNumber is the season every AniList entry is filed under. Each AniList entry is
 // its own single-season show; a "2nd Season" is a distinct entry/title, not
 // Season 02 inside the first entry's folder.
 const seasonNumber = 1
 
 // ErrNoMoviesRoot and ErrNoSeriesRoot are why a file cannot be placed when the
 // root its format calls for is unset. Deliberately an error rather than a
-// fallback into the other root: the grab stays open and the next scan imports
+// fallback into the other root: the grab row stays open and the next scan imports
 // it once the root is set, where a file already hardlinked into the wrong
 // library would not. Either root alone is a supported library, so each format
 // answers for its own.
@@ -124,7 +124,7 @@ type Target struct {
 	log    *slog.Logger
 
 	// staging lists the staging paths this process is writing right now, which is
-	// how the sweep distinguishes a live transfer from an orphan (see staged).
+	// how the staging sweep distinguishes a live transfer from an orphan (see staged).
 	stagingMu sync.Mutex
 	staging   map[string]bool
 }
@@ -157,7 +157,7 @@ var (
 )
 
 // Place transfers a single downloaded file into the library and returns its final
-// path. A directory source (a batch/season pack) is rejected — per-file batch
+// path. A directory source path (a batch/season pack) is rejected — per-file batch
 // import is a later phase. A destination at least the source's size is already
 // imported; a smaller one is a truncated past import and is re-copied. A Replace
 // request overwrites whatever size the destination is, and clears its stem-mates.
@@ -205,11 +205,11 @@ func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, 
 			// check instead of treating the destination as done.
 			occupied = true
 		case destInfo.Size() >= info.Size():
-			// Size-checked idempotency only covers open grabs: a settled grab's source is
+			// Size-checked idempotency only covers open grab rows: a settled grab row's source file is
 			// gone, and nothing calls Place again — that recovery is deliberately out of scope.
 			return dest, nil
 		default:
-			if err := os.Remove(dest); err != nil { // free the name — link mode can't replace it
+			if err := os.Remove(dest); err != nil { // free the name — link import mode can't replace it
 				return "", fmt.Errorf("mediaserver: remove truncated dest: %w", err)
 			}
 		}
@@ -295,9 +295,9 @@ func movieName(name string, year int) string {
 	return fmt.Sprintf("%s (%d)", name, year)
 }
 
-// replace transfers over a destination already in the library. Link mode
+// replace transfers over a destination already in the library. Link import mode
 // cannot link onto an occupied name, so it links beside it and renames; copy
-// mode's staging-and-rename already is that. Transferring before removing
+// import mode's staging-and-rename already is that. Transferring before removing
 // anything is the crash-safe order: the worst case is two files, never none.
 func (t *Target) replace(ctx context.Context, src, dest string) error {
 	if t.mode == ModeCopy {
@@ -345,8 +345,8 @@ func (t *Target) removeStemMates(dir, stem, keep string) {
 	}
 }
 
-// transfer moves bytes from src to dest according to the configured mode. In auto
-// mode a hardlink is attempted first and falls back to a copy when the filesystem
+// transfer moves bytes from src to dest according to the configured import mode. In auto
+// import mode a hardlink is attempted first and falls back to a copy when the filesystem
 // can't hardlink here (a different device, or a mount that doesn't support/permit
 // hardlinks at all).
 func (t *Target) transfer(ctx context.Context, src, dest string) error {
@@ -390,7 +390,7 @@ func syncLinked(dest string) error {
 }
 
 // isUnsupportedLink reports whether a hardlink failure means the filesystem simply
-// can't hardlink src to dest, so auto mode should fall back to a copy: a different
+// can't hardlink src to dest, so auto import mode should fall back to a copy: a different
 // device (EXDEV), or a mount that doesn't permit/support hardlinks (EPERM/ENOTSUP/
 // EOPNOTSUPP — common on SMB/CIFS, FUSE, mergerfs/rclone, and some Docker volumes).
 // Other errors (a missing source, a full disk) are real and must surface.

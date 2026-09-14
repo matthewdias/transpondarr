@@ -5,7 +5,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
 
 - **Air dates are nullable everywhere, by design.** AniList's schedule coverage
   thins out badly before ~2015 and can skip episodes even for a modern title (it
-  lists no entry for a multi-episode premiere block), so `wanted_items.airs_at`
+  lists no schedule entry for a multi-episode premiere block), so `wanted_items.airs_at`
   is null for real titles in normal operation — never treat its absence as an
   error. `internal/core/airing` syncs it in the background off the job runner and
   stamps `series.airing_synced_at` even when the provider returns nothing, which
@@ -16,17 +16,17 @@ AniList's coverage is partial by design, so absence is a normal state here.
   field on `Media`, not a root query, so one page of it plus
   `nextAiringEpisode.episode` are fetched in `titleQuery` for zero extra requests, and a
   null-count add returns its items immediately instead of showing `0 / 0` for
-  an `airingSyncInterval`. Both that page and the background sync then create
+  an `airingSyncInterval`. Both that schedule page and the background sync then create
   `1..max(known number)` rather than transcribing, leaving `airs_at` null on the
   filled-in ones — a schedule listing 1, 3, 4 means episode 2 shared a broadcast
   slot, and with a null count nothing else would ever create it. Over-creating
-  leaves an item permanently wanted that no release matches (a sweep slot, and a
+  leaves an item permanently wanted that no release matches (a search sweep slot, and a
   title that shows as incomplete) but cannot cause a wrong grab, since `decide`
   refuses anything numbered past `maxItem` regardless; under-creating loses an
   episode nobody notices is missing. Three bounds, each measured against the live
   API rather than assumed:
-  - **A published count wins outright** over the two minimums, the page's highest number and
-    `nextAiringEpisode.episode`. Roughly 1 counted entry
+  - **A published count wins outright** over the two minimums, the schedule page's highest number and
+    `nextAiringEpisode.episode`. Roughly 1 counted AniList entry
     in 15 has a schedule reaching *past* its count (a 12-episode show whose
     schedule runs 2..13), which unconditional `max` would turn into a phantom item.
   - **A full fetch fills from 1, never from the schedule's own minimum.** In the
@@ -36,7 +36,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
     25). Filling from the minimum would silently drop the run below it.
   - **A tail fetch fills only inside its own span**, being a partial view of the
     numbering, so it does not re-derive a back catalogue every pass.
-- **The in-band page is bounded; the next-broadcast minimum is not.** AniList keeps
+- **The in-band schedule page is bounded; the next-broadcast minimum is not.** AniList keeps
   only a recent *window* of schedule records for a long-runner — its first page
   starts in the middle of the run, not at episode 1 — so a null-count long-runner
   materializes its whole run in the add's transaction. That is deliberate: it
@@ -48,7 +48,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   item does reset the search cadence (`ResetTitleSearchState`, as `refresh`
   does): it has no air date, so `airedSince` never selects it.
 - **Monitoring limits what automation *acquires*, not what the app *looks up*
-  (#183).** `series.monitored = 0` withholds a title from the sweep and the feed
+  (#183).** `series.monitored = 0` withholds a title from the search sweep and the feed
   — the paths that grab releases and move files — but never from the two
   background jobs that only *look up* data about it. It used to exclude a title from all four, and
   three predicates then composed into a hole: an unmonitored title got no
@@ -76,12 +76,12 @@ AniList's coverage is partial by design, so absence is a normal state here.
 - **"We asked and got nothing" and "we have not asked" are different absences,
   and the calendar footer states which (#183).** `internal/core/airing` is the
   *only* writer of `wanted_items.airs_at` — `catalog` never writes one, since
-  #152's in-band page carries episode numbers alone — so **every** title is
+  #152's in-band schedule page carries episode numbers alone — so **every** title is
   briefly undated between being added and its first sync, and the footer was
   telling the user AniList publishes no air dates for titles nobody had asked
   AniList about. That predated unmonitored titles being synced at all and was
   merely widened by it. `ListUnscheduledTitles` therefore selects
-  `airing_synced_at IS NOT NULL AS schedule_checked` and the page renders two
+  `airing_synced_at IS NOT NULL AS schedule_checked` and the calendar page renders two
   notes off it, because the sync stamps that column **even when the provider
   returns nothing** — which is exactly what makes it the discriminator rather
   than a proxy for one. Only the checked half may state a verdict; the unchecked

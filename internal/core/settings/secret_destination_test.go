@@ -297,7 +297,7 @@ func TestBlankNtfyServerDoesNotInheritACustomServersToken(t *testing.T) {
 
 // A blank topic builds no ntfy route, so there is no destination and nothing can
 // leak. Turning ntfy off — and editing any other adapter afterwards, since the
-// notifications body is the whole section's state (#227) — must not require the
+// notifications body is the whole section's config state (#227) — must not require the
 // token of a server that is no longer being written to.
 func TestDisablingNtfyDoesNotDemandItsToken(t *testing.T) {
 	svc, _, _ := newTestService(t)

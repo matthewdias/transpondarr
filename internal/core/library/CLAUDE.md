@@ -10,7 +10,7 @@ layout (shape within a root) are deliberately different axes.
   files under Shows with the rest. Placing a movie with no movies root returns
   `ErrNoMoviesRoot` rather than falling back to the series root: an import
   failure is the one settled-status exception (it stays `grabbed` and retries),
-  so the grab stays `grabbed`, the error surfaces as `last_error` in the Activity queue
+  so the grab row stays `grabbed`, the error surfaces as `last_error` in the Activity queue
   plus one import-stuck notification, and the next scan imports it once the root
   is set — where a file already hardlinked into the wrong library would need
   hand cleanup. Root (destination) and layout (shape within a root) stay
@@ -39,7 +39,7 @@ layout (shape within a root) are deliberately different axes.
   layout switch that never happened and suppress the real warning.
 - **`removeStemMates`' trailing dot is necessary and only a two- against
   three-digit pair tests it.** `seasonNumber` is hardcoded to 1, so every episode
-  of an entry already shares a directory and the flat layout adds no neighbours
+  of an AniList entry already shares a directory and the flat layout adds no neighbours
   to the one it scans — the set of files it can remove is unchanged either way. But E03/E30
   diverge at the first digit and pass with the guard removed; E10/E100 is the
   pair that catches it.

@@ -132,7 +132,7 @@ func TestAddMovieWithMonitorFutureAndAPremiereMonitorsIt(t *testing.T) {
 	}
 }
 
-// A single-episode OVA is not a movie: the kind keys on format alone.
+// A single-episode OVA is not a movie: the item kind keys on format alone.
 func TestAddOneEpisodeOVAKeepsEpisodeKind(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := &fakeProvider{

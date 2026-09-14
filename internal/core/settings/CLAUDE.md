@@ -40,7 +40,7 @@ was saved for. The HTTP-side encoding rules are in
   new URL and it authenticates on the next poll, so fixing only the tests would leave
   the same exfiltration one `PUT` away. Deliberately **not** an access-control fix —
   the cross-origin hole that makes it reachable without a credential is #269, and in
-  `enabled` mode the caller is authenticated anyway. What it protects is the secret
+  `enabled` auth required-mode the caller is authenticated anyway. What it protects is the secret
   *leaving* the app (an indexer key is a private-tracker account credential, a qBit
   password is often reused) and the coherence of the `GET /settings` redaction, which
   exists so that API access does not reveal the secrets.

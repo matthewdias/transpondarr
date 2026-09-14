@@ -62,7 +62,7 @@ func TestUpdateDownloadPersistsAndKeepsBlankPassword(t *testing.T) {
 
 // Categories are normalized on the way in, cleared by a blank field (they are
 // not a secret, so the API key's inherit-on-blank rule does not apply), and a
-// non-numeric segment is rejected without changing persisted or live state.
+// non-numeric segment is rejected without changing persisted or live config state.
 func TestUpdateIndexerCategories(t *testing.T) {
 	svc, reg, st := newTestService(t)
 	ctx := context.Background()
@@ -150,7 +150,7 @@ func TestNormalizeCategories(t *testing.T) {
 }
 
 // A persist failure must leave both the in-memory config and the live client
-// unchanged — the DB write happens before the swap, so there is no torn state.
+// unchanged — the DB write happens before the swap, so there is no torn config state.
 func TestUpdateDownloadPersistFailureLeavesStateUnchanged(t *testing.T) {
 	svc, reg, st := newTestService(t)
 	ctx := context.Background()

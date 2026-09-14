@@ -72,7 +72,7 @@ func searchState(t *testing.T, st *store.Store, titleID int64) (epoch, backoff i
 	return epoch, backoff, nextSearch, airingSynced
 }
 
-// settledDeadEnd is the state a dead-end title is actually found in: its
+// settledDeadEnd is the DB state a dead-end title is actually found in: its
 // schedule already requested, and a backoff accrued by passes that found nothing.
 func settledDeadEnd(t *testing.T, st *store.Store, titleID int64) {
 	t.Helper()

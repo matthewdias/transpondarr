@@ -132,7 +132,7 @@ func TestGetTitleFallsBackToTheNextBroadcast(t *testing.T) {
 }
 
 // A published count is authoritative in both directions. This is the shape of a
-// real entry (a 12-episode show whose schedule runs 2..13, missing episode 1's
+// real AniList entry (a 12-episode show whose schedule runs 2..13, missing episode 1's
 // record and with one past the end): the two minimums must neither trim it to the
 // window nor extend it to a phantom 13th item.
 func TestGetTitleKeepsAPublishedCountOverTheSchedule(t *testing.T) {
@@ -388,7 +388,7 @@ func TestGetTitleOVAWithOneEpisodeUnchanged(t *testing.T) {
 
 // The add form names the episodes "only what hasn't aired" would monitor (#217),
 // which the search row can only compute by including the next broadcast. It is a
-// field on media the page already fetches, so it costs no extra request.
+// field on media the search results page already fetches, so it costs no extra request.
 func TestSearchCarriesTheNextBroadcast(t *testing.T) {
 	var query string
 	url := serveOnce(t, `{"data":{"Page":{"media":[{
