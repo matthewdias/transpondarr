@@ -7,6 +7,7 @@ import {
   type PayloadArchive,
   type PayloadFile,
   type QueueItem,
+  errorReason,
 } from "@/lib/api";
 import {
   activityHistoryQuery,
@@ -109,8 +110,8 @@ export function RetryImportDialog({
       onOpenChange(false);
     },
     onError: (e) =>
-      toast.error("Import fix failed", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t import the files", {
+        description: errorReason(e),
       }),
   });
 

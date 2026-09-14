@@ -605,9 +605,11 @@ describe("MonitoringToggle", () => {
   });
 
   // Notify-only makes the label half true: searched and reported, not grabbed.
-  it("flags a notify-only rehearsal on a monitored title", () => {
+  it("flags notify-only automation on a monitored title", () => {
     renderToggle(true, "notify_only");
-    const note = screen.getByRole("link", { name: /notify-only rehearsal/i });
+    const note = screen.getByRole("link", {
+      name: /automation is notify only/i,
+    });
     expect(note).toHaveAttribute("href", "/settings");
   });
 

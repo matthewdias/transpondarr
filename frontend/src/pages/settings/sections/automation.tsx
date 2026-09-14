@@ -19,12 +19,12 @@ const MODES: { value: Mode; label: string; hint: string }[] = [
   {
     value: "off",
     label: "Off",
-    hint: "The scheduler stops searching and grabbing entirely. Manual search and grab keep working. This is the default until you turn automation on.",
+    hint: "Nothing is searched or grabbed on a schedule. Searches and grabs you start still run. New installs start here.",
   },
   {
     value: "notify_only",
     label: "Notify only",
-    hint: "A rehearsal: automation searches and decides for real, sends a notification for what it would have grabbed (and why it would grab nothing), but the download client receives nothing.",
+    hint: "Automation searches and decides as if on, and sends a notification saying what it would have grabbed, but sends nothing to the download client.",
   },
   {
     value: "on",

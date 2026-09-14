@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import type { useQueryClient } from "@tanstack/react-query";
-import { type Settings } from "@/lib/api";
+import { type Settings, errorReason } from "@/lib/api";
 import { settingsQuery } from "@/lib/queries";
 
 /** Shared styling for the native <select> elements used across sections. */
@@ -19,8 +19,8 @@ export function useSaveToast(
       });
     },
     onError: (err: unknown) =>
-      toast.error(`Could not save ${label.toLowerCase()}`, {
-        description: err instanceof Error ? err.message : String(err),
+      toast.error(`Couldn’t save the ${label.toLowerCase()} settings`, {
+        description: errorReason(err),
       }),
   };
 }

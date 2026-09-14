@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, CheckCircle2, Loader2, Plug, XCircle } from "lucide-react";
-import { api, type NotificationsInput, type Settings } from "@/lib/api";
+import {
+  api,
+  type NotificationsInput,
+  type Settings,
+  errorReason,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -30,7 +35,11 @@ const EVENT_ROWS: { key: keyof EventToggles; label: string; hint: string }[] = [
     label: "Imported",
     hint: "An episode landed in the library",
   },
-  { key: "on_stuck", label: "Import stuck", hint: "An import cannot proceed" },
+  {
+    key: "on_stuck",
+    label: "Import blocked",
+    hint: "A finished download couldn’t be imported",
+  },
   {
     key: "on_grab_failed",
     label: "Grab failed",
@@ -39,8 +48,8 @@ const EVENT_ROWS: { key: keyof EventToggles; label: string; hint: string }[] = [
   { key: "on_title_added", label: "Title added", hint: "A title was added" },
   {
     key: "on_rehearsal",
-    label: "Rehearsal",
-    hint: "What notify-only automation would have done",
+    label: "Notify only",
+    hint: "What automation would have grabbed, while set to notify only",
   },
 ];
 
@@ -140,7 +149,7 @@ function useTest(mutationFn: () => Promise<unknown>) {
     onError: (e) =>
       setState({
         ok: false,
-        message: e instanceof Error ? e.message : String(e),
+        message: errorReason(e),
       }),
   });
   return { state, test };

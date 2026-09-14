@@ -9,7 +9,7 @@ import {
   TriangleAlert,
   X,
 } from "lucide-react";
-import { api, ApiError, type CandidateRelease } from "@/lib/api";
+import { api, ApiError, type CandidateRelease, errorReason } from "@/lib/api";
 import { grabToast } from "./grab-toast";
 import { filterCovering } from "@/lib/release-focus";
 import {
@@ -205,8 +205,8 @@ export function ReleasesTab({
       setSelected(null);
     },
     onError: (err) => {
-      toast.error("Grab failed", {
-        description: err instanceof Error ? err.message : String(err),
+      toast.error("Couldn’t grab the release", {
+        description: errorReason(err),
       });
     },
   });

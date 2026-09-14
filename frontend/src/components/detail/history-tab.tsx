@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ApiError, api, type BlocklistEntry } from "@/lib/api";
+import { api, type BlocklistEntry, errorReason } from "@/lib/api";
 import { GrabEventRow } from "@/components/grab-event-row";
 import { blocklistQuery, grabsQuery } from "@/lib/queries";
 import { countdownOrDate, plural, timeAgo } from "@/lib/format";
@@ -69,7 +69,7 @@ export function HistoryTab({
         <TriangleAlert className="mb-3 size-7 text-dl" />
         <h3 className="text-sm font-semibold">Couldn’t load history</h3>
         <p className="mt-1.5 max-w-md text-sm text-muted-foreground">
-          {error instanceof ApiError ? error.message : String(error)}
+          {errorReason(error)}
         </p>
         <Button
           variant="outline"
@@ -134,8 +134,7 @@ export function BlockedReleases({
         <div className="flex items-center gap-3 rounded-lg border border-dashed bg-card px-3.5 py-3">
           <TriangleAlert className="size-4 shrink-0 text-dl" />
           <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
-            Couldn’t load blocked releases.{" "}
-            {error instanceof ApiError ? error.message : String(error)}
+            Couldn’t load blocked releases. {errorReason(error)}
           </p>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             <RefreshCw className="size-4" /> Try again
@@ -236,8 +235,8 @@ function useClearBlocklist(titleId: number) {
       });
     },
     onError: (e) =>
-      toast.error("Could not unblock the releases", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t unblock the releases", {
+        description: errorReason(e),
       }),
   });
 }
@@ -278,8 +277,8 @@ function BlockedRow({
       });
     },
     onError: (e) =>
-      toast.error("Could not unblock the release", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t unblock the release", {
+        description: errorReason(e),
       }),
   });
 

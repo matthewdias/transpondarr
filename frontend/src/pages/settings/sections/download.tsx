@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { HardDriveDownload } from "lucide-react";
-import { api, type Settings, type DownloadInput } from "@/lib/api";
+import { api, type Settings, type DownloadInput, errorReason } from "@/lib/api";
 import {
   Field,
   SectionShell,
@@ -36,7 +36,7 @@ export function DownloadSection({ settings }: { settings: Settings }) {
     onError: (e) =>
       setTestState({
         ok: false,
-        message: e instanceof Error ? e.message : String(e),
+        message: errorReason(e),
       }),
   });
   const saveToast = useSaveToast(queryClient, "Download client");
@@ -97,7 +97,7 @@ export function DownloadSection({ settings }: { settings: Settings }) {
         label="Category"
         value={category}
         onChange={(e) => setCategory(e.target.value)}
-        hint="Applied to grabbed torrents so they're identifiable in the client."
+        hint="Set on every torrent Transpondarr sends, so it can tell its own downloads apart."
       />
       <Field
         label="Give up on a download that has transferred nothing after (hours)"
@@ -106,7 +106,7 @@ export function DownloadSection({ settings }: { settings: Settings }) {
         max={24 * 365}
         value={stallHours}
         onChange={(e) => setStallHours(e.target.value)}
-        hint="A download that never transfers anything at all is abandoned after this long — one the client reports as stalled, and a magnet still fetching its metadata: the episode goes back to wanted and the release is remembered as failed. A download that has made any progress, and one the client has queued or paused, is never abandoned. 0 waits forever."
+        hint="A stalled download, or a magnet still fetching metadata, is abandoned after this long: its release is blocked and the episode is wanted again. Downloads with any progress, and queued or paused ones, are never abandoned. 0 waits forever."
       />
     </SectionShell>
   );

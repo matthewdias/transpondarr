@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListChecks, Play } from "lucide-react";
 import { toast } from "sonner";
-import { api, type JobStatus } from "@/lib/api";
+import { api, type JobStatus, errorReason } from "@/lib/api";
 import { countdownOrDate, parseTimestamp, timeAgo } from "@/lib/format";
 import { JOBS_POLL_MS, jobsQuery, settingsQuery } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionShell } from "../section-shell";
+import { LoadError } from "@/components/load-error";
 
 /** The runner's kebab-case identifier as prose: "wanted-search" → "Wanted search". */
 function jobLabel(name: string): string {
@@ -144,7 +145,7 @@ const AUTOMATION_GATED = ["wanted-search", "feed-poll"];
 
 export function JobsSection() {
   const queryClient = useQueryClient();
-  const { data, isLoading, isError, error } = useQuery(jobsQuery());
+  const { data, isLoading, isError, error, refetch } = useQuery(jobsQuery());
   const settings = useQuery(settingsQuery());
   const [confirming, setConfirming] = useState<string | null>(null);
 
@@ -156,8 +157,8 @@ export function JobsSection() {
       queryClient.invalidateQueries({ queryKey: jobsQuery().queryKey });
     },
     onError: (e) =>
-      toast.error("Could not run the job", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t run the job", {
+        description: errorReason(e),
       }),
   });
 
@@ -182,10 +183,7 @@ export function JobsSection() {
       description="What the scheduler has run, and whether it failed."
     >
       {isError && (
-        <p className="text-xs text-destructive">
-          Failed to load job status:{" "}
-          {error instanceof Error ? error.message : String(error)}
-        </p>
+        <LoadError what="the job status" error={error} onRetry={refetch} />
       )}
       {isLoading && (
         <div className="space-y-2.5">

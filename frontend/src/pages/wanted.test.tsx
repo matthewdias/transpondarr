@@ -302,7 +302,7 @@ it("shows the global reason as one banner", async () => {
   renderPage();
 
   expect(
-    await screen.findByText(/automation is rehearsing/i),
+    await screen.findByText(/automation is set to notify only/i),
   ).toBeInTheDocument();
 });
 

@@ -85,16 +85,14 @@ describe("AutomationSection", () => {
   it("does not show an enabled install that automation is off", async () => {
     const user = userEvent.setup();
     renderSection({ mode: "off", pin_delay_hours: 0 });
-    expect(
-      screen.getByText(/default until you turn automation on/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/new installs start here/i)).toBeTruthy();
 
     await user.click(
       screen.getByRole("combobox", { name: "Automatic search and grab" }),
     );
     await user.click(await screen.findByRole("option", { name: "On" }));
 
-    expect(screen.queryByText(/until you turn automation on/i)).toBeNull();
+    expect(screen.queryByText(/new installs start here/i)).toBeNull();
     expect(
       screen.getByText("Automation searches and grabs on its own."),
     ).toBeTruthy();

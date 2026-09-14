@@ -23,7 +23,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, ListOrdered, Loader2, Plus, X } from "lucide-react";
-import { api, ApiError, type QualityProfile } from "@/lib/api";
+import { api, type QualityProfile, errorReason } from "@/lib/api";
 import {
   EXCLUDE_AXES,
   fromProfile,
@@ -62,6 +62,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, SectionShell } from "../section-shell";
+import { LoadError } from "@/components/load-error";
 
 // ── Sortable rows (shared by the profile group and resolution lists) ─────────
 
@@ -407,8 +408,8 @@ function ProfileEditor({
       onClose();
     },
     onError: (e) =>
-      toast.error("Save failed", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t save the profile", {
+        description: errorReason(e),
       }),
   });
 
@@ -683,8 +684,8 @@ function DeleteProfileDialog({
       onDeleted();
     },
     onError: (e) =>
-      toast.error("Delete failed", {
-        description: e instanceof ApiError ? e.message : String(e),
+      toast.error("Couldn’t delete the profile", {
+        description: errorReason(e),
       }),
   });
 
@@ -756,12 +757,11 @@ export function ProfilesSection() {
         </div>
       )}
       {profiles.isError && (
-        <p className="text-sm text-destructive">
-          Failed to load profiles:{" "}
-          {profiles.error instanceof Error
-            ? profiles.error.message
-            : String(profiles.error)}
-        </p>
+        <LoadError
+          what="the quality profiles"
+          error={profiles.error}
+          onRetry={() => void profiles.refetch()}
+        />
       )}
       {list.map((p) => (
         <button

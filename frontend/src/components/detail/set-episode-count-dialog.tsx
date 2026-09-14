@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ListPlus, Loader2 } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, errorReason } from "@/lib/api";
 import { titlesQuery } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,8 +37,8 @@ export function SetEpisodeCountDialog({ titleId }: { titleId: number }) {
       setOpen(false);
     },
     onError: (e) =>
-      toast.error("Could not create the episodes", {
-        description: e instanceof ApiError ? e.message : String(e),
+      toast.error("Couldn’t create the episodes", {
+        description: errorReason(e),
       }),
   });
 

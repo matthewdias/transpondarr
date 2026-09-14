@@ -3,7 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Link } from "react-router";
 import { ChevronLeft, Loader2, TriangleAlert } from "lucide-react";
-import { api, ApiError, type Candidate, type MonitorItems } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type Candidate,
+  type MonitorItems,
+  errorReason,
+} from "@/lib/api";
 import { formatLabel, isUpcoming, statusLabel } from "@/lib/chart";
 import { profilesQuery, titlesQuery, settingsQuery } from "@/lib/queries";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -169,8 +175,8 @@ export function AddTitleForm({
         onExists?.();
         return;
       }
-      toast.error("Could not add title", {
-        description: err instanceof Error ? err.message : String(err),
+      toast.error("Couldn’t add the title", {
+        description: errorReason(err),
       });
     },
   });

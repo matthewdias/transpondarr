@@ -27,6 +27,13 @@ export class ApiError extends Error {
   }
 }
 
+/** Why a request failed, in words; a failure that isn't an ApiError got no HTTP response. */
+export function errorReason(error: unknown): string {
+  return error instanceof ApiError
+    ? error.message
+    : "Transpondarr didn’t respond. Check that it’s running.";
+}
+
 /** Raised specifically on 401 so callers can special-case bad/missing auth. */
 export class UnauthorizedError extends ApiError {
   constructor(message = "Invalid credentials") {
@@ -233,8 +240,9 @@ export class PartialBatchError extends Error {
   total: number;
   reason: unknown;
   constructor(applied: number, total: number, reason: unknown) {
-    const detail = reason instanceof Error ? reason.message : String(reason);
-    super(`Updated ${applied} of ${total} episodes, then failed: ${detail}`);
+    super(
+      `Updated ${applied} of ${total} episodes before an error: ${errorReason(reason)} Try again to update the rest.`,
+    );
     this.name = "PartialBatchError";
     this.applied = applied;
     this.total = total;

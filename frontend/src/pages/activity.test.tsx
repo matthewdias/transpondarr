@@ -307,7 +307,7 @@ describe("ActivityPage", () => {
     renderPage();
 
     expect(
-      await screen.findByText(/download client unreachable/i),
+      await screen.findByText(/can’t reach the download client/i),
     ).toBeInTheDocument();
     // The grab-state row still renders, without live client state.
     expect(screen.getByText(/Episode 4/)).toBeInTheDocument();

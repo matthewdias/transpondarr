@@ -2,12 +2,13 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Loader2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
-import { api, type BlocklistSummary } from "@/lib/api";
+import { api, type BlocklistSummary, errorReason } from "@/lib/api";
 import { blocklistSummaryQuery } from "@/lib/queries";
 import { plural, timeAgo } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionShell } from "../section-shell";
+import { LoadError } from "@/components/load-error";
 
 /**
  * The breaker's diagnosis, which is the point of surfacing it: an
@@ -41,7 +42,9 @@ function BreakerNotice({ breaker }: { breaker: BlocklistSummary["breaker"] }) {
 
 export function FailureMemorySection() {
   const queryClient = useQueryClient();
-  const { data, isLoading, isError, error } = useQuery(blocklistSummaryQuery());
+  const { data, isLoading, isError, error, refetch } = useQuery(
+    blocklistSummaryQuery(),
+  );
   const [confirming, setConfirming] = useState(false);
 
   const clear = useMutation({
@@ -55,8 +58,8 @@ export function FailureMemorySection() {
       queryClient.invalidateQueries({ queryKey: ["blocklist"] });
     },
     onError: (e) =>
-      toast.error("Could not clear failure memory", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t unblock the releases", {
+        description: errorReason(e),
       }),
   });
 
@@ -67,10 +70,11 @@ export function FailureMemorySection() {
       description="Releases skipped because they already failed, and whether that memory is being recorded."
     >
       {isError && (
-        <p className="text-xs text-destructive">
-          Failed to load failure memory:{" "}
-          {error instanceof Error ? error.message : String(error)}
-        </p>
+        <LoadError
+          what="the blocked releases"
+          error={error}
+          onRetry={refetch}
+        />
       )}
       {isLoading && <Skeleton className="h-5 w-56" />}
       {data && (

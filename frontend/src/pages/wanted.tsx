@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import {
   api,
-  ApiError,
   PartialBatchError,
   type CutoffGroup,
   type CutoffItem,
@@ -27,6 +26,7 @@ import {
   type MissingGroup,
   type MissingItem,
   type TitleMissingReason,
+  errorReason,
 } from "@/lib/api";
 import { wantedCutoffQuery, wantedMissingQuery } from "@/lib/queries";
 import {
@@ -48,6 +48,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { LoadError } from "@/components/load-error";
 
 type WantedTab = "missing" | "cutoff";
 
@@ -71,7 +72,7 @@ const globalReasonText: Record<GlobalMissingReason, string> = {
   automation_off:
     "Automation is off: nothing here will be grabbed on its own. Searches you trigger still run.",
   notify_only:
-    "Automation is rehearsing: decisions are notified, but the download client receives nothing.",
+    "Automation is set to notify only: you get a notification for what it would grab, and nothing is sent to the download client.",
 };
 
 const titleReasonLabel: Record<TitleMissingReason, string> = {
@@ -210,7 +211,7 @@ function MissingTab({
   if (isLoading || isPaused) return <ListSkeleton />;
   if (isError)
     return (
-      <ListError what="the missing list" error={error} onRetry={refetch} />
+      <LoadError what="the missing list" error={error} onRetry={refetch} />
     );
 
   return (
@@ -316,11 +317,10 @@ function useSetItemMonitored() {
       api.setItemsMonitored([id], monitored),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["wanted"] }),
     onError: (err) =>
-      toast.error(
-        err instanceof ApiError || err instanceof PartialBatchError
-          ? err.message
-          : "Could not update monitoring",
-      ),
+      toast.error("Couldn’t change monitoring", {
+        description:
+          err instanceof PartialBatchError ? err.message : errorReason(err),
+      }),
   });
 }
 
@@ -555,7 +555,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
 
   if (isLoading || isPaused) return <ListSkeleton />;
   if (isError)
-    return <ListError what="the cutoff list" error={error} onRetry={refetch} />;
+    return <LoadError what="the cutoff list" error={error} onRetry={refetch} />;
 
   // An empty results page can still have a cursor: membership is computed in Go, so a
   // request that scanned its whole budget without finding a sub-cutoff release
@@ -725,9 +725,9 @@ function SearchActions({
       void queryClient.invalidateQueries({ queryKey: ["wanted"] });
     },
     onError: (err) =>
-      toast.error(
-        err instanceof ApiError ? err.message : "Could not queue the search",
-      ),
+      toast.error("Couldn’t queue the search", {
+        description: errorReason(err),
+      }),
   });
 
   return (
@@ -785,29 +785,6 @@ function EmptyState({ title, blurb }: { title: string; blurb: string }) {
       <ListChecks className="mb-3 size-6 text-faint" />
       <h3 className="text-sm font-semibold">{title}</h3>
       <p className="mt-1.5 text-sm text-muted-foreground">{blurb}</p>
-    </div>
-  );
-}
-
-function ListError({
-  what,
-  error,
-  onRetry,
-}: {
-  what: string;
-  error: unknown;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-dashed bg-card px-3.5 py-3">
-      <TriangleAlert className="size-4 shrink-0 text-dl" />
-      <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
-        Couldn’t load {what}.{" "}
-        {error instanceof ApiError ? error.message : String(error)}
-      </p>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        <RefreshCw className="size-4" /> Try again
-      </Button>
     </div>
   );
 }
