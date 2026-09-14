@@ -739,7 +739,7 @@ func (s *Service) TestNotifyNtfy(ctx context.Context, in NotifyConfig) error {
 // the stored password when the field is blank.
 func (s *Service) TestDownload(ctx context.Context, in DownloadConfig) error {
 	if strings.TrimSpace(in.URL) == "" {
-		return errors.New("a qBittorrent URL is required")
+		return ErrDownloadURLRequired
 	}
 	cur := s.cur.Load().dl
 	pw, err := inheritSecret(in.Password, cur.Password, in.URL, cur.URL, "qBittorrent password")
@@ -753,7 +753,7 @@ func (s *Service) TestDownload(ctx context.Context, in DownloadConfig) error {
 // search, filling in the stored API key when the field is blank.
 func (s *Service) TestIndexer(ctx context.Context, in IndexerConfig) error {
 	if strings.TrimSpace(in.URL) == "" {
-		return errors.New("a Torznab URL is required")
+		return ErrIndexerURLRequired
 	}
 	cur := s.cur.Load().idx
 	key, err := inheritSecret(in.APIKey, cur.APIKey, in.URL, cur.URL, "indexer API key")
@@ -776,7 +776,7 @@ func (s *Service) TestIndexer(ctx context.Context, in IndexerConfig) error {
 func (s *Service) TestLibrary(_ context.Context, in LibraryConfig) error {
 	in.applyDefaults()
 	if in.Dir == "" && in.MoviesDir == "" {
-		return errors.New("a library directory is required")
+		return ErrLibraryDirRequired
 	}
 	if in.Dir != "" {
 		if err := checkWritableDir(in.Dir, "library"); err != nil {
@@ -794,15 +794,15 @@ func (s *Service) TestLibrary(_ context.Context, in LibraryConfig) error {
 func checkWritableDir(dir, what string) error {
 	info, err := os.Stat(dir)
 	if err != nil {
-		return fmt.Errorf("cannot access the %s directory %q: %w", what, dir, err)
+		return &DirError{Root: what, Path: dir, Problem: DirInaccessible, Err: err}
 	}
 	if !info.IsDir() {
-		return fmt.Errorf("the %s path %q is not a directory", what, dir)
+		return &DirError{Root: what, Path: dir, Problem: DirNotDirectory}
 	}
 	probe := filepath.Join(dir, ".transpondarr-write-test")
 	f, err := os.Create(probe)
 	if err != nil {
-		return fmt.Errorf("the %s directory %q is not writable: %w", what, dir, err)
+		return &DirError{Root: what, Path: dir, Problem: DirNotWritable, Err: err}
 	}
 	_ = f.Close()
 	_ = os.Remove(probe)
@@ -855,7 +855,7 @@ func NormalizeCategories(s string) (string, error) {
 		}
 		n, err := strconv.Atoi(part)
 		if err != nil || n <= 0 {
-			return "", fmt.Errorf("invalid category %q (want positive numeric Newznab ids, e.g. 5070)", part)
+			return "", &CategoryError{Value: part}
 		}
 		ids = append(ids, strconv.Itoa(n))
 	}
