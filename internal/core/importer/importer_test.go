@@ -1091,7 +1091,7 @@ func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 	if g.Status != "grabbed" {
 		t.Errorf("status = %q, want still grabbed (left for retry)", g.Status)
 	}
-	if !g.LastError.Valid || !strings.Contains(g.LastError.String, "source not accessible") {
+	if !g.LastError.Valid || !strings.Contains(g.LastError.String, "source path not accessible") {
 		t.Errorf("last_error = %+v, want a recorded source-not-accessible reason", g.LastError)
 	}
 }
@@ -1127,7 +1127,7 @@ func TestRecordsLastErrorWhenPlaceFails(t *testing.T) {
 func TestClearsLastErrorOnSuccessfulImport(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
-	setLastError(t, st, "abc", "source not accessible: stat /gone: no such file or directory")
+	setLastError(t, st, "abc", "source path not accessible: stat /gone: no such file or directory")
 	src := filepath.Join(t.TempDir(), "raw.mkv")
 	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
