@@ -153,7 +153,10 @@ export function CalendarPage() {
           </div>
         </div>
 
-        <TabsContent value={view}>
+        <TabsContent
+          value={view}
+          className="rounded-lg focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
           {cal.isError && (
             <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
               <TriangleAlert className="mb-3 size-6 text-dl" />
