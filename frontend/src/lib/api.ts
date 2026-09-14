@@ -69,7 +69,7 @@ function problemCause(problem: ProblemBody): string {
 // Central failure handling shared by the typed client (unwrap) and the auth calls
 // (rawFetch). A 401 normally means the session went stale, so it re-opens
 // `AuthGate` even for calls outside React Query — but for endpoints whose job is
-// to *check* credentials (login, setup, change password), a 401 is just a wrong
+// to *check* credentials (login, setup, change password), a 401 is a wrong
 // password: those pass authEvent: false so `AuthGate` doesn't remount and wipe
 // the form before its error can render.
 function throwApiError(status: number, body: unknown, authEvent = true): never {
@@ -102,7 +102,7 @@ function unwrap<T>(res: { data?: T; error?: unknown; response: Response }): T {
 // The auth endpoints set and read the session cookie directly and aren't in the
 // OpenAPI spec, so they can't go through the typed client. rawFetch mirrors its
 // behavior for those calls. Auth handlers return plain-text errors (not
-// problem+json), so a failed JSON parse just falls back to the status line.
+// problem+json), so a failed JSON parse falls back to the status line.
 async function rawFetch<T>(
   path: string,
   init: RequestInit = {},
@@ -214,12 +214,12 @@ export interface AuthStatus {
 
 // ── Endpoints ─────────────────────────────────────────────────────────────────
 
-// Mutations deliberately take no AbortSignal: a grab or a settings write must
+// Mutations take no AbortSignal: a grab or a settings write must
 // not be aborted by a stray unmount.
 // Mirrors the endpoint's maxItems; a select-all on a long-runner exceeds it.
 const MONITOR_BATCH = 1000;
 
-/** A chunked batch that failed partway. applied is what actually landed. */
+/** A chunked batch that failed partway. applied is what landed. */
 export class PartialBatchError extends Error {
   applied: number;
   total: number;
@@ -316,7 +316,7 @@ export const api = {
       .GET("/api/v1/titles/{id}", { params: { path: { id } }, signal })
       .then(unwrap),
 
-  // remove_downloads is sent as `true` or not at all, so the default request
+  // remove_downloads is sent as `true` or omitted, so the default request
   // has no param.
   deleteTitle: (id: number, removeDownloads?: boolean) =>
     client

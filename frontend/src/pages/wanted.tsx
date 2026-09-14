@@ -196,7 +196,7 @@ function MissingTab({
   const groups = data?.pages.flatMap((p) => p.groups) ?? [];
   const globalReason = data?.pages[0]?.global_reason;
   const [selected, setSelected] = useState<Set<number>>(new Set());
-  // Changing scope changes which titles are listed at all, and a selection the
+  // Changing scope changes which titles are listed, and a selection the
   // user can no longer see would still be queued by "Search selected".
   useEffect(() => setSelected(new Set()), [unaired, unmonitored]);
 
@@ -308,7 +308,7 @@ function GroupSection({
 }
 
 // Invalidates rather than patching a results page: unmonitoring removes the row from
-// the default view entirely, which no in-place edit could express.
+// the default view, which no in-place edit could express.
 function useSetItemMonitored() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -675,7 +675,7 @@ function CutoffRow({
         ) : (
           (item.unmet_goals?.length ?? 0) === 0 && (
             // No stated preference is missing, yet the release is still below
-            // the cutoff. Deliberately two facts and no verdict: unmet goals
+            // the cutoff. Two facts and no verdict: unmet goals
             // exclude the repack/v2 bonus, so an empty list means "tops every
             // preference", not "at the maximum" -- a v2 of this very release
             // scores 25 higher and would be taken.

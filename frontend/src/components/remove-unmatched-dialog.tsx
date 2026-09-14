@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 
 // Removing an unmatched download is destructive and manual by design: the
-// payload may be exactly what someone was about to fix by hand, so nothing
+// payload may be what someone was about to fix by hand, so nothing
 // deletes it automatically.
 export function RemoveUnmatchedDialog({
   item,

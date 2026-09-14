@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SectionShell } from "../section-shell";
 
 /**
- * The breaker's diagnosis, which is the point of surfacing it at all: an
+ * The breaker's diagnosis, which is the point of surfacing it: an
  * operator waking to a wall of failed grabs should be told the client looks
  * faulty rather than left to infer it from a blocklist that stopped growing.
  */

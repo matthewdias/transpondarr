@@ -75,7 +75,7 @@ it("still shows released once the date has passed", () => {
   }
 });
 
-// Substituted rather than qualified, exactly as the episode row does it.
+// Substituted rather than qualified, as the episode row does it.
 it("substitutes the unmonitored badge for a wanted film", () => {
   renderCard({ monitored: false });
 

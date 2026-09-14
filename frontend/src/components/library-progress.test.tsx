@@ -146,7 +146,7 @@ it("hangs the import reason off the blocked film", () => {
   );
 });
 
-// Substituted, not qualified, exactly as the detail page does it: every other
+// Substituted, not qualified, as the detail page does it: every other
 // status stays true when unmonitored, and only "Wanted" becomes a false claim.
 it("names monitoring instead of Wanted for an unmonitored film", () => {
   render(
@@ -180,7 +180,7 @@ it("keeps a film's real item state when it is unmonitored", () => {
   expect(screen.queryByText("Not monitored")).not.toBeInTheDocument();
 });
 
-// A film with no item at all publishes no item state; the shared count path is the
+// A film with no item publishes no item state; the shared count path is the
 // answer, not a movie-shaped guess at one.
 it("takes the count path for a film with no item state to report", () => {
   render(

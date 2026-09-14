@@ -25,7 +25,7 @@ describe("apiProxyTarget", () => {
 
   // A wildcard bind is not an address a browser can dial, so the host has to be
   // replaced rather than passed through. The port differs from the default's
-  // deliberately: on 9797 the rewrite and the fallback produce the same string,
+  // because on 9797 the rewrite and the fallback produce the same string,
   // so the assertion would pass for either.
   it("dials localhost for a wildcard bind, keeping the port", () => {
     expect(apiProxyTarget("0.0.0.0:9898")).toBe("http://localhost:9898");
