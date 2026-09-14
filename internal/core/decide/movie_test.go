@@ -480,7 +480,7 @@ func TestPackReasonYieldsToAProfileRule(t *testing.T) {
 	}
 }
 
-// A batch token on a title release keeps meaning exactly what it always has:
+// A batch token on a series release keeps meaning exactly what it always has:
 // the pack matches the items it covers and is eligible. The new rule is conditional on
 // Format, and this is what proves it.
 func TestSeriesSeasonPackIsUnaffectedByTheMoviePackRule(t *testing.T) {
