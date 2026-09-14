@@ -490,7 +490,7 @@ func (h *activityHandler) getPayload(ctx context.Context, in *queuePayloadInput)
 	}
 	info, err := h.deps.importer.ListPayload(ctx, in.ID)
 	if err != nil {
-		return nil, importerError(err)
+		return nil, importerError(err, "load the downloaded files")
 	}
 
 	out := &queuePayloadOutput{}
@@ -538,7 +538,7 @@ func (h *activityHandler) retryImport(ctx context.Context, in *retryImportInput)
 
 	results, err := h.deps.importer.RetryImport(ctx, in.ID, assignments)
 	if err != nil {
-		return nil, importerError(err)
+		return nil, importerError(err, "retry the import")
 	}
 	out := &retryImportOutput{}
 	out.Body.Results = make([]retryResultDTO, 0, len(results))
@@ -553,18 +553,18 @@ func (h *activityHandler) retryImport(ctx context.Context, in *retryImportInput)
 // importerError maps the importer's sentinels to status codes. A payload that is
 // gone and a row that is not deferred are both 409: the request was well-formed,
 // the world moved.
-func importerError(err error) error {
+func importerError(err error, action string) error {
 	switch {
 	case errors.Is(err, importer.ErrGrabNotFound):
 		return huma.Error404NotFound("That grab no longer exists. Refresh the queue.")
 	case errors.Is(err, importer.ErrNotDeferred):
 		return huma.Error409Conflict("This download no longer needs an import fix. Refresh the queue.")
 	case errors.Is(err, importer.ErrPayloadGone):
-		return huma.Error409Conflict("The downloaded files are no longer available, so grab the release again: " + err.Error())
+		return huma.Error409Conflict("Transpondarr can't read the downloaded files. Refresh the queue, and grab the release again if the download is gone: " + err.Error())
 	case errors.Is(err, importer.ErrNoClient):
 		return huma.Error503ServiceUnavailable("Set up a download client and a library in Settings to import.")
 	case errors.Is(err, importer.ErrBadAssignment):
 		return huma.Error422UnprocessableEntity(err.Error())
 	}
-	return storeError("retry the import", err)
+	return storeError(action, err)
 }
