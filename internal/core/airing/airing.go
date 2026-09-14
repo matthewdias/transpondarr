@@ -213,7 +213,7 @@ func (s *Service) syncTitle(ctx context.Context, airing metadata.AiringProvider,
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit: %w", err)
 	}
-	s.log.Debug("airing schedule synced", "series", title.ID, "airings", len(schedule), "tail_only", notYetAired)
+	s.log.Debug("airing schedule synced", "title", title.ID, "airings", len(schedule), "tail_only", notYetAired)
 	return nil
 }
 

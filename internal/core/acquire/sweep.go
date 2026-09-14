@@ -280,7 +280,7 @@ func (s *Service) walkCandidates(ctx context.Context, title db.Series, m Match, 
 		}
 		if notifyOnly {
 			s.log.Info("rehearsal: would have grabbed a release",
-				"source", string(source), "series", title.ID, "release", c.Release.Title, "items", take)
+				"source", string(source), "title", title.ID, "release", c.Release.Title, "items", take)
 			s.dispatchRehearsal(ctx, title, take, c.Release.Title, "would have grabbed")
 			markCovered(covered, take)
 			res.outcomes.settle(take, outcome{kind: OutcomeWouldGrab, release: c.Release.Title})
@@ -307,14 +307,14 @@ func (s *Service) walkCandidates(ctx context.Context, title db.Series, m Match, 
 				kind: OutcomeAddFailed, release: c.Release.Title, detail: err.Error(),
 			})
 			s.log.Warn("could not add a release; trying the next candidate",
-				"source", string(source), "series", title.ID, "release", c.Release.Title, "err", err)
+				"source", string(source), "title", title.ID, "release", c.Release.Title, "err", err)
 			if failed >= maxAddFailures {
 				return res, fmt.Errorf("%d refused adds: %w", failed, err)
 			}
 			continue
 		}
 		s.log.Info("grabbed a release",
-			"source", string(source), "series", title.ID, "release", c.Release.Title, "items", take)
+			"source", string(source), "title", title.ID, "release", c.Release.Title, "items", take)
 		if d := s.clients.Notify(); d != nil {
 			item := 0
 			if len(take) == 1 {
@@ -511,8 +511,8 @@ func (s *Service) setSearchState(ctx context.Context, p db.SetTitleSearchStatePa
 		return fmt.Errorf("write search cadence for title %d: %w", p.ID, err)
 	}
 	if rows == 0 {
-		s.log.Debug("search cadence write skipped; the series was reset or removed mid-sweep",
-			"series", p.ID, "epoch", p.SearchEpoch)
+		s.log.Debug("search cadence write skipped; the title was reset or removed mid-sweep",
+			"title", p.ID, "epoch", p.SearchEpoch)
 	}
 	return nil
 }

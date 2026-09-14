@@ -133,7 +133,7 @@ func (s *Service) refreshTitle(ctx context.Context, title db.Series) error {
 	}
 
 	if inserted > 0 {
-		s.log.Info("series grew", "series", title.ID, "new_items", inserted)
+		s.log.Info("title gained items", "title", title.ID, "new_items", inserted)
 	}
 	return nil
 }

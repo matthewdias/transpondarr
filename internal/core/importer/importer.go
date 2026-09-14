@@ -364,7 +364,7 @@ func (im *Importer) record(ctx context.Context, f failedGrab, itemIDs []int64) {
 	// A failure is new information, so the title is searched again promptly with
 	// the next-best release rather than waiting out accumulated backoff.
 	if err := im.store.Q.ResetTitleSearchState(ctx, f.titleID); err != nil {
-		im.log.Error("importer: reset series search state", "series", f.titleID, "err", err)
+		im.log.Error("importer: reset title search state", "title", f.titleID, "err", err)
 	}
 }
 
