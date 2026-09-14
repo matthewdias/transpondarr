@@ -29,7 +29,7 @@ type Release struct {
 	DualAudio    bool
 }
 
-// Indexer is any release source Transpondarr can search.
+// Indexer is anything Transpondarr can search for releases.
 type Indexer interface {
 	Name() string
 	Search(ctx context.Context, q Query) ([]Release, error)

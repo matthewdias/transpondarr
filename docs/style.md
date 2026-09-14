@@ -133,11 +133,11 @@ tell which meaning is intended.
 | **title** | the tracked work (`Title`, `GetTitle`) · a release's name text (`ReleaseTitle`, `titleBelongs`) | the title · **the release name** |
 | **grab** | the act (`AutoGrab`) · the record (`GrabID`, `failedGrab`) · the status (`grabbed`) | grab *(verb)* · **the grab row** · status `grabbed` |
 | **row** | a `grabs` row · a `wanted_items` row | **grab row** · **item row** |
-| **group** | the fansub group (`ReleaseGroup`) · a quality-profile group (`ProfileGroup`) · grab rows sharing an info hash (`grabGroup`) | **release group** · **profile group** · **info-hash group** |
+| **group** | the fansub group (`ReleaseGroup`) · a quality-profile group (`ProfileGroup`) · grab rows sharing an info hash (`grabGroup`) · one title's rows on the Wanted screens (`CutoffGroup`) | **release group** · **profile group** · **info-hash group** · **title group** |
 | **sweep** | the wanted-search sweep (`SweepOnce`) · the staging-file sweep (`SweepStaging`) | **search sweep** · **staging sweep** |
 | **page** | a paginated API response (`pageCursor`) · one indexer feed fetch (`pageParses`) · an AniList schedule page | **results page** · **feed page** · **schedule page** |
 | **match** | release against title (`Match`) · file against item (`listUnmatched`) | **release match** · **file match** |
-| **entry** | a feed entry (`FeedEntry`) · a blocklist entry (`BlocklistEntry`) · an AniList entry, which is a title (`seasonEntry`) | **feed entry** · **blocklist entry** · **AniList entry** |
+| **entry** | a feed entry (`FeedEntry`) · a blocklist entry (`BlocklistEntry`) · an AniList entry, which is a title (`seasonEntry`) · one broadcast in AniList's airing schedule (`airingSchedule`) | **feed entry** · **blocklist entry** · **AniList entry** · **schedule entry** |
 | **cover** | a release covers an item (`covers`) · cover art (`CoverURL`) | **covers the item** · **cover art** |
 | **state** | download state · search state · client state · breaker state | always qualify |
 | **held** | the library already has a file (`held_release_title`) · the grab is delayed (`held_until`) | **already in the library** · **held until** |

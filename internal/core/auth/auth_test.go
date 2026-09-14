@@ -93,7 +93,7 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 }
 
-// The session sweep must remove expired rows and leave live sessions alone.
+// CleanupExpired must remove expired rows and leave live sessions alone.
 func TestCleanupExpiredRemovesOnlyExpiredSessions(t *testing.T) {
 	svc, st := newTestAuth(t)
 	ctx := context.Background()
