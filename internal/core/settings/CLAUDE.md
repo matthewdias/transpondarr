@@ -10,7 +10,7 @@ was saved for. The HTTP-side encoding rules are in
   swaps it into `internal/core/clients.Registry`. Handlers and the importer read
   through the registry, so edits apply without a restart.
 
-### A stored secret only ever goes to the host it was saved for (#259)
+## A stored secret only ever goes to the host it was saved for (#259)
 
 - **The bug (#259): a stored secret was sent to a caller-supplied host.** Three
   `Test*` and three `Update*` paths fill a blank secret field from storage.

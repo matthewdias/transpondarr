@@ -3,7 +3,7 @@
 The two automatic entry points and the one decision layer under them, plus what
 a pass records about what it decided.
 
-### Two entry points, one decision layer
+## Two entry points, one decision layer
 
 - **Both entry points share one decision layer (#101).** The `feed-poll` job and
   the `wanted-search` search sweep both build a `Match` through
@@ -43,7 +43,7 @@ a pass records about what it decided.
   implementations (Sonarr keys on the download URL for that reason), and a feed
   publishing no dates dedupes on ids alone.
 
-### Feed gap detection
+## Feed gap detection
 
 - **A feed page proves coverage only by containing the mark's own instant.**
   Feed gap detection (#176) compares each feed page against the high-water mark.
@@ -79,7 +79,7 @@ a pass records about what it decided.
   only because feed gap recovery (#140) is bounded to `titlesPerPass` and
   reorders the search sweep queue rather than adding searches to it.
 
-### Concurrent grabs
+## Concurrent grabs
 
 - **Concurrent grabs are serialized by an in-process claim over wanted-item
   ids** (`claims.go`). The two jobs are phase-locked: same interval, both
@@ -90,7 +90,7 @@ a pass records about what it decided.
 - **Automation `TryAcquire`s and yields; a manual grab `Acquire`s and never
   does.**
 
-### Pass outcomes
+## Pass outcomes
 
 - **A pass stores what it decided; the Missing page surfaces less than it stores
   (#181).** `walkCandidates` writes one `pass_outcomes` row per wanted item,
@@ -127,7 +127,7 @@ a pass records about what it decided.
   never evaluated the rest of the candidates, and a feed poll read one feed
   page, not search results.
 
-### Cutoff Unmet's parse cache
+## Cutoff Unmet's parse cache
 
 - **Cutoff Unmet caches the parse and never the score (#185).** Membership is
   re-derived per request so editing a profile moves the list. The scan uses its
@@ -164,7 +164,7 @@ a pass records about what it decided.
   of every held release (#266) proposed reusing it from `decide.Match`, and that
   was declined; the [`decide` guide](../decide/CLAUDE.md) explains why.
 
-### The automation toggle
+## The automation toggle
 
 - **The automation toggle is three-state (#116): `off` / `notify_only` / `on`.**
   It is one settings key (`automation.enabled`) whose value domain widened, so
@@ -180,7 +180,7 @@ a pass records about what it decided.
 - **A manual "Run now" bypasses only `off`.** So notify-only means nothing
   reaches the download client no matter who triggered the run.
 
-### Switching from notify-only to `on`
+## Switching from notify-only to `on`
 
 - **A rehearsal rehearses the search cadence but not the grab-driven reset, so
   switching to `on` resets every title's cadence** (`ResetAllTitlesSearchState`,
@@ -195,7 +195,7 @@ a pass records about what it decided.
   backoff the rehearsal accrued**, for releases the feed will not re-offer. With
   it, the search sweep re-searches and finds them.
 
-### What the automation entry points filter on
+## What the automation entry points filter on
 
 - **The two cadence helpers filter on `monitored`, not on `grabbable`.** An
   unaired item is never grabbable by construction, so filtering `nextAiring` on

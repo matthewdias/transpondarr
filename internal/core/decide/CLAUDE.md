@@ -4,7 +4,7 @@ Which release is offered for which item, and which is refused. `decide` is
 pure: it reads what a release name says and what the profile allows, and it
 never touches the client, the library or the store.
 
-### Batch releases (#126)
+## Batch releases (#126)
 
 - **A batch is matched, eligible, and preferred on coverage (#126).** The sweep
   guard against auto-grabbing a batch (#125) refused a pack in
@@ -26,7 +26,7 @@ never touches the client, the library or the store.
   1-12 of a 12-item AniList entry. A numberless pack has no range to check and
   still fills the AniList entry, because that is what a season pack is.
 
-### Parsing once per poll (#266)
+## Parsing once per poll (#266)
 
 - **The automation loop parses once per poll, not once per title — and not at
   all for a held release no profile will rate (#266).** Measured, reusing
@@ -58,7 +58,7 @@ never touches the client, the library or the store.
   behaviour-preserving today and makes the zero value reachable by the next
   edit.
 
-### Items: numbering basis and candidacy
+## Items: numbering basis and candidacy
 
 - **`decide.Match`'s `items` is the numbering basis, not only the candidate
   set.** `maxItem` spans every item passed (grabbable or not) and drives
@@ -77,7 +77,7 @@ never touches the client, the library or the store.
   already in the library that is grabbable anyway, which is the case the old
   single field could not express.
 
-### Item monitoring (#188)
+## Item monitoring (#188)
 
 - **Per-episode monitoring (#188) is one more input to `Grabbable`, which is why
   it costs `decide` and the importer nothing.** `wanted_items.monitored` is
@@ -95,7 +95,7 @@ never touches the client, the library or the store.
   `unclaimedItem` already excludes an item already in the library, so
   file adoption (#157) closes it with no importer change.
 
-### Movies: batch tokens (#211)
+## Movies: batch tokens (#211)
 
 - **A batch token on a movie release is an eligibility rule, not a matching one
   (#211, automation including movies).** Movie mode's two numeric checks both
@@ -118,7 +118,7 @@ never touches the client, the library or the store.
 - **An explicit range stays a *matching* refusal, unchanged**: a film cannot
   span episodes however it is packaged.
 
-### Movies: the null-year rule (#208)
+## Movies: the null-year rule (#208)
 
 - **The null-year rule is one rule split by actor, not two (#208, a movie is
   addable).** `series.year` is `0`, never NULL, for "no year on record".
@@ -139,7 +139,7 @@ never touches the client, the library or the store.
   memory (#213) repairs it, never enumerating the library: `Place` only warns
   that its naming inputs moved.
 
-### Movies: reading a release's year (#209)
+## Movies: reading a release's year (#209)
 
 - **A year is read the same way whichever form names it, and both are decided
   against the variants (#209, movie mode).** anitogo fills `AnimeYear` only from
@@ -167,7 +167,7 @@ never touches the client, the library or the store.
   identical on every release, while every rule above it discriminates between
   releases.
 
-### Movies: a release's number (#209, #211)
+## Movies: a release's number (#209, #211)
 
 - **Movie mode ignores a release's number for *mapping* and reads it for
   *identity* (#209, movie mode)** — not the same thing, and conflating them was
