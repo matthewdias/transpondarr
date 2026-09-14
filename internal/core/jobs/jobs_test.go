@@ -416,10 +416,10 @@ func TestOnlyATriggeredRunIsMarkedManual(t *testing.T) {
 }
 
 func TestManualRunIsFalseWithoutTheMarker(t *testing.T) {
-	if ManualRun(context.Background()) {
+	if ManualRun(t.Context()) {
 		t.Error("ManualRun on a plain context = true, want false")
 	}
-	if !ManualRun(WithManualRun(context.Background())) {
+	if !ManualRun(WithManualRun(t.Context())) {
 		t.Error("ManualRun on a marked context = false, want true")
 	}
 }
@@ -494,7 +494,7 @@ func TestCancellationIsNotLoggedAsAFailure(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		w := &syncWriter{}
 		r := New(slog.New(slog.NewTextHandler(w, nil)))
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		r.Add(Job{Name: "a", Interval: time.Hour, RunAtStart: true, Run: func(ctx context.Context) error {
 			cancel()
 			return ctx.Err()
@@ -538,7 +538,7 @@ func TestAddAfterStartPanics(t *testing.T) {
 		}
 	}()
 	r := New(discardLogger())
-	r.Start(context.Background())
+	r.Start(t.Context())
 	r.Add(Job{Name: "a", Interval: time.Hour, Run: func(context.Context) error { return nil }})
 }
 
@@ -549,14 +549,14 @@ func TestStartTwicePanics(t *testing.T) {
 		}
 	}()
 	r := New(discardLogger())
-	r.Start(context.Background())
-	r.Start(context.Background())
+	r.Start(t.Context())
+	r.Start(t.Context())
 }
 
 // Pins the documented edge that a runner with no jobs is done immediately.
 func TestStartWithNoJobsIsDoneImmediately(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		select {

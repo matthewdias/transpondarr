@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -43,7 +42,7 @@ type queueJSON struct {
 // seedOpenGrab writes a grab for the title's item with the given number.
 func seedOpenGrab(t *testing.T, st *store.Store, titleID int64, number int, hash, title, status string) db.Grab {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	items, err := st.Q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
@@ -77,7 +76,7 @@ func TestActivityQueueReportsOpenGrabsWithClientState(t *testing.T) {
 
 	downloading := seedOpenGrab(t, h.store, titleID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
 	stuck := seedOpenGrab(t, h.store, titleID, 2, "h2", "[ExampleSubs] Placeholder Saga - 02 [1080p]", "grabbed")
-	if err := h.store.Q.SetGrabLastError(context.Background(), db.SetGrabLastErrorParams{
+	if err := h.store.Q.SetGrabLastError(t.Context(), db.SetGrabLastErrorParams{
 		LastError: sql.NullString{String: "import failed: disk full", Valid: true}, ID: stuck.ID,
 	}); err != nil {
 		t.Fatalf("set last_error: %v", err)
@@ -146,7 +145,7 @@ func TestActivityQueueReportsWhenAStallWillBeGivenUpOn(t *testing.T) {
 	resumed := seedOpenGrab(t, h.store, titleID, 4, "h4", "[ExampleSubs] Placeholder Saga - 04 [1080p]", "grabbed")
 	stalledFor := 2 * time.Hour
 	for _, id := range []int64{stalledGrab.ID, gone.ID, resumed.ID} {
-		if err := h.store.Q.SetGrabStalledSince(context.Background(), db.SetGrabStalledSinceParams{
+		if err := h.store.Q.SetGrabStalledSince(t.Context(), db.SetGrabStalledSinceParams{
 			StalledSince: sql.NullString{String: store.FormatTimestamp(time.Now().Add(-stalledFor)), Valid: true},
 			ID:           id,
 		}); err != nil {
@@ -205,7 +204,7 @@ func TestActivityQueueCountsAMetadataStallButNotAQueuedDownload(t *testing.T) {
 	fetching := seedOpenGrab(t, h.store, titleID, 1, "h1", "[ExampleSubs] Placeholder Saga - 01 [1080p]", "grabbed")
 	queued := seedOpenGrab(t, h.store, titleID, 2, "h2", "[ExampleSubs] Placeholder Saga - 02 [1080p]", "grabbed")
 	for _, id := range []int64{fetching.ID, queued.ID} {
-		if err := h.store.Q.SetGrabStalledSince(context.Background(), db.SetGrabStalledSinceParams{
+		if err := h.store.Q.SetGrabStalledSince(t.Context(), db.SetGrabStalledSinceParams{
 			StalledSince: sql.NullString{String: store.FormatTimestamp(time.Now().Add(-2 * time.Hour)), Valid: true},
 			ID:           id,
 		}); err != nil {
@@ -372,7 +371,7 @@ func TestTitleHistoryKeepsBothAttemptsAcrossRegrab(t *testing.T) {
 		t.Fatalf("grab status = %d, want 201", code)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashA", State: download.StateError}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if code := h.postJSON(t, fmt.Sprintf("/api/v1/titles/%d/grab", titleID),

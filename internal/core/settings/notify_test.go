@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,7 +27,7 @@ func newTestStore(t *testing.T) *store.Store {
 
 func seedSetting(t *testing.T, st *store.Store, key, value string) {
 	t.Helper()
-	if err := st.Q.UpsertSetting(context.Background(), db.UpsertSettingParams{Key: key, Value: value}); err != nil {
+	if err := st.Q.UpsertSetting(t.Context(), db.UpsertSettingParams{Key: key, Value: value}); err != nil {
 		t.Fatalf("seed setting %s: %v", key, err)
 	}
 }
@@ -38,7 +37,7 @@ func seedSetting(t *testing.T, st *store.Store, key, value string) {
 func newServiceOver(t *testing.T, st *store.Store) (*Service, *clients.Registry) {
 	t.Helper()
 	reg := clients.New()
-	svc, err := New(context.Background(), st, &config.Config{}, reg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc, err := New(t.Context(), st, &config.Config{}, reg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -56,7 +55,7 @@ func TestNotifyUnconfiguredMeansNilDispatcher(t *testing.T) {
 
 func TestUpdateNotifyPersistsAndSwapsDispatcher(t *testing.T) {
 	svc, reg, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	in := NotifyConfig{
 		DiscordURL:    "https://discord.example/api/webhooks/1/abc",
@@ -111,7 +110,7 @@ func TestUpdateNotifyPersistsAndSwapsDispatcher(t *testing.T) {
 // Clearing every adapter must drop the dispatcher back to nil.
 func TestUpdateNotifyClearingAllAdaptersDropsDispatcher(t *testing.T) {
 	svc, reg, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := svc.UpdateNotify(ctx, NotifyConfig{WebhookURL: "https://hooks.example/x"}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -128,7 +127,7 @@ func TestUpdateNotifyClearingAllAdaptersDropsDispatcher(t *testing.T) {
 
 func TestUpdateNotifyBlankTokenInheritsStored(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := svc.UpdateNotify(ctx, NotifyConfig{NtfyTopic: "transpondarr", NtfyToken: "tk_secret"}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -186,7 +185,7 @@ func TestNotifyStoredSeriesAddedKeySurvivesTheTitleRename(t *testing.T) {
 
 func TestTestNotifyValidatesRequiredFields(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := svc.TestNotifyDiscord(ctx, NotifyConfig{}); err == nil {
 		t.Error("TestNotifyDiscord should reject a blank URL")
 	}
@@ -200,7 +199,7 @@ func TestTestNotifyValidatesRequiredFields(t *testing.T) {
 
 func TestTestNotifyNtfyInheritsStoredToken(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var auth string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

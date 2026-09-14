@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -44,7 +43,7 @@ func TestConcurrentSweepAndFeedPollGrabItemOnce(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
 	entered, release := blockFirstAdd(h.dl)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var wg sync.WaitGroup
 	var pollErr error
@@ -75,13 +74,13 @@ func TestManualGrabIgnoresAnInFlightClaim(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now()),
 	}, fakeConfig{})
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
-	items, err := h.st.Q.ListWantedItems(context.Background(), 1)
+	items, err := h.st.Q.ListWantedItems(t.Context(), 1)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}
 
 	entered, release := blockFirstAdd(h.dl)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var wg sync.WaitGroup
 	wg.Go(func() { _ = h.svc.PollFeedOnce(ctx) })
@@ -120,7 +119,7 @@ func TestClaimIsReleasedWhenAnAddFails(t *testing.T) {
 	h.dl.FailURLs = map[string]error{dead.DownloadURL: errors.New("qbit: refused")}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if n := h.dl.AddCount(); n != 2 {
@@ -155,7 +154,7 @@ func TestSweepDoesNotRegrabAnItemThePollTookMidSearch(t *testing.T) {
 	h.feed.Releases = []indexer.Release{fromSearch}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// The poll lands while the sweep's search is in flight, after the sweep has
 	// already read item 3 as grabbable.
 	pollFeed := sync.OnceFunc(func() {

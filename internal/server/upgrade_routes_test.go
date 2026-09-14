@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -23,7 +22,7 @@ type upgradeProfileJSON struct {
 // hold marks an item as held by a named release, the item state an upgrade acts on.
 func hold(t *testing.T, h *harness, titleID int64, number int, release string) {
 	t.Helper()
-	if _, err := h.store.DB.ExecContext(context.Background(),
+	if _, err := h.store.DB.ExecContext(t.Context(),
 		`UPDATE wanted_items SET in_library = 1, held_release_title = ? WHERE series_id = ? AND number = ?`,
 		release, titleID, number); err != nil {
 		t.Fatalf("hold item %d: %v", number, err)

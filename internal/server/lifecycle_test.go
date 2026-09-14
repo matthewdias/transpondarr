@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -55,7 +54,7 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 
 	// Run one importer scan over the same registry the server uses.
 	im := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -72,11 +71,11 @@ func TestGrabThenImportLifecycle(t *testing.T) {
 	}
 
 	// The grab is now imported and the wanted item is had.
-	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(t.Context(), titleID)
 	if len(grabs) != 1 || grabs[0].Status != "imported" {
 		t.Fatalf("grab status = %+v, want one imported", grabs)
 	}
-	items, _ := h.store.Q.ListWantedItems(context.Background(), titleID)
+	items, _ := h.store.Q.ListWantedItems(t.Context(), titleID)
 	for _, it := range items {
 		if int(it.Number.Int64) == 3 && it.InLibrary != 1 {
 			t.Errorf("episode 3 in_library = %d, want 1 after import", it.InLibrary)
@@ -117,25 +116,25 @@ func TestVanishedTorrentRevertsItemToWanted(t *testing.T) {
 
 	// Removed in the client, with the absence already past the grace period.
 	dl.Statuses = nil
-	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(t.Context(), titleID)
 	if len(grabs) != 1 {
 		t.Fatalf("got %d grabs, want 1", len(grabs))
 	}
-	if err := h.store.Q.SetGrabMissingSince(context.Background(), db.SetGrabMissingSinceParams{
+	if err := h.store.Q.SetGrabMissingSince(t.Context(), db.SetGrabMissingSinceParams{
 		MissingSince: sql.NullString{String: store.FormatTimestamp(time.Now().Add(-time.Hour)), Valid: true},
 		ID:           grabs[0].ID,
 	}); err != nil {
 		t.Fatalf("stamp missing_since: %v", err)
 	}
 
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	if got := itemStatus(t, h, titleID, 7); got != "wanted" {
 		t.Errorf("episode 7 status = %q, want wanted after the torrent vanished", got)
 	}
-	grabs, _ = h.store.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, _ = h.store.Q.ListGrabsByTitle(t.Context(), titleID)
 	if grabs[0].Status != "failed" {
 		t.Errorf("grab status = %q, want failed", grabs[0].Status)
 	}
@@ -171,7 +170,7 @@ func TestAmbiguousPayloadShowsDeferred(t *testing.T) {
 	}
 	dl.Statuses = []download.Status{{Hash: "hash9", State: download.StateComplete, ContentPath: dir}}
 
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -210,7 +209,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 		}
 	}
 	dl.Statuses = []download.Status{{Hash: "hashA", State: download.StateComplete, ContentPath: dir}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := itemStatus(t, h, titleID, 9); got != "deferred" {
@@ -227,7 +226,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 	if got := itemStatus(t, h, titleID, 9); got != "downloading" {
 		t.Errorf("episode 9 status = %q, want downloading after the re-grab", got)
 	}
-	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(t.Context(), titleID)
 	if len(grabs) != 1 || grabs[0].InfoHash != "hashB" || grabs[0].Status != "grabbed" {
 		t.Fatalf("grabs = %+v, want one grabbed row for hashB", grabs)
 	}
@@ -238,7 +237,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 		t.Fatal(err)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashB", State: download.StateComplete, ContentPath: src}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -271,7 +270,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 	// Complete, but at a path Transpondarr cannot read (a path-mapping gap).
 	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete,
 		ContentPath: filepath.Join(t.TempDir(), "unmapped", "raw.mkv")}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -317,14 +316,14 @@ func TestStuckImportShowsReason(t *testing.T) {
 		t.Fatal(err)
 	}
 	dl.Statuses = []download.Status{{Hash: "hashC", State: download.StateComplete, ContentPath: src}}
-	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(context.Background()); err != nil {
+	if err := importer.New(h.store, h.reg, discardLogger(), blocklist.New(h.store, nil), nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	if got := itemStatus(t, h, titleID, 4); got != "in_library" {
 		t.Errorf("episode 4 status = %q, want in_library after the path is reachable", got)
 	}
-	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(t.Context(), titleID)
 	if len(grabs) != 1 || grabs[0].LastError.Valid {
 		t.Errorf("grabs = %+v, want one row with last_error cleared", grabs)
 	}
@@ -339,7 +338,7 @@ func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 	h := newHarness(t, &coretest.FakeIndexer{}, &coretest.FakeDownload{})
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	items, err := h.store.Q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list wanted items: %v", err)

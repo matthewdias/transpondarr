@@ -2,7 +2,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/cookiejar"
@@ -33,7 +32,7 @@ const passwordAttemptBudget = 5
 // account directly rather than through the setup endpoint).
 func newAuthServer(t *testing.T, cfg *config.Config) (*httptest.Server, *auth.Service) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st := coretest.NewStore(t)
 	reg := clients.New()
 
@@ -109,7 +108,7 @@ func TestAuthAPIKeyPath(t *testing.T) {
 // and a client without the cookie is rejected.
 func TestAuthSessionPath(t *testing.T) {
 	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredEnabled})
-	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {
+	if err := authSvc.CreateUser(t.Context(), "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
@@ -233,7 +232,7 @@ func setAuthMode(t *testing.T, ts *httptest.Server, body map[string]string) int 
 // all: without the limiter it is an unmetered password-guessing oracle.
 func TestAuthPasswordChangeIsRateLimited(t *testing.T) {
 	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredLocal})
-	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {
+	if err := authSvc.CreateUser(t.Context(), "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
@@ -256,7 +255,7 @@ func TestAuthPasswordChangeIsRateLimited(t *testing.T) {
 // for change-password, since both verify the same admin credential.
 func TestAuthPasswordLimiterSharesBucket(t *testing.T) {
 	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredLocal})
-	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {
+	if err := authSvc.CreateUser(t.Context(), "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
@@ -275,7 +274,7 @@ func TestAuthPasswordLimiterSharesBucket(t *testing.T) {
 // so a burst must not pass more than the budget through to verification.
 func TestAuthPasswordLimiterIsAtomic(t *testing.T) {
 	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredEnabled})
-	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {
+	if err := authSvc.CreateUser(t.Context(), "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 

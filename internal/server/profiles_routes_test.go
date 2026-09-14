@@ -2,7 +2,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -189,7 +188,7 @@ func TestProfileCRUDAndTitleAssignment(t *testing.T) {
 	if code := do(t, h, "DELETE", fmt.Sprintf("/api/v1/profiles/%d?reassign_to=1", created.ID), nil, nil); code != http.StatusNoContent {
 		t.Fatalf("reassigning delete status = %d, want 204", code)
 	}
-	title, err := h.store.Q.GetTitle(context.Background(), titleID)
+	title, err := h.store.Q.GetTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("get title: %v", err)
 	}
@@ -419,7 +418,7 @@ func TestUpdateUnknownProfileIsNotFound(t *testing.T) {
 // row must stay savable rather than answering 409 to its own name.
 func TestUpdateProfileWithPreExistingCaseVariantName(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	seed := func(name string) int64 {
 		t.Helper()

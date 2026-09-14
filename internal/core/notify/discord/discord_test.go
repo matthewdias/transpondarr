@@ -1,7 +1,6 @@
 package discord
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -71,7 +70,7 @@ func TestSendRendersEachKind(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(string(tc.kind), func(t *testing.T) {
 			ts, got := capture(t, http.StatusNoContent)
-			if err := New(ts.URL).Send(context.Background(), notify.Event{Kind: tc.kind, Title: "Placeholder Saga"}); err != nil {
+			if err := New(ts.URL).Send(t.Context(), notify.Event{Kind: tc.kind, Title: "Placeholder Saga"}); err != nil {
 				t.Fatalf("send: %v", err)
 			}
 			if len(got.Embeds) != 1 {
@@ -90,7 +89,7 @@ func TestSendRendersEachKind(t *testing.T) {
 
 func TestSendIncludesOnlyApplicableFields(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
-	err := New(ts.URL).Send(context.Background(), notify.Event{
+	err := New(ts.URL).Send(t.Context(), notify.Event{
 		Kind:         notify.KindImportStuck,
 		Title:        "Placeholder Saga",
 		ItemNumber:   5,
@@ -120,7 +119,7 @@ func TestSendIncludesOnlyApplicableFields(t *testing.T) {
 // filing it under a field labelled Error would report a success as a fault.
 func TestSendLabelsARehearsalOutcomeNotAnError(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
-	err := New(ts.URL).Send(context.Background(), notify.Event{
+	err := New(ts.URL).Send(t.Context(), notify.Event{
 		Kind:         notify.KindRehearsal,
 		Title:        "Placeholder Saga",
 		ItemNumber:   5,
@@ -141,7 +140,7 @@ func TestSendLabelsARehearsalOutcomeNotAnError(t *testing.T) {
 
 func TestSendOmitsUnsetFields(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
-	if err := New(ts.URL).Send(context.Background(), notify.Event{Kind: notify.KindTitleAdded, Title: "Placeholder Saga"}); err != nil {
+	if err := New(ts.URL).Send(t.Context(), notify.Event{Kind: notify.KindTitleAdded, Title: "Placeholder Saga"}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	e := got.Embeds[0]
@@ -158,7 +157,7 @@ func TestSendOmitsUnsetFields(t *testing.T) {
 func TestSendCapsFieldValues(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
 	long := strings.Repeat("e", 3000)
-	err := New(ts.URL).Send(context.Background(), notify.Event{
+	err := New(ts.URL).Send(t.Context(), notify.Event{
 		Kind: notify.KindImportStuck, Title: "Placeholder Saga", Error: long,
 	})
 	if err != nil {
@@ -182,7 +181,7 @@ func TestSendReportsNon2xx(t *testing.T) {
 		_, _ = w.Write([]byte(`{"message":"invalid webhook"}`))
 	}))
 	t.Cleanup(ts.Close)
-	err := New(ts.URL).Send(context.Background(), notify.Event{Kind: notify.KindTest})
+	err := New(ts.URL).Send(t.Context(), notify.Event{Kind: notify.KindTest})
 	if err == nil {
 		t.Fatal("want an error on a 400")
 	}
@@ -195,7 +194,7 @@ func TestSendReportsNon2xx(t *testing.T) {
 // folded into runs so a season pack does not print a wall of digits.
 func TestSendRendersMultipleEpisodesAsOneField(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
-	if err := New(ts.URL).Send(context.Background(), notify.Event{
+	if err := New(ts.URL).Send(t.Context(), notify.Event{
 		Kind: notify.KindImported, Title: "Placeholder Saga",
 		Items: []int{1, 2, 3, 5}, Path: "/library/Placeholder Saga/Season 01",
 	}); err != nil {
@@ -214,7 +213,7 @@ func TestSendRendersMultipleEpisodesAsOneField(t *testing.T) {
 // Episode field is dropped rather than relabelled.
 func TestSendOmitsTheEpisodeFieldForAMovie(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
-	if err := New(ts.URL).Send(context.Background(), notify.Event{
+	if err := New(ts.URL).Send(t.Context(), notify.Event{
 		Kind: notify.KindImported, Title: "Placeholder Film", ItemNumber: 1, ItemKind: domain.KindMovie,
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -235,7 +234,7 @@ func TestSendOmitsTheEpisodeFieldForAMovie(t *testing.T) {
 func TestSendKeepsTheEpisodeFieldForAnEpisode(t *testing.T) {
 	for _, kind := range []domain.WantedKind{"", domain.KindEpisode} {
 		ts, got := capture(t, http.StatusNoContent)
-		if err := New(ts.URL).Send(context.Background(), notify.Event{
+		if err := New(ts.URL).Send(t.Context(), notify.Event{
 			Kind: notify.KindImported, Title: "Placeholder Saga", ItemNumber: 5, ItemKind: kind,
 		}); err != nil {
 			t.Fatalf("send: %v", err)

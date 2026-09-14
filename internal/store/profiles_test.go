@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"testing"
@@ -11,7 +10,7 @@ import (
 
 func TestDefaultProfileSeededAndAssignedToNewTitles(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	def, err := st.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {
@@ -32,7 +31,7 @@ func TestDefaultProfileSeededAndAssignedToNewTitles(t *testing.T) {
 
 func TestDeleteQualityProfileRefusesDefault(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	def, err := st.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {
@@ -52,7 +51,7 @@ func TestDeleteQualityProfileRefusesDefault(t *testing.T) {
 
 func TestReassignThenDeleteProfileCascadesGroups(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	prof, err := st.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
 		Name:            "Strict",
@@ -117,7 +116,7 @@ func TestReassignThenDeleteProfileCascadesGroups(t *testing.T) {
 
 func TestDeleteQualityProfileRefusesWhileInUse(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	prof, err := st.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
 		Name: "InUse", ResolutionOrder: `["1080p"]`, HardExcludes: `[]`,
@@ -147,7 +146,7 @@ func TestDeleteQualityProfileRefusesWhileInUse(t *testing.T) {
 
 func TestSetTitleProfileRejectsMissingProfile(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
@@ -171,7 +170,7 @@ func TestSetTitleProfileRejectsMissingProfile(t *testing.T) {
 
 func TestQualityProfileRejectsInvalidJSON(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if _, err := st.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
 		Name: "BadRes", ResolutionOrder: `not json`, HardExcludes: `[]`,
@@ -195,7 +194,7 @@ func TestOnlyOneDefaultProfile(t *testing.T) {
 
 func TestProfileGroupsOrderedUnblockedFirstThenByRank(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	def, err := st.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {
@@ -238,7 +237,7 @@ func TestProfileGroupsOrderedUnblockedFirstThenByRank(t *testing.T) {
 
 func TestGetQualityProfileByNameFoldsCase(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	strict, err := st.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
 		Name: "Strict", ResolutionOrder: `[]`, HardExcludes: `[]`,
@@ -271,7 +270,7 @@ func TestGetQualityProfileByNameFoldsCase(t *testing.T) {
 // no title uses must be absent from the counts rather than reported as zero.
 func TestBatchProfileReadsPartitionByProfile(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	def, err := st.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {

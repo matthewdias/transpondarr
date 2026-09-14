@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 
@@ -31,7 +30,7 @@ func TestSweepPrefersASeasonPackOverSingles(t *testing.T) {
 		sweepItem{number: 1}, sweepItem{number: 2}, sweepItem{number: 3},
 		sweepItem{number: 4}, sweepItem{number: 5}, sweepItem{number: 6})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 6 {
@@ -53,7 +52,7 @@ func TestSweepGrabsASeasonPackThatIsTheOnlyCoverage(t *testing.T) {
 		sweepItem{number: 1}, sweepItem{number: 2}, sweepItem{number: 3},
 		sweepItem{number: 4}, sweepItem{number: 5}, sweepItem{number: 6})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 6 {

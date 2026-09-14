@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -15,7 +14,7 @@ import (
 // candidate plus the loaded items, so a Grab test starts from a real match.
 func grabMatch(t *testing.T, svc *acquire.Service, id int64) acquire.Match {
 	t.Helper()
-	m, err := svc.MatchTitle(context.Background(), id)
+	m, err := svc.MatchTitle(t.Context(), id)
 	if err != nil {
 		t.Fatalf("MatchSeries: %v", err)
 	}
@@ -38,7 +37,7 @@ func TestGrabRecordsOneGrabPerCoveredItem(t *testing.T) {
 	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	res, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false)
+	res, err := svc.Grab(t.Context(), id, m.Candidates[0], m.Items, false)
 	if err != nil {
 		t.Fatalf("Grab: %v", err)
 	}
@@ -49,7 +48,7 @@ func TestGrabRecordsOneGrabPerCoveredItem(t *testing.T) {
 		t.Errorf("grabbed items = %v, want [4]", res.Items)
 	}
 
-	grabs, err := st.Q.ListGrabsByTitle(context.Background(), id)
+	grabs, err := st.Q.ListGrabsByTitle(t.Context(), id)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -72,11 +71,11 @@ func TestGrabAppendsOneEventPerCoveredItem(t *testing.T) {
 	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); err != nil {
+	if _, err := svc.Grab(t.Context(), id, m.Candidates[0], m.Items, false); err != nil {
 		t.Fatalf("Grab: %v", err)
 	}
 
-	events, err := st.Q.ListTitleGrabEvents(context.Background(), id)
+	events, err := st.Q.ListTitleGrabEvents(t.Context(), id)
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}
@@ -118,7 +117,7 @@ func TestGrabAddsWithConfiguredCategory(t *testing.T) {
 	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, true); err != nil {
+	if _, err := svc.Grab(t.Context(), id, m.Candidates[0], m.Items, true); err != nil {
 		t.Fatalf("Grab: %v", err)
 	}
 	if len(dl.Adds) != 1 {
@@ -142,10 +141,10 @@ func TestGrabDownloadAddFailureRecordsNothing(t *testing.T) {
 	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrDownloadAdd) {
+	if _, err := svc.Grab(t.Context(), id, m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrDownloadAdd) {
 		t.Fatalf("Grab error = %v, want ErrDownloadAdd", err)
 	}
-	grabs, _ := st.Q.ListGrabsByTitle(context.Background(), id)
+	grabs, _ := st.Q.ListGrabsByTitle(t.Context(), id)
 	if len(grabs) != 0 {
 		t.Errorf("recorded %d grabs after a failed add, want 0", len(grabs))
 	}
@@ -162,7 +161,7 @@ func TestGrabWithoutDownloadClient(t *testing.T) {
 	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrNoDownloadClient) {
+	if _, err := svc.Grab(t.Context(), id, m.Candidates[0], m.Items, false); !errors.Is(err, acquire.ErrNoDownloadClient) {
 		t.Fatalf("Grab error = %v, want ErrNoDownloadClient", err)
 	}
 }

@@ -2,7 +2,6 @@ package importer
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"errors"
 	"io/fs"
@@ -32,7 +31,7 @@ func seedMovieGrab(t *testing.T, st *store.Store, title, hash string, year int64
 // could not produce.
 func seedOneItemGrab(t *testing.T, st *store.Store, title, hash string, format domain.Format, year int64) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: title, Format: string(format), Year: year, Monitored: 1,
 	})
@@ -73,7 +72,7 @@ func completedPayload(hash, path string) *coretest.FakeDownload {
 // heldByTitle reports whether the library flag was set on a title's only item.
 func heldByTitle(t *testing.T, st *store.Store, titleID int64) bool {
 	t.Helper()
-	items, err := st.Q.ListWantedItems(context.Background(), titleID)
+	items, err := st.Q.ListWantedItems(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list wanted items: %v", err)
 	}
@@ -120,7 +119,7 @@ func firstLine(body []byte) string {
 // last_error is cleared, so history is where the Activity queue reads it from.
 func deferralDetail(t *testing.T, st *store.Store, titleID int64) string {
 	t.Helper()
-	events, err := st.Q.ListTitleGrabEvents(context.Background(), titleID)
+	events, err := st.Q.ListTitleGrabEvents(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list grab events: %v", err)
 	}
@@ -179,7 +178,7 @@ func TestImportPassesFormatAndYearToTheLibrary(t *testing.T) {
 	target := &coretest.FakeLibrary{}
 	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(target.Placed) != 1 {
@@ -197,7 +196,7 @@ func TestImportPassesFormatAndYearToTheLibrary(t *testing.T) {
 func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	series, movies := t.TempDir(), t.TempDir()
 	dl := completedSource(t, "abc")
@@ -271,7 +270,7 @@ func TestMovieSingleVideoPlacesByTheLoneFileRule(t *testing.T) {
 		"Subs/eng.ass",
 	)
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -303,7 +302,7 @@ func TestMoviePayloadPicksTheFeatureOverSamplesAndExtras(t *testing.T) {
 	)
 	grow(t, dir, feature, 4096)
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -329,7 +328,7 @@ func TestMovieSampleIsNeverTheFeature(t *testing.T) {
 		"Placeholder.Film.2019.1080p.nfo",
 	)
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), rec, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -358,7 +357,7 @@ func TestMovieSoleVideoWithAnExtrasTokenIsStillTheFeature(t *testing.T) {
 
 	dir := writeTree(t, "Placeholder.Film.Bonus.Edition.2019.1080p-SynthGroup.mkv")
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -381,7 +380,7 @@ func TestMovieArchivePayloadDefersWithTheExtractionAdvice(t *testing.T) {
 	src := fakeSource{dl: completedPayload("abc", filepath.Join(dir, archive)), lib: target}
 
 	im := New(st, src, discardLogger(), rec, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -414,7 +413,7 @@ func TestMovieArchiveRetryStaysDeferredUntilItIsExtracted(t *testing.T) {
 
 	dir := writeTree(t, "Placeholder.Film.2019.1080p-SynthGroup.rar")
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := im.ScanOnce(ctx); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -476,7 +475,7 @@ func TestMovieTakesTheLargestVideoAsTheFeature(t *testing.T) {
 	grow(t, dir, feature, 4096)
 
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -514,7 +513,7 @@ func TestMovieSizeTieDefersAndIsFixableByNamingTheFile(t *testing.T) {
 	grow(t, dir, other, 2048)
 
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := im.ScanOnce(ctx); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -562,7 +561,7 @@ func TestMovieGrabFailureRevertsTheItemAndRemembersTheRelease(t *testing.T) {
 		{Hash: "abc", State: download.StateError},
 	}}
 	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), rec, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -589,7 +588,7 @@ func TestSingleItemOVAKeepsTheEpisodicImportPath(t *testing.T) {
 
 	dir := writeTree(t, "[SynthSubs] Placeholder OVA [1080p].mkv")
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: target}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -612,7 +611,7 @@ func TestMovieConflictReasonNamesTheMovieRatherThanAnEpisode(t *testing.T) {
 		"[OtherGroup] Placeholder Film [720p].mkv",
 	)
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -629,7 +628,7 @@ func TestMovieArchiveRetryReasonNamesTheMovie(t *testing.T) {
 	seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	dir := writeTree(t, "Placeholder.Film.2019.rar")
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := im.ScanOnce(ctx); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -652,7 +651,7 @@ func TestMovieImportDispatchesTheMovieItemKind(t *testing.T) {
 	seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)
 	fn := coretest.NewFakeNotifier()
 	im := New(st, notifyingSource(completedSource(t, "abc"), &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -679,7 +678,7 @@ func TestMovieRetryRefusalsNameItemsRatherThanEpisodes(t *testing.T) {
 	grow(t, dir, other, 2048)
 
 	im := New(st, fakeSource{dl: completedPayload("abc", dir), lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := im.ScanOnce(ctx); err != nil {
 		t.Fatalf("scan: %v", err)
 	}

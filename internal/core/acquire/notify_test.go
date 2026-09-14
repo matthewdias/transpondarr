@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -36,7 +35,7 @@ func TestSweepGrabDispatchesGrabbedEvent(t *testing.T) {
 	fn := withNotifier(reg)
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
 
-	if err := svc.SweepOnce(context.Background()); err != nil {
+	if err := svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("sweep: %v", err)
 	}
 
@@ -75,7 +74,7 @@ func TestManualGrabDoesNotDispatch(t *testing.T) {
 	id := seedTitle(t, st, "Placeholder Saga", 12)
 
 	m := grabMatch(t, svc, id)
-	if _, err := svc.Grab(context.Background(), id, m.Candidates[0], m.Items, false); err != nil {
+	if _, err := svc.Grab(t.Context(), id, m.Candidates[0], m.Items, false); err != nil {
 		t.Fatalf("Grab: %v", err)
 	}
 	select {

@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"context"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/core/domain"
@@ -24,7 +23,7 @@ func movieProvider(year, next int) *fakeProvider {
 func TestAddMovieCreatesOneItemOfKindMovie(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc := NewService(st, movieProvider(2020, 0))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	title, err := svc.AddTitle(ctx, "fake", 4321, true, MonitorAll, 0)
 	if err != nil {
@@ -73,7 +72,7 @@ func TestAddMovieCreatesOneItemOfKindMovie(t *testing.T) {
 func TestAddMovieWithMonitorFutureLeavesItsItemUnmonitored(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc := NewService(st, movieProvider(0, 0))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	title, err := svc.AddTitle(ctx, "fake", 4321, true, MonitorFuture, 0)
 	if err != nil {
@@ -96,7 +95,7 @@ func TestAddUnreleasedMovieWithMonitorFutureMonitorsIt(t *testing.T) {
 	prov := movieProvider(0, 0)
 	prov.meta.Status = "NOT_YET_RELEASED"
 	svc := NewService(st, prov)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	title, err := svc.AddTitle(ctx, "fake", 4321, true, MonitorFuture, 0)
 	if err != nil {
@@ -116,7 +115,7 @@ func TestAddUnreleasedMovieWithMonitorFutureMonitorsIt(t *testing.T) {
 func TestAddMovieWithMonitorFutureAndAPremiereMonitorsIt(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc := NewService(st, movieProvider(2027, 1))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	title, err := svc.AddTitle(ctx, "fake", 4321, true, MonitorFuture, 0)
 	if err != nil {
@@ -143,7 +142,7 @@ func TestAddOneEpisodeOVAKeepsEpisodeKind(t *testing.T) {
 		items: []metadata.ItemMeta{{Number: 1}},
 	}
 	svc := NewService(st, prov)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	title, err := svc.AddTitle(ctx, "fake", 77, true, MonitorAll, 0)
 	if err != nil {

@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"slices"
 	"testing"
@@ -13,7 +12,7 @@ import (
 // seedSearchTitle inserts a title and returns its id.
 func seedSearchTitle(t *testing.T, st *Store, title string, monitored int64) int64 {
 	t.Helper()
-	s, err := st.Q.CreateTitle(context.Background(), db.CreateTitleParams{
+	s, err := st.Q.CreateTitle(t.Context(), db.CreateTitleParams{
 		Title: title, Format: "TV", Monitored: monitored,
 	})
 	if err != nil {
@@ -29,7 +28,7 @@ func seedSearchItem(t *testing.T, st *Store, titleID int64, number int, inLibrar
 	if airsAt != nil {
 		at = sql.NullString{String: FormatTimestamp(*airsAt), Valid: true}
 	}
-	item, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
+	item, err := st.Q.CreateWantedItem(t.Context(), db.CreateWantedItemParams{
 		SeriesID: titleID, Kind: "episode",
 		Number:    sql.NullInt64{Int64: int64(number), Valid: true},
 		InLibrary: inLibrary,
@@ -39,7 +38,7 @@ func seedSearchItem(t *testing.T, st *Store, titleID int64, number int, inLibrar
 		t.Fatalf("create item %d: %v", number, err)
 	}
 	if at.Valid {
-		if _, err := st.DB.ExecContext(context.Background(),
+		if _, err := st.DB.ExecContext(t.Context(),
 			`UPDATE wanted_items SET airs_at = ? WHERE id = ?`, at.String, item.ID); err != nil {
 			t.Fatalf("set airs_at on item %d: %v", number, err)
 		}
@@ -49,7 +48,7 @@ func seedSearchItem(t *testing.T, st *Store, titleID int64, number int, inLibrar
 
 func seedSearchGrab(t *testing.T, st *Store, itemID int64, status string) {
 	t.Helper()
-	if _, err := st.Q.UpsertGrab(context.Background(), db.UpsertGrabParams{
+	if _, err := st.Q.UpsertGrab(t.Context(), db.UpsertGrabParams{
 		WantedItemID: itemID, InfoHash: "hash", ReleaseTitle: "release", Status: status,
 	}); err != nil {
 		t.Fatalf("upsert grab: %v", err)
@@ -59,7 +58,7 @@ func seedSearchGrab(t *testing.T, st *Store, itemID int64, status string) {
 func dueTitles(t *testing.T, st *Store, now time.Time, limit int64) []string {
 	t.Helper()
 	stamp := FormatTimestamp(now)
-	rows, err := st.Q.ListTitlesDueWantedSearch(context.Background(), db.ListTitlesDueWantedSearchParams{
+	rows, err := st.Q.ListTitlesDueWantedSearch(t.Context(), db.ListTitlesDueWantedSearchParams{
 		NextSearchAt: sql.NullString{String: stamp, Valid: true},
 		AirsAt:       sql.NullString{String: stamp, Valid: true},
 		Limit:        limit,
@@ -78,7 +77,7 @@ func dueTitles(t *testing.T, st *Store, now time.Time, limit int64) []string {
 // only monitored titles that have something searchable right now.
 func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Now()
 	past := now.Add(-24 * time.Hour)
 	future := now.Add(24 * time.Hour)
@@ -141,7 +140,7 @@ func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 // have to read.
 func unmonitorItem(t *testing.T, st *Store, itemID int64) int64 {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE wanted_items SET monitored = 0 WHERE id = ?`, itemID); err != nil {
 		t.Fatalf("unmonitor item %d: %v", itemID, err)
 	}
@@ -152,7 +151,7 @@ func unmonitorItem(t *testing.T, st *Store, itemID int64) int64 {
 // a backlog of routine re-searches, and the limit bounds one pass' budget.
 func TestListTitlesDueWantedSearchOrdersNeverSearchedFirstAndLimits(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Now()
 	past := now.Add(-24 * time.Hour)
 
@@ -184,7 +183,7 @@ func TestListTitlesDueWantedSearchOrdersNeverSearchedFirstAndLimits(t *testing.T
 // setNextSearchAt postpones a title, which is the search state a gap recovery undoes.
 func setNextSearchAt(t *testing.T, st *Store, id int64, at time.Time) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 6, next_search_at = ? WHERE id = ?`,
 		FormatTimestamp(at), id); err != nil {
 		t.Fatalf("set next_search_at on series %d: %v", id, err)
@@ -193,7 +192,7 @@ func setNextSearchAt(t *testing.T, st *Store, id int64, at time.Time) {
 
 func gapTitles(t *testing.T, st *Store, now, lo, hi time.Time, limit int64) []string {
 	t.Helper()
-	rows, err := st.Q.ListBackedOffTitlesWantedInWindow(context.Background(),
+	rows, err := st.Q.ListBackedOffTitlesWantedInWindow(t.Context(),
 		db.ListBackedOffTitlesWantedInWindowParams{
 			NextSearchAt: sql.NullString{String: FormatTimestamp(now), Valid: true},
 			AirsAt:       sql.NullString{String: FormatTimestamp(lo), Valid: true},
@@ -302,7 +301,7 @@ func mustSeed(t *testing.T, st *Store, title string, monitored int64, number int
 func itemOf(t *testing.T, st *Store, titleID int64) int64 {
 	t.Helper()
 	var id int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT id FROM wanted_items WHERE series_id = ?`, titleID).Scan(&id); err != nil {
 		t.Fatalf("read item of title %d: %v", titleID, err)
 	}
@@ -316,7 +315,7 @@ func itemOf(t *testing.T, st *Store, titleID int64) int64 {
 // distinguish "nobody touched this" from "a reset landed while I searched".
 func TestSetTitleSearchStateGuardsOnReadEpoch(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	id := seedSearchTitle(t, st, "guarded", 1)
 	now := time.Now()
 
@@ -371,7 +370,7 @@ func TestSetTitleSearchStateGuardsOnReadEpoch(t *testing.T) {
 func readEpoch(t *testing.T, st *Store, id int64) int64 {
 	t.Helper()
 	var epoch int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT search_epoch FROM series WHERE id = ?`, id).Scan(&epoch); err != nil {
 		t.Fatalf("read search_epoch: %v", err)
 	}
@@ -382,7 +381,7 @@ func readCadence(t *testing.T, st *Store, id int64) (int64, sql.NullString) {
 	t.Helper()
 	var backoff int64
 	var next sql.NullString
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, id).Scan(&backoff, &next); err != nil {
 		t.Fatalf("read cadence: %v", err)
 	}
@@ -393,7 +392,7 @@ func readCadence(t *testing.T, st *Store, id int64) (int64, sql.NullString) {
 // re-monitored title needs.
 func TestResetTitleSearchState(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	id := seedSearchTitle(t, st, "reset", 1)
 
 	if _, err := st.DB.ExecContext(ctx,
@@ -424,7 +423,7 @@ func TestListWantedItemsWithGrabState(t *testing.T) {
 	seedSearchItem(t, st, id, 1, 0, nil)
 	seedSearchGrab(t, st, seedSearchItem(t, st, id, 2, 0, nil), "grabbed")
 
-	rows, err := st.Q.ListWantedItemsWithGrabState(context.Background(), id)
+	rows, err := st.Q.ListWantedItemsWithGrabState(t.Context(), id)
 	if err != nil {
 		t.Fatalf("list items with grab state: %v", err)
 	}

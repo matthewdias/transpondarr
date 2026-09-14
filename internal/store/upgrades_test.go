@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"slices"
 	"testing"
@@ -14,13 +13,13 @@ import (
 // seedUpgradeProfile creates a profile with upgrades enabled and returns its id.
 func seedUpgradeProfile(t *testing.T, st *Store, name string) int64 {
 	t.Helper()
-	p, err := st.Q.CreateQualityProfile(context.Background(), db.CreateQualityProfileParams{
+	p, err := st.Q.CreateQualityProfile(t.Context(), db.CreateQualityProfileParams{
 		Name: name, ResolutionOrder: `["1080p"]`, HardExcludes: `[]`,
 	})
 	if err != nil {
 		t.Fatalf("create profile %q: %v", name, err)
 	}
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET upgrades_enabled = 1, cutoff_score = 2400 WHERE id = ?`, p.ID); err != nil {
 		t.Fatalf("enable upgrades on profile %q: %v", name, err)
 	}
@@ -29,7 +28,7 @@ func seedUpgradeProfile(t *testing.T, st *Store, name string) int64 {
 
 func setTitleProfile(t *testing.T, st *Store, titleID, profileID int64) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET quality_profile_id = ? WHERE id = ?`, profileID, titleID); err != nil {
 		t.Fatalf("assign profile %d to series %d: %v", profileID, titleID, err)
 	}
@@ -40,7 +39,7 @@ func setTitleProfile(t *testing.T, st *Store, titleID, profileID int64) {
 func seedHeldItem(t *testing.T, st *Store, titleID int64, number int, heldTitle, grabStatus string) int64 {
 	t.Helper()
 	id := seedSearchItem(t, st, titleID, number, 1, nil)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE wanted_items SET held_release_title = ? WHERE id = ?`, heldTitle, id); err != nil {
 		t.Fatalf("set held_release_title on item %d: %v", number, err)
 	}
@@ -52,7 +51,7 @@ func seedHeldItem(t *testing.T, st *Store, titleID int64, number int, heldTitle,
 
 func feedTitles(t *testing.T, st *Store, now time.Time) []string {
 	t.Helper()
-	rows, err := st.Q.ListTitlesWithWantedItems(context.Background(),
+	rows, err := st.Q.ListTitlesWithWantedItems(t.Context(),
 		sql.NullString{String: FormatTimestamp(now), Valid: true})
 	if err != nil {
 		t.Fatalf("list titles with wanted items: %v", err)
@@ -143,7 +142,7 @@ func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 // library must be backfilled with it rather than stay outside the pool forever.
 func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	titleID := seedSearchTitle(t, st, "backfilled", 1)
 	if err := goose.DownTo(st.DB, "migrations", 16); err != nil {
@@ -186,7 +185,7 @@ func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 // still named have, as 00019 renames it only later.
 func seedPreUpgradeItem(t *testing.T, st *Store, titleID int64, number int, have int, releaseTitle, status string) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	res, err := st.DB.ExecContext(ctx,
 		`INSERT INTO wanted_items (series_id, kind, number, have) VALUES (?, 'episode', ?, ?)`,
 		titleID, number, have)

@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -17,7 +16,7 @@ import (
 // double: the same running search sweep must apply a toggle written after it was built,
 // in both directions, with nothing rebuilt in between.
 func TestSweepObeysLiveAutomationToggle(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	st := coretest.NewStore(t)
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
 		episodeRelease("Placeholder Saga", 3),

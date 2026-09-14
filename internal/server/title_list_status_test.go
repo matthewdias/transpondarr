@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -93,7 +92,7 @@ func TestTitleListReadsTheFirstItemOfALegacyMultiItemFilm(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	movieID := seedMovie(t, h.store, "Placeholder Shorts", 2019)
 	for _, n := range []int64{2, 3} {
-		if _, err := h.store.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
+		if _, err := h.store.Q.CreateWantedItem(t.Context(), db.CreateWantedItemParams{
 			SeriesID: movieID, Kind: "movie", Number: sql.NullInt64{Int64: n, Valid: true}, Monitored: 1,
 		}); err != nil {
 			t.Fatalf("create legacy item %d: %v", n, err)

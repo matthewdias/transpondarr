@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -57,7 +56,7 @@ func stubNtfy(t *testing.T, seen *string) *httptest.Server {
 // second: the caller's server must have been sent nothing.
 func TestTestDownloadRefusesToSendTheStoredPasswordElsewhere(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var seen url.Values
 	attacker := stubQbit(t, &seen)
@@ -79,7 +78,7 @@ func TestTestDownloadRefusesToSendTheStoredPasswordElsewhere(t *testing.T) {
 
 func TestTestIndexerRefusesToSendTheStoredAPIKeyElsewhere(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var seen string
 	attacker := stubTorznab(t, &seen)
@@ -101,7 +100,7 @@ func TestTestIndexerRefusesToSendTheStoredAPIKeyElsewhere(t *testing.T) {
 
 func TestTestNotifyNtfyRefusesToSendTheStoredTokenElsewhere(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var seen string
 	attacker := stubNtfy(t, &seen)
@@ -126,7 +125,7 @@ func TestTestNotifyNtfyRefusesToSendTheStoredTokenElsewhere(t *testing.T) {
 // one poll later. Nothing may be persisted or swapped on the rejection.
 func TestUpdateDownloadRefusesToSendTheStoredPasswordElsewhere(t *testing.T) {
 	svc, reg, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateDownload(ctx, DownloadConfig{
 		URL: "http://qb.saved:8080", User: "admin", Password: "hunter2",
@@ -152,7 +151,7 @@ func TestUpdateDownloadRefusesToSendTheStoredPasswordElsewhere(t *testing.T) {
 
 func TestUpdateIndexerRefusesToSendTheStoredAPIKeyElsewhere(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateIndexer(ctx, IndexerConfig{
 		Name: "jackett", URL: "http://jackett.saved:9117/api", APIKey: "tracker-account-key",
@@ -167,7 +166,7 @@ func TestUpdateIndexerRefusesToSendTheStoredAPIKeyElsewhere(t *testing.T) {
 
 func TestUpdateNotifyRefusesToSendTheStoredTokenElsewhere(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateNotify(ctx, NotifyConfig{
 		NtfyServer: "https://ntfy.saved", NtfyTopic: "transpondarr", NtfyToken: "tk_secret",
@@ -184,7 +183,7 @@ func TestUpdateNotifyRefusesToSendTheStoredTokenElsewhere(t *testing.T) {
 // user never has to retype, and for the indexer it persists across a path edit —
 // switching which Jackett indexer is probed is not a new destination.
 func TestInheritsTheStoredSecretForTheSavedDestination(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	t.Run("download", func(t *testing.T) {
 		svc, _, _ := newTestService(t)
@@ -230,7 +229,7 @@ func TestAllowsABlankSecretWhenNoneIsStored(t *testing.T) {
 	var seen url.Values
 	qbit := stubQbit(t, &seen)
 
-	if err := svc.TestDownload(context.Background(), DownloadConfig{URL: qbit.URL, User: "admin"}); err != nil {
+	if err := svc.TestDownload(t.Context(), DownloadConfig{URL: qbit.URL, User: "admin"}); err != nil {
 		t.Fatalf("TestDownload with no stored password: %v", err)
 	}
 	if got := seen.Get("password"); got != "" {
@@ -242,7 +241,7 @@ func TestAllowsABlankSecretWhenNoneIsStored(t *testing.T) {
 // nothing to leak and the stored secret must be kept rather than rejected or wiped.
 func TestClearingTheURLKeepsTheStoredSecret(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateDownload(ctx, DownloadConfig{URL: "http://qb.saved:8080", User: "admin", Password: "hunter2"}); err != nil {
 		t.Fatalf("seed: %v", err)
@@ -271,7 +270,7 @@ func TestClearingTheURLKeepsTheStoredSecret(t *testing.T) {
 // makes the blank server read as "no destination", which sends the stored token to
 // ntfy.sh.
 func TestBlankNtfyServerDoesNotInheritACustomServersToken(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for _, tc := range []struct {
 		name string
@@ -301,7 +300,7 @@ func TestBlankNtfyServerDoesNotInheritACustomServersToken(t *testing.T) {
 // token of a server that is no longer being written to.
 func TestDisablingNtfyDoesNotDemandItsToken(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateNotify(ctx, NotifyConfig{
 		NtfyServer: "https://ntfy.custom", NtfyTopic: "transpondarr", NtfyToken: "tk_secret",
@@ -322,7 +321,7 @@ func TestDisablingNtfyDoesNotDemandItsToken(t *testing.T) {
 // rebind the token to that server, and the follow-up would then match (#259).
 func TestABlankNtfyTopicCannotMoveTheServerTheTokenIsBoundTo(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var seen string
 	attacker := stubNtfy(t, &seen)
@@ -361,7 +360,7 @@ func TestABlankNtfyTopicCannotMoveTheServerTheTokenIsBoundTo(t *testing.T) {
 // save that sets a topic sends it there.
 func TestDisablingNtfyKeepsTheTokenBoundToItsOwnServer(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateNotify(ctx, NotifyConfig{
 		NtfyServer: "https://ntfy.custom", NtfyTopic: "transpondarr", NtfyToken: "tk_secret",
@@ -390,7 +389,7 @@ func TestDisablingNtfyKeepsTheTokenBoundToItsOwnServer(t *testing.T) {
 func TestABlankNtfyTopicStillSavesTheServerWhenNoTokenIsStored(t *testing.T) {
 	svc, _, _ := newTestService(t)
 
-	if err := svc.UpdateNotify(context.Background(), NotifyConfig{NtfyServer: "https://ntfy.custom"}); err != nil {
+	if err := svc.UpdateNotify(t.Context(), NotifyConfig{NtfyServer: "https://ntfy.custom"}); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 	if got := svc.Snapshot().Notify.NtfyServer; got != "https://ntfy.custom" {
@@ -403,7 +402,7 @@ func TestABlankNtfyTopicStillSavesTheServerWhenNoTokenIsStored(t *testing.T) {
 // that rejected every custom server.
 func TestUpdateNotifyInheritsTokenForACustomServer(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateNotify(ctx, NotifyConfig{
 		NtfyServer: "https://ntfy.custom", NtfyTopic: "transpondarr", NtfyToken: "tk_secret",

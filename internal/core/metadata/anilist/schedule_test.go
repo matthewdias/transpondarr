@@ -1,7 +1,6 @@
 package anilist
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -66,7 +65,7 @@ func TestGetSchedulePagesUntilExhausted(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := stubClient(srv.URL).GetSchedule(context.Background(), 123, false)
+	got, err := stubClient(srv.URL).GetSchedule(t.Context(), 123, false)
 	if err != nil {
 		t.Fatalf("GetSchedule: %v", err)
 	}
@@ -97,7 +96,7 @@ func TestGetScheduleNotYetAiredOnlyFetchesTail(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := stubClient(srv.URL).GetSchedule(context.Background(), 123, true); err != nil {
+	if _, err := stubClient(srv.URL).GetSchedule(t.Context(), 123, true); err != nil {
 		t.Fatalf("GetSchedule: %v", err)
 	}
 	if notYetAired, _ := got["notYetAired"].(bool); !notYetAired {
@@ -116,7 +115,7 @@ func TestGetScheduleFullHistoryOmitsTheFilter(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := stubClient(srv.URL).GetSchedule(context.Background(), 123, false); err != nil {
+	if _, err := stubClient(srv.URL).GetSchedule(t.Context(), 123, false); err != nil {
 		t.Fatalf("GetSchedule: %v", err)
 	}
 	if v, present := got["notYetAired"]; present {
@@ -133,7 +132,7 @@ func TestGetScheduleEmpty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := stubClient(srv.URL).GetSchedule(context.Background(), 123, false)
+	got, err := stubClient(srv.URL).GetSchedule(t.Context(), 123, false)
 	if err != nil {
 		t.Fatalf("GetSchedule: %v", err)
 	}
@@ -152,7 +151,7 @@ func TestGetScheduleCapsPaging(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := stubClient(srv.URL).GetSchedule(context.Background(), 123, false); err != nil {
+	if _, err := stubClient(srv.URL).GetSchedule(t.Context(), 123, false); err != nil {
 		t.Fatalf("GetSchedule: %v", err)
 	}
 	if requests != maxSchedulePages {
@@ -166,7 +165,7 @@ func TestGetScheduleErrorStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := stubClient(srv.URL).GetSchedule(context.Background(), 123, false); err == nil {
+	if _, err := stubClient(srv.URL).GetSchedule(t.Context(), 123, false); err == nil {
 		t.Fatal("expected an error on HTTP 500")
 	}
 }

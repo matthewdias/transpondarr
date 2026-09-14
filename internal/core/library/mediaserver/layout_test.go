@@ -2,7 +2,6 @@ package mediaserver
 
 import (
 	"bytes"
-	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -38,7 +37,7 @@ func TestUnsetLayoutKeepsTheSeasonFolderLayout(t *testing.T) {
 	root := t.TempDir()
 
 	dest, err := New(Roots{Series: root}, ParseLayout(""), "copy", nil).
-		Place(context.Background(), req(src, "Placeholder Saga", 5))
+		Place(t.Context(), req(src, "Placeholder Saga", 5))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -56,7 +55,7 @@ func TestFlatLayoutDropsTheSeasonFolder(t *testing.T) {
 	root := t.TempDir()
 
 	dest, err := New(Roots{Series: root}, LayoutFlat, "copy", nil).
-		Place(context.Background(), req(src, "Placeholder Saga", 5))
+		Place(t.Context(), req(src, "Placeholder Saga", 5))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -78,7 +77,7 @@ func TestFlatLayoutLeavesTheMovieBranchAlone(t *testing.T) {
 	series, movies := t.TempDir(), t.TempDir()
 
 	dest, err := New(Roots{Series: series, Movies: movies}, LayoutFlat, "copy", nil).
-		Place(context.Background(), movieReq(writeSource(t, "raw.mkv"), "Placeholder Film", 2019))
+		Place(t.Context(), movieReq(writeSource(t, "raw.mkv"), "Placeholder Film", 2019))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -99,7 +98,7 @@ func TestFlatLayoutKeepsASingleItemOVASeriesShaped(t *testing.T) {
 	}
 
 	dest, err := New(Roots{Series: series, Movies: movies}, LayoutFlat, "copy", nil).
-		Place(context.Background(), r)
+		Place(t.Context(), r)
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -137,7 +136,7 @@ func TestFlatUpgradeClearsStemMatesAndSparesLongerNumbers(t *testing.T) {
 
 	r := req(writeSized(t, "upgrade.mp4", 128), "Placeholder Saga", 10)
 	r.Replace = true
-	dest, err := New(Roots{Series: root}, LayoutFlat, "copy", nil).Place(context.Background(), r)
+	dest, err := New(Roots{Series: root}, LayoutFlat, "copy", nil).Place(t.Context(), r)
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -184,7 +183,7 @@ func TestReplaceWarnsWhenTheOtherLayoutHoldsTheEpisode(t *testing.T) {
 			log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 			r := req(writeSized(t, "upgrade.mkv", 128), "Placeholder Saga", 3)
 			r.Replace = true
-			if _, err := New(Roots{Series: root}, tc.layout, "copy", log).Place(context.Background(), r); err != nil {
+			if _, err := New(Roots{Series: root}, tc.layout, "copy", log).Place(t.Context(), r); err != nil {
 				t.Fatalf("Place: %v", err)
 			}
 
@@ -234,7 +233,7 @@ func TestReplaceIgnoresDebrisUnderTheOtherLayout(t *testing.T) {
 			log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 			r := req(writeSized(t, "upgrade.mkv", 128), "Placeholder Saga", 3)
 			r.Replace = true
-			if _, err := New(Roots{Series: root}, tc.layout, "copy", log).Place(context.Background(), r); err != nil {
+			if _, err := New(Roots{Series: root}, tc.layout, "copy", log).Place(t.Context(), r); err != nil {
 				t.Fatalf("Place: %v", err)
 			}
 
@@ -264,7 +263,7 @@ func TestReplaceWarnsAboutBothTheLayoutAndTheMissingDirectory(t *testing.T) {
 	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	r := req(writeSized(t, "upgrade.mkv", 128), "Placeholder Saga", 3)
 	r.Replace = true
-	if _, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", log).Place(context.Background(), r); err != nil {
+	if _, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", log).Place(t.Context(), r); err != nil {
 		t.Fatalf("Place: %v", err)
 	}
 	for _, want := range []string{"another layout", "older name"} {
@@ -284,7 +283,7 @@ func TestReplaceDoesNotWarnWhenOnlyTheCurrentLayoutHoldsTheEpisode(t *testing.T)
 	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	r := req(writeSized(t, "upgrade.mkv", 128), "Placeholder Saga", 3)
 	r.Replace = true
-	if _, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", log).Place(context.Background(), r); err != nil {
+	if _, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", log).Place(t.Context(), r); err != nil {
 		t.Fatalf("Place: %v", err)
 	}
 	if buf.Len() != 0 {

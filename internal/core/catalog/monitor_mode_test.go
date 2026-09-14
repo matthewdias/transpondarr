@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"testing"
@@ -31,7 +30,7 @@ func sixItems(status string, next int) *fakeProvider {
 
 func monitoredNumbers(t *testing.T, st *store.Store, titleID int64) []int {
 	t.Helper()
-	rows, err := st.DB.QueryContext(context.Background(),
+	rows, err := st.DB.QueryContext(t.Context(),
 		`SELECT number FROM wanted_items WHERE series_id = ? AND monitored = 1 ORDER BY number`, titleID)
 	if err != nil {
 		t.Fatalf("read monitored items: %v", err)
@@ -51,7 +50,7 @@ func monitoredNumbers(t *testing.T, st *store.Store, titleID int64) []int {
 func storedCut(t *testing.T, st *store.Store, titleID int64) sql.NullInt64 {
 	t.Helper()
 	var cut sql.NullInt64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT monitor_new_from FROM series WHERE id = ?`, titleID).Scan(&cut); err != nil {
 		t.Fatalf("read monitor_new_from: %v", err)
 	}
@@ -125,7 +124,7 @@ func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 			prov := sixItems(status, tc.next)
 			svc := NewService(st, prov)
 
-			title, err := svc.AddTitle(context.Background(), prov.Name(), 42, true, tc.mode, 0)
+			title, err := svc.AddTitle(t.Context(), prov.Name(), 42, true, tc.mode, 0)
 			if err != nil {
 				t.Fatalf("AddSeries: %v", err)
 			}
@@ -153,7 +152,7 @@ func TestAddTitleRejectsAModeItDoesNotKnow(t *testing.T) {
 		prov := longRunner(7)
 		svc := NewService(st, prov)
 
-		_, err := svc.AddTitle(context.Background(), prov.Name(), 42, true, mode, 0)
+		_, err := svc.AddTitle(t.Context(), prov.Name(), 42, true, mode, 0)
 		if !errors.Is(err, ErrUnknownMonitorMode) {
 			t.Errorf("AddSeries(%q) = %v, want ErrUnknownMonitorMode", mode, err)
 		}

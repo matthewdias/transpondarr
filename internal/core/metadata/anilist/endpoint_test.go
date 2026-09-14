@@ -1,7 +1,6 @@
 package anilist
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -23,7 +22,7 @@ func TestEndpointOptionOverridesTheDefault(t *testing.T) {
 	c := New(slog.New(slog.NewTextHandler(io.Discard, nil)), WithEndpoint(srv.URL))
 	c.limiter = rate.NewLimiter(rate.Inf, 1)
 
-	if _, _, err := c.GetTitle(context.Background(), 9); err != nil {
+	if _, _, err := c.GetTitle(t.Context(), 9); err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
 	if hits != 1 {

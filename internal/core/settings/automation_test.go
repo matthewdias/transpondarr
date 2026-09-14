@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"database/sql"
 	"io"
 	"log/slog"
@@ -20,7 +19,7 @@ import (
 // persisted overrides, on top of the given env baseline.
 func newServiceWith(t *testing.T, base *config.Config, persisted map[string]string) *Service {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := store.Open(filepath.Join(t.TempDir(), "settings.db"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
@@ -117,7 +116,7 @@ func TestAutomationNotifyOnlyFromEnv(t *testing.T) {
 
 func TestUpdateAutomationRejectsUnknownMode(t *testing.T) {
 	svc := newServiceWith(t, &config.Config{}, nil)
-	if err := svc.UpdateAutomation(context.Background(), AutomationConfig{Mode: "loud"}); err == nil {
+	if err := svc.UpdateAutomation(t.Context(), AutomationConfig{Mode: "loud"}); err == nil {
 		t.Error("an unknown automation mode was accepted")
 	}
 }
@@ -126,12 +125,12 @@ func TestUpdateAutomationRejectsUnknownMode(t *testing.T) {
 // which is where a stretch of notify-only leaves every rehearsed title.
 func backedOffTitles(t *testing.T, svc *Service) int64 {
 	t.Helper()
-	row, err := svc.store.Q.CreateTitle(context.Background(),
+	row, err := svc.store.Q.CreateTitle(t.Context(),
 		db.CreateTitleParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create title: %v", err)
 	}
-	if _, err := svc.store.DB.ExecContext(context.Background(),
+	if _, err := svc.store.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 6, next_search_at = '2099-01-01 00:00:00' WHERE id = ?`,
 		row.ID); err != nil {
 		t.Fatalf("back the series off: %v", err)
@@ -141,7 +140,7 @@ func backedOffTitles(t *testing.T, svc *Service) int64 {
 
 func searchCadence(t *testing.T, svc *Service, id int64) (backoff int64, next sql.NullString) {
 	t.Helper()
-	if err := svc.store.DB.QueryRowContext(context.Background(),
+	if err := svc.store.DB.QueryRowContext(t.Context(),
 		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, id).
 		Scan(&backoff, &next); err != nil {
 		t.Fatalf("read cadence: %v", err)
@@ -153,7 +152,7 @@ func searchCadence(t *testing.T, svc *Service, id int64) (backoff int64, next sq
 // will not re-offer what it reported. Switching on has to clear that cadence, or
 // the first real search sweep for a rehearsed title is up to a day away.
 func TestUpdateAutomationResetsCadenceWhenSwitchedOn(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	svc := newServiceWith(t, &config.Config{AutomationEnabled: "notify_only"}, nil)
 	id := backedOffTitles(t, svc)
 
@@ -170,7 +169,7 @@ func TestUpdateAutomationResetsCadenceWhenSwitchedOn(t *testing.T) {
 // writes no cadence, and re-saving the delay while already on must not
 // re-queue the whole library.
 func TestUpdateAutomationLeavesCadenceAloneOtherwise(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tc := range []struct{ from, to AutomationMode }{
 		{AutomationOn, AutomationOn},
 		{AutomationOn, AutomationNotifyOnly},
@@ -226,7 +225,7 @@ func TestAutomationOverlongPinDelayClamps(t *testing.T) {
 // #102's acceptance criterion: the search sweep reads the switch per run, so a save has
 // to be visible to the very next read without anything being rebuilt.
 func TestUpdateAutomationAppliesLive(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	svc := newServiceWith(t, &config.Config{}, nil)
 
 	if err := svc.UpdateAutomation(ctx, AutomationConfig{Mode: AutomationOn, PinDelayHours: 6}); err != nil {
@@ -255,7 +254,7 @@ func TestUpdateAutomationAppliesLive(t *testing.T) {
 }
 
 func TestUpdateAutomationPersistsAcrossRestart(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	st, err := store.Open(filepath.Join(t.TempDir(), "settings.db"))
 	if err != nil {
 		t.Fatalf("open store: %v", err)
@@ -287,7 +286,7 @@ func TestUpdateAutomationPersistsAcrossRestart(t *testing.T) {
 // The HTTP layer passes through whatever a client sent, so the clamp has to apply
 // on the write path too, not only when parsing a stored value.
 func TestUpdateAutomationClampsPinDelay(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	for _, tc := range []struct {
 		hours int
 		want  time.Duration

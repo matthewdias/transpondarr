@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -58,7 +57,7 @@ func TestImportDispatchesImportedEvent(t *testing.T) {
 	fn := coretest.NewFakeNotifier()
 	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -90,7 +89,7 @@ func TestMultiItemImportDispatchesOneEvent(t *testing.T) {
 	fn := coretest.NewFakeNotifier()
 	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -124,7 +123,7 @@ func TestSingleItemImportKeepsItsEventShape(t *testing.T) {
 	fn := coretest.NewFakeNotifier()
 	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -146,7 +145,7 @@ func TestStuckImportNotifiesOncePerIncident(t *testing.T) {
 	fn := coretest.NewFakeNotifier()
 	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	ev := waitEvent(t, fn)
@@ -158,7 +157,7 @@ func TestStuckImportNotifiesOncePerIncident(t *testing.T) {
 	}
 
 	// Same failure next tick: the unchanged-message guard must also apply to the event.
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan 2: %v", err)
 	}
 	expectNoEvent(t, fn)
@@ -168,7 +167,7 @@ func TestStuckImportNotifiesOncePerIncident(t *testing.T) {
 	dl.Statuses = []download.Status{
 		{Hash: "abc", State: download.StateComplete, ContentPath: "/elsewhere/raw.mkv"},
 	}
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan 3: %v", err)
 	}
 	expectNoEvent(t, fn)
@@ -188,7 +187,7 @@ func TestFailedDownloadNotifiesOncePerRelease(t *testing.T) {
 	fn := coretest.NewFakeNotifier()
 	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -215,7 +214,7 @@ func TestVanishedDownloadNotifiesGrabFailed(t *testing.T) {
 	fn := coretest.NewFakeNotifier()
 	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), nil, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -244,7 +243,7 @@ func TestErroringNotifierDoesNotFailImport(t *testing.T) {
 	fn.Err = errors.New("endpoint down")
 	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	waitEvent(t, fn)

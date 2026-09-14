@@ -1,7 +1,6 @@
 package devdata
 
 import (
-	"context"
 	"database/sql"
 	"path/filepath"
 	"regexp"
@@ -30,7 +29,7 @@ func seeded(t *testing.T) *store.Store {
 		t.Fatalf("open store: %v", err)
 	}
 	t.Cleanup(func() { _ = st.DB.Close() })
-	if err := Seed(context.Background(), st, Options{Now: fixedNow}); err != nil {
+	if err := Seed(t.Context(), st, Options{Now: fixedNow}); err != nil {
 		t.Fatalf("Seed: %v", err)
 	}
 	return st
@@ -85,7 +84,7 @@ func TestSeedCoversEveryGrabStatus(t *testing.T) {
 // would miss stuck, since stuck is grabbed plus an error.
 func TestSeedProducesEveryStateTheActivityQueueRenders(t *testing.T) {
 	st := seeded(t)
-	rows, err := st.Q.ListOpenGrabs(context.Background())
+	rows, err := st.Q.ListOpenGrabs(t.Context())
 	if err != nil {
 		t.Fatalf("ListOpenGrabs: %v", err)
 	}
@@ -179,7 +178,7 @@ func TestSeedProducesHeldButStillGrabbableItem(t *testing.T) {
 // on it alone leaves the repeat-upsert loop behind each expiry unexercised.
 func TestSeedProducesBlocklistAtEveryRungIncludingExpired(t *testing.T) {
 	st := seeded(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	stored := map[string]db.ReleaseBlocklist{}
 	for _, id := range queryStrings(t, st, `SELECT id FROM series`) {
@@ -274,7 +273,7 @@ func TestSeedProducesTheSeriesListPopulation(t *testing.T) {
 // a never-synced title with no items counts in series and still cannot appear.
 func TestSeedProducesBothCalendarAbsences(t *testing.T) {
 	st := seeded(t)
-	rows, err := st.Q.ListUnscheduledTitles(context.Background(), int64(0))
+	rows, err := st.Q.ListUnscheduledTitles(t.Context(), int64(0))
 	if err != nil {
 		t.Fatalf("ListUnscheduledTitles: %v", err)
 	}
@@ -299,7 +298,7 @@ func TestSeedProducesBothCalendarAbsences(t *testing.T) {
 // and the seed must not paper over that by leaving it undated.
 func TestSeedProducesADatedItemOnAnUnmonitoredTitle(t *testing.T) {
 	st := seeded(t)
-	items, err := st.Q.ListCalendarItems(context.Background(), db.ListCalendarItemsParams{
+	items, err := st.Q.ListCalendarItems(t.Context(), db.ListCalendarItemsParams{
 		AirsAt:   sql.NullString{String: store.FormatTimestamp(fixedNow.Add(-100 * week)), Valid: true},
 		AirsAt_2: sql.NullString{String: store.FormatTimestamp(fixedNow.Add(100 * week)), Valid: true},
 	})
@@ -328,7 +327,7 @@ func TestSeedProducesPostersWithoutReachingAniList(t *testing.T) {
 	// Read it back the way the request path does, so the assertion stays valid after a
 	// change to how the snapshot is marshalled.
 	for _, id := range []int64{990101, 990109, 990111} {
-		snap, _, ok, err := cache.Get(context.Background(), "anilist", id)
+		snap, _, ok, err := cache.Get(t.Context(), "anilist", id)
 		if err != nil || !ok {
 			t.Fatalf("cache.Get(%d) ok=%v err=%v, want a cached snapshot", id, ok, err)
 		}
@@ -349,7 +348,7 @@ func TestSeedIsDeterministic(t *testing.T) {
 			t.Fatalf("open: %v", err)
 		}
 		defer func() { _ = st.DB.Close() }()
-		if err := Seed(context.Background(), st, Options{Now: fixedNow}); err != nil {
+		if err := Seed(t.Context(), st, Options{Now: fixedNow}); err != nil {
 			t.Fatalf("Seed: %v", err)
 		}
 		var b strings.Builder
@@ -380,7 +379,7 @@ func TestCutoffUnmetListsAGroup(t *testing.T) {
 	st := seeded(t)
 	// The zero cursor is this listing's own top: it orders by title ascending,
 	// where Missing descends from QueueCursorTop.
-	page, err := acquire.New(st, nil, nil, nil, nil, nil).CutoffUnmet(context.Background(), acquire.CutoffUnmetParams{Limit: 10})
+	page, err := acquire.New(st, nil, nil, nil, nil, nil).CutoffUnmet(t.Context(), acquire.CutoffUnmetParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("CutoffUnmet: %v", err)
 	}
@@ -417,12 +416,12 @@ func TestSeedRefusesAFixtureNamingAnUnknownProfile(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = st.DB.Close() })
 
-	profileIDs, err := seedProfiles(context.Background(), st)
+	profileIDs, err := seedProfiles(t.Context(), st)
 	if err != nil {
 		t.Fatalf("seedProfiles: %v", err)
 	}
 	bad := []title{{providerID: 1, name: "Nonexistent Profile", format: domain.FormatTV, profile: "Nope"}}
-	err = seedTitles(context.Background(), st, dbcache.New(st.Q), bad, profileIDs, fixedNow)
+	err = seedTitles(t.Context(), st, dbcache.New(st.Q), bad, profileIDs, fixedNow)
 	if err == nil {
 		t.Fatal("seedTitles accepted a fixture naming an unknown profile; the title would run on the default instead")
 	}
@@ -436,7 +435,7 @@ func TestSeedRefusesAFixtureNamingAnUnknownProfile(t *testing.T) {
 // in pass_outcomes: an outcome on an item the Missing page never lists shows nothing.
 func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 	st := seeded(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	titles, err := st.Q.ListMissingTitlesPage(ctx, db.ListMissingTitlesPageParams{
 		Column1:  0,
@@ -484,7 +483,7 @@ func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 // search unexercisable and makes altNames look necessary when it is not.
 func TestASeededTitleHasMoreThanOneNameVariant(t *testing.T) {
 	st := seeded(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	// Two services, because the two readers fetch from different places and the
 	// cache decorator is read-through: through it, TitleVariants would return the
 	// seeded snapshot and never query the stub.

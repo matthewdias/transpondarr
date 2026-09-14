@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -15,7 +14,7 @@ func nullString(s string) sql.NullString {
 
 func blocklistTitle(t *testing.T, st *Store, title string) db.Series {
 	t.Helper()
-	s, err := st.Q.CreateTitle(context.Background(), db.CreateTitleParams{
+	s, err := st.Q.CreateTitle(t.Context(), db.CreateTitleParams{
 		Title: title, Format: "TV", Monitored: 1,
 	})
 	if err != nil {
@@ -28,7 +27,7 @@ func blocklistTitle(t *testing.T, st *Store, title string) db.Series {
 // escalating expiry counts how many times it has failed.
 func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	title := blocklistTitle(t, st, "Blocklist Upsert")
 
 	until := FormatTimestamp(time.Now().Add(24 * time.Hour))
@@ -85,7 +84,7 @@ func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 // expired entry must remain to escalate on the next failure.
 func TestListActiveBlocklistFiltersExpiredButKeepsPermanent(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	title := blocklistTitle(t, st, "Blocklist Expiry")
 	other := blocklistTitle(t, st, "Other Series")
 	now := time.Now()
@@ -145,7 +144,7 @@ func TestListActiveBlocklistFiltersExpiredButKeepsPermanent(t *testing.T) {
 
 func TestDeleteBlocklistEntryIsScopedToItsTitle(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	title := blocklistTitle(t, st, "Blocklist Delete")
 	other := blocklistTitle(t, st, "Blocklist Delete Other")
 

@@ -1,7 +1,6 @@
 package blocklist
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
@@ -32,7 +31,7 @@ func TestBlockDurationEscalates(t *testing.T) {
 func newService(t *testing.T) (*Service, *store.Store, db.Series) {
 	t.Helper()
 	st := coretest.NewStore(t)
-	title, err := st.Q.CreateTitle(context.Background(), db.CreateTitleParams{
+	title, err := st.Q.CreateTitle(t.Context(), db.CreateTitleParams{
 		Title: "Placeholder Saga", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
@@ -46,7 +45,7 @@ func newService(t *testing.T) (*Service, *store.Store, db.Series) {
 // release proves the release itself is dead.
 func TestRecordEscalatesExpiry(t *testing.T) {
 	svc, _, title := newService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	const release = "[SynthSubs] Placeholder Saga - 03 [1080p].mkv"
 
 	record := func() db.ReleaseBlocklist {
@@ -104,7 +103,7 @@ func assertBlockedFor(t *testing.T, e db.ReleaseBlocklist, want time.Duration) {
 // only in spacing or case is still matched.
 func TestRecordStoresTheNormalizedTitle(t *testing.T) {
 	svc, _, title := newService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := svc.Record(ctx, title.ID, nil, "", "[SynthSubs]  Placeholder Saga - 03  ", "failed"); err != nil {
 		t.Fatalf("record: %v", err)
 	}
@@ -122,7 +121,7 @@ func TestRecordStoresTheNormalizedTitle(t *testing.T) {
 
 func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 	svc, st, title := newService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if _, err := svc.Record(ctx, title.ID, nil, "h1", "[SynthSubs] Placeholder Saga - 01", "failed"); err != nil {
 		t.Fatalf("record live: %v", err)
@@ -163,7 +162,7 @@ func TestActiveExcludesExpiredAndClearRemoves(t *testing.T) {
 // clock is not next to methods reading a different one.
 func TestExpiryHonoursTheServiceClock(t *testing.T) {
 	svc, _, title := newService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	start := time.Now()
 	at(svc, start)
 
@@ -192,7 +191,7 @@ func TestExpiryHonoursTheServiceClock(t *testing.T) {
 // expire backdates an entry's block, which only time can otherwise do.
 func expire(t *testing.T, st *store.Store, hash string) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		"UPDATE release_blocklist SET blocked_until = ? WHERE info_hash = ?",
 		store.FormatTimestamp(time.Now().Add(-time.Hour)), hash,
 	); err != nil {
@@ -212,7 +211,7 @@ func hashes(entries []db.ReleaseBlocklist) []string {
 // ClearTitle is the whole-title one. Both stop at the title boundary.
 func TestClearExpiredAndClearTitle(t *testing.T) {
 	svc, st, title := newService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	other, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: "Another Placeholder", Format: "TV", Monitored: 1,
 	})

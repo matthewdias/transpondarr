@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"testing"
@@ -16,7 +15,7 @@ import (
 func seedItemlessTitle(t *testing.T, st *store.Store, cut int64) int64 {
 	t.Helper()
 	var id int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`INSERT INTO series (provider, provider_id, title, format, monitored, monitor_new_from)
 		 VALUES ('fake', 42, 'Placeholder Saga', 'TV', 1, ?) RETURNING id`, cut).Scan(&id); err != nil {
 		t.Fatalf("insert series: %v", err)
@@ -26,7 +25,7 @@ func seedItemlessTitle(t *testing.T, st *store.Store, cut int64) int64 {
 
 func itemNumbers(t *testing.T, st *store.Store, titleID int64) []int {
 	t.Helper()
-	rows, err := st.DB.QueryContext(context.Background(),
+	rows, err := st.DB.QueryContext(t.Context(),
 		`SELECT number FROM wanted_items WHERE series_id = ? ORDER BY number`, titleID)
 	if err != nil {
 		t.Fatalf("read items: %v", err)
@@ -45,7 +44,7 @@ func itemNumbers(t *testing.T, st *store.Store, titleID int64) []int {
 
 func itemKinds(t *testing.T, st *store.Store, titleID int64) []string {
 	t.Helper()
-	rows, err := st.DB.QueryContext(context.Background(),
+	rows, err := st.DB.QueryContext(t.Context(),
 		`SELECT DISTINCT kind FROM wanted_items WHERE series_id = ? ORDER BY kind`, titleID)
 	if err != nil {
 		t.Fatalf("read kinds: %v", err)
@@ -64,7 +63,7 @@ func itemKinds(t *testing.T, st *store.Store, titleID int64) []string {
 
 func searchState(t *testing.T, st *store.Store, titleID int64) (epoch, backoff int64, nextSearch, airingSynced *string) {
 	t.Helper()
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT search_epoch, search_backoff, next_search_at, airing_synced_at FROM series WHERE id = ?`,
 		titleID).Scan(&epoch, &backoff, &nextSearch, &airingSynced); err != nil {
 		t.Fatalf("read search state: %v", err)
@@ -77,7 +76,7 @@ func searchState(t *testing.T, st *store.Store, titleID int64) (epoch, backoff i
 func settledDeadEnd(t *testing.T, st *store.Store, titleID int64) {
 	t.Helper()
 	at := store.FormatTimestamp(time.Now().Add(-time.Hour))
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET airing_synced_at = ?, search_backoff = 5, next_search_at = ? WHERE id = ?`,
 		at, at, titleID); err != nil {
 		t.Fatalf("settle the title: %v", err)
@@ -88,7 +87,7 @@ func TestSetItemCountMaterializesItems(t *testing.T) {
 	st := coretest.NewStore(t)
 	id := seedItemlessTitle(t, st, 1)
 
-	n, err := NewService(st, &fakeProvider{}).SetItemCount(context.Background(), id, 12)
+	n, err := NewService(st, &fakeProvider{}).SetItemCount(t.Context(), id, 12)
 	if err != nil {
 		t.Fatalf("SetItemCount: %v", err)
 	}
@@ -107,12 +106,12 @@ func TestSetItemCountMaterializesItems(t *testing.T) {
 func TestSetItemCountRefusesATitleThatAlreadyHasItems(t *testing.T) {
 	st := coretest.NewStore(t)
 	id := seedItemlessTitle(t, st, 1)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`INSERT INTO wanted_items (series_id, kind, number) VALUES (?, 'episode', 1)`, id); err != nil {
 		t.Fatalf("insert item: %v", err)
 	}
 
-	n, err := NewService(st, &fakeProvider{}).SetItemCount(context.Background(), id, 12)
+	n, err := NewService(st, &fakeProvider{}).SetItemCount(t.Context(), id, 12)
 	if !errors.Is(err, ErrTitleHasItems) {
 		t.Fatalf("SetItemCount err = %v, want ErrTitleHasItems", err)
 	}
@@ -127,7 +126,7 @@ func TestSetItemCountRefusesATitleThatAlreadyHasItems(t *testing.T) {
 func TestSetItemCountRefusesAnUnknownTitle(t *testing.T) {
 	st := coretest.NewStore(t)
 
-	if _, err := NewService(st, &fakeProvider{}).SetItemCount(context.Background(), 999, 12); err == nil {
+	if _, err := NewService(st, &fakeProvider{}).SetItemCount(t.Context(), 999, 12); err == nil {
 		t.Fatal("SetItemCount on an unknown title returned no error")
 	}
 }
@@ -138,7 +137,7 @@ func TestSetItemCountHonoursTheMonitorCut(t *testing.T) {
 	// the row under assertion would move with any mutation and never fail.
 	id := seedItemlessTitle(t, st, 3)
 
-	if _, err := NewService(st, &fakeProvider{}).SetItemCount(context.Background(), id, 5); err != nil {
+	if _, err := NewService(st, &fakeProvider{}).SetItemCount(t.Context(), id, 5); err != nil {
 		t.Fatalf("SetItemCount: %v", err)
 	}
 	if got := monitoredNumbers(t, st, id); !slices.Equal(got, []int{3, 4, 5}) {
@@ -155,7 +154,7 @@ func TestSetItemCountResetsSearchCadenceAndClearsTheAiringStamp(t *testing.T) {
 	settledDeadEnd(t, st, id)
 	epochBefore, _, _, _ := searchState(t, st, id)
 
-	if _, err := NewService(st, &fakeProvider{}).SetItemCount(context.Background(), id, 12); err != nil {
+	if _, err := NewService(st, &fakeProvider{}).SetItemCount(t.Context(), id, 12); err != nil {
 		t.Fatalf("SetItemCount: %v", err)
 	}
 
@@ -177,7 +176,7 @@ func TestSetItemCountBelowTheMonitorCutLeavesTheSearchQueueAlone(t *testing.T) {
 	settledDeadEnd(t, st, id)
 	epochBefore, _, _, _ := searchState(t, st, id)
 
-	if _, err := NewService(st, &fakeProvider{}).SetItemCount(context.Background(), id, 5); err != nil {
+	if _, err := NewService(st, &fakeProvider{}).SetItemCount(t.Context(), id, 5); err != nil {
 		t.Fatalf("SetItemCount: %v", err)
 	}
 

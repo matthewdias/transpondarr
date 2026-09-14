@@ -1,7 +1,6 @@
 package devdata
 
 import (
-	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -35,7 +34,7 @@ func anilistStub(t *testing.T) *anilist.Client {
 func TestTorznabStubParsesWithTheRealAdapter(t *testing.T) {
 	ix := torznabStub(t)
 
-	got, err := ix.Search(context.Background(), indexer.Query{Term: "Placeholder Frontier"})
+	got, err := ix.Search(t.Context(), indexer.Query{Term: "Placeholder Frontier"})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -79,7 +78,7 @@ func TestTorznabStubParsesWithTheRealAdapter(t *testing.T) {
 
 func TestTorznabStubAnswersAnUnknownTitleWithAnEmptyFeed(t *testing.T) {
 	ix := torznabStub(t)
-	got, err := ix.Search(context.Background(), indexer.Query{Term: "Nothing By This Name"})
+	got, err := ix.Search(t.Context(), indexer.Query{Term: "Nothing By This Name"})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -94,7 +93,7 @@ func TestTorznabStubServesRecentFeed(t *testing.T) {
 	if !ok {
 		t.Fatal("torznab adapter no longer implements RecentFeed")
 	}
-	entries, err := feed.Recent(context.Background())
+	entries, err := feed.Recent(t.Context())
 	if err != nil {
 		t.Fatalf("Recent: %v", err)
 	}
@@ -126,7 +125,7 @@ func TestTorznabStubServesRecentFeed(t *testing.T) {
 
 func TestAnilistStubAnswersSearchTitleBrowseAndSchedule(t *testing.T) {
 	c := anilistStub(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	found, err := c.Search(ctx, "Placeholder Frontier")
 	if err != nil {
@@ -182,7 +181,7 @@ func TestAnilistStubAnswersSearchTitleBrowseAndSchedule(t *testing.T) {
 
 func TestAnilistStubReportsAnUnknownTitleRatherThanInventingOne(t *testing.T) {
 	c := anilistStub(t)
-	if _, _, err := c.GetTitle(context.Background(), 999999); err == nil {
+	if _, _, err := c.GetTitle(t.Context(), 999999); err == nil {
 		t.Error("GetTitle for an unseeded id returned no error; the stub invented a title")
 	}
 }
@@ -194,7 +193,7 @@ func TestAnilistStubReportsAnUnknownTitleRatherThanInventingOne(t *testing.T) {
 func TestATitleCanBeAddedOfflineThroughTheStub(t *testing.T) {
 	st := seeded(t)
 	svc := catalog.NewService(st, anilistStub(t))
-	ctx := context.Background()
+	ctx := t.Context()
 
 	unseeded := addable()
 	if len(unseeded) == 0 {
@@ -225,7 +224,7 @@ func TestATitleCanBeAddedOfflineThroughTheStub(t *testing.T) {
 func TestASeededTitleCannotBeAddedTwice(t *testing.T) {
 	st := seeded(t)
 	svc := catalog.NewService(st, anilistStub(t))
-	_, err := svc.AddTitle(context.Background(), svc.ProviderName(), fixtures()[0].providerID, true, catalog.MonitorAll, 0)
+	_, err := svc.AddTitle(t.Context(), svc.ProviderName(), fixtures()[0].providerID, true, catalog.MonitorAll, 0)
 	if !errors.Is(err, catalog.ErrAlreadyExists) {
 		t.Errorf("AddTitle for a seeded id = %v, want ErrAlreadyExists", err)
 	}

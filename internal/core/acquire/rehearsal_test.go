@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -73,7 +72,7 @@ func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 		fakeConfig{notifyOnly: true})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 5, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -117,14 +116,14 @@ func TestNotifyOnlySweepReportsNothingEligible(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 1)},
 		fakeConfig{notifyOnly: true})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
 		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 1, airsAt: &past}, sweepItem{number: 2, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -146,7 +145,7 @@ func TestNotifyOnlySweepReportsEmptySearch(t *testing.T) {
 	h := newRehearsal(t, nil, fakeConfig{notifyOnly: true})
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 5, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	ev := wantRehearsalEvent(t, h.fn)
@@ -167,7 +166,7 @@ func TestNotifyOnlySweepReportsPinHold(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	pinTitle(t, h.st, id, "OtherSubs", -1)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	ev := wantRehearsalEvent(t, h.fn)
@@ -201,7 +200,7 @@ func TestNotifyOnlyFeedReportsInsteadOfGrabbing(t *testing.T) {
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{notifyOnly: true}, discardLogger(), nil)
 	id := seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := svc.PollFeedOnce(context.Background()); err != nil {
+	if err := svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	ev := wantRehearsalEvent(t, fn)
@@ -232,7 +231,7 @@ func TestNotifyOnlyFeedStaysSilentWhenNothingWouldBeTaken(t *testing.T) {
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{notifyOnly: true}, discardLogger(), nil)
 	seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := svc.PollFeedOnce(context.Background()); err != nil {
+	if err := svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	select {
@@ -261,7 +260,7 @@ func TestNotifyOnlyFeedAdvancesItsMark(t *testing.T) {
 	seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
 	for i := range 2 {
-		if err := svc.PollFeedOnce(context.Background()); err != nil {
+		if err := svc.PollFeedOnce(t.Context()); err != nil {
 			t.Fatalf("PollFeedOnce %d: %v", i, err)
 		}
 	}
@@ -285,7 +284,7 @@ func TestNotifyOnlySweepReportsUncoveredItemsBesideAHold(t *testing.T) {
 		sweepItem{number: 3, airsAt: &aired})
 	pinTitle(t, h.st, id, "OtherSubs", -1)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -313,7 +312,7 @@ func TestNotifyOnlyManualRunStillRehearses(t *testing.T) {
 		fakeConfig{notifyOnly: true})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 5, airsAt: &past})
 
-	if err := h.svc.SweepOnce(jobs.WithManualRun(context.Background())); err != nil {
+	if err := h.svc.SweepOnce(jobs.WithManualRun(t.Context())); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	wantRehearsalEvent(t, h.fn)
@@ -326,7 +325,7 @@ func TestNotifyOnlyManualRunStillRehearses(t *testing.T) {
 // notify-only to on grabs on the next pass with no other change, and flipping
 // to off silences the rehearsal.
 func TestNotifyOnlyFlipsToOnAndOffLive(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	st := coretest.NewStore(t)
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{episodeRelease("Placeholder Saga", 5)}}
 	dl := &coretest.FakeDownload{Result: download.AddResult{Hash: "swept", Outcome: download.AddSuccess}}
@@ -388,7 +387,7 @@ func TestNotifyOnlyFlipsToOnAndOffLive(t *testing.T) {
 
 func makeTitleDue(t *testing.T, st *store.Store, id int64) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET next_search_at = NULL WHERE id = ?`, id); err != nil {
 		t.Fatalf("clear next_search_at: %v", err)
 	}
@@ -413,7 +412,7 @@ func TestNotifyOnlySweepRehearsesASeasonPack(t *testing.T) {
 		sweepItem{number: 1}, sweepItem{number: 2}, sweepItem{number: 3},
 		sweepItem{number: 4}, sweepItem{number: 5}, sweepItem{number: 6})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 

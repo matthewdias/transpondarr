@@ -31,7 +31,7 @@ func (p *staticProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, [
 // kind, so the pre-#208 legacy row is expressible.
 func seedMovie(t *testing.T, st *store.Store, providerID int64, kind string, year int) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var id int64
 	if err := st.DB.QueryRowContext(ctx,
 		`INSERT INTO series (provider, provider_id, title, format, monitored, year)
@@ -49,7 +49,7 @@ func seedMovie(t *testing.T, st *store.Store, providerID int64, kind string, yea
 func storedYear(t *testing.T, st *store.Store, titleID int64) int {
 	t.Helper()
 	var year int
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT year FROM series WHERE id = ?`, titleID).Scan(&year); err != nil {
 		t.Fatalf("read year: %v", err)
 	}
@@ -74,12 +74,12 @@ func TestRefreshDoesNotDuplicateAMoviesItem(t *testing.T) {
 	titleID := seedMovie(t, st, 4321, string(domain.KindMovie), 2020)
 	svc := newService(t, st, movieProvider(2020))
 
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
 	var items int
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT COUNT(*) FROM wanted_items WHERE series_id = ?`, titleID).Scan(&items); err != nil {
 		t.Fatalf("count items: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestRefreshDoesNotDuplicateAMoviesItem(t *testing.T) {
 		t.Errorf("items after refresh = %d, want 1", items)
 	}
 	var kind string
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT kind FROM wanted_items WHERE series_id = ?`, titleID).Scan(&kind); err != nil {
 		t.Fatalf("read kind: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestRefreshFillsAYearThatArrivesLater(t *testing.T) {
 	titleID := seedMovie(t, st, 4321, string(domain.KindMovie), 0)
 	svc := newService(t, st, movieProvider(2027))
 
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 	if got := storedYear(t, st, titleID); got != 2027 {
@@ -117,7 +117,7 @@ func TestRefreshNeverClearsAStoredYear(t *testing.T) {
 	titleID := seedMovie(t, st, 4321, string(domain.KindMovie), 2020)
 	svc := newService(t, st, movieProvider(0))
 
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 	if got := storedYear(t, st, titleID); got != 2020 {

@@ -2,7 +2,6 @@ package mediaserver
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"log/slog"
 	"os"
@@ -27,7 +26,7 @@ func TestPlaceMovieUsesTheMoviesRoot(t *testing.T) {
 	series, movies := t.TempDir(), t.TempDir()
 
 	dest, err := New(Roots{Series: series, Movies: movies}, LayoutSeasonFolders, "copy", nil).
-		Place(context.Background(), movieReq(src, "Placeholder Film", 2019))
+		Place(t.Context(), movieReq(src, "Placeholder Film", 2019))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -48,7 +47,7 @@ func TestPlaceMovieWithoutAYearDropsTheSuffix(t *testing.T) {
 	movies := t.TempDir()
 
 	dest, err := New(Roots{Series: t.TempDir(), Movies: movies}, LayoutSeasonFolders, "copy", nil).
-		Place(context.Background(), movieReq(src, "Placeholder Film", 0))
+		Place(t.Context(), movieReq(src, "Placeholder Film", 0))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -67,7 +66,7 @@ func TestPlaceMovieWithoutAMoviesRootIsAnError(t *testing.T) {
 	series := t.TempDir()
 
 	_, err := New(Roots{Series: series}, LayoutSeasonFolders, "copy", nil).
-		Place(context.Background(), movieReq(src, "Placeholder Film", 2019))
+		Place(t.Context(), movieReq(src, "Placeholder Film", 2019))
 	if !errors.Is(err, ErrNoMoviesRoot) {
 		t.Fatalf("Place error = %v, want ErrNoMoviesRoot", err)
 	}
@@ -85,7 +84,7 @@ func TestPlaceEpisodeWithoutASeriesRootIsAnError(t *testing.T) {
 	movies := t.TempDir()
 
 	_, err := New(Roots{Movies: movies}, LayoutSeasonFolders, "copy", nil).
-		Place(context.Background(), req(src, "Placeholder Saga", 5))
+		Place(t.Context(), req(src, "Placeholder Saga", 5))
 	if !errors.Is(err, ErrNoSeriesRoot) {
 		t.Fatalf("Place error = %v, want ErrNoSeriesRoot", err)
 	}
@@ -104,7 +103,7 @@ func TestRootsAreTrimmed(t *testing.T) {
 	movies := t.TempDir()
 
 	dest, err := New(Roots{Movies: " " + movies + " "}, LayoutSeasonFolders, "copy", nil).
-		Place(context.Background(), movieReq(src, "Placeholder Film", 2019))
+		Place(t.Context(), movieReq(src, "Placeholder Film", 2019))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -125,7 +124,7 @@ func TestPlaceSingleItemOVAStaysInTheSeriesRoot(t *testing.T) {
 		Title:      domain.Title{Name: "Placeholder OVA", Format: domain.FormatOVA, Year: 2019},
 		Item:       domain.WantedItem{Number: 1, Kind: domain.KindEpisode},
 	}
-	dest, err := New(Roots{Series: series, Movies: movies}, LayoutSeasonFolders, "copy", nil).Place(context.Background(), r)
+	dest, err := New(Roots{Series: series, Movies: movies}, LayoutSeasonFolders, "copy", nil).Place(t.Context(), r)
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -142,7 +141,7 @@ func TestPlaceMovieUpgradeReplacesAndClearsStemMates(t *testing.T) {
 	target := New(Roots{Series: t.TempDir(), Movies: movies}, LayoutSeasonFolders, "copy", nil)
 
 	old := writeSource(t, "old.mkv")
-	if _, err := target.Place(context.Background(), movieReq(old, "Placeholder Film", 2019)); err != nil {
+	if _, err := target.Place(t.Context(), movieReq(old, "Placeholder Film", 2019)); err != nil {
 		t.Fatalf("first Place: %v", err)
 	}
 	dir := filepath.Join(movies, "Placeholder Film (2019)")
@@ -157,7 +156,7 @@ func TestPlaceMovieUpgradeReplacesAndClearsStemMates(t *testing.T) {
 	}
 	r := movieReq(better, "Placeholder Film", 2019)
 	r.Replace = true
-	dest, err := target.Place(context.Background(), r)
+	dest, err := target.Place(t.Context(), r)
 	if err != nil {
 		t.Fatalf("upgrade Place: %v", err)
 	}
@@ -181,7 +180,7 @@ func TestReplaceIntoAMissingDirectoryWarns(t *testing.T) {
 	// year-less original does not live in.
 	r := movieReq(writeSource(t, "raw.mkv"), "Placeholder Film", 2019)
 	r.Replace = true
-	if _, err := target.Place(context.Background(), r); err != nil {
+	if _, err := target.Place(t.Context(), r); err != nil {
 		t.Fatalf("Place: %v", err)
 	}
 	if !strings.Contains(buf.String(), "older name") {
@@ -191,7 +190,7 @@ func TestReplaceIntoAMissingDirectoryWarns(t *testing.T) {
 	buf.Reset()
 	again := movieReq(writeSource(t, "raw.mkv"), "Placeholder Film", 2019)
 	again.Replace = true
-	if _, err := target.Place(context.Background(), again); err != nil {
+	if _, err := target.Place(t.Context(), again); err != nil {
 		t.Fatalf("second Place: %v", err)
 	}
 	if buf.Len() != 0 {

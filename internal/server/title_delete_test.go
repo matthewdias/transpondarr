@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,7 +14,7 @@ import (
 // seedGrab records a grab in the given status against the item numbered number.
 func seedGrab(t *testing.T, st *store.Store, titleID int64, number int, hash, status string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	items, err := st.Q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
@@ -37,7 +36,7 @@ func seedGrab(t *testing.T, st *store.Store, titleID int64, number int, hash, st
 func countRows(t *testing.T, st *store.Store, query string, args ...any) int {
 	t.Helper()
 	var n int
-	if err := st.DB.QueryRowContext(context.Background(), query, args...).Scan(&n); err != nil {
+	if err := st.DB.QueryRowContext(t.Context(), query, args...).Scan(&n); err != nil {
 		t.Fatalf("count rows: %v", err)
 	}
 	return n
@@ -54,7 +53,7 @@ func TestDeleteTitleRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 	// has something to find rather than passing on an empty page.
 	survivor := seedTitle(t, h.store, "Second Saga", 2)
 	seedGrab(t, h.store, id, 1, "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111", "grabbed")
-	if _, err := h.store.DB.ExecContext(context.Background(),
+	if _, err := h.store.DB.ExecContext(t.Context(),
 		`INSERT INTO release_blocklist (series_id, info_hash, release_title, normalized_title, reason)
 		 VALUES (?, '', '[ExampleSubs] Placeholder Saga [1080p]', 'placeholder saga 1080p', 'test')`,
 		id); err != nil {

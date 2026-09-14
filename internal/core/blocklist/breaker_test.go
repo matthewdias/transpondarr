@@ -1,7 +1,6 @@
 package blocklist
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -17,7 +16,7 @@ func at(svc *Service, t time.Time) {
 // recordItems is one release failing, covering the given items.
 func recordItems(t *testing.T, svc *Service, titleID int64, title string, itemIDs ...int64) bool {
 	t.Helper()
-	ok, err := svc.Record(context.Background(), titleID, itemIDs, "", title, "failed")
+	ok, err := svc.Record(t.Context(), titleID, itemIDs, "", title, "failed")
 	if err != nil {
 		t.Fatalf("record %q: %v", title, err)
 	}
@@ -58,7 +57,7 @@ func TestBreakerTripsWhenManyDistinctItemsFail(t *testing.T) {
 		t.Error("breaker reports no opening time; the UI shows it")
 	}
 
-	all, err := svc.List(context.Background(), title.ID)
+	all, err := svc.List(t.Context(), title.ID)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -171,7 +170,7 @@ func TestBreakerForgetsFailuresOlderThanTheWindow(t *testing.T) {
 // the next tick starts clean rather than waiting out the window.
 func TestClearAllForgetsEverythingAndClosesTheBreaker(t *testing.T) {
 	svc, st, title := newService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	other, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: "Another Placeholder", Format: "TV", Monitored: 1,
 	})
@@ -215,7 +214,7 @@ func TestBreakerIgnoresFailuresWithNoItems(t *testing.T) {
 	at(svc, time.Now())
 
 	for n := range breakerItems * 2 {
-		ok, err := svc.Record(context.Background(), title.ID, nil, "",
+		ok, err := svc.Record(t.Context(), title.ID, nil, "",
 			fmt.Sprintf("[Group%02d] Placeholder Saga - 03", n), "failed")
 		if err != nil {
 			t.Fatalf("record: %v", err)

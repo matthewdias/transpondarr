@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"slices"
@@ -28,7 +27,7 @@ const heldHD = "[ExampleSubs] Placeholder Saga - 03 [1080p]"
 // enableUpgrades opts the default profile in, at the given cutoff.
 func enableUpgrades(t *testing.T, st *store.Store, cutoff int) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET upgrades_enabled = 1, cutoff_score = ? WHERE id = 1`, cutoff); err != nil {
 		t.Fatalf("enable upgrades: %v", err)
 	}
@@ -38,7 +37,7 @@ func enableUpgrades(t *testing.T, st *store.Store, cutoff int) {
 func grabFor(t *testing.T, st *store.Store, titleID int64, number int) (string, string) {
 	t.Helper()
 	var release, status string
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT g.release_title, g.status FROM grabs g
 		 JOIN wanted_items w ON w.id = g.wanted_item_id
 		 WHERE w.series_id = ? AND w.number = ?`, titleID, number).Scan(&release, &status); err != nil {
@@ -51,7 +50,7 @@ func grabFor(t *testing.T, st *store.Store, titleID int64, number int) (string, 
 func heldTitleOf(t *testing.T, st *store.Store, titleID int64) string {
 	t.Helper()
 	var title string
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT held_release_title FROM wanted_items WHERE series_id = ?`, titleID).Scan(&title); err != nil {
 		t.Fatalf("read held_release_title: %v", err)
 	}
@@ -68,7 +67,7 @@ func TestFeedPollUpgradesAHeldItem(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 1 {
@@ -94,7 +93,7 @@ func TestFeedPollLeavesACutoffMetItemAlone(t *testing.T) {
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldHD, grab: "imported"})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 0 {
@@ -110,7 +109,7 @@ func TestFeedPollLeavesHeldItemsAloneWhenUpgradesAreOff(t *testing.T) {
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 0 {
@@ -128,7 +127,7 @@ func TestFeedPollRetriesAfterAFailedUpgrade(t *testing.T) {
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "failed"})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 1 {
@@ -148,7 +147,7 @@ func TestFeedPollLeavesUnsettledUpgradesAlone(t *testing.T) {
 			seedSweep(t, h.st, "Placeholder Saga", true,
 				sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: status})
 
-			if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+			if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 				t.Fatalf("PollFeedOnce: %v", err)
 			}
 			if len(h.dl.Adds) != 0 {
@@ -171,7 +170,7 @@ func TestSweepUpgradesHeldItemsItSearchedForAnyway(t *testing.T) {
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"},
 		sweepItem{number: 5, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 2 {
@@ -193,7 +192,7 @@ func TestSweepDoesNotSearchForUpgradesAlone(t *testing.T) {
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.idx.Queries) != 0 {
@@ -215,7 +214,7 @@ func TestNotifyOnlyRehearsesAnUpgrade(t *testing.T) {
 	seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 0 {
@@ -242,7 +241,7 @@ func TestManualMatchOffersReleasesForHeldItems(t *testing.T) {
 	id := seedSweep(t, st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
-	m, err := svc.MatchTitle(context.Background(), id)
+	m, err := svc.MatchTitle(t.Context(), id)
 	if err != nil {
 		t.Fatalf("MatchSeries: %v", err)
 	}
@@ -267,7 +266,7 @@ func TestManualMatchOffersReleasesForHeldItems(t *testing.T) {
 // naming the release in the library. The last poll proves it converges — the
 // upgraded item meets the cutoff, so offering it again changes nothing.
 func TestUpgradeLifecycleReplacesTheHeldFile(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	st := coretest.NewStore(t)
 	root := t.TempDir()
 	dir := filepath.Join(root, "Placeholder Saga", "Season 01")

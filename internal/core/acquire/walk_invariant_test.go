@@ -1,7 +1,6 @@
 package acquire
 
 import (
-	"context"
 	"database/sql"
 	"log/slog"
 	"testing"
@@ -68,7 +67,7 @@ func TestCoveredAgreesWithTheSettlingOutcomes(t *testing.T) {
 	title := db.Series{ID: 1, Title: "Placeholder Saga",
 		PinnedGroup: sql.NullString{String: "PinnedSubs", Valid: true}}
 
-	res, err := s.walkCandidates(context.Background(), title, m, sweep, time.Now(), sourceSweep)
+	res, err := s.walkCandidates(t.Context(), title, m, sweep, time.Now(), sourceSweep)
 	if err != nil {
 		t.Fatalf("walkCandidates: %v", err)
 	}

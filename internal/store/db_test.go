@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"testing"
 )
 
@@ -11,7 +10,7 @@ import (
 // connections) and check the pragma on each.
 func TestForeignKeysEnforcedOnEveryPooledConn(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const conns = 4
 	st.DB.SetMaxOpenConns(conns)

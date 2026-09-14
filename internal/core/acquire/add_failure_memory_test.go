@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -25,7 +24,7 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -41,7 +40,7 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	}
 	// The covered items are the breaker's evidence of breadth, so a failed add
 	// has to report which ones it was for.
-	items, err := h.st.Q.ListWantedItems(context.Background(), id)
+	items, err := h.st.Q.ListWantedItems(t.Context(), id)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
 	}
@@ -70,7 +69,7 @@ func TestSweepRemembersAnUnsupportedTorrentUnderItsOwnReason(t *testing.T) {
 	h.dl.FailURLs = map[string]error{v2.DownloadURL: addErr}
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -112,7 +111,7 @@ func TestSweepTakesTheNextReleaseWhenADuplicatesDataIsMissing(t *testing.T) {
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -125,7 +124,7 @@ func TestSweepTakesTheNextReleaseWhenADuplicatesDataIsMissing(t *testing.T) {
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
 		t.Errorf("grabbed items = %v, want [3] from the second candidate", got)
 	}
-	grabs, err := h.st.Q.ListGrabsByTitle(context.Background(), id)
+	grabs, err := h.st.Q.ListGrabsByTitle(t.Context(), id)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -148,7 +147,7 @@ func TestSweepDoesNotRememberAClientSideRefusal(t *testing.T) {
 	h.dl.FailURLs = map[string]error{rel.DownloadURL: errors.New("qbit: connection refused")}
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.rec.calls) != 0 {
@@ -165,7 +164,7 @@ func TestManualGrabRemembersNothing(t *testing.T) {
 		rel.DownloadURL: fmt.Errorf("%w: 404 fetching the torrent", download.ErrBadRelease),
 	}
 
-	_, err := h.svc.Grab(context.Background(), 1,
+	_, err := h.svc.Grab(t.Context(), 1,
 		decide.Candidate{Release: rel, Items: []int{3}},
 		[]domain.WantedItem{{ID: 1, Kind: domain.KindEpisode, Number: 3}}, false)
 	if !errors.Is(err, acquire.ErrDownloadAdd) {

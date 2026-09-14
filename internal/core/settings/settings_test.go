@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -20,7 +19,7 @@ func newTestService(t *testing.T) (*Service, *clients.Registry, *store.Store) {
 	}
 	t.Cleanup(func() { _ = st.DB.Close() })
 	reg := clients.New()
-	svc, err := New(context.Background(), st, &config.Config{}, reg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc, err := New(t.Context(), st, &config.Config{}, reg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -33,7 +32,7 @@ func newTestService(t *testing.T) (*Service, *clients.Registry, *store.Store) {
 // as written but is the same destination, so the inheritance still applies (#259).
 func TestUpdateDownloadPersistsAndKeepsBlankPassword(t *testing.T) {
 	svc, reg, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateDownload(ctx, DownloadConfig{URL: "http://qb:8080", User: "admin", Password: "secret"}); err != nil {
 		t.Fatalf("update: %v", err)
@@ -65,7 +64,7 @@ func TestUpdateDownloadPersistsAndKeepsBlankPassword(t *testing.T) {
 // non-numeric segment is rejected without changing persisted or live config state.
 func TestUpdateIndexerCategories(t *testing.T) {
 	svc, reg, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateIndexer(ctx, IndexerConfig{URL: "http://prowlarr:9696/1/api", APIKey: "k", Categories: " 5070, 127720 ,"}); err != nil {
 		t.Fatalf("update: %v", err)
@@ -111,7 +110,7 @@ func TestIndexerCategoriesFromEnvBaseline(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = st.DB.Close() })
 	base := &config.Config{TorznabURL: "http://prowlarr:9696/1/api", TorznabCategories: "5070"}
-	svc, err := New(context.Background(), st, base, clients.New(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc, err := New(t.Context(), st, base, clients.New(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -153,7 +152,7 @@ func TestNormalizeCategories(t *testing.T) {
 // unchanged — the DB write happens before the swap, so there is no torn config state.
 func TestUpdateDownloadPersistFailureLeavesStateUnchanged(t *testing.T) {
 	svc, reg, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateDownload(ctx, DownloadConfig{URL: "http://qb:8080", Password: "secret"}); err != nil {
 		t.Fatalf("seed: %v", err)

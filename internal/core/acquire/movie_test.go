@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"sync"
@@ -22,7 +21,7 @@ import (
 // "no year on record", the metadata state automation must never grab in (#208).
 func seedMovie(t *testing.T, st *store.Store, title string, year int64) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: title, Format: "MOVIE", Monitored: 1, Year: year,
 	})
@@ -64,7 +63,7 @@ func TestSweepGrabsAWantedMovie(t *testing.T) {
 	h := newSweep(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2019)}, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 2019)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -93,7 +92,7 @@ func TestSweepMovieBacksOffLikeATitle(t *testing.T) {
 	id := seedMovie(t, h.st, "Sample Film", 2019)
 
 	before := time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	state := readSearchState(t, h.st, id)
@@ -102,12 +101,12 @@ func TestSweepMovieBacksOffLikeATitle(t *testing.T) {
 	}
 	wantNextSearchNear(t, state.nextSearchAt, before.Add(time.Hour))
 
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 10, next_search_at = NULL WHERE id = ?`, id); err != nil {
 		t.Fatalf("advance the backoff: %v", err)
 	}
 	before = time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	state = readSearchState(t, h.st, id)
@@ -124,14 +123,14 @@ func TestSweepMovieWithNoAirDateLeavesTheCadenceHelpersInert(t *testing.T) {
 	now := time.Now()
 	h := newSweep(t, nil, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 2019)
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 6, last_searched_at = ?, next_search_at = NULL WHERE id = ?`,
 		store.FormatTimestamp(now.Add(-3*time.Hour)), id); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
 	before := time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	state := readSearchState(t, h.st, id)
@@ -149,13 +148,13 @@ func TestSweepMovieWithNoAirDateLeavesTheCadenceHelpersInert(t *testing.T) {
 func TestSweepSkipsAnAnnouncedFilmUntilItsPremiere(t *testing.T) {
 	h := newSweep(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2027)}, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 2027)
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE wanted_items SET airs_at = ? WHERE series_id = ?`,
 		store.FormatTimestamp(time.Now().Add(90*24*time.Hour)), id); err != nil {
 		t.Fatalf("date the film ahead: %v", err)
 	}
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -174,7 +173,7 @@ func TestSweepNeverGrabsANullYearMovieAndRecordsWhy(t *testing.T) {
 	h := newSweep(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2019)}, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 0)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -199,7 +198,7 @@ func TestSweepMovieIgnoresThePinDelayWithNoAirDate(t *testing.T) {
 	id := seedMovie(t, h.st, "Sample Film", 2019)
 	pinTitle(t, h.st, id, "OtherSubs", -1)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -225,7 +224,7 @@ func TestSweepNeverGrabsAParentSeriesSeasonPackForAFilm(t *testing.T) {
 	h := newSweep(t, []indexer.Release{rel}, fakeConfig{})
 	id := seedMovie(t, h.st, "Placeholder Saga: The Final", 2019)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -252,7 +251,7 @@ func TestSweepWithholdsAFilmsOwnBatchTokenedRelease(t *testing.T) {
 	h := newSweep(t, []indexer.Release{rel}, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 2019)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -272,7 +271,7 @@ func TestSweepMovieSkipsABlocklistedRelease(t *testing.T) {
 	id := seedMovie(t, h.st, "Sample Film", 2019)
 	blockRelease(t, h.st, id, "tophash", top.Title, time.Now().Add(24*time.Hour))
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	got := grabbedReleaseTitles(t, h.st, id)
@@ -289,7 +288,7 @@ func TestFeedPollGrabsAWantedMovie(t *testing.T) {
 	}, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 2019)
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 1 {
@@ -312,7 +311,7 @@ func TestFeedPollNeverGrabsANullYearMovie(t *testing.T) {
 	}, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 0)
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -339,7 +338,7 @@ func TestFeedPollDoesNotGrabALongRunnersEpisodeForAFilm(t *testing.T) {
 	saga := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 1}, sweepItem{number: 12})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, film); len(got) != 0 {
@@ -365,7 +364,7 @@ func TestConcurrentSweepAndFeedPollGrabAMovieOnce(t *testing.T) {
 	id := seedMovie(t, h.st, "Sample Film", 2019)
 
 	entered, release := blockFirstAdd(h.dl)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var wg sync.WaitGroup
 	var pollErr error
@@ -394,7 +393,7 @@ func TestNotifyOnlySweepReportsAWouldGrabMovie(t *testing.T) {
 		fakeConfig{notifyOnly: true})
 	id := seedMovie(t, h.st, "Sample Film", 2019)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -426,7 +425,7 @@ func TestNotifyOnlySweepReportsANullYearMovieRefusal(t *testing.T) {
 		fakeConfig{notifyOnly: true})
 	seedMovie(t, h.st, "Sample Film", 0)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 

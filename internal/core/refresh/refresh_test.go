@@ -54,7 +54,7 @@ func newService(t *testing.T, st *store.Store, prov metadata.Provider) *refresh.
 // seedTitle inserts a monitored title with items 1..episodes and returns its id.
 func seedTitle(t *testing.T, st *store.Store, anilistID int64, episodes int) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var id int64
 	if err := st.DB.QueryRowContext(ctx,
 		`INSERT INTO series (provider, provider_id, title, monitored) VALUES ('anilist', ?, 'Placeholder', 1) RETURNING id`,
@@ -74,7 +74,7 @@ func seedTitle(t *testing.T, st *store.Store, anilistID int64, episodes int) int
 func seedUnmonitoredTitle(t *testing.T, st *store.Store, anilistID int64, episodes int) int64 {
 	t.Helper()
 	id := seedTitle(t, st, anilistID, episodes)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET monitored = 0 WHERE id = ?`, id); err != nil {
 		t.Fatalf("unmonitor series: %v", err)
 	}
@@ -89,7 +89,7 @@ func seedCache(t *testing.T, st *store.Store, anilistID int64, status string, ep
 	if episodes > 0 {
 		count = episodes
 	}
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`INSERT INTO metadata_cache (provider, provider_id, status, episode_count, raw, fetched_at)
 		 VALUES ('anilist', ?, ?, ?, '{}', ?)`,
 		anilistID, status, count, store.FormatTimestamp(fetchedAt)); err != nil {
@@ -99,7 +99,7 @@ func seedCache(t *testing.T, st *store.Store, anilistID int64, status string, ep
 
 func setSyncedAt(t *testing.T, st *store.Store, titleID int64, at time.Time) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET airing_synced_at = ? WHERE id = ?`, store.FormatTimestamp(at), titleID); err != nil {
 		t.Fatalf("set airing_synced_at: %v", err)
 	}
@@ -108,7 +108,7 @@ func setSyncedAt(t *testing.T, st *store.Store, titleID int64, at time.Time) {
 func syncedAt(t *testing.T, st *store.Store, titleID int64) (string, bool) {
 	t.Helper()
 	var stored *string
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT airing_synced_at FROM series WHERE id = ?`, titleID).Scan(&stored); err != nil {
 		t.Fatalf("read airing_synced_at: %v", err)
 	}
@@ -121,7 +121,7 @@ func syncedAt(t *testing.T, st *store.Store, titleID int64) (string, bool) {
 // items returns number -> in_library for a title's wanted items.
 func items(t *testing.T, st *store.Store, titleID int64) map[int]int {
 	t.Helper()
-	rows, err := st.DB.QueryContext(context.Background(),
+	rows, err := st.DB.QueryContext(t.Context(),
 		`SELECT number, in_library FROM wanted_items WHERE series_id = ?`, titleID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
@@ -147,7 +147,7 @@ func TestRefreshGrowsTitleWhenEpisodeCountRises(t *testing.T) {
 	prov.episodes[100] = 13
 	id := seedTitle(t, st, 100, 12)
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -165,12 +165,12 @@ func TestRefreshLeavesExistingItemsUntouched(t *testing.T) {
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
 	id := seedTitle(t, st, 100, 12)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE wanted_items SET in_library = 1 WHERE series_id = ? AND number = 5`, id); err != nil {
 		t.Fatalf("mark item had: %v", err)
 	}
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -189,7 +189,7 @@ func TestRefreshFillsItemsForATitleAddedWithNullCount(t *testing.T) {
 	prov.episodes[100] = 12
 	id := seedTitle(t, st, 100, 0)
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -205,7 +205,7 @@ func TestRefreshClearsAiringStampWhenTheTitleGrows(t *testing.T) {
 	id := seedTitle(t, st, 100, 12)
 	setSyncedAt(t, st, id, time.Now())
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -221,19 +221,19 @@ func TestGrowthResetsSearchCadence(t *testing.T) {
 	prov := newFakeProvider()
 	prov.episodes[100] = 13
 	id := seedTitle(t, st, 100, 12)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 8, next_search_at = ? WHERE id = ?`,
 		store.FormatTimestamp(time.Now().Add(24*time.Hour)), id); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
 	var backoff int
 	var next *string
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, id).Scan(&backoff, &next); err != nil {
 		t.Fatalf("read search cadence: %v", err)
 	}
@@ -248,17 +248,17 @@ func TestRefreshKeepsSearchCadenceWhenNothingNew(t *testing.T) {
 	prov := newFakeProvider()
 	prov.episodes[100] = 12
 	id := seedTitle(t, st, 100, 12)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 8 WHERE id = ?`, id); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
 	var backoff int
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT search_backoff FROM series WHERE id = ?`, id).Scan(&backoff); err != nil {
 		t.Fatalf("read search cadence: %v", err)
 	}
@@ -274,7 +274,7 @@ func TestRefreshKeepsAiringStampWhenNothingNew(t *testing.T) {
 	id := seedTitle(t, st, 100, 12)
 	setSyncedAt(t, st, id, time.Now())
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -290,7 +290,7 @@ func TestRefreshSkipsFreshlyFetchedTitles(t *testing.T) {
 	seedTitle(t, st, 100, 12)
 	seedCache(t, st, 100, "RELEASING", 12, time.Now())
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -306,7 +306,7 @@ func TestRefreshHoldsFinishedTitlesForTheLongCutoff(t *testing.T) {
 	seedTitle(t, st, 100, 12)
 	seedCache(t, st, 100, "FINISHED", 12, time.Now().Add(-7*24*time.Hour))
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -322,7 +322,7 @@ func TestRefreshRefetchesFinishedTitlesPastTheLongCutoff(t *testing.T) {
 	seedTitle(t, st, 100, 12)
 	seedCache(t, st, 100, "FINISHED", 12, time.Now().Add(-31*24*time.Hour))
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -341,7 +341,7 @@ func TestRefreshHoldsAnUnknownCountTitleForTheMiddleCutoff(t *testing.T) {
 	seedTitle(t, st, 100, 0)
 	seedCache(t, st, 100, "FINISHED", 0, time.Now().Add(-7*time.Hour))
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -357,7 +357,7 @@ func TestRefreshRefetchesAnUnknownCountTitlePastTheMiddleCutoff(t *testing.T) {
 	seedTitle(t, st, 100, 0)
 	seedCache(t, st, 100, "FINISHED", 0, time.Now().Add(-8*24*time.Hour))
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -375,7 +375,7 @@ func TestRefreshHoldsAKnownCountTitleForTheLongCutoff(t *testing.T) {
 	seedTitle(t, st, 100, 12)
 	seedCache(t, st, 100, "FINISHED", 12, time.Now().Add(-8*24*time.Hour))
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -393,7 +393,7 @@ func TestRefreshIncludesUnmonitoredTitles(t *testing.T) {
 	prov.episodes[100] = 12
 	id := seedUnmonitoredTitle(t, st, 100, 0)
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -401,7 +401,7 @@ func TestRefreshIncludesUnmonitoredTitles(t *testing.T) {
 		t.Fatalf("provider called %v, want the unmonitored title refreshed once", prov.calls)
 	}
 	var items int
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT count(*) FROM wanted_items WHERE series_id = ?`, id).Scan(&items); err != nil {
 		t.Fatalf("count items: %v", err)
 	}
@@ -426,7 +426,7 @@ func TestRefreshGivesMonitoredTitlesEverySlot(t *testing.T) {
 	seedUnmonitoredTitle(t, st, 10, 0)
 
 	svc := newService(t, st, prov)
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 	if len(prov.calls) != 5 {
@@ -441,13 +441,13 @@ func TestRefreshGivesMonitoredTitlesEverySlot(t *testing.T) {
 	// The raw fake never stamps a cache row, so settle the five by hand the way
 	// the cached provider would -- without it no pass ever runs out of monitored
 	// work and "ordered last" would be indistinguishable from "starved forever".
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE metadata_cache SET fetched_at = ? WHERE provider_id BETWEEN 1 AND 5`,
 		store.FormatTimestamp(time.Now())); err != nil {
 		t.Fatalf("settle the monitored cache rows: %v", err)
 	}
 
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("second RefreshOnce: %v", err)
 	}
 	if rest := prov.calls[5:]; len(rest) != 1 || rest[0] != 10 {
@@ -468,7 +468,7 @@ func TestRefreshBoundsEachPassAndPrioritizesNeverFetched(t *testing.T) {
 	prov.episodes[7] = 12
 	seedTitle(t, st, 7, 12)
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
@@ -490,14 +490,14 @@ func TestRefreshThroughCachedProviderSettlesUntilStale(t *testing.T) {
 	seedCache(t, st, 100, "RELEASING", 12, time.Now().Add(-7*time.Hour))
 
 	svc := newService(t, st, metadata.Cached(inner, dbcache.New(st.Q)))
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 	if got := items(t, st, id); len(got) != 13 {
 		t.Fatalf("got %d items, want 13: %v", len(got), got)
 	}
 
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("second RefreshOnce: %v", err)
 	}
 	if len(inner.calls) != 1 {
@@ -513,7 +513,7 @@ func TestRefreshContinuesPastAFailingTitle(t *testing.T) {
 	seedTitle(t, st, 1, 0)
 	idB := seedTitle(t, st, 2, 0)
 
-	err := newService(t, st, prov).RefreshOnce(context.Background())
+	err := newService(t, st, prov).RefreshOnce(t.Context())
 	if err == nil {
 		t.Fatal("RefreshOnce: want the failing title's error surfaced, got nil")
 	}
@@ -532,19 +532,19 @@ func TestRefreshHonoursTheTitleMonitorCut(t *testing.T) {
 	prov := newFakeProvider()
 	prov.episodes[100] = 13
 	id := seedTitle(t, st, 100, 12)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET monitor_new_from = NULL, search_backoff = 8, next_search_at = ? WHERE id = ?`,
 		store.FormatTimestamp(time.Now().Add(24*time.Hour)), id); err != nil {
 		t.Fatalf("narrow the series and seed a long backoff: %v", err)
 	}
 	setSyncedAt(t, st, id, time.Now())
 
-	if err := newService(t, st, prov).RefreshOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 
 	var monitored int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT monitored FROM wanted_items WHERE series_id = ? AND number = 13`, id).Scan(&monitored); err != nil {
 		t.Fatalf("read the new item: %v", err)
 	}
@@ -555,7 +555,7 @@ func TestRefreshHonoursTheTitleMonitorCut(t *testing.T) {
 		t.Errorf("airing_synced_at = %q, want cleared -- the air-date sync ignores monitoring", stamp)
 	}
 	var backoff int
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT search_backoff FROM series WHERE id = ?`, id).Scan(&backoff); err != nil {
 		t.Fatalf("read search cadence: %v", err)
 	}

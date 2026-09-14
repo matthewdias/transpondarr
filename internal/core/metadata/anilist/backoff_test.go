@@ -1,7 +1,6 @@
 package anilist
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -42,10 +41,10 @@ func TestBackoffIsSharedAcrossCallers(t *testing.T) {
 	defer srv.Close()
 
 	c := stubClient(srv.URL)
-	if _, _, err := c.GetTitle(context.Background(), 1); err == nil {
+	if _, _, err := c.GetTitle(t.Context(), 1); err == nil {
 		t.Fatal("caller A: want rate-limit error, got nil")
 	}
-	if _, _, err := c.GetTitle(context.Background(), 1); err != nil {
+	if _, _, err := c.GetTitle(t.Context(), 1); err != nil {
 		t.Fatalf("caller B: %v", err)
 	}
 
@@ -70,7 +69,7 @@ func TestBackoffInThePastDoesNotDelay(t *testing.T) {
 
 	c := stubClient(srv.URL)
 	start := time.Now()
-	if _, _, err := c.GetTitle(context.Background(), 1); err != nil {
+	if _, _, err := c.GetTitle(t.Context(), 1); err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
 	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
@@ -116,7 +115,7 @@ func TestConcurrentCallersShareOneBackoffWindow(t *testing.T) {
 	errs := make([]error, 2)
 	for i := range errs {
 		wg.Go(func() {
-			_, _, errs[i] = c.GetTitle(context.Background(), 1)
+			_, _, errs[i] = c.GetTitle(t.Context(), 1)
 		})
 	}
 	wg.Wait()

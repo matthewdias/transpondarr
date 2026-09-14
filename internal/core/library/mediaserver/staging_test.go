@@ -44,7 +44,7 @@ func backdate(t *testing.T, path string, age time.Duration) {
 
 func sweepStaging(t *testing.T, target *Target) int {
 	t.Helper()
-	removed, err := target.SweepStaging(context.Background(), sweepAge)
+	removed, err := target.SweepStaging(t.Context(), sweepAge)
 	if err != nil {
 		t.Fatalf("SweepStaging: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestSweepStagingSparesAHardlinkedEpisode(t *testing.T) {
 	root := t.TempDir()
 	target := New(Roots{Series: root}, LayoutSeasonFolders, "hardlink", nil)
 
-	dest, err := target.Place(context.Background(), req(src, "Placeholder Saga", 5))
+	dest, err := target.Place(t.Context(), req(src, "Placeholder Saga", 5))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestSweepStagingDeclinesASymlink(t *testing.T) {
 	}
 
 	removed, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).
-		SweepStaging(context.Background(), alwaysStale)
+		SweepStaging(t.Context(), alwaysStale)
 	if err != nil {
 		t.Fatalf("SweepStaging: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestSweepStagingSparesACopyInFlight(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := target.Place(context.Background(), req(src, "Placeholder Saga", 1))
+		_, err := target.Place(t.Context(), req(src, "Placeholder Saga", 1))
 		done <- err
 	}()
 	for {
@@ -314,7 +314,7 @@ func TestSweepStagingSparesACopyInFlight(t *testing.T) {
 			}
 			return
 		default:
-			if removed, err := target.SweepStaging(context.Background(), alwaysStale); err != nil || removed != 0 {
+			if removed, err := target.SweepStaging(t.Context(), alwaysStale); err != nil || removed != 0 {
 				t.Fatalf("sweep during a copy removed %d (err %v), want 0", removed, err)
 			}
 		}
@@ -333,7 +333,7 @@ func TestPlaceLeavesNoStagingRegistration(t *testing.T) {
 
 	t.Run("a completed copy", func(t *testing.T) {
 		target := New(Roots{Series: t.TempDir()}, LayoutSeasonFolders, "copy", nil)
-		if _, err := target.Place(context.Background(), req(writeSource(t, "raw.mkv"), "Placeholder Saga", 1)); err != nil {
+		if _, err := target.Place(t.Context(), req(writeSource(t, "raw.mkv"), "Placeholder Saga", 1)); err != nil {
 			t.Fatalf("Place: %v", err)
 		}
 		if n := staged(t, target); n != 0 {
@@ -342,7 +342,7 @@ func TestPlaceLeavesNoStagingRegistration(t *testing.T) {
 	})
 
 	t.Run("an aborted copy", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
 		target := New(Roots{Series: t.TempDir()}, LayoutSeasonFolders, "copy", nil)
 		if _, err := target.Place(ctx, req(writeSource(t, "raw.mkv"), "Placeholder Saga", 1)); err == nil {
@@ -359,7 +359,7 @@ func TestPlaceLeavesNoStagingRegistration(t *testing.T) {
 		target := New(Roots{Series: root}, LayoutSeasonFolders, "hardlink", nil)
 		r := req(writeSized(t, "upgrade.mkv", 128), "Placeholder Saga", 3)
 		r.Replace = true
-		if _, err := target.Place(context.Background(), r); err != nil {
+		if _, err := target.Place(t.Context(), r); err != nil {
 			t.Fatalf("Place: %v", err)
 		}
 		if n := staged(t, target); n != 0 {
@@ -380,7 +380,7 @@ func TestSweepStagingSkipsUnconfiguredAndMissingRoots(t *testing.T) {
 		{"movies only, and it does not exist", Roots{Movies: filepath.Join(t.TempDir(), "absent")}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			removed, err := New(tc.roots, LayoutSeasonFolders, "copy", nil).SweepStaging(context.Background(), sweepAge)
+			removed, err := New(tc.roots, LayoutSeasonFolders, "copy", nil).SweepStaging(t.Context(), sweepAge)
 			if err != nil {
 				t.Errorf("SweepStaging: %v", err)
 			}

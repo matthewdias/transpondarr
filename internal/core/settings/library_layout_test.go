@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -21,7 +20,7 @@ func placeEpisode(t *testing.T, target library.Target, name string, number int) 
 	if err := os.WriteFile(src, []byte("video-bytes"), 0o644); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
-	dest, err := target.Place(context.Background(), library.ImportRequest{
+	dest, err := target.Place(t.Context(), library.ImportRequest{
 		SourcePath: src,
 		Title:      domain.Title{Name: name},
 		Item:       domain.WantedItem{Number: number, Kind: domain.KindEpisode},
@@ -36,7 +35,7 @@ func placeEpisode(t *testing.T, target library.Target, name string, number int) 
 // and no env var, and must keep placing exactly where its files already are.
 func TestExistingInstallKeepsSeasonFoldersWithNoLayoutStored(t *testing.T) {
 	svc, reg, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	series := t.TempDir()
 
 	if _, err := st.Q.GetSetting(ctx, keyLibraryLayout); err == nil {
@@ -60,7 +59,7 @@ func TestExistingInstallKeepsSeasonFoldersWithNoLayoutStored(t *testing.T) {
 // The setting applying to the live target without a restart is the whole point.
 func TestUpdateLibraryWiresTheFlatLayoutIntoTheLiveTarget(t *testing.T) {
 	svc, reg, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	series := t.TempDir()
 
 	if err := svc.UpdateLibrary(ctx, LibraryConfig{Dir: series, SeriesLayout: "flat", Mode: "copy"}); err != nil {
@@ -90,7 +89,7 @@ func TestLibrarySeriesLayoutFromEnvBaseline(t *testing.T) {
 	series := t.TempDir()
 	base := &config.Config{LibraryDir: series, LibrarySeriesLayout: "flat", ImportMode: "copy"}
 	reg := clients.New()
-	svc, err := New(context.Background(), st, base, reg, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc, err := New(t.Context(), st, base, reg, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -107,7 +106,7 @@ func TestLibrarySeriesLayoutFromEnvBaseline(t *testing.T) {
 // value is what the next start reads, so accepting it would leave the typo unreported.
 func TestUpdateLibraryRejectsAnUnknownSeriesLayout(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	err := svc.UpdateLibrary(context.Background(), LibraryConfig{Dir: t.TempDir(), SeriesLayout: "seasons"})
+	err := svc.UpdateLibrary(t.Context(), LibraryConfig{Dir: t.TempDir(), SeriesLayout: "seasons"})
 	if err == nil {
 		t.Fatal("expected an error for an unknown series layout")
 	}

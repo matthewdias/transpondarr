@@ -1,7 +1,6 @@
 package anilist
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,7 +32,7 @@ func TestGetTitleMapsCover(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	meta, _, err := stubClient(srv.URL).GetTitle(context.Background(), 9)
+	meta, _, err := stubClient(srv.URL).GetTitle(t.Context(), 9)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -91,7 +90,7 @@ func TestGetTitleFillsANullCountTitleFromOneRequest(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	meta, items, err := stubClient(srv.URL).GetTitle(context.Background(), 207141)
+	meta, items, err := stubClient(srv.URL).GetTitle(t.Context(), 207141)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -121,7 +120,7 @@ func TestGetTitleFallsBackToTheNextBroadcast(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, items, err := stubClient(srv.URL).GetTitle(context.Background(), 207141)
+	_, items, err := stubClient(srv.URL).GetTitle(t.Context(), 207141)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -150,7 +149,7 @@ func TestGetTitleKeepsAPublishedCountOverTheSchedule(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, items, err := stubClient(srv.URL).GetTitle(context.Background(), 9)
+	_, items, err := stubClient(srv.URL).GetTitle(t.Context(), 9)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -174,7 +173,7 @@ func TestGetTitleMaterializesALongRunnersWholeRun(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, items, err := stubClient(srv.URL).GetTitle(context.Background(), 207141)
+	_, items, err := stubClient(srv.URL).GetTitle(t.Context(), 207141)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -192,7 +191,7 @@ func TestGetTitleWithNothingToGoOnReturnsNoItems(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, items, err := stubClient(srv.URL).GetTitle(context.Background(), 207141)
+	_, items, err := stubClient(srv.URL).GetTitle(t.Context(), 207141)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -256,7 +255,7 @@ func TestGetTitleReadsAFullStartDate(t *testing.T) {
 	var query string
 	url := serveOnce(t, datedMediaResponse("2026", "3", "15"), &query)
 
-	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	meta, _, err := stubClient(url).GetTitle(t.Context(), 4321)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -274,7 +273,7 @@ func TestGetTitleReadsAFullStartDate(t *testing.T) {
 func TestGetTitlePremiereIsZeroWithoutAFullDate(t *testing.T) {
 	url := serveOnce(t, datedMediaResponse("2027", "null", "null"), nil)
 
-	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	meta, _, err := stubClient(url).GetTitle(t.Context(), 4321)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -293,7 +292,7 @@ func TestGetTitlePrefersStartDateOverSeasonYear(t *testing.T) {
 	var query string
 	url := serveOnce(t, mediaResponse("MOVIE", "1", "2021", "2020"), &query)
 
-	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	meta, _, err := stubClient(url).GetTitle(t.Context(), 4321)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -310,7 +309,7 @@ func TestGetTitlePrefersStartDateOverSeasonYear(t *testing.T) {
 func TestGetTitleYearSurvivesANullSeasonYear(t *testing.T) {
 	url := serveOnce(t, mediaResponse("MOVIE", "1", "null", "2027"), nil)
 
-	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	meta, _, err := stubClient(url).GetTitle(t.Context(), 4321)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -322,7 +321,7 @@ func TestGetTitleYearSurvivesANullSeasonYear(t *testing.T) {
 func TestGetTitleFallsBackToSeasonYear(t *testing.T) {
 	url := serveOnce(t, mediaResponse("MOVIE", "1", "2021", "null"), nil)
 
-	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	meta, _, err := stubClient(url).GetTitle(t.Context(), 4321)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -334,7 +333,7 @@ func TestGetTitleFallsBackToSeasonYear(t *testing.T) {
 func TestGetTitleYearUnknownWhenNeitherPublished(t *testing.T) {
 	url := serveOnce(t, mediaResponse("MOVIE", "null", "null", "null"), nil)
 
-	meta, _, err := stubClient(url).GetTitle(context.Background(), 4321)
+	meta, _, err := stubClient(url).GetTitle(t.Context(), 4321)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -347,7 +346,7 @@ func TestGetTitleYearUnknownWhenNeitherPublished(t *testing.T) {
 func TestGetTitleExpandsMovieToOneItem(t *testing.T) {
 	url := serveOnce(t, mediaResponse("MOVIE", "null", "null", "2027"), nil)
 
-	_, items, err := stubClient(url).GetTitle(context.Background(), 4321)
+	_, items, err := stubClient(url).GetTitle(t.Context(), 4321)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -361,7 +360,7 @@ func TestGetTitleExpandsMovieToOneItem(t *testing.T) {
 func TestGetTitleMovieIgnoresEpisodeCount(t *testing.T) {
 	url := serveOnce(t, mediaResponse("MOVIE", "3", "2007", "2007"), nil)
 
-	_, items, err := stubClient(url).GetTitle(context.Background(), 4321)
+	_, items, err := stubClient(url).GetTitle(t.Context(), 4321)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -374,7 +373,7 @@ func TestGetTitleMovieIgnoresEpisodeCount(t *testing.T) {
 func TestGetTitleOVAWithOneEpisodeUnchanged(t *testing.T) {
 	url := serveOnce(t, mediaResponse("OVA", "1", "2014", "2014"), nil)
 
-	meta, items, err := stubClient(url).GetTitle(context.Background(), 4321)
+	meta, items, err := stubClient(url).GetTitle(t.Context(), 4321)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -413,7 +412,7 @@ func TestSearchCarriesTheNextBroadcast(t *testing.T) {
 		"nextAiringEpisode": null
 	}]}}}`, &query)
 
-	got, err := stubClient(url).Search(context.Background(), "placeholder saga")
+	got, err := stubClient(url).Search(t.Context(), "placeholder saga")
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -445,7 +444,7 @@ func TestSearchYearSurvivesANullSeasonYear(t *testing.T) {
 		"coverImage": {"large": ""}
 	}]}}}`, &query)
 
-	got, err := stubClient(url).Search(context.Background(), "sample film")
+	got, err := stubClient(url).Search(t.Context(), "sample film")
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}

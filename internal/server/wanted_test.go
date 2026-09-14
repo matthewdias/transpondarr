@@ -92,7 +92,7 @@ type queueSearchResponse struct {
 func wantedHarness(t *testing.T) *harness {
 	t.Helper()
 	h := newHarness(t, &coretest.FakeIndexer{}, nil)
-	if err := h.settings.UpdateAutomation(context.Background(), settings.AutomationConfig{
+	if err := h.settings.UpdateAutomation(t.Context(), settings.AutomationConfig{
 		Mode: settings.AutomationOn,
 	}); err != nil {
 		t.Fatalf("enable automation: %v", err)
@@ -102,7 +102,7 @@ func wantedHarness(t *testing.T) *harness {
 
 func searchedAt(t *testing.T, st *store.Store, titleID int64, last, next string) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET last_searched_at = ?, next_search_at = ? WHERE id = ?`,
 		nullable(last), nullable(next), titleID); err != nil {
 		t.Fatalf("set search cadence: %v", err)
@@ -120,7 +120,7 @@ func nullable(s string) any {
 // with a live grab are both absent, a failed grab puts its item back in.
 func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 	h := wantedHarness(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 4)
 	// 1 is held, 2 is downloading, 3 failed and is wanted again, 4 unchanged.
 	if err := h.store.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
@@ -227,7 +227,7 @@ func TestMissingKeepsAnAnnouncedFilmVisible(t *testing.T) {
 func recordPassOutcome(t *testing.T, st *store.Store, titleID int64, number int, p db.UpsertPassOutcomeParams) {
 	t.Helper()
 	p.WantedItemID = itemID(t, st, titleID, number)
-	if err := st.Q.UpsertPassOutcome(context.Background(), p); err != nil {
+	if err := st.Q.UpsertPassOutcome(t.Context(), p); err != nil {
 		t.Fatalf("record pass outcome for item %d: %v", number, err)
 	}
 }
@@ -323,7 +323,7 @@ func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 func TestMissingUnmonitoredToggle(t *testing.T) {
 	h := wantedHarness(t)
 	titleID := seedTitle(t, h.store, "Quiet Show", 1)
-	if _, err := h.store.DB.ExecContext(context.Background(),
+	if _, err := h.store.DB.ExecContext(t.Context(),
 		`UPDATE series SET monitored = 0 WHERE id = ?`, titleID); err != nil {
 		t.Fatalf("unmonitor: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestMissingUnmonitoredToggle(t *testing.T) {
 // cadence columns and the blocklist show through without a write anywhere.
 func TestMissingReasonReadsStoredState(t *testing.T) {
 	h := wantedHarness(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	never := seedTitle(t, h.store, "Never Searched", 1)
 	backoff := seedTitle(t, h.store, "Backing Off", 1)
 	searchedAt(t, h.store, backoff, store.FormatTimestamp(time.Now().Add(-2*time.Hour)),
@@ -509,7 +509,7 @@ func TestMissingReportsTheGlobalReason(t *testing.T) {
 		t.Errorf("global_reason = %q, want none", out.GlobalReason)
 	}
 
-	if err := h.settings.UpdateAutomation(context.Background(), settings.AutomationConfig{
+	if err := h.settings.UpdateAutomation(t.Context(), settings.AutomationConfig{
 		Mode: settings.AutomationNotifyOnly,
 	}); err != nil {
 		t.Fatalf("set notify-only: %v", err)
@@ -588,7 +588,7 @@ func TestMissingPaginatesByGroup(t *testing.T) {
 // the title's current profile, so the row reports the numbers behind the claim.
 func TestCutoffUnmetRoute(t *testing.T) {
 	h := wantedHarness(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	profile, err := h.store.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
 		Name: "Upgrading", ResolutionOrder: `["1080p","720p"]`, HardExcludes: `[]`,
 		UpgradesEnabled: 1, CutoffScore: 2300,
@@ -657,7 +657,7 @@ func TestCutoffUnmetRoute(t *testing.T) {
 // synchronous indexer requests: titlesPerPass is the budget that bounds it.
 func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	h := wantedHarness(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	// The daemon registers this job; the harness runner is empty, so the route's
 	// trigger finds no job to run until the test registers one.
 	h.jobs.Add(jobs.Job{Name: "wanted-search", Interval: time.Hour,
@@ -727,7 +727,7 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 // the response states that nothing will be sent to the download client.
 func TestQueueSearchReportsNotifyOnly(t *testing.T) {
 	h := wantedHarness(t)
-	if err := h.settings.UpdateAutomation(context.Background(), settings.AutomationConfig{
+	if err := h.settings.UpdateAutomation(t.Context(), settings.AutomationConfig{
 		Mode: settings.AutomationNotifyOnly,
 	}); err != nil {
 		t.Fatalf("set notify-only: %v", err)
@@ -748,7 +748,7 @@ func TestQueueSearchReportsNotifyOnly(t *testing.T) {
 func nextSearchAt(t *testing.T, st *store.Store, titleID int64) string {
 	t.Helper()
 	var next sql.NullString
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT next_search_at FROM series WHERE id = ?`, titleID).Scan(&next); err != nil {
 		t.Fatalf("read next_search_at: %v", err)
 	}
@@ -757,7 +757,7 @@ func nextSearchAt(t *testing.T, st *store.Store, titleID int64) string {
 
 func holdItem(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	id := itemID(t, st, titleID, number)
 	if err := st.Q.SetWantedItemHeld(ctx, db.SetWantedItemHeldParams{
 		InLibrary: 1, HeldReleaseTitle: releaseTitle, ID: id,
@@ -773,7 +773,7 @@ func holdItem(t *testing.T, st *store.Store, titleID int64, number int, releaseT
 
 func grabItem(t *testing.T, st *store.Store, titleID int64, number int, status, lastError string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	id := itemID(t, st, titleID, number)
 	g, err := st.Q.UpsertGrab(ctx, db.UpsertGrabParams{
 		WantedItemID: id, InfoHash: "hash", ReleaseTitle: "[ExampleSubs] release", Status: status,

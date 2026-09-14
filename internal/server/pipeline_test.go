@@ -67,7 +67,7 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 // for tests asserting what the HTTP layer logs.
 func newHarnessWithLogger(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownload, provider metadata.Provider, logger *slog.Logger) *harness {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	st := coretest.NewStore(t)
 
 	reg := clients.New()
@@ -139,7 +139,7 @@ func (stubProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, []meta
 // the real metadata provider) with episodes 1..count as wanted items.
 func seedTitle(t *testing.T, st *store.Store, title string, count int) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create title: %v", err)
@@ -276,7 +276,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 	}
 
 	// --- persistence: one grab recorded against item 3, status "grabbed" ------
-	grabs, err := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, err := h.store.Q.ListGrabsByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestSearchAndGrabPipeline(t *testing.T) {
 		t.Errorf("grab row = infohash %q status %q, want hash3/grabbed", g.InfoHash, g.Status)
 	}
 	// The grab must point at the item whose episode number is 3.
-	items, _ := h.store.Q.ListWantedItems(context.Background(), titleID)
+	items, _ := h.store.Q.ListWantedItems(t.Context(), titleID)
 	var item3ID int64
 	for _, it := range items {
 		if int(it.Number.Int64) == 3 {
@@ -319,7 +319,7 @@ func TestGrabUnknownReleaseIsRejected(t *testing.T) {
 	if len(dl.Adds) != 0 {
 		t.Errorf("download Add called for an unknown release")
 	}
-	grabs, _ := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, _ := h.store.Q.ListGrabsByTitle(t.Context(), titleID)
 	if len(grabs) != 0 {
 		t.Errorf("recorded %d grabs for a rejected grab, want 0", len(grabs))
 	}

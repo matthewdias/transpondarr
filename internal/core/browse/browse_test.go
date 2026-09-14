@@ -102,7 +102,7 @@ func TestSeasonMissFetchesAndCaches(t *testing.T) {
 	prov.entries[seasonKey{metadata.SeasonSpring, 2026}] = entries(1, 2)
 	svc := newService(t, st, prov)
 
-	got, err := svc.Season(context.Background(), metadata.SeasonSpring, 2026)
+	got, err := svc.Season(t.Context(), metadata.SeasonSpring, 2026)
 	if err != nil {
 		t.Fatalf("Season: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestSeasonMissFetchesAndCaches(t *testing.T) {
 	}
 
 	// Second view is served from cache: no further provider request.
-	if _, err := svc.Season(context.Background(), metadata.SeasonSpring, 2026); err != nil {
+	if _, err := svc.Season(t.Context(), metadata.SeasonSpring, 2026); err != nil {
 		t.Fatalf("Season (cached): %v", err)
 	}
 	if len(prov.calls) != 1 {
@@ -127,12 +127,12 @@ func TestSeasonStaleStillServedFromCache(t *testing.T) {
 	prov.entries[seasonKey{metadata.SeasonWinter, 2020}] = entries(4)
 	svc := newService(t, st, prov)
 
-	if _, err := svc.Season(context.Background(), metadata.SeasonWinter, 2020); err != nil {
+	if _, err := svc.Season(t.Context(), metadata.SeasonWinter, 2020); err != nil {
 		t.Fatalf("Season: %v", err)
 	}
 	backdate(t, st, metadata.SeasonWinter, 2020, 90*24*time.Hour)
 
-	got, err := svc.Season(context.Background(), metadata.SeasonWinter, 2020)
+	got, err := svc.Season(t.Context(), metadata.SeasonWinter, 2020)
 	if err != nil {
 		t.Fatalf("Season (stale): %v", err)
 	}
@@ -150,7 +150,7 @@ func TestSeasonWithoutCapabilityIsEmpty(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc := newService(t, st, &plainProvider{})
 
-	got, err := svc.Season(context.Background(), metadata.SeasonSpring, 2026)
+	got, err := svc.Season(t.Context(), metadata.SeasonSpring, 2026)
 	if err != nil {
 		t.Fatalf("Season: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestSeasonProviderErrorPropagates(t *testing.T) {
 	prov.errs[seasonKey{metadata.SeasonSpring, 2026}] = errors.New("rate limited")
 	svc := newService(t, st, prov)
 
-	if _, err := svc.Season(context.Background(), metadata.SeasonSpring, 2026); err == nil {
+	if _, err := svc.Season(t.Context(), metadata.SeasonSpring, 2026); err == nil {
 		t.Fatal("expected the provider error to propagate on a cache miss")
 	}
 }
@@ -181,7 +181,7 @@ func TestSeasonMalformedRowRefetches(t *testing.T) {
 		t.Fatalf("seed poisoned row: %v", err)
 	}
 
-	got, err := svc.Season(context.Background(), metadata.SeasonSummer, 2026)
+	got, err := svc.Season(t.Context(), metadata.SeasonSummer, 2026)
 	if err != nil {
 		t.Fatalf("Season: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestRefreshOncePopulatesCurrentSeason(t *testing.T) {
 	prov.entries[seasonKey{season, year}] = entries(1)
 	svc := newService(t, st, prov)
 
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 	if len(prov.calls) != 1 || prov.calls[0] != (seasonKey{season, year}) {
@@ -209,7 +209,7 @@ func TestRefreshOncePopulatesCurrentSeason(t *testing.T) {
 	}
 
 	// The chart is now served without a provider round trip.
-	got, err := svc.Season(context.Background(), season, year)
+	got, err := svc.Season(t.Context(), season, year)
 	if err != nil {
 		t.Fatalf("Season: %v", err)
 	}
@@ -225,16 +225,16 @@ func TestRefreshOnceFreshIsIdle(t *testing.T) {
 	season, year := browse.CurrentSeason(time.Now())
 	svc := newService(t, st, prov)
 
-	if _, err := svc.Season(context.Background(), season, year); err != nil {
+	if _, err := svc.Season(t.Context(), season, year); err != nil {
 		t.Fatalf("seed current: %v", err)
 	}
-	if _, err := svc.Season(context.Background(), metadata.SeasonWinter, 2019); err != nil {
+	if _, err := svc.Season(t.Context(), metadata.SeasonWinter, 2019); err != nil {
 		t.Fatalf("seed past: %v", err)
 	}
 	backdate(t, st, metadata.SeasonWinter, 2019, 7*24*time.Hour) // young for a past season
 	prov.calls = nil
 
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 	if len(prov.calls) != 0 {
@@ -249,17 +249,17 @@ func TestRefreshOnceRefetchesStaleSeasons(t *testing.T) {
 	season, year := browse.CurrentSeason(time.Now())
 	svc := newService(t, st, prov)
 
-	if _, err := svc.Season(context.Background(), season, year); err != nil {
+	if _, err := svc.Season(t.Context(), season, year); err != nil {
 		t.Fatalf("seed current: %v", err)
 	}
-	if _, err := svc.Season(context.Background(), metadata.SeasonWinter, 2019); err != nil {
+	if _, err := svc.Season(t.Context(), metadata.SeasonWinter, 2019); err != nil {
 		t.Fatalf("seed past: %v", err)
 	}
 	backdate(t, st, season, year, 7*time.Hour)                    // past the 6h current-season TTL
 	backdate(t, st, metadata.SeasonWinter, 2019, 31*24*time.Hour) // past the 30d past-season TTL
 	prov.calls = nil
 
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 	want := map[seasonKey]bool{
@@ -279,14 +279,14 @@ func TestRefreshOnceBoundsWorkPerPass(t *testing.T) {
 	svc := newService(t, st, prov)
 
 	for _, k := range []seasonKey{{season, year}, {metadata.SeasonWinter, 2018}, {metadata.SeasonSummer, 2019}} {
-		if _, err := svc.Season(context.Background(), k.season, k.year); err != nil {
+		if _, err := svc.Season(t.Context(), k.season, k.year); err != nil {
 			t.Fatalf("seed %v: %v", k, err)
 		}
 		backdate(t, st, k.season, k.year, 400*24*time.Hour)
 	}
 	prov.calls = nil
 
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 	if len(prov.calls) != 2 {
@@ -301,7 +301,7 @@ func TestRefreshOnceBoundsWorkPerPass(t *testing.T) {
 func TestRefreshOnceWithoutCapabilityIsNoOp(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc := newService(t, st, &plainProvider{})
-	if err := svc.RefreshOnce(context.Background()); err != nil {
+	if err := svc.RefreshOnce(t.Context()); err != nil {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 }
@@ -314,13 +314,13 @@ func TestRefreshOnceContinuesPastOneError(t *testing.T) {
 	prov.errs[seasonKey{season, year}] = errors.New("rate limited")
 	svc := newService(t, st, prov)
 
-	if _, err := svc.Season(context.Background(), metadata.SeasonWinter, 2019); err != nil {
+	if _, err := svc.Season(t.Context(), metadata.SeasonWinter, 2019); err != nil {
 		t.Fatalf("seed past: %v", err)
 	}
 	backdate(t, st, metadata.SeasonWinter, 2019, 31*24*time.Hour)
 	prov.calls = nil
 
-	err := svc.RefreshOnce(context.Background())
+	err := svc.RefreshOnce(t.Context())
 	if err == nil {
 		t.Fatal("expected the failed season's error to surface")
 	}
@@ -358,7 +358,7 @@ func TestCurrentSeason(t *testing.T) {
 // the airing job has ever stamped it.
 func trackTitle(t *testing.T, st *store.Store, anilistID int64, synced bool) int64 {
 	t.Helper()
-	s, err := st.Q.CreateTitle(context.Background(), db.CreateTitleParams{
+	s, err := st.Q.CreateTitle(t.Context(), db.CreateTitleParams{
 		Provider:   sql.NullString{String: "anilist", Valid: true},
 		ProviderID: sql.NullInt64{Int64: anilistID, Valid: true},
 		Title:      fmt.Sprintf("Tracked %d", anilistID),
@@ -378,7 +378,7 @@ func trackTitle(t *testing.T, st *store.Store, anilistID int64, synced bool) int
 
 func scheduleItem(t *testing.T, st *store.Store, titleID int64, number int, airsAt time.Time) {
 	t.Helper()
-	err := st.Q.UpsertWantedItemAiring(context.Background(), db.UpsertWantedItemAiringParams{
+	err := st.Q.UpsertWantedItemAiring(t.Context(), db.UpsertWantedItemAiringParams{
 		SeriesID:  titleID,
 		Kind:      "episode",
 		Number:    sql.NullInt64{Int64: int64(number), Valid: true},
@@ -403,7 +403,7 @@ func TestChartMarksTrackedAndOverlaysLocalAiring(t *testing.T) {
 	scheduleItem(t, st, id, 5, time.Now().Add(-3*time.Hour)) // already aired
 	scheduleItem(t, st, id, 6, localNext)
 
-	got, err := newService(t, st, prov).Chart(context.Background(), metadata.SeasonSpring, 2026)
+	got, err := newService(t, st, prov).Chart(t.Context(), metadata.SeasonSpring, 2026)
 	if err != nil {
 		t.Fatalf("Chart: %v", err)
 	}
@@ -437,7 +437,7 @@ func TestChartSyncedTitleWithNothingUpcomingDropsSnapshot(t *testing.T) {
 	id := trackTitle(t, st, 101, true)
 	scheduleItem(t, st, id, 12, time.Now().Add(-2*time.Hour))
 
-	got, err := newService(t, st, prov).Chart(context.Background(), metadata.SeasonSpring, 2026)
+	got, err := newService(t, st, prov).Chart(t.Context(), metadata.SeasonSpring, 2026)
 	if err != nil {
 		t.Fatalf("Chart: %v", err)
 	}
@@ -458,7 +458,7 @@ func TestChartNeverSyncedTitleKeepsSnapshot(t *testing.T) {
 
 	trackTitle(t, st, 101, false)
 
-	got, err := newService(t, st, prov).Chart(context.Background(), metadata.SeasonSpring, 2026)
+	got, err := newService(t, st, prov).Chart(t.Context(), metadata.SeasonSpring, 2026)
 	if err != nil {
 		t.Fatalf("Chart: %v", err)
 	}

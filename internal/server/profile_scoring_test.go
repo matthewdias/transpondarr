@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -23,7 +22,7 @@ func TestSearchRanksByAssignedProfile(t *testing.T) {
 	h := newHarness(t, idx, nil)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {
 		t.Fatalf("get default profile: %v", err)
@@ -58,7 +57,7 @@ func TestSearchDemotesBlockedGroup(t *testing.T) {
 	h := newHarness(t, idx, nil)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {
 		t.Fatalf("get default profile: %v", err)
@@ -93,7 +92,7 @@ func TestSearchRanksPinnedGroupFirst(t *testing.T) {
 	h := newHarness(t, idx, nil)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {
 		t.Fatalf("get default profile: %v", err)
@@ -135,7 +134,7 @@ func TestSearchPinnedIneligibleStaysRankedBelow(t *testing.T) {
 	h := newHarness(t, idx, nil)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {
 		t.Fatalf("get default profile: %v", err)
@@ -175,7 +174,7 @@ func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 	h := newHarness(t, idx, dl)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {
 		t.Fatalf("get default profile: %v", err)
@@ -227,7 +226,7 @@ func TestGrabReportsARefusalWhenTheClientHasLostTheData(t *testing.T) {
 		t.Fatalf("grab status = %d, want 502 — the client refused the add", code)
 	}
 	// No grab row, so nothing settles later and the item stays plainly wanted.
-	grabs, err := h.store.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, err := h.store.Q.ListGrabsByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}

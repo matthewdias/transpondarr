@@ -1,7 +1,6 @@
 package airing_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 // seedMovie inserts a monitored movie with its single kind='movie' item.
 func seedMovie(t *testing.T, st *store.Store, providerID int64) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var id int64
 	if err := st.DB.QueryRowContext(ctx,
 		`INSERT INTO series (provider, provider_id, title, format, monitored)
@@ -31,7 +30,7 @@ func seedMovie(t *testing.T, st *store.Store, providerID int64) int64 {
 func itemCount(t *testing.T, st *store.Store, titleID int64) int {
 	t.Helper()
 	var n int
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT COUNT(*) FROM wanted_items WHERE series_id = ?`, titleID).Scan(&n); err != nil {
 		t.Fatalf("count items: %v", err)
 	}
@@ -48,7 +47,7 @@ func TestMovieScheduleUpsertsKindMovie(t *testing.T) {
 	prov.schedules[300] = []metadata.Airing{
 		{Number: 1, AirsAt: time.Date(2026, 3, 6, 15, 30, 0, 0, time.UTC)},
 	}
-	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).SyncOnce(t.Context()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
@@ -59,7 +58,7 @@ func TestMovieScheduleUpsertsKindMovie(t *testing.T) {
 		t.Error("the movie's item was left undated; the node at episode 1 should date it")
 	}
 	var kind string
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT kind FROM wanted_items WHERE series_id = ?`, titleID).Scan(&kind); err != nil {
 		t.Fatalf("read kind: %v", err)
 	}
@@ -79,7 +78,7 @@ func TestMovieScheduleNeverCreatesASecondItem(t *testing.T) {
 		{Number: 1, AirsAt: time.Date(2026, 3, 6, 15, 30, 0, 0, time.UTC)},
 		{Number: 3, AirsAt: time.Date(2026, 3, 20, 15, 30, 0, 0, time.UTC)},
 	}
-	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).SyncOnce(t.Context()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
@@ -98,7 +97,7 @@ func TestMovieTakesItsPremiereFromTheStartDate(t *testing.T) {
 	prov.titles[310] = metadata.TitleMeta{
 		Premiere: time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
 	}
-	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).SyncOnce(t.Context()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
@@ -126,14 +125,14 @@ func TestMoviePremiereNeverOverwritesABroadcastNode(t *testing.T) {
 		Premiere: time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
 	}
 	svc := newService(t, st, prov)
-	if err := svc.SyncOnce(context.Background()); err != nil {
+	if err := svc.SyncOnce(t.Context()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
 	// The premiere has aired, so the tail the next sync requests is empty.
 	prov.schedules[311] = nil
 	setSyncedAt(t, st, titleID, time.Now().Add(-60*24*time.Hour))
-	if err := svc.SyncOnce(context.Background()); err != nil {
+	if err := svc.SyncOnce(t.Context()); err != nil {
 		t.Fatalf("second SyncOnce: %v", err)
 	}
 
@@ -151,7 +150,7 @@ func TestMovieWithNoFullStartDateStaysUndated(t *testing.T) {
 
 	prov := newFakeProvider()
 	prov.titles[312] = metadata.TitleMeta{Year: 2027}
-	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).SyncOnce(t.Context()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
@@ -170,7 +169,7 @@ func TestTitleIsNeverDatedFromAStartDate(t *testing.T) {
 	prov.titles[313] = metadata.TitleMeta{
 		Premiere: time.Date(2026, 3, 15, 12, 0, 0, 0, time.UTC),
 	}
-	if err := newService(t, st, prov).SyncOnce(context.Background()); err != nil {
+	if err := newService(t, st, prov).SyncOnce(t.Context()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 
@@ -190,7 +189,7 @@ func TestMovieWithNoScheduleIsStampedAndNotReasked(t *testing.T) {
 
 	prov := newFakeProvider()
 	svc := newService(t, st, prov)
-	if err := svc.SyncOnce(context.Background()); err != nil {
+	if err := svc.SyncOnce(t.Context()); err != nil {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 	if _, ok := syncedAt(t, st, titleID); !ok {
@@ -198,7 +197,7 @@ func TestMovieWithNoScheduleIsStampedAndNotReasked(t *testing.T) {
 	}
 
 	calls := len(prov.calls)
-	if err := svc.SyncOnce(context.Background()); err != nil {
+	if err := svc.SyncOnce(t.Context()); err != nil {
 		t.Fatalf("second SyncOnce: %v", err)
 	}
 	if len(prov.calls) != calls {

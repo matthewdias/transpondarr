@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -12,7 +11,7 @@ import (
 
 func TestIsUniqueViolationOnDuplicateProfileName(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	params := db.CreateQualityProfileParams{Name: "Dup", ResolutionOrder: `[]`, HardExcludes: `[]`}
 	if _, err := st.Q.CreateQualityProfile(ctx, params); err != nil {
@@ -32,7 +31,7 @@ func TestIsUniqueViolationOnDuplicateProfileName(t *testing.T) {
 
 func TestIsUniqueViolationIgnoresOtherErrors(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, checkErr := st.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
 		Name: "BadRes", ResolutionOrder: `not json`, HardExcludes: `[]`,

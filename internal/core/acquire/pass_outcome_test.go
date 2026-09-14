@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"strings"
@@ -19,7 +18,7 @@ import (
 // whether anything was recorded -- an absent row is a real answer.
 func passOutcome(t *testing.T, st *store.Store, titleID int64, number int) (db.PassOutcome, bool) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	items, err := st.Q.ListWantedItems(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list items: %v", err)
@@ -59,13 +58,13 @@ func wantOutcome(t *testing.T, st *store.Store, titleID, number int64, kind stri
 func TestSweepRecordsADeclinedRelease(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
 		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -97,7 +96,7 @@ func TestSweepBlamesTheReleaseCoveringEachItem(t *testing.T) {
 	single := episodeRelease("Placeholder Saga", 3)
 	single.Seeders = 999
 	h := newSweep(t, []indexer.Release{packRelease("Placeholder Saga"), single}, fakeConfig{})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
 		t.Fatalf("raise the profile minimum: %v", err)
 	}
@@ -107,7 +106,7 @@ func TestSweepBlamesTheReleaseCoveringEachItem(t *testing.T) {
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, items...)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -128,7 +127,7 @@ func TestSweepRecordsAPinHoldWithItsWindow(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	pinTitle(t, h.st, id, "OtherSubs", -1)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -158,7 +157,7 @@ func TestSweepRecordsNoMatchWhenTheSearchCoveredNothing(t *testing.T) {
 	h := newSweep(t, nil, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	row := wantOutcome(t, h.st, id, 3, acquire.OutcomeNoMatch)
@@ -177,7 +176,7 @@ func TestFeedPollNeverRecordsNoMatch(t *testing.T) {
 	}, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if row, ok := passOutcome(t, h.st, id, 3); ok {
@@ -192,13 +191,13 @@ func TestFeedPollRecordsItsOwnRefusalAsFeedSourced(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
 		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	row := wantOutcome(t, h.st, id, 3, acquire.OutcomeDeclined)
@@ -212,7 +211,7 @@ func TestFeedPollRecordsItsOwnRefusalAsFeedSourced(t *testing.T) {
 func TestAGrabOverwritesAnEarlierRefusal(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := h.st.DB.ExecContext(ctx,
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
 		t.Fatalf("raise the profile minimum: %v", err)
@@ -252,7 +251,7 @@ func TestContentionIsRecordedAsContendedNotDeclined(t *testing.T) {
 	h.feed.Releases = []indexer.Release{fromSearch}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	// The poll lands and takes item 3 while the sweep's search is in flight,
 	// after the sweep has already read the item as grabbable.
 	pollFeed := sync.OnceFunc(func() {
@@ -280,7 +279,7 @@ func TestAnAddFailureIsRecordedAgainstItsRelease(t *testing.T) {
 	h.dl.FailURLs = map[string]error{dead.DownloadURL: errors.New("404 fetching .torrent")}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	row := wantOutcome(t, h.st, id, 3, acquire.OutcomeAddFailed)
@@ -310,7 +309,7 @@ func TestAPartialPassRecordsWhatItDecidedAndNoNoMatch(t *testing.T) {
 	h.dl.Err = errors.New("connection refused")
 	id := seedSweep(t, h.st, "Placeholder Saga", true, items...)
 
-	if err := h.svc.SweepOnce(context.Background()); err == nil {
+	if err := h.svc.SweepOnce(t.Context()); err == nil {
 		t.Fatal("SweepOnce returned nil, want the client failure surfaced")
 	}
 	for n := 1; n <= 3; n++ {
@@ -329,7 +328,7 @@ func TestNotifyOnlyRecordsWouldGrab(t *testing.T) {
 		fakeConfig{notifyOnly: true})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 5, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	row := wantOutcome(t, h.st, id, 5, acquire.OutcomeWouldGrab)
@@ -344,14 +343,14 @@ func TestTheRehearsalBlamesTheReleaseTheRowStores(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 1)},
 		fakeConfig{notifyOnly: true})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
 		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 1, airsAt: &past}, sweepItem{number: 2, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	ev := wantRehearsalEvent(t, h.fn)
@@ -373,14 +372,14 @@ func TestAnUpgradePoolItemRecordsNoOutcome(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now().Add(-10*time.Minute)),
 	}, fakeConfig{})
 	enableUpgrades(t, h.st, 9000)
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
 		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, inLibrary: true, heldTitle: heldSD, grab: "imported"})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if row, ok := passOutcome(t, h.st, id, 3); ok {
@@ -398,12 +397,12 @@ func TestRepeatedPassesKeepOneRowPerItem(t *testing.T) {
 
 	for i := range 3 {
 		makeTitleDue(t, h.st, id)
-		if err := h.svc.SweepOnce(context.Background()); err != nil {
+		if err := h.svc.SweepOnce(t.Context()); err != nil {
 			t.Fatalf("SweepOnce %d: %v", i, err)
 		}
 	}
 	var rows int
-	if err := h.st.DB.QueryRowContext(context.Background(),
+	if err := h.st.DB.QueryRowContext(t.Context(),
 		`SELECT COUNT(*) FROM pass_outcomes`).Scan(&rows); err != nil {
 		t.Fatalf("count rows: %v", err)
 	}
@@ -426,7 +425,7 @@ func TestAnOverlappingBatchDoesNotSilenceItsItemsOwnRefusal(t *testing.T) {
 	h := newSweep(t, []indexer.Release{
 		episodeRelease("Placeholder Saga", 1), packRelease("Placeholder Saga"), refused,
 	}, fakeConfig{})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET hard_excludes = '["480p"]' WHERE id = 1`); err != nil {
 		t.Fatalf("exclude 480p: %v", err)
 	}
@@ -437,12 +436,12 @@ func TestAnOverlappingBatchDoesNotSilenceItsItemsOwnRefusal(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, items...)
 	// Pinning the singles' group ranks episode 1's single above the wider pack,
 	// so the pack is the one that overlaps and is skipped.
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET pinned_group = 'ExampleSubs' WHERE id = ?`, id); err != nil {
 		t.Fatalf("pin the group: %v", err)
 	}
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
