@@ -45,7 +45,7 @@ func (t *Target) removeUnstaged(path string) (bool, error) {
 	return true, nil
 }
 
-// canonical is a staging path in the form the sweep finds: the sweep walks
+// canonical is a staging path in the form the staging sweep finds: the sweep walks
 // resolved roots and WalkDir never descends a link, so its paths are resolved.
 func canonical(path string) string {
 	dir, err := filepath.EvalSymlinks(filepath.Dir(path))
@@ -55,7 +55,7 @@ func canonical(path string) string {
 	return filepath.Join(dir, filepath.Base(path))
 }
 
-// staleStaging is one staging file the walk selected for removal, with its mtime
+// staleStaging is one staging file the staging sweep's walk selected for removal, with its mtime
 // so the removal can report how long it had been there.
 type staleStaging struct {
 	path    string

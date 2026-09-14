@@ -72,7 +72,7 @@ func TestStallHoursAreClampedBeforePersisting(t *testing.T) {
 	if got, want := svc.StallTimeout(), domain.MaxStallHours*time.Hour; got != want {
 		t.Errorf("StallTimeout() = %v, want the clamped %v", got, want)
 	}
-	// Stored clamped, so a reload matches the live state rather than re-clamping.
+	// Stored clamped, so a reload matches the live config state rather than re-clamping.
 	if got, _ := st.Q.GetSetting(ctx, keyDownloadStallHours); got != "8760" {
 		t.Errorf("persisted %q, want the clamped %q", got, "8760")
 	}

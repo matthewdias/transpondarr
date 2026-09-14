@@ -6,7 +6,7 @@ How a title enters the app, what identifies it, and how many items it gets.
   handled separately (#151).** AniList publishes `episodes: null` for a
   releasing title, for long-runners, and permanently for a scattering of older
   OVAs; when it also has no schedule the title materializes *no* items, and the
-  sweep's `EXISTS` then drops it, the airing stamp stops it being re-requested, and
+  search sweep's `EXISTS` then drops it, the airing stamp stops it being re-requested, and
   nothing else can create one. Two rules follow, and each is deliberately not
   the other's fix. **The count is human-set and never inferred**:
   `catalog.SetItemCount` materializes `1..N` one-shot, storing nothing (refresh
@@ -44,9 +44,9 @@ How a title enters the app, what identifies it, and how many items it gets.
   mean a title can have two ids — deduping the same title across id spaces
   needs the cross-reference layer (#189), and until it lands, reaching for a
   `tmdb_id` column is the regression it exists to prevent.
-- **A monitor decision is stored as a numeric cut, not as a mode.** The add-time
+- **A monitor decision is stored as a numeric cut, not as a monitor mode.** The add-time
   choice (`all` / `future` / `none`) maps to `series.monitor_new_from`, read
-  everywhere through the one helper `store.MonitorNew`. A mode could not work:
+  everywhere through the one helper `store.MonitorNew`. A monitor mode could not work:
   the airing gap-fill and refresh growth both create items through
   `UpsertWantedItem`, which deliberately writes no `airs_at`, so `future` would
   have nothing to test there. A number also records the decision as *taken*

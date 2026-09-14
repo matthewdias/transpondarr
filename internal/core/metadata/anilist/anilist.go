@@ -256,7 +256,7 @@ query ($id: Int!, $perPage: Int!) {
 // GetTitle resolves one title and expands its items (1..N, absolute numbering,
 // no per-episode names), N coming from highestItem. Filling to that number
 // rather than transcribing the schedule is what creates an episode AniList lists
-// no entry for, having shared a broadcast slot.
+// no schedule entry for, having shared a broadcast slot.
 func (c *Client) GetTitle(ctx context.Context, id int64) (metadata.TitleMeta, []metadata.ItemMeta, error) {
 	var data struct {
 		Media media `json:"Media"`

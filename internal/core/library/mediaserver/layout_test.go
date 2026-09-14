@@ -109,7 +109,7 @@ func TestFlatLayoutKeepsASingleItemOVASeriesShaped(t *testing.T) {
 	}
 }
 
-// seasonNumber is hardcoded to 1, so every episode of an entry already shared a
+// seasonNumber is hardcoded to 1, so every episode of an AniList entry already shared a
 // directory: flat removes a path level and adds no neighbours to the one
 // removeStemMates scans. What it can remove is unchanged, which is the point of
 // asserting it here — the trailing-dot guard has been necessary and untested

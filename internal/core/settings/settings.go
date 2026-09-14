@@ -92,7 +92,7 @@ const (
 
 // DownloadConfig is the qBittorrent client configuration, plus the one download
 // policy that is not the client's: StallHours is how long a download the client
-// reports as active may stay at zero bytes received before its grab is failed, 0
+// reports as active may stay at zero bytes received before its grab row is failed, 0
 // meaning never.
 type DownloadConfig struct {
 	URL        string
@@ -123,7 +123,7 @@ type LibraryConfig struct {
 	Mode         string // auto | hardlink | copy
 }
 
-// AutomationMode is the global toggle's three states (#102, widened by #116).
+// AutomationMode is the global automation toggle's three states (#102, widened by #116).
 // Notify-only runs the unattended jobs for real — search, decide, cadence — but
 // rehearses the grab: a notification describes what would have been grabbed,
 // and nothing is sent to the download client.
@@ -136,8 +136,8 @@ const (
 	AutomationOn         AutomationMode = "on"
 )
 
-// AutomationConfig is the global automation policy: the mode every unattended
-// job reads, and the pinned-group wait for titles not overriding it.
+// AutomationConfig is the global automation policy: the automation mode every unattended
+// job reads, and the pinned-release-group wait for titles not overriding it.
 type AutomationConfig struct {
 	Mode          AutomationMode
 	PinDelayHours int
@@ -237,7 +237,7 @@ type state struct {
 type Service struct {
 	// updateMu serializes the read-modify-write of an update (resolve blank
 	// secrets → persist → swap) so two concurrent saves can't clobber each other.
-	// Reads need no lock: they load the immutable state pointer via cur.
+	// Reads need no lock: they load the immutable `state` pointer via cur.
 	updateMu sync.Mutex
 	cur      atomic.Pointer[state]
 
@@ -359,7 +359,7 @@ func (s *Service) Snapshot() Snapshot {
 func (s *Service) DownloadCategory() string { return s.cur.Load().dl.Category }
 
 // StallTimeout is how long a download the client reports as active may stay at
-// zero bytes received before the importer fails its grab; zero never does. Read
+// zero bytes received before the importer fails its grab row; zero never does. Read
 // per scan, so an edit applies on the next tick without a restart.
 func (s *Service) StallTimeout() time.Duration {
 	return domain.StallTimeout(int64(s.cur.Load().dl.StallHours))
@@ -374,7 +374,7 @@ func (s *Service) AutomationEnabled() bool { return s.cur.Load().automationMode 
 // never grab (#116).
 func (s *Service) NotifyOnly() bool { return s.cur.Load().automationMode == AutomationNotifyOnly }
 
-// PinDelayDefault is how long the sweep waits for a title's pinned group before
+// PinDelayDefault is how long the search sweep waits for a title's pinned release group before
 // it grabs another group's release, for titles that do not override it.
 func (s *Service) PinDelayDefault() time.Duration {
 	return domain.PinDelay(int64(s.cur.Load().pinDelayHours))
@@ -383,7 +383,7 @@ func (s *Service) PinDelayDefault() time.Duration {
 // parseMode and parseHours degrade a bad value to the zero default rather than
 // failing startup: one mistyped setting must not stop the daemon starting. Bools
 // are the toggle's own pre-#116 values, lowercased with everything else so a
-// mode name is not the one spelling that is case-sensitive.
+// automation mode name is not the one spelling that is case-sensitive.
 func parseMode(v string, log *slog.Logger) AutomationMode {
 	switch t := strings.ToLower(strings.TrimSpace(v)); AutomationMode(t) {
 	case AutomationOff, AutomationNotifyOnly, AutomationOn:
@@ -454,7 +454,7 @@ func (s *Service) RegenerateAPIKey(ctx context.Context) (string, error) {
 	if err := s.store.Q.UpsertSetting(ctx, db.UpsertSettingParams{Key: APIKeySettingKey, Value: key}); err != nil {
 		return "", fmt.Errorf("persist api key: %w", err)
 	}
-	// Copy-on-write: mutate a copy and swap the pointer, never the live state
+	// Copy-on-write: mutate a copy and swap the pointer, never the live config state
 	// (see the state type). The other Update* methods follow the same pattern.
 	next := *s.cur.Load()
 	next.apiKey = key
@@ -464,7 +464,7 @@ func (s *Service) RegenerateAPIKey(ctx context.Context) (string, error) {
 
 // UpdateDownload saves the qBittorrent config and swaps in the rebuilt client.
 // An empty Password keeps the stored one; an empty URL disables the client.
-// Persisting before the swap leaves live state unchanged if the save fails.
+// Persisting before the swap leaves live config state unchanged if the save fails.
 func (s *Service) UpdateDownload(ctx context.Context, in DownloadConfig) error {
 	s.updateMu.Lock()
 	defer s.updateMu.Unlock()
@@ -476,7 +476,7 @@ func (s *Service) UpdateDownload(ctx context.Context, in DownloadConfig) error {
 	}
 	in.Password = pw
 	in.applyDefaults()
-	// Clamped before persisting, so a reload matches the live state rather
+	// Clamped before persisting, so a reload matches the live config state rather
 	// than re-clamping (the UpdateAutomation rule).
 	in.StallHours = int(domain.ClampStallHours(int64(in.StallHours)))
 
@@ -501,7 +501,7 @@ func (s *Service) UpdateDownload(ctx context.Context, in DownloadConfig) error {
 // An empty APIKey keeps the stored one; an empty URL disables the indexer.
 // Blank categories clear the filter rather than inheriting — they are not a
 // secret, so the form shows what is stored.
-// Persisting before the swap leaves live state unchanged if the save fails.
+// Persisting before the swap leaves live config state unchanged if the save fails.
 func (s *Service) UpdateIndexer(ctx context.Context, in IndexerConfig) error {
 	cats, err := NormalizeCategories(in.Categories)
 	if err != nil {
@@ -537,7 +537,7 @@ func (s *Service) UpdateIndexer(ctx context.Context, in IndexerConfig) error {
 }
 
 // UpdateLibrary saves the library config and swaps in the rebuilt target.
-// An empty Dir disables import. Persisting before the swap leaves live state
+// An empty Dir disables import. Persisting before the swap leaves live config state
 // unchanged if the save fails.
 func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 	if !ValidSeriesLayout(in.SeriesLayout) {
@@ -570,7 +570,7 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 // UpdateAutomation saves the global automation policy. Nothing is rebuilt or
 // torn down: the jobs stay registered and read the switch per run, so disabling
 // and re-enabling are both restart-free. The clamped hour count is what gets
-// persisted, so a reload matches the live state rather than re-clamping.
+// persisted, so a reload matches the live config state rather than re-clamping.
 //
 // Switching *into* on also clears the search cadence, in the same transaction
 // (#116). A notify-only pass settles nothing, so the backoff escalates to its
@@ -613,7 +613,7 @@ func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) err
 
 // UpdateNotify saves the notification config and swaps in the rebuilt
 // dispatcher. An empty NtfyToken keeps the stored one; clearing every adapter
-// drops the dispatcher to nil. Persisting before the swap leaves live state
+// drops the dispatcher to nil. Persisting before the swap leaves live config state
 // unchanged if the save fails.
 func (s *Service) UpdateNotify(ctx context.Context, in NotifyConfig) error {
 	s.updateMu.Lock()
@@ -765,7 +765,7 @@ func (s *Service) TestIndexer(ctx context.Context, in IndexerConfig) error {
 		return err
 	}
 	in.applyDefaults()
-	// The probe includes the categories so it exercises the request a sweep issues.
+	// The probe includes the categories so it exercises the request a search sweep issues.
 	_, err = torznab.New(in.Name, in.URL, key, cats).Search(ctx, indexer.Query{Term: "test"})
 	return err
 }

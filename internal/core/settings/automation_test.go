@@ -74,7 +74,7 @@ func TestAutomationPersistedOverrideWinsOverEnv(t *testing.T) {
 	}
 }
 
-// #116: the toggle gained a third state. The stored value stays one key whose
+// #116: the automation toggle gained a third state. The stored value stays one key whose
 // domain widened, so every legacy "true"/"false" — persisted or env — must keep
 // meaning what it always did.
 func TestAutomationModeParsing(t *testing.T) {
@@ -151,7 +151,7 @@ func searchCadence(t *testing.T, svc *Service, id int64) (backoff int64, next sq
 
 // #116: a rehearsed pass settles nothing, so its backoff escalates and the feed
 // will not re-offer what it reported. Switching on has to clear that cadence, or
-// the first real sweep for a rehearsed title is up to a day away.
+// the first real search sweep for a rehearsed title is up to a day away.
 func TestUpdateAutomationResetsCadenceWhenSwitchedOn(t *testing.T) {
 	ctx := context.Background()
 	svc := newServiceWith(t, &config.Config{AutomationEnabled: "notify_only"}, nil)
@@ -223,7 +223,7 @@ func TestAutomationOverlongPinDelayClamps(t *testing.T) {
 	}
 }
 
-// #102's acceptance criterion: the sweep reads the switch per run, so a save has
+// #102's acceptance criterion: the search sweep reads the switch per run, so a save has
 // to be visible to the very next read without anything being rebuilt.
 func TestUpdateAutomationAppliesLive(t *testing.T) {
 	ctx := context.Background()

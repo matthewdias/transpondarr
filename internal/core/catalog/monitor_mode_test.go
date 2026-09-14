@@ -59,7 +59,7 @@ func storedCut(t *testing.T, st *store.Store, titleID int64) sql.NullInt64 {
 }
 
 // The add-time choice is what makes #160 tractable: a long-runner must be
-// narrowed before the first sweep tick, not by clicking a thousand checkboxes
+// narrowed before the first search sweep tick, not by clicking a thousand checkboxes
 // against a 15-minute clock.
 func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 	for _, tc := range []struct {
@@ -160,7 +160,7 @@ func TestAddTitleRejectsAModeItDoesNotKnow(t *testing.T) {
 	}
 }
 
-// Every mode is self-healing, which is why there is no "none": a null cut
+// Every monitor mode is self-healing, which is why there is no "none": a null cut
 // monitors nothing new forever, and nothing can edit the cut after the add.
 func TestNoModeWritesANullCut(t *testing.T) {
 	for _, mode := range []MonitorMode{MonitorAll, MonitorFuture} {

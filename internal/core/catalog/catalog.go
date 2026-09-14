@@ -21,7 +21,7 @@ var (
 	// A row keyed on a provider nothing can read would be unrefreshable and
 	// unsearchable, so the pair is rejected at the door rather than persisted.
 	ErrUnknownProvider = errors.New("catalog: unknown metadata provider")
-	// A mode the caller never set is the zero value, which must not read as a
+	// A monitor mode the caller never set is the zero value, which must not read as a
 	// choice: coercing it would silently pick one of the two for them.
 	ErrUnknownMonitorMode = errors.New("catalog: unknown monitor mode")
 	ErrUnknownProfile     = errors.New("catalog: unknown quality profile")
@@ -201,7 +201,7 @@ func (s *Service) AddTitle(ctx context.Context, provider string, providerID int6
 	return title, nil
 }
 
-// monitorCut turns the add-time mode into the stored numeric boundary. A
+// monitorCut turns the add-time monitor mode into the stored numeric boundary. A
 // "future" on a title that has aired and has no scheduled broadcast falls past
 // the last item: erring high monitors nothing existing, erring low monitors a
 // back catalogue.

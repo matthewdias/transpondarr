@@ -4,7 +4,7 @@
 // the schedule is the only source that shows those episodes exist. Paging one
 // is background work rather than part of GetTitle because it costs a request
 // per page: unremarkable off the request path, unacceptable behind a user
-// action against a ~30 req/min budget. GetTitle returns a single in-band page
+// action against a ~30 req/min budget. GetTitle returns a single in-band schedule page
 // for the add; everything past it is here.
 package airing
 

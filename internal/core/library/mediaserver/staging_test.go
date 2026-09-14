@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// sweepAge is the threshold every sweep test passes. Stale files are backdated
+// sweepAge is the threshold every staging sweep test passes. Stale files are backdated
 // well past it and fresh ones keep their real mtime, so nothing here sleeps.
 const sweepAge = time.Hour
 
