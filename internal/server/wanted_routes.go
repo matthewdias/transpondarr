@@ -53,7 +53,7 @@ type missingGroupDTO struct {
 	Format          string           `json:"format" doc:"Title format; the sole discriminator between movie and series wording, so a film is never called an episode"`
 	Monitored       bool             `json:"monitored"`
 	Reason          string           `json:"reason" enum:"unmonitored,blocklisted,never_searched,search_backoff,search_due" doc:"The title's standing in the search sweep queue, derived at request time from stored monitoring, blocklist and search state"`
-	BlockedReleases int              `json:"blocked_releases,omitempty" doc:"Releases this title is currently refusing (reason blocklisted)"`
+	BlockedReleases int              `json:"blocked_releases,omitzero" doc:"Releases this title is currently refusing (reason blocklisted)"`
 	NextSearchAt    string           `json:"next_search_at,omitempty" doc:"When the search sweep next searches this title (reason search_backoff)"`
 	Missing         int              `json:"missing" doc:"Missing items in the whole title group; may exceed len(items), which is capped"`
 	Items           []missingItemDTO `json:"items"`

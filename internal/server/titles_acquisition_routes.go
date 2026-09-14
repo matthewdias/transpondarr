@@ -2,8 +2,9 @@ package server
 
 import (
 	"context"
+	"maps"
 	"net/http"
-	"sort"
+	"slices"
 
 	"github.com/danielgtaylor/huma/v2"
 
@@ -21,7 +22,7 @@ type candidateReleaseDTO struct {
 	Resolution   string `json:"resolution,omitempty"`
 	DualAudio    bool   `json:"dual_audio"`
 	Matched      bool   `json:"matched"`
-	Items        []int  `json:"items,omitempty"`
+	Items        []int  `json:"items,omitzero"`
 	Reason       string `json:"reason"`
 
 	Score            int            `json:"score" doc:"Profile score; ranking is by this, seeders only break ties"`
@@ -30,7 +31,7 @@ type candidateReleaseDTO struct {
 	IneligibleReason string         `json:"ineligible_reason,omitempty" doc:"Why the profile refuses this release; empty when eligible"`
 	Pinned           bool           `json:"pinned" doc:"Release group is the title's pinned group; ranks above profile score when eligible"`
 
-	UpgradeItems   []int               `json:"upgrade_items,omitempty" doc:"Covered items already in the library that this release may replace"`
+	UpgradeItems   []int               `json:"upgrade_items,omitzero" doc:"Covered items already in the library that this release may replace"`
 	UpgradeBlocked []upgradeBlockedDTO `json:"upgrade_blocked,omitempty" doc:"Covered items automation would not replace, and why; a manual grab is not blocked by it"`
 }
 
@@ -61,7 +62,7 @@ type grabTitleInput struct {
 	ID   int64 `path:"id" doc:"Title id"`
 	Body struct {
 		DownloadURL string `json:"download_url" required:"true" doc:"download_url of a matched release from the title search"`
-		Paused      bool   `json:"paused,omitempty" doc:"Add the torrent stopped (no data transfer) — useful for testing the grab flow"`
+		Paused      bool   `json:"paused,omitzero" doc:"Add the torrent stopped (no data transfer) — useful for testing the grab flow"`
 	}
 }
 
@@ -145,10 +146,9 @@ func upgradeBlockedDTOs(blocked map[int]string) []upgradeBlockedDTO {
 		return nil
 	}
 	out := make([]upgradeBlockedDTO, 0, len(blocked))
-	for item, reason := range blocked {
-		out = append(out, upgradeBlockedDTO{Item: item, Reason: reason})
+	for _, item := range slices.Sorted(maps.Keys(blocked)) {
+		out = append(out, upgradeBlockedDTO{Item: item, Reason: blocked[item]})
 	}
-	sort.Slice(out, func(a, b int) bool { return out[a].Item < out[b].Item })
 	return out
 }
 

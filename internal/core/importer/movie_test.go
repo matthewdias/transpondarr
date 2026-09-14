@@ -8,7 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -152,7 +152,7 @@ func filesUnder(t *testing.T, root string) []string {
 	if err != nil {
 		t.Fatalf("walk %q: %v", root, err)
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 

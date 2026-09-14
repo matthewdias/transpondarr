@@ -108,10 +108,10 @@ type SeasonEntry struct {
 	Format       string   `json:"format,omitempty"`      // provider-native (e.g. "TV", "OVA")
 	Description  string   `json:"description,omitempty"` // provider-formatted HTML snippet
 	Status       string   `json:"status,omitempty"`      // provider-native (e.g. "RELEASING")
-	Episodes     int      `json:"episodes,omitempty"`
+	Episodes     int      `json:"episodes,omitzero"`
 	Genres       []string `json:"genres,omitempty"`
-	AverageScore int      `json:"average_score,omitempty"` // 0-100; 0 when unranked
-	Studio       string   `json:"studio,omitempty"`        // main studio
+	AverageScore int      `json:"average_score,omitzero"` // 0-100; 0 when unranked
+	Studio       string   `json:"studio,omitempty"`       // main studio
 	CoverURL     string   `json:"cover_url,omitempty"`
 	NextAiring   *Airing  `json:"next_airing,omitempty"` // nil when nothing is scheduled
 }

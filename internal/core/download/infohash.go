@@ -39,10 +39,11 @@ func InfoHashFromMagnet(magnet string) (string, error) {
 	}
 	for _, xt := range u.Query()["xt"] {
 		const prefix = "urn:btih:"
-		if !strings.HasPrefix(xt, prefix) {
+		hash, ok := strings.CutPrefix(xt, prefix)
+		if !ok {
 			continue // e.g. urn:btmh: (v2) — unsupported here
 		}
-		return normalizeBTIH(strings.TrimPrefix(xt, prefix))
+		return normalizeBTIH(hash)
 	}
 	return "", errors.New("magnet has no urn:btih info hash")
 }

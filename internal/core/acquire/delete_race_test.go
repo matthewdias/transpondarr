@@ -19,14 +19,12 @@ func TestSweepSurvivesTitleDeletedMidSearch(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
 	ctx := context.Background()
-	var once sync.Once
-	h.idx.SearchHook = func(indexer.Query) {
-		once.Do(func() {
-			if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
-				t.Errorf("delete title mid-search: %v", err)
-			}
-		})
-	}
+	deleteTitle := sync.OnceFunc(func() {
+		if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
+			t.Errorf("delete title mid-search: %v", err)
+		}
+	})
+	h.idx.SearchHook = func(indexer.Query) { deleteTitle() }
 
 	if err := h.svc.SweepOnce(ctx); err != nil {
 		t.Fatalf("SweepOnce: %v — a mid-search delete must not fail the pass", err)
@@ -42,14 +40,12 @@ func TestSweepReportsButRecoversFromTitleDeletedMidGrab(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
 	ctx := context.Background()
-	var once sync.Once
-	h.dl.AddHook = func(download.AddOptions) {
-		once.Do(func() {
-			if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
-				t.Errorf("delete title mid-grab: %v", err)
-			}
-		})
-	}
+	deleteTitle := sync.OnceFunc(func() {
+		if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
+			t.Errorf("delete title mid-grab: %v", err)
+		}
+	})
+	h.dl.AddHook = func(download.AddOptions) { deleteTitle() }
 
 	if err := h.svc.SweepOnce(ctx); err == nil {
 		t.Fatal("SweepOnce returned nil, want the failed grab write surfaced")

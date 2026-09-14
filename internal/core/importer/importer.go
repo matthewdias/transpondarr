@@ -17,14 +17,16 @@
 package importer
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -259,7 +261,7 @@ func rowsWithStatus(rows []db.ListGrabsByStatusRow, status string) []db.ListGrab
 			out = append(out, g)
 		}
 	}
-	sort.Slice(out, func(a, b int) bool { return out[a].ItemNumber.Int64 < out[b].ItemNumber.Int64 })
+	slices.SortFunc(out, func(a, b db.ListGrabsByStatusRow) int { return cmp.Compare(a.ItemNumber.Int64, b.ItemNumber.Int64) })
 	return out
 }
 
@@ -801,11 +803,7 @@ func (im *Importer) notifyImported(ctx context.Context, g db.ListGrabsByStatusRo
 	if len(imported) == 0 {
 		return
 	}
-	nums := make([]int, 0, len(imported))
-	for n := range imported {
-		nums = append(nums, n)
-	}
-	sort.Ints(nums)
+	nums := slices.Sorted(maps.Keys(imported))
 	ev := notify.Event{
 		Kind:         notify.KindImported,
 		Title:        g.TitleName,

@@ -59,7 +59,7 @@ func foldTitle(s string) string {
 }
 
 func isASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
+	for i := range len(s) {
 		if s[i] >= utf8.RuneSelf {
 			return false
 		}

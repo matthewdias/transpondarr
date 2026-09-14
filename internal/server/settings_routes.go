@@ -464,21 +464,21 @@ func settingsInputError(err error, fallback string) error {
 
 // settingsInputDetail words a settings check the user fixes by editing a field.
 func settingsInputDetail(err error) (string, bool) {
-	var category *settings.CategoryError
-	var secret *settings.SecretDestinationError
-	var dir *settings.DirError
-	switch {
-	case errors.As(err, &category):
+	if category, ok := errors.AsType[*settings.CategoryError](err); ok {
 		return fmt.Sprintf("%q isn't a Newznab category ID. Enter positive numbers separated by commas, such as 5070.", category.Value), true
-	case errors.As(err, &secret):
+	}
+	if secret, ok := errors.AsType[*settings.SecretDestinationError](err); ok {
 		return fmt.Sprintf("The saved %s is only sent to %s. Enter the %s for %s.", secret.What, secret.SavedFor, secret.What, secret.To), true
+	}
+	switch {
 	case errors.Is(err, settings.ErrDownloadURLRequired):
 		return "Enter the qBittorrent WebUI URL to test the connection.", true
 	case errors.Is(err, settings.ErrIndexerURLRequired):
 		return "Enter the Torznab URL to test the indexer.", true
 	case errors.Is(err, settings.ErrLibraryDirRequired):
 		return "Enter a library directory, a movies directory, or both.", true
-	case errors.As(err, &dir):
+	}
+	if dir, ok := errors.AsType[*settings.DirError](err); ok {
 		switch dir.Problem {
 		case settings.DirNotDirectory:
 			return fmt.Sprintf("The %s path %q is a file. Enter a directory.", dir.Root, dir.Path), true
@@ -493,8 +493,7 @@ func settingsInputDetail(err error) (string, bool) {
 
 // filesystemReason drops a PathError's operation and path, which the detail already names.
 func filesystemReason(err error) string {
-	var pathErr *fs.PathError
-	if errors.As(err, &pathErr) {
+	if pathErr, ok := errors.AsType[*fs.PathError](err); ok {
 		return pathErr.Err.Error()
 	}
 	return fmt.Sprint(err)
