@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Lock, Loader2 } from "lucide-react";
-import { api, type Settings } from "@/lib/api";
+import { api, type Settings, errorReason } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionShell } from "../section-shell";
@@ -25,8 +25,8 @@ export function AuthSection({ settings }: { settings: Settings }) {
       toast.success("Authentication mode updated");
     },
     onError: (e) =>
-      toast.error("Could not update authentication mode", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t change the authentication mode", {
+        description: errorReason(e),
       }),
   });
 
@@ -39,7 +39,7 @@ export function AuthSection({ settings }: { settings: Settings }) {
       setPwError(null);
       toast.success("Password changed");
     },
-    onError: (e) => setPwError(e instanceof Error ? e.message : String(e)),
+    onError: (e) => setPwError(errorReason(e)),
   });
 
   const submitPw = (e: React.FormEvent) => {

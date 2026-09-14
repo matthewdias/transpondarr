@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { KeyRound, Loader2, Eye, EyeOff, Copy, RefreshCw } from "lucide-react";
-import { api, type Settings } from "@/lib/api";
+import { api, type Settings, errorReason } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionShell } from "../section-shell";
@@ -23,8 +23,8 @@ export function ApiKeySection({ settings }: { settings: Settings }) {
       });
     },
     onError: (e) =>
-      toast.error("Could not regenerate key", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t regenerate the API key", {
+        description: errorReason(e),
       }),
   });
 
@@ -33,7 +33,9 @@ export function ApiKeySection({ settings }: { settings: Settings }) {
       await navigator.clipboard.writeText(key);
       toast.success("API key copied");
     } catch {
-      toast.error("Copy failed");
+      toast.error("Couldn’t copy the key", {
+        description: "Reveal it, then select and copy it by hand.",
+      });
     }
   };
 

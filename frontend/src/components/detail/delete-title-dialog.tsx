@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Trash2 } from "lucide-react";
-import { api, ApiError, type TitleDetail } from "@/lib/api";
+import { api, type TitleDetail, errorReason } from "@/lib/api";
 import { titleDetailQuery, titlesQuery } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,8 +57,8 @@ export function DeleteTitleDialog({
       onDeleted();
     },
     onError: (e) =>
-      toast.error("Delete failed", {
-        description: e instanceof ApiError ? e.message : String(e),
+      toast.error("Couldn’t delete the title", {
+        description: errorReason(e),
       }),
   });
 

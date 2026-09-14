@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Trash2 } from "lucide-react";
-import { ApiError, api, type UnmatchedDownload } from "@/lib/api";
+import { api, type UnmatchedDownload, errorReason } from "@/lib/api";
 import { activityUnmatchedQuery } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,8 +45,8 @@ export function RemoveUnmatchedDialog({
       setOpenState(false);
     },
     onError: (e) =>
-      toast.error("Remove failed", {
-        description: e instanceof ApiError ? e.message : String(e),
+      toast.error("Couldn’t remove the download", {
+        description: errorReason(e),
       }),
   });
 

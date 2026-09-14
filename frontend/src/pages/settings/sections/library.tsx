@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { FolderTree } from "lucide-react";
-import { api, type Settings, type LibraryInput } from "@/lib/api";
+import { api, type Settings, type LibraryInput, errorReason } from "@/lib/api";
 import {
   Field,
   SectionShell,
@@ -51,7 +51,7 @@ export function LibrarySection({ settings }: { settings: Settings }) {
     onError: (e) =>
       setTestState({
         ok: false,
-        message: e instanceof Error ? e.message : String(e),
+        message: errorReason(e),
       }),
   });
   const save = useMutation({

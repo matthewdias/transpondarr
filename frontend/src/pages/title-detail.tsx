@@ -6,6 +6,7 @@ import { Pin, TriangleAlert } from "lucide-react";
 import {
   api,
   ApiError,
+  errorReason,
   PartialBatchError,
   type AutomationMode,
   type TitleDetail,
@@ -49,6 +50,7 @@ import { EpisodesTab } from "@/components/detail/episodes-tab";
 import { MovieStatusCard } from "@/components/detail/movie-status-card";
 import { ReleasesTab } from "@/components/detail/releases-tab";
 import { HistoryTab } from "@/components/detail/history-tab";
+import { LoadError } from "@/components/load-error";
 
 type TabKey = "episodes" | "status" | "releases" | "history";
 
@@ -95,6 +97,7 @@ export function TitleDetailPage() {
     isLoading,
     isError,
     error,
+    refetch,
   } = useQuery({
     ...titleDetailQuery(id),
     enabled: Number.isFinite(id),
@@ -116,9 +119,11 @@ export function TitleDetailPage() {
       );
       return { prev };
     },
-    onError: (_e, _v, ctx) => {
+    onError: (err, _v, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
-      toast.error("Could not update monitoring");
+      toast.error("Couldn’t change monitoring", {
+        description: errorReason(err),
+      });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: detailKey });
@@ -166,8 +171,9 @@ export function TitleDetailPage() {
     },
     onError: (err, _v, ctx) => {
       if (ctx?.prev) queryClient.setQueryData(detailKey, ctx.prev);
-      toast.error("Could not update episode monitoring", {
-        description: err instanceof PartialBatchError ? err.message : undefined,
+      toast.error("Couldn’t change episode monitoring", {
+        description:
+          err instanceof PartialBatchError ? err.message : errorReason(err),
       });
     },
     onSuccess: () => setSelected(new Set()),
@@ -229,7 +235,7 @@ export function TitleDetailPage() {
           <div className="rounded-lg border border-dashed bg-card px-6 py-16 text-center">
             <h2 className="text-base font-semibold">Title not found</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              It may have been removed.{" "}
+              This title is no longer in your library.{" "}
               <Link to="/" className="text-accent-foreground hover:underline">
                 Back to titles
               </Link>
@@ -239,10 +245,7 @@ export function TitleDetailPage() {
         )}
 
         {isError && !notFound && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Failed to load title:{" "}
-            {error instanceof Error ? error.message : String(error)}
-          </div>
+          <LoadError what="the title" error={error} onRetry={refetch} />
         )}
 
         {detail && (
@@ -354,8 +357,8 @@ export function ProfilePicker({ detail }: { detail: TitleDetail }) {
       queryClient.invalidateQueries({ queryKey: profilesQuery().queryKey });
     },
     onError: (e) =>
-      toast.error("Failed to set profile", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t change the quality profile", {
+        description: errorReason(e),
       }),
   });
 
@@ -449,8 +452,8 @@ export function PinnedGroupChip({ detail }: { detail: TitleDetail }) {
       setOpen(false);
     },
     onError: (e) =>
-      toast.error("Failed to update pinned group", {
-        description: e instanceof Error ? e.message : String(e),
+      toast.error("Couldn’t pin the release group", {
+        description: errorReason(e),
       }),
   });
 
@@ -585,7 +588,7 @@ export function MonitoringToggle({
         }
       : automationMode === "notify_only"
         ? {
-            label: "Notify-only rehearsal",
+            label: "Automation is notify only",
             title:
               "Automation reports what it would have grabbed but downloads nothing until it is switched on in Settings",
           }

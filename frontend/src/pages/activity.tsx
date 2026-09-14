@@ -11,12 +11,11 @@ import {
   FolderClock,
   History,
   Pause,
-  RefreshCw,
   TriangleAlert,
   Wrench,
 } from "lucide-react";
 import { Link } from "react-router";
-import { ApiError, type QueueItem, type UnmatchedDownload } from "@/lib/api";
+import { type QueueItem, type UnmatchedDownload } from "@/lib/api";
 import {
   ACTIVITY_QUEUE_POLL_MS,
   activityHistoryQuery,
@@ -43,6 +42,7 @@ import {
   ItemMedia,
 } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadError } from "@/components/load-error";
 
 export function ActivityPage() {
   return (
@@ -76,29 +76,6 @@ function SectionSkeleton() {
   );
 }
 
-function SectionError({
-  what,
-  error,
-  onRetry,
-}: {
-  what: string;
-  error: unknown;
-  onRetry: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-dashed bg-card px-3.5 py-3">
-      <TriangleAlert className="size-4 shrink-0 text-dl" />
-      <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
-        Couldn’t load {what}.{" "}
-        {error instanceof ApiError ? error.message : String(error)}
-      </p>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        <RefreshCw className="size-4" /> Try again
-      </Button>
-    </div>
-  );
-}
-
 function QueueSection() {
   const { data, isLoading, isPaused, isError, error, refetch } =
     useQuery(activityQueueQuery());
@@ -124,7 +101,7 @@ function QueueSection() {
       {isLoading || isPaused ? (
         <SectionSkeleton />
       ) : isError ? (
-        <SectionError what="the queue" error={error} onRetry={refetch} />
+        <LoadError what="the queue" error={error} onRetry={refetch} />
       ) : !data || data.items.length === 0 ? (
         <div className="flex flex-col items-center rounded-lg border border-dashed bg-card py-10 text-center">
           <Download className="mb-3 size-7 text-faint" />
@@ -134,7 +111,8 @@ function QueueSection() {
         <>
           {!data.client_ok && (
             <p className="mb-2 text-[13px] text-muted-foreground">
-              Download client unreachable — showing grab state only.
+              Can’t reach the download client, so download progress isn’t shown.
+              Check its connection in Settings.
             </p>
           )}
           <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
@@ -283,11 +261,7 @@ function UnmatchedSection() {
     <section>
       <h2 className="mb-2 text-sm font-semibold">Unmatched downloads</h2>
       {isError ? (
-        <SectionError
-          what="unmatched downloads"
-          error={error}
-          onRetry={refetch}
-        />
+        <LoadError what="unmatched downloads" error={error} onRetry={refetch} />
       ) : (
         <>
           <p className="mb-2 text-[13px] text-muted-foreground">
@@ -368,7 +342,7 @@ function HistorySection() {
       {isLoading || isPaused ? (
         <SectionSkeleton />
       ) : isError ? (
-        <SectionError what="history" error={error} onRetry={refetch} />
+        <LoadError what="history" error={error} onRetry={refetch} />
       ) : events.length === 0 ? (
         <div className="flex flex-col items-center rounded-lg border border-dashed bg-card py-10 text-center">
           <History className="mb-3 size-7 text-faint" />

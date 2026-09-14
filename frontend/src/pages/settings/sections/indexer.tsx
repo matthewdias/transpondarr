@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Rss } from "lucide-react";
-import { api, type Settings, type IndexerInput } from "@/lib/api";
+import { api, type Settings, type IndexerInput, errorReason } from "@/lib/api";
 import {
   Field,
   SectionShell,
@@ -32,7 +32,7 @@ export function IndexerSection({ settings }: { settings: Settings }) {
     onError: (e) =>
       setTestState({
         ok: false,
-        message: e instanceof Error ? e.message : String(e),
+        message: errorReason(e),
       }),
   });
   const save = useMutation({

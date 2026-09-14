@@ -16,9 +16,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LoadError } from "@/components/load-error";
 
 export function TitleListPage() {
-  const { data: titles, isLoading, isError, error } = useQuery(titlesQuery());
+  const {
+    data: titles,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery(titlesQuery());
 
   return (
     <>
@@ -26,10 +33,7 @@ export function TitleListPage() {
 
       <div className="px-4 py-6 sm:px-6">
         {isError && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Failed to load titles:{" "}
-            {error instanceof Error ? error.message : String(error)}
-          </div>
+          <LoadError what="the titles" error={error} onRetry={refetch} />
         )}
 
         {isLoading && <TitleTableSkeleton />}

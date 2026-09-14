@@ -13,19 +13,18 @@ import { ProfilesSection } from "./sections/profiles";
 import { AutomationSection } from "./sections/automation";
 import { JobsSection } from "./sections/jobs";
 import { FailureMemorySection } from "./sections/failure-memory";
+import { LoadError } from "@/components/load-error";
 
 export function SettingsPage() {
-  const { data, isLoading, isError, error } = useQuery(settingsQuery());
+  const { data, isLoading, isError, error, refetch } =
+    useQuery(settingsQuery());
 
   return (
     <>
       <Topbar title="Settings" />
       <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6">
         {isError && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Failed to load settings:{" "}
-            {error instanceof Error ? error.message : String(error)}
-          </div>
+          <LoadError what="the settings" error={error} onRetry={refetch} />
         )}
         {isLoading && <SettingsSkeleton />}
         {data && (

@@ -70,7 +70,7 @@ export function ItemStatusBadge({
           )}
           title={
             error ||
-            "The download finished but the file could not be imported. Check server logs."
+            "The download finished but couldn’t be imported. The server log has the cause."
           }
         >
           <TriangleAlert className="size-3" /> Import blocked
