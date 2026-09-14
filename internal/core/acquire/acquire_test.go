@@ -95,7 +95,7 @@ func seedAniListTitle(t *testing.T, st *store.Store, title string, anilistID int
 		ProviderID: sql.NullInt64{Int64: anilistID, Valid: anilistID != 0},
 	})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	for n := 1; n <= count; n++ {
 		if _, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
@@ -134,7 +134,7 @@ func TestMatchTitleFallsBackToVariantTerm(t *testing.T) {
 		t.Errorf("term = %q, want the variant that produced results %q", m.Term, english)
 	}
 	if m.Title.ID != id {
-		t.Errorf("series id = %d, want %d", m.Title.ID, id)
+		t.Errorf("title id = %d, want %d", m.Title.ID, id)
 	}
 	if len(m.Items) != 12 {
 		t.Errorf("loaded %d wanted items, want 12", len(m.Items))

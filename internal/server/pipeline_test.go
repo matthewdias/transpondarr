@@ -135,7 +135,7 @@ func seedTitle(t *testing.T, st *store.Store, title string, count int) int64 {
 	ctx := context.Background()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	for n := 1; n <= count; n++ {
 		if _, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{

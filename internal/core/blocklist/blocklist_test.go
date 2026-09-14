@@ -36,7 +36,7 @@ func newService(t *testing.T) (*Service, *store.Store, db.Series) {
 		Title: "Placeholder Saga", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	return New(st, nil), st, title
 }
@@ -217,7 +217,7 @@ func TestClearExpiredAndClearTitle(t *testing.T) {
 		Title: "Another Placeholder", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
-		t.Fatalf("create other series: %v", err)
+		t.Fatalf("create other title: %v", err)
 	}
 
 	for _, e := range []struct {
@@ -257,16 +257,16 @@ func TestClearExpiredAndClearTitle(t *testing.T) {
 
 	cleared, err = svc.ClearTitle(ctx, title.ID)
 	if err != nil {
-		t.Fatalf("clear series: %v", err)
+		t.Fatalf("clear title: %v", err)
 	}
 	if cleared != 2 {
 		t.Errorf("cleared %d entries, want the 2 that were left", cleared)
 	}
 	if left, _ := svc.List(ctx, title.ID); len(left) != 0 {
-		t.Errorf("entries after clearing the series = %v, want none", hashes(left))
+		t.Errorf("entries after clearing the title = %v, want none", hashes(left))
 	}
 	// Neither clear affects a title it was not scoped to.
 	if elsewhere, _ := svc.List(ctx, other.ID); len(elsewhere) != 1 {
-		t.Errorf("other series has %d entries, want its own 1 untouched", len(elsewhere))
+		t.Errorf("other title has %d entries, want its own 1 untouched", len(elsewhere))
 	}
 }

@@ -196,7 +196,7 @@ func TestSweepDoesNotSearchForUpgradesAlone(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.idx.Queries) != 0 {
-		t.Errorf("sweep issued %d searches for a complete series, want 0", len(h.idx.Queries))
+		t.Errorf("sweep issued %d searches for a complete title, want 0", len(h.idx.Queries))
 	}
 	if len(h.dl.Adds) != 0 {
 		t.Errorf("download Add called %d times, want 0", len(h.dl.Adds))

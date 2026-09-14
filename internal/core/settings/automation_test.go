@@ -129,7 +129,7 @@ func backedOffTitles(t *testing.T, svc *Service) int64 {
 	row, err := svc.store.Q.CreateTitle(context.Background(),
 		db.CreateTitleParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	if _, err := svc.store.DB.ExecContext(context.Background(),
 		`UPDATE series SET search_backoff = 6, next_search_at = '2099-01-01 00:00:00' WHERE id = ?`,

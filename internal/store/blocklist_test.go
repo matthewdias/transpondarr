@@ -19,7 +19,7 @@ func blocklistTitle(t *testing.T, st *Store, title string) db.Series {
 		Title: title, Format: "TV", Monitored: 1,
 	})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	return s
 }
@@ -74,7 +74,7 @@ func TestUpsertBlocklistEntryBumpsFailures(t *testing.T) {
 
 	all, err := st.Q.ListBlocklistByTitle(ctx, title.ID)
 	if err != nil {
-		t.Fatalf("list by series: %v", err)
+		t.Fatalf("list by title: %v", err)
 	}
 	if len(all) != 1 {
 		t.Fatalf("expected 1 blocklist row after two records, got %d", len(all))
@@ -130,13 +130,13 @@ func TestListActiveBlocklistFiltersExpiredButKeepsPermanent(t *testing.T) {
 		t.Error("expired entry is still active")
 	}
 	if got["other-series-live"] {
-		t.Error("another series' entry leaked into this series' active list")
+		t.Error("another title's entry leaked into this title's active list")
 	}
 
 	// The expired row must still exist, or the failure count resets every expiry.
 	all, err := st.Q.ListBlocklistByTitle(ctx, title.ID)
 	if err != nil {
-		t.Fatalf("list by series: %v", err)
+		t.Fatalf("list by title: %v", err)
 	}
 	if len(all) != 3 {
 		t.Errorf("stored entries = %d, want 3 (expiry filters, it does not delete)", len(all))
@@ -158,10 +158,10 @@ func TestDeleteBlocklistEntryIsScopedToItsTitle(t *testing.T) {
 
 	rows, err := st.Q.DeleteBlocklistEntry(ctx, db.DeleteBlocklistEntryParams{ID: entry.ID, SeriesID: other.ID})
 	if err != nil {
-		t.Fatalf("delete with the wrong series: %v", err)
+		t.Fatalf("delete with the wrong title: %v", err)
 	}
 	if rows != 0 {
-		t.Errorf("deleted %d rows via another series; want 0", rows)
+		t.Errorf("deleted %d rows via another title; want 0", rows)
 	}
 
 	rows, err = st.Q.DeleteBlocklistEntry(ctx, db.DeleteBlocklistEntryParams{ID: entry.ID, SeriesID: title.ID})

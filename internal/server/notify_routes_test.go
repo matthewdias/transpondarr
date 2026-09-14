@@ -167,7 +167,7 @@ func TestAddTitleDispatchesTitleAdded(t *testing.T) {
 	var out struct{}
 	if code := do(t, h, http.MethodPost, "/api/v1/titles",
 		map[string]any{"provider": "anilist", "provider_id": 42}, &out); code != http.StatusCreated {
-		t.Fatalf("POST /series = %d, want 201", code)
+		t.Fatalf("POST /titles = %d, want 201", code)
 	}
 
 	select {

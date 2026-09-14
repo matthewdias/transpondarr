@@ -15,14 +15,14 @@ func progressOf(t *testing.T, st *Store, now time.Time, title string) db.ListTit
 	rows, err := st.Q.ListTitlesWithProgress(context.Background(),
 		db.ListTitlesWithProgressParams{AirsAt: stamp, AirsAt_2: stamp})
 	if err != nil {
-		t.Fatalf("list series with progress: %v", err)
+		t.Fatalf("list titles with progress: %v", err)
 	}
 	for _, r := range rows {
 		if r.Title == title {
 			return r
 		}
 	}
-	t.Fatalf("series %q missing from the progress listing", title)
+	t.Fatalf("title %q missing from the progress listing", title)
 	return db.ListTitlesWithProgressRow{}
 }
 

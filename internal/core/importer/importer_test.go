@@ -90,7 +90,7 @@ func seedTitleGrab(t *testing.T, st *store.Store, title, hash string, number int
 	ctx := context.Background()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 		SeriesID: s.ID, Kind: "episode", Number: sql.NullInt64{Int64: int64(number), Valid: true},
@@ -114,7 +114,7 @@ func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, titleID int64
 	ctx := context.Background()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 		SeriesID: s.ID, Kind: "episode", Number: sql.NullInt64{Int64: 5, Valid: true},
@@ -571,7 +571,7 @@ func TestFailsAndBlocklistsWhenThePayloadHasNothingLeft(t *testing.T) {
 		t.Errorf("recorded %d items, want the 2 that failed", got)
 	}
 	if rec.calls[0].titleID != titleID {
-		t.Errorf("recorded series %d, want %d", rec.calls[0].titleID, titleID)
+		t.Errorf("recorded title %d, want %d", rec.calls[0].titleID, titleID)
 	}
 }
 
@@ -803,7 +803,7 @@ func TestKeepsTwoTitlesSharingAnInfoHashApart(t *testing.T) {
 		got[ev.Title] = ev.ItemNumber
 	}
 	if got["Placeholder Saga"] != 1 || got["Second Saga"] != 2 {
-		t.Errorf("imports reported as %v, want each series its own episode", got)
+		t.Errorf("imports reported as %v, want each title its own episode", got)
 	}
 }
 

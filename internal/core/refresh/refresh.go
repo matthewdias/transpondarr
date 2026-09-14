@@ -42,7 +42,7 @@ func New(st *store.Store, provider metadata.Provider, log *slog.Logger) *Service
 func (s *Service) RefreshOnce(ctx context.Context) error {
 	due, err := s.due(ctx)
 	if err != nil {
-		return fmt.Errorf("list series due a metadata refresh: %w", err)
+		return fmt.Errorf("list titles due a metadata refresh: %w", err)
 	}
 
 	var errs []error
@@ -51,7 +51,7 @@ func (s *Service) RefreshOnce(ctx context.Context) error {
 			return ctx.Err()
 		}
 		if err := s.refreshTitle(ctx, title); err != nil {
-			errs = append(errs, fmt.Errorf("series %d: %w", title.ID, err))
+			errs = append(errs, fmt.Errorf("title %d: %w", title.ID, err))
 		}
 	}
 	return errors.Join(errs...)

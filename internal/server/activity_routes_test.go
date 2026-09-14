@@ -64,7 +64,7 @@ func seedOpenGrab(t *testing.T, st *store.Store, titleID int64, number int, hash
 			return g
 		}
 	}
-	t.Fatalf("no wanted item numbered %d in series %d", number, titleID)
+	t.Fatalf("no wanted item numbered %d in title %d", number, titleID)
 	return db.Grab{}
 }
 
@@ -114,7 +114,7 @@ func TestActivityQueueReportsOpenGrabsWithClientState(t *testing.T) {
 		t.Errorf("progress = %v, want 0.42", d.Progress)
 	}
 	if d.TitleID != titleID || d.Title != "Placeholder Saga" || d.ItemNumber != 1 || d.CreatedAt == "" {
-		t.Errorf("downloading row = %+v, want series fields and a created_at", d)
+		t.Errorf("downloading row = %+v, want title fields and a created_at", d)
 	}
 	s := byID[stuck.ID]
 	if s.Status != "stuck" || s.ImportError != "import failed: disk full" {
@@ -328,7 +328,7 @@ func TestActivityHistoryCarriesDetailAndTitleName(t *testing.T) {
 		t.Errorf("event = %+v, want the failed detail carried through", e)
 	}
 	if e.TitleID != titleID || e.Title != "Placeholder Saga" || e.ItemNumber != 2 {
-		t.Errorf("event = %+v, want the series fields", e)
+		t.Errorf("event = %+v, want the title fields", e)
 	}
 	if page.NextCursor != "" {
 		t.Errorf("next_cursor = %q, want empty on the last page", page.NextCursor)

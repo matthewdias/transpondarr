@@ -96,7 +96,7 @@ func TestPassOutcomeCascadesWithItsTitle(t *testing.T) {
 		t.Fatalf("upsert: %v", err)
 	}
 	if _, err := st.Q.DeleteTitle(ctx, title.ID); err != nil {
-		t.Fatalf("delete series: %v", err)
+		t.Fatalf("delete title: %v", err)
 	}
 
 	var rows int
@@ -104,6 +104,6 @@ func TestPassOutcomeCascadesWithItsTitle(t *testing.T) {
 		t.Fatalf("count rows: %v", err)
 	}
 	if rows != 0 {
-		t.Errorf("stored rows after the series was deleted = %d, want 0", rows)
+		t.Errorf("stored rows after the title was deleted = %d, want 0", rows)
 	}
 }

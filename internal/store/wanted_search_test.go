@@ -16,7 +16,7 @@ func seedSearchTitle(t *testing.T, st *Store, title string, monitored int64) int
 		Title: title, Format: "TV", Monitored: monitored,
 	})
 	if err != nil {
-		t.Fatalf("create series %q: %v", title, err)
+		t.Fatalf("create title %q: %v", title, err)
 	}
 	return s.ID
 }
@@ -64,7 +64,7 @@ func dueTitles(t *testing.T, st *Store, now time.Time, limit int64) []string {
 		Limit:        limit,
 	})
 	if err != nil {
-		t.Fatalf("list series due a wanted search: %v", err)
+		t.Fatalf("list titles due a wanted search: %v", err)
 	}
 	out := make([]string, 0, len(rows))
 	for _, r := range rows {
@@ -141,7 +141,7 @@ func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 		}
 	}
 	if len(got) != 4 {
-		t.Errorf("due set = %v, want exactly the four searchable series", got)
+		t.Errorf("due set = %v, want exactly the four searchable titles", got)
 	}
 }
 
@@ -209,7 +209,7 @@ func gapTitles(t *testing.T, st *Store, now, lo, hi time.Time, limit int64) []st
 			Limit:        limit,
 		})
 	if err != nil {
-		t.Fatalf("list backed-off series wanted in window: %v", err)
+		t.Fatalf("list backed-off titles wanted in window: %v", err)
 	}
 	out := make([]string, 0, len(rows))
 	for _, r := range rows {
@@ -268,7 +268,7 @@ func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 		}
 	}
 	if len(got) != 2 {
-		t.Errorf("gap set = %v, want exactly the two series a reset helps", got)
+		t.Errorf("gap set = %v, want exactly the two titles a reset helps", got)
 	}
 }
 
@@ -294,7 +294,7 @@ func TestListBackedOffTitlesWantedInWindowOrdersFurthestFirstAndLimits(t *testin
 	}
 	limited := gapTitles(t, st, now, now.Add(-3*time.Hour), now, 2)
 	if len(limited) != 2 || limited[0] != "furthest" || limited[1] != "middle" {
-		t.Errorf("limited gap set = %v, want the two furthest-postponed series", limited)
+		t.Errorf("limited gap set = %v, want the two furthest-postponed titles", limited)
 	}
 }
 
@@ -312,7 +312,7 @@ func itemOf(t *testing.T, st *Store, titleID int64) int64 {
 	var id int64
 	if err := st.DB.QueryRowContext(context.Background(),
 		`SELECT id FROM wanted_items WHERE series_id = ?`, titleID).Scan(&id); err != nil {
-		t.Fatalf("read item of series %d: %v", titleID, err)
+		t.Fatalf("read item of title %d: %v", titleID, err)
 	}
 	return id
 }

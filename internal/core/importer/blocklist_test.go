@@ -87,7 +87,7 @@ func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 	}
 	got := rec.calls[0]
 	if got.titleID != titleID || got.infoHash != "abc" || got.releaseTitle != "rel" {
-		t.Errorf("recorded %+v, want the failed grab's series, hash and release title", got)
+		t.Errorf("recorded %+v, want the failed grab's title, hash and release title", got)
 	}
 	if got.reason == "" {
 		t.Error("recorded an empty reason")
@@ -97,7 +97,7 @@ func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 	}
 	// A failure is new information: retry promptly with the next-best release.
 	if backoff, hasNext := readSearchBackoff(t, st, titleID); backoff != 0 || hasNext {
-		t.Errorf("search state = backoff %d, next set %v; want the series reset", backoff, hasNext)
+		t.Errorf("search state = backoff %d, next set %v; want the title reset", backoff, hasNext)
 	}
 }
 
@@ -138,7 +138,7 @@ func seedBatchGrab(t *testing.T, st *store.Store, hash string, items int) (title
 		Title: "Placeholder Saga", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	for n := 1; n <= items; n++ {
 		item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
@@ -250,7 +250,7 @@ func TestDistinctReleasesFailingAcrossItemsStillTripTheBreaker(t *testing.T) {
 		Title: "Placeholder Saga", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	var statuses []download.Status
 	for n := 1; n <= 6; n++ {

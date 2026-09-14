@@ -89,7 +89,7 @@ func TestGrabAppendsOneEventPerCoveredItem(t *testing.T) {
 			t.Errorf("event = %s, want grabbed", e.Event)
 		}
 		if e.SeriesID != id || e.InfoHash != "hashbatch" || e.ItemKind != "episode" {
-			t.Errorf("event row = %+v, want series %d / hashbatch / episode", e, id)
+			t.Errorf("event row = %+v, want title %d / hashbatch / episode", e, id)
 		}
 		if e.ReleaseTitle != "[Batchers] Placeholder Saga S1 (01-02) [1080p][Batch]" {
 			t.Errorf("release title = %q", e.ReleaseTitle)

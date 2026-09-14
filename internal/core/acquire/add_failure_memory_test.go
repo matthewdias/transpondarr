@@ -34,7 +34,7 @@ func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	}
 	got := h.rec.calls[0]
 	if got.titleID != id || got.releaseTitle != dead.Title {
-		t.Errorf("recorded %+v, want series %d and release %q", got, id, dead.Title)
+		t.Errorf("recorded %+v, want title %d and release %q", got, id, dead.Title)
 	}
 	if got.reason == "" {
 		t.Error("recorded no reason; the Releases tab shows it as the ineligible reason")

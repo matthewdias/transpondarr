@@ -23,10 +23,10 @@ func TestDefaultProfileSeededAndAssignedToNewTitles(t *testing.T) {
 
 	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	if title.QualityProfileID != def.ID {
-		t.Errorf("new series profile = %d, want default %d", title.QualityProfileID, def.ID)
+		t.Errorf("new title profile = %d, want default %d", title.QualityProfileID, def.ID)
 	}
 }
 
@@ -71,10 +71,10 @@ func TestReassignThenDeleteProfileCascadesGroups(t *testing.T) {
 
 	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	if _, err := st.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{QualityProfileID: prof.ID, ID: title.ID, ID_2: prof.ID}); err != nil {
-		t.Fatalf("set series profile: %v", err)
+		t.Fatalf("set title profile: %v", err)
 	}
 	n, err := st.Q.CountTitlesByProfile(ctx, prof.ID)
 	if err != nil || n != 1 {
@@ -108,10 +108,10 @@ func TestReassignThenDeleteProfileCascadesGroups(t *testing.T) {
 	}
 	got, err := st.Q.GetTitle(ctx, title.ID)
 	if err != nil {
-		t.Fatalf("get series: %v", err)
+		t.Fatalf("get title: %v", err)
 	}
 	if got.QualityProfileID != def.ID {
-		t.Errorf("series profile after reassign = %d, want default %d", got.QualityProfileID, def.ID)
+		t.Errorf("title profile after reassign = %d, want default %d", got.QualityProfileID, def.ID)
 	}
 }
 
@@ -127,10 +127,10 @@ func TestDeleteQualityProfileRefusesWhileInUse(t *testing.T) {
 	}
 	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	if _, err := st.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{QualityProfileID: prof.ID, ID: title.ID, ID_2: prof.ID}); err != nil {
-		t.Fatalf("set series profile: %v", err)
+		t.Fatalf("set title profile: %v", err)
 	}
 
 	rows, err := st.Q.DeleteQualityProfile(ctx, prof.ID)
@@ -141,7 +141,7 @@ func TestDeleteQualityProfileRefusesWhileInUse(t *testing.T) {
 		t.Errorf("delete of in-use profile reported %d rows, want 0 (refused)", rows)
 	}
 	if _, err := st.Q.GetQualityProfile(ctx, prof.ID); err != nil {
-		t.Error("a profile still assigned to a series must survive a delete attempt")
+		t.Error("a profile still assigned to a title must survive a delete attempt")
 	}
 }
 
@@ -151,21 +151,21 @@ func TestSetTitleProfileRejectsMissingProfile(t *testing.T) {
 
 	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	rows, err := st.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{QualityProfileID: 999, ID: title.ID, ID_2: 999})
 	if err != nil {
-		t.Fatalf("set series profile: %v", err)
+		t.Fatalf("set title profile: %v", err)
 	}
 	if rows != 0 {
 		t.Errorf("set to missing profile reported %d rows, want 0 (refused)", rows)
 	}
 	got, err := st.Q.GetTitle(ctx, title.ID)
 	if err != nil {
-		t.Fatalf("get series: %v", err)
+		t.Fatalf("get title: %v", err)
 	}
 	if got.QualityProfileID == 999 {
-		t.Error("series must not point at a profile that does not exist")
+		t.Error("title must not point at a profile that does not exist")
 	}
 }
 
@@ -332,7 +332,7 @@ func TestBatchProfileReadsPartitionByProfile(t *testing.T) {
 	for _, title := range []string{"A", "B"} {
 		s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: 1})
 		if err != nil {
-			t.Fatalf("create series %s: %v", title, err)
+			t.Fatalf("create title %s: %v", title, err)
 		}
 		if _, err := st.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{
 			QualityProfileID: other.ID, ID: s.ID, ID_2: other.ID,
@@ -343,7 +343,7 @@ func TestBatchProfileReadsPartitionByProfile(t *testing.T) {
 
 	countRows, err := st.Q.CountTitlesPerProfile(ctx)
 	if err != nil {
-		t.Fatalf("count series per profile: %v", err)
+		t.Fatalf("count titles per profile: %v", err)
 	}
 	counts := map[int64]int64{}
 	for _, c := range countRows {

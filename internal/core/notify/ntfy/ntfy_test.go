@@ -54,7 +54,7 @@ func TestSendPostsToServerSlashTopic(t *testing.T) {
 		t.Errorf("title = %q, want Import succeeded", title)
 	}
 	if !strings.Contains(got.body, "Placeholder Saga") {
-		t.Errorf("body %q should carry the series", got.body)
+		t.Errorf("body %q should carry the title", got.body)
 	}
 	if got.headers.Get("Authorization") != "" {
 		t.Error("authorization header sent with no token configured")

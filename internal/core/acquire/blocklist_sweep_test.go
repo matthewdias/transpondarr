@@ -136,6 +136,6 @@ func TestSweepIgnoresAnotherTitlesBlocklistEntry(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedReleaseTitles(t, h.st, id); len(got) != 1 {
-		t.Fatalf("grabbed %v, want the release (another series' block must not apply)", got)
+		t.Fatalf("grabbed %v, want the release (another title's block must not apply)", got)
 	}
 }

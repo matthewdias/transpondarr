@@ -97,7 +97,7 @@ func (s *Service) SweepOnce(ctx context.Context) error {
 		Limit:        titlesPerPass,
 	})
 	if err != nil {
-		return fmt.Errorf("list series due a wanted search: %w", err)
+		return fmt.Errorf("list titles due a wanted search: %w", err)
 	}
 
 	// Read once per pass, from the indexer this run resolved, so a Settings edit
@@ -110,7 +110,7 @@ func (s *Service) SweepOnce(ctx context.Context) error {
 			return ctx.Err()
 		}
 		if err := s.sweepTitle(ctx, idx, title, now, hasFeed); err != nil {
-			errs = append(errs, fmt.Errorf("series %d: %w", title.ID, err))
+			errs = append(errs, fmt.Errorf("title %d: %w", title.ID, err))
 		}
 	}
 	return errors.Join(errs...)
@@ -508,7 +508,7 @@ func (s *Service) writeSearchState(ctx context.Context, title db.Series, sweep [
 func (s *Service) setSearchState(ctx context.Context, p db.SetTitleSearchStateParams) error {
 	rows, err := s.store.Q.SetTitleSearchState(ctx, p)
 	if err != nil {
-		return fmt.Errorf("write search cadence for series %d: %w", p.ID, err)
+		return fmt.Errorf("write search cadence for title %d: %w", p.ID, err)
 	}
 	if rows == 0 {
 		s.log.Debug("search cadence write skipped; the series was reset or removed mid-sweep",

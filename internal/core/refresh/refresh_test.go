@@ -311,7 +311,7 @@ func TestRefreshHoldsFinishedTitlesForTheLongCutoff(t *testing.T) {
 	}
 
 	if len(prov.calls) != 0 {
-		t.Errorf("provider called %v, want a finished series held for the long cutoff", prov.calls)
+		t.Errorf("provider called %v, want a finished title held for the long cutoff", prov.calls)
 	}
 }
 
@@ -398,7 +398,7 @@ func TestRefreshIncludesUnmonitoredTitles(t *testing.T) {
 	}
 
 	if len(prov.calls) != 1 {
-		t.Fatalf("provider called %v, want the unmonitored series refreshed once", prov.calls)
+		t.Fatalf("provider called %v, want the unmonitored title refreshed once", prov.calls)
 	}
 	var items int
 	if err := st.DB.QueryRowContext(context.Background(),
@@ -430,11 +430,11 @@ func TestRefreshGivesMonitoredTitlesEverySlot(t *testing.T) {
 		t.Fatalf("RefreshOnce: %v", err)
 	}
 	if len(prov.calls) != 5 {
-		t.Fatalf("first pass fetched %v, want the 5-series bound", prov.calls)
+		t.Fatalf("first pass fetched %v, want the 5-title bound", prov.calls)
 	}
 	for _, id := range prov.calls {
 		if id == 10 {
-			t.Fatal("the unmonitored series took a slot a monitored one wanted")
+			t.Fatal("the unmonitored title took a slot a monitored one wanted")
 		}
 	}
 
@@ -451,7 +451,7 @@ func TestRefreshGivesMonitoredTitlesEverySlot(t *testing.T) {
 		t.Fatalf("second RefreshOnce: %v", err)
 	}
 	if rest := prov.calls[5:]; len(rest) != 1 || rest[0] != 10 {
-		t.Fatalf("second pass fetched %v, want only the unmonitored series", rest)
+		t.Fatalf("second pass fetched %v, want only the unmonitored title", rest)
 	}
 }
 
@@ -476,7 +476,7 @@ func TestRefreshBoundsEachPassAndPrioritizesNeverFetched(t *testing.T) {
 		t.Fatalf("provider called %d times, want a pass bounded at 5: %v", len(prov.calls), prov.calls)
 	}
 	if prov.calls[0] != 7 {
-		t.Errorf("first call = %d, want the never-fetched series (7) first", prov.calls[0])
+		t.Errorf("first call = %d, want the never-fetched title (7) first", prov.calls[0])
 	}
 }
 
@@ -515,11 +515,11 @@ func TestRefreshContinuesPastAFailingTitle(t *testing.T) {
 
 	err := newService(t, st, prov).RefreshOnce(context.Background())
 	if err == nil {
-		t.Fatal("RefreshOnce: want the failing series' error surfaced, got nil")
+		t.Fatal("RefreshOnce: want the failing title's error surfaced, got nil")
 	}
 
 	if got := items(t, st, idB); len(got) != 12 {
-		t.Errorf("series 2 got %d items, want 12 despite series 1 failing", len(got))
+		t.Errorf("title 2 got %d items, want 12 despite title 1 failing", len(got))
 	}
 }
 

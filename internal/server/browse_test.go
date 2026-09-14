@@ -171,7 +171,7 @@ func TestBrowseSeasonMarksTrackedAndOverlaysAiring(t *testing.T) {
 
 	tracked := out.Entries[0]
 	if !tracked.Tracked || tracked.TitleID != titleID {
-		t.Errorf("entry 101 tracked=%t title_id=%d, want tracked with series %d", tracked.Tracked, tracked.TitleID, titleID)
+		t.Errorf("entry 101 tracked=%t title_id=%d, want tracked with title %d", tracked.Tracked, tracked.TitleID, titleID)
 	}
 	if tracked.NextEpisode != 6 || tracked.NextAirsAt != localNext.Format(time.RFC3339) {
 		t.Errorf("entry 101 next airing = ep %d at %q, want the local ep 6 at %s", tracked.NextEpisode, tracked.NextAirsAt, localNext.Format(time.RFC3339))

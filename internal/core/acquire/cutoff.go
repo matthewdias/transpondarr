@@ -127,7 +127,7 @@ func (s *Service) CutoffUnmet(ctx context.Context, p CutoffUnmetParams) (CutoffU
 			Limit:   int64(p.Limit),
 		})
 		if err != nil {
-			return CutoffUnmetPage{}, fmt.Errorf("list cutoff-unmet series: %w", err)
+			return CutoffUnmetPage{}, fmt.Errorf("list cutoff-unmet titles: %w", err)
 		}
 		if len(titles) == 0 {
 			return out, nil

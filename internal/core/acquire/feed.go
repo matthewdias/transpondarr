@@ -127,7 +127,7 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 			Limit:        titlesPerPass,
 		})
 	if err != nil {
-		return fmt.Errorf("list series that aired inside a feed gap: %w", err)
+		return fmt.Errorf("list titles that aired inside a feed gap: %w", err)
 	}
 
 	var errs []error
@@ -137,7 +137,7 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 			break
 		}
 		if err := s.store.Q.ResetTitleSearchState(ctx, title.ID); err != nil {
-			errs = append(errs, fmt.Errorf("reset series %d after a feed gap: %w", title.ID, err))
+			errs = append(errs, fmt.Errorf("reset title %d after a feed gap: %w", title.ID, err))
 			continue
 		}
 		reset++
@@ -162,7 +162,7 @@ func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) err
 	due, err := s.store.Q.ListTitlesWithWantedItems(ctx,
 		sql.NullString{String: store.FormatTimestamp(now), Valid: true})
 	if err != nil {
-		return fmt.Errorf("list series with wanted items: %w", err)
+		return fmt.Errorf("list titles with wanted items: %w", err)
 	}
 
 	// Nothing due means nothing to parse for: a library with nothing wanted must
@@ -180,7 +180,7 @@ func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) err
 			return ctx.Err()
 		}
 		if err := s.pollOneTitle(ctx, title, releases, parses, now); err != nil {
-			errs = append(errs, fmt.Errorf("series %d: %w", title.ID, err))
+			errs = append(errs, fmt.Errorf("title %d: %w", title.ID, err))
 		}
 	}
 	return errors.Join(errs...)

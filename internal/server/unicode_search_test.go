@@ -128,7 +128,7 @@ func seedAnilistTitle(t *testing.T, h *harness, title string, anilistID int64, c
 		ProviderID: sql.NullInt64{Int64: anilistID, Valid: true},
 	})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	for n := 1; n <= count; n++ {
 		if _, err := h.store.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{

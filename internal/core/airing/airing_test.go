@@ -183,7 +183,7 @@ func TestSyncWritesAirDatesForANeverSyncedTitle(t *testing.T) {
 	}
 	// Never synced before, so history is fetched in full exactly once.
 	if prov.notYetAired[100] {
-		t.Error("a never-synced series fetched only the tail, so its aired history is lost")
+		t.Error("a never-synced title fetched only the tail, so its aired history is lost")
 	}
 }
 
@@ -462,7 +462,7 @@ func TestSyncSkipsFreshlySyncedTitles(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 	if len(prov.calls) != 0 {
-		t.Errorf("provider called %d times for a freshly synced series, want 0", len(prov.calls))
+		t.Errorf("provider called %d times for a freshly synced title, want 0", len(prov.calls))
 	}
 }
 
@@ -479,7 +479,7 @@ func TestSyncHoldsFinishedTitlesForTheLongCutoff(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 	if len(prov.calls) != 0 {
-		t.Errorf("a finished series resynced after 48h; want it held to the long cutoff")
+		t.Errorf("a finished title resynced after 48h; want it held to the long cutoff")
 	}
 }
 
@@ -496,7 +496,7 @@ func TestSyncHoldsAFinishedTitlePastTheUnknownCountTTL(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 	if len(prov.calls) != 0 {
-		t.Errorf("a finished series resynced after 8 days; want it held to the long cutoff")
+		t.Errorf("a finished title resynced after 8 days; want it held to the long cutoff")
 	}
 }
 
@@ -512,7 +512,7 @@ func TestSyncStampsTitleWithNoScheduleData(t *testing.T) {
 	}
 
 	if _, ok := syncedAt(t, st, titleID); !ok {
-		t.Fatal("a series with no schedule data was left unsynced, so it retries forever")
+		t.Fatal("a title with no schedule data was left unsynced, so it retries forever")
 	}
 	if got, ok := airsAt(t, st, titleID, 1); ok {
 		t.Errorf("item 1 airs_at = %q, want null", got)
@@ -533,7 +533,7 @@ func TestSyncIncludesUnmonitoredTitles(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 	if len(prov.calls) != 1 {
-		t.Fatalf("provider called %d times for an unmonitored series, want 1", len(prov.calls))
+		t.Fatalf("provider called %d times for an unmonitored title, want 1", len(prov.calls))
 	}
 	got, ok := airsAt(t, st, titleID, 1)
 	if !ok {
@@ -563,11 +563,11 @@ func TestSyncGivesMonitoredTitlesEverySlot(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 	if len(prov.calls) != 5 {
-		t.Fatalf("first pass fetched %d series, want the 5-series bound", len(prov.calls))
+		t.Fatalf("first pass fetched %d titles, want the 5-title bound", len(prov.calls))
 	}
 	for _, id := range prov.calls {
 		if id == 310 {
-			t.Fatal("the unmonitored series took a slot a monitored one wanted")
+			t.Fatal("the unmonitored title took a slot a monitored one wanted")
 		}
 	}
 
@@ -575,7 +575,7 @@ func TestSyncGivesMonitoredTitlesEverySlot(t *testing.T) {
 		t.Fatalf("second SyncOnce: %v", err)
 	}
 	if rest := prov.calls[5:]; len(rest) != 1 || rest[0] != 310 {
-		t.Fatalf("second pass fetched %v, want only the unmonitored series", rest)
+		t.Fatalf("second pass fetched %v, want only the unmonitored title", rest)
 	}
 }
 
@@ -596,11 +596,11 @@ func TestSyncBoundsEachPassAndPrioritizesNeverSynced(t *testing.T) {
 		t.Fatalf("SyncOnce: %v", err)
 	}
 	if len(prov.calls) != 5 {
-		t.Fatalf("first pass fetched %d series, want the 5-series bound", len(prov.calls))
+		t.Fatalf("first pass fetched %d titles, want the 5-title bound", len(prov.calls))
 	}
 	for _, id := range prov.calls {
 		if id == 210 {
-			t.Fatal("the stale series was fetched ahead of never-synced ones")
+			t.Fatal("the stale title was fetched ahead of never-synced ones")
 		}
 	}
 
@@ -609,7 +609,7 @@ func TestSyncBoundsEachPassAndPrioritizesNeverSynced(t *testing.T) {
 	}
 	rest := prov.calls[5:]
 	if len(rest) != 2 || rest[0] == 210 || rest[1] != 210 {
-		t.Fatalf("second pass fetched %v, want the last never-synced series then the stale one", rest)
+		t.Fatalf("second pass fetched %v, want the last never-synced title then the stale one", rest)
 	}
 }
 
@@ -625,15 +625,15 @@ func TestSyncContinuesPastAFailingTitle(t *testing.T) {
 
 	err := newService(t, st, prov).SyncOnce(context.Background())
 	if err == nil {
-		t.Fatal("SyncOnce reported success despite a failing series")
+		t.Fatal("SyncOnce reported success despite a failing title")
 	}
 
 	if _, ok := airsAt(t, st, healthy, 1); !ok {
-		t.Error("the healthy series was skipped because another one failed")
+		t.Error("the healthy title was skipped because another one failed")
 	}
 	// A failed fetch must not be recorded as a successful sync.
 	if _, ok := syncedAt(t, st, failing); ok {
-		t.Error("the failing series was stamped as synced, so its schedule is never retried")
+		t.Error("the failing title was stamped as synced, so its schedule is never retried")
 	}
 }
 
@@ -741,13 +741,13 @@ func TestSyncCollapsesIdenticalFailures(t *testing.T) {
 
 	err := newService(t, st, prov).SyncOnce(context.Background())
 	if err == nil {
-		t.Fatal("SyncOnce reported success despite three failing series")
+		t.Fatal("SyncOnce reported success despite three failing titles")
 	}
 	if got := strings.Count(err.Error(), "temporarily disabled"); got != 1 {
 		t.Errorf("the cause appears %d times in %q, want once", got, err)
 	}
-	if !strings.Contains(err.Error(), "3 series") {
-		t.Errorf("%q does not report how many series failed", err)
+	if !strings.Contains(err.Error(), "3 titles") {
+		t.Errorf("%q does not report how many titles failed", err)
 	}
 	if !errors.Is(err, outage) {
 		t.Errorf("%q no longer wraps the cause", err)
@@ -769,12 +769,12 @@ func TestSyncKeepsDistinctFailures(t *testing.T) {
 
 	err := newService(t, st, prov).SyncOnce(context.Background())
 	if err == nil {
-		t.Fatal("SyncOnce reported success despite two failing series")
+		t.Fatal("SyncOnce reported success despite two failing titles")
 	}
 	if !errors.Is(err, unreachable) || !errors.Is(err, notFound) {
 		t.Errorf("%q dropped one of two distinct causes", err)
 	}
-	if strings.Contains(err.Error(), "2 series") {
+	if strings.Contains(err.Error(), "2 titles") {
 		t.Errorf("%q counted two distinct failures as one repeated cause", err)
 	}
 }

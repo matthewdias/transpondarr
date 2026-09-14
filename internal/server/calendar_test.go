@@ -105,7 +105,7 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 	}
 	for _, it := range withUnmonitored.Items {
 		if it.TitleID == otherID && it.Monitored {
-			t.Errorf("unmonitored series item flagged monitored")
+			t.Errorf("unmonitored title item flagged monitored")
 		}
 	}
 }
@@ -189,7 +189,7 @@ func TestCalendarSurfacesUnscheduledTitles(t *testing.T) {
 		t.Fatalf("GET calendar = %d, want 200", code)
 	}
 	if len(out.Unscheduled) != 1 {
-		t.Fatalf("unscheduled = %+v, want only the monitored incomplete series", out.Unscheduled)
+		t.Fatalf("unscheduled = %+v, want only the monitored incomplete title", out.Unscheduled)
 	}
 	if out.Unscheduled[0].TitleID != noSchedule || out.Unscheduled[0].Title != "No Schedule Show" {
 		t.Errorf("unscheduled[0] = %+v, want No Schedule Show", out.Unscheduled[0])
@@ -204,10 +204,10 @@ func TestCalendarSurfacesUnscheduledTitles(t *testing.T) {
 		got[s.TitleID] = true
 	}
 	if len(withUnmonitored.Unscheduled) != 2 || !got[noSchedule] || !got[unmonitored] {
-		t.Errorf("unscheduled with unmonitored = %+v, want both incomplete series", withUnmonitored.Unscheduled)
+		t.Errorf("unscheduled with unmonitored = %+v, want both incomplete titles", withUnmonitored.Unscheduled)
 	}
 	if got[complete] {
-		t.Error("a complete series was named unscheduled")
+		t.Error("a complete title was named unscheduled")
 	}
 }
 
@@ -230,7 +230,7 @@ func TestCalendarSeparatesNeverCheckedFromNoSchedule(t *testing.T) {
 		checked[s.TitleID] = s.ScheduleChecked
 	}
 	if len(out.Unscheduled) != 2 {
-		t.Fatalf("unscheduled = %+v, want both incomplete series", out.Unscheduled)
+		t.Fatalf("unscheduled = %+v, want both incomplete titles", out.Unscheduled)
 	}
 	if !checked[asked] {
 		t.Error("a synced title reads as unchecked, so the footer understates what it knows")

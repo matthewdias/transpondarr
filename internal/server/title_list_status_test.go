@@ -130,7 +130,7 @@ func TestTitleListOmitsItemStatusForASeries(t *testing.T) {
 		t.Fatalf("GET /titles = %d, want 200", code)
 	}
 	if len(raw.Titles) != 1 {
-		t.Fatalf("titles = %+v, want the one series", raw.Titles)
+		t.Fatalf("titles = %+v, want the one title", raw.Titles)
 	}
 	if v, present := raw.Titles[0]["item_status"]; present {
 		t.Errorf("series item_status present as %v, want it omitted (title %d)", v, titleID)

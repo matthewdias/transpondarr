@@ -14,7 +14,7 @@ import (
 // ErrTitleHasItems rejects a count for a title that already has items: raising
 // maxItem on a healthy one is the same hazard as inferring the count from a
 // release name, only human-triggered.
-var ErrTitleHasItems = errors.New("catalog: series already has wanted items")
+var ErrTitleHasItems = errors.New("catalog: title already has wanted items")
 
 // SetItemCount materializes items 1..count for a title that has none, which is
 // the only thing that unsticks a title the provider published neither a count
@@ -30,7 +30,7 @@ func (s *Service) SetItemCount(ctx context.Context, titleID int64, count int) (i
 
 	title, err := q.GetTitle(ctx, titleID)
 	if err != nil {
-		return 0, fmt.Errorf("load series: %w", err)
+		return 0, fmt.Errorf("load title: %w", err)
 	}
 	// Read inside the transaction, so a concurrent add cannot insert behind it.
 	existing, err := q.ListWantedItems(ctx, titleID)

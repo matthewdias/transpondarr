@@ -105,7 +105,7 @@ func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 		t.Error("last_searched_at not advanced by a rehearsed pass")
 	}
 	if state.backoff == 0 || !state.nextSearchAt.Valid {
-		t.Errorf("rehearsed pass left backoff=%d next=%v; a would-grab must not make the series due every tick",
+		t.Errorf("rehearsed pass left backoff=%d next=%v; a would-grab must not make the title due every tick",
 			state.backoff, state.nextSearchAt)
 	}
 }
@@ -354,7 +354,7 @@ func TestNotifyOnlyFlipsToOnAndOffLive(t *testing.T) {
 	// flipping to on is what has to clear that (#116) — a user has no way to
 	// reach in and make the title due.
 	if state := readSearchState(t, st, id); state.backoff == 0 {
-		t.Fatal("precondition: the rehearsed pass did not back the series off")
+		t.Fatal("precondition: the rehearsed pass did not back the title off")
 	}
 	if err := cfg.UpdateAutomation(ctx, settings.AutomationConfig{Mode: settings.AutomationOn}); err != nil {
 		t.Fatalf("flip to on: %v", err)

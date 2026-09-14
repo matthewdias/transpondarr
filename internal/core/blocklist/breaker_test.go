@@ -176,7 +176,7 @@ func TestClearAllForgetsEverythingAndClosesTheBreaker(t *testing.T) {
 		Title: "Another Placeholder", Format: "TV", Monitored: 1,
 	})
 	if err != nil {
-		t.Fatalf("create other series: %v", err)
+		t.Fatalf("create other title: %v", err)
 	}
 	at(svc, time.Now())
 
@@ -188,7 +188,7 @@ func TestClearAllForgetsEverythingAndClosesTheBreaker(t *testing.T) {
 		record(t, svc, titleID, item, fmt.Sprintf("[SynthSubs] Placeholder - %02d", item))
 	}
 	if !svc.BreakerState().Open {
-		t.Fatal("breaker closed after failures across two series; its scope is the library")
+		t.Fatal("breaker closed after failures across two titles; its scope is the library")
 	}
 
 	cleared, err := svc.ClearAll(ctx)
@@ -203,7 +203,7 @@ func TestClearAllForgetsEverythingAndClosesTheBreaker(t *testing.T) {
 	}
 	for _, id := range []int64{title.ID, other.ID} {
 		if left, _ := svc.List(ctx, id); len(left) != 0 {
-			t.Errorf("series %d still has %d entries after a library-wide clear", id, len(left))
+			t.Errorf("title %d still has %d entries after a library-wide clear", id, len(left))
 		}
 	}
 }
