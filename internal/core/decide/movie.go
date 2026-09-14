@@ -38,7 +38,7 @@ func movieCandidate(c Candidate, variants []string, itemSet map[int]bool, held m
 	// A title with no year on record still matches — its refusal is an ineligible
 	// reason, so a manual grab stays free (PR #57).
 	if y := releaseYear(p, variants); y != 0 && titleYear != 0 && y != titleYear {
-		c.Reason = fmt.Sprintf("year %d does not match this entry (year %d)", y, titleYear)
+		c.Reason = fmt.Sprintf("year %d does not match this film (year %d)", y, titleYear)
 		return c
 	}
 
@@ -51,7 +51,7 @@ func movieCandidate(c Candidate, variants []string, itemSet map[int]bool, held m
 	c.Reason = "movie matches a wanted item"
 	for _, n := range covered {
 		if _, ok := held[n]; ok {
-			c.Reason = "movie upgrades a held item"
+			c.Reason = "movie upgrades the file already in the library"
 			break
 		}
 	}

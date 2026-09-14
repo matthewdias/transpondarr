@@ -70,7 +70,7 @@ describe("ScoreCell", () => {
     renderCell(
       release({
         eligible: false,
-        ineligible_reason: "group BadRipCo is blocked by the profile",
+        ineligible_reason: "release group BadRipCo is blocked by the profile",
       }),
     );
     expect(screen.getByLabelText(/ineligible/i)).toBeInTheDocument();
@@ -186,7 +186,7 @@ describe("ScoreBreakdown", () => {
       <ScoreBreakdown
         r={release({
           eligible: false,
-          ineligible_reason: "group BadRipCo is blocked by the profile",
+          ineligible_reason: "release group BadRipCo is blocked by the profile",
         })}
       />,
     );
@@ -452,7 +452,7 @@ describe("grabToast", () => {
   it("keeps the release alongside the profile's reason", () => {
     const t = grabToast(
       grabResult({
-        ineligible_reason: "group BadRipCo is blocked by the profile",
+        ineligible_reason: "release group BadRipCo is blocked by the profile",
       }),
     );
     expect(t.level).toBe("warning");
