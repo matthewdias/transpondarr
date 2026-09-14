@@ -9,7 +9,7 @@ import {
   TriangleAlert,
   X,
 } from "lucide-react";
-import { api, ApiError, type CandidateRelease, errorReason } from "@/lib/api";
+import { api, type CandidateRelease, errorReason } from "@/lib/api";
 import { grabToast } from "./grab-toast";
 import { filterCovering } from "@/lib/release-focus";
 import {
@@ -21,6 +21,8 @@ import {
 import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EmptyState } from "@/components/empty-state";
+import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -215,24 +217,12 @@ export function ReleasesTab({
     grab.isPending && grab.variables?.download_url === r.download_url;
 
   if (search.isError) {
-    const msg =
-      search.error instanceof ApiError
-        ? search.error.message
-        : String(search.error);
     return (
-      <div className="flex flex-col items-center rounded-lg border border-dashed bg-card px-6 py-14 text-center">
-        <TriangleAlert className="mb-3 size-7 text-dl" />
-        <h3 className="text-sm font-semibold">Couldn’t search for releases</h3>
-        <p className="mt-1.5 max-w-md text-sm text-muted-foreground">{msg}</p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-4"
-          onClick={() => search.refetch()}
-        >
-          <RefreshCw className="size-4" /> Try again
-        </Button>
-      </div>
+      <LoadError
+        message="Couldn’t search for releases."
+        error={search.error}
+        onRetry={() => search.refetch()}
+      />
     );
   }
 
@@ -294,32 +284,28 @@ export function ReleasesTab({
       )}
 
       {!search.isLoading && results.length === 0 && (
-        <div className="flex flex-col items-center rounded-lg border border-dashed bg-card py-16 text-center">
-          <Search className="mb-3 size-7 text-faint" />
-          <p className="text-sm text-muted-foreground">
-            {format === "MOVIE"
+        <EmptyState
+          icon={Search}
+          blurb={
+            format === "MOVIE"
               ? "No releases found for this film."
-              : "No releases found for this series."}
-          </p>
-        </div>
+              : "No releases found for this series."
+          }
+          width="section"
+        />
       )}
 
       {results.length > 0 && shown.length === 0 && (
-        <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
-          <h3 className="text-sm font-semibold">{`No releases cover E${focus}`}</h3>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            This search found releases for the series, but none of them include
-            this episode.
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-4"
-            onClick={onClearFocus}
-          >
-            Show all {results.length} results
-          </Button>
-        </div>
+        <EmptyState
+          title={`No releases cover E${focus}`}
+          blurb="This search found releases for the series, but none of them include this episode."
+          action={
+            <Button variant="outline" size="sm" onClick={onClearFocus}>
+              Show all {results.length} results
+            </Button>
+          }
+          width="section"
+        />
       )}
 
       {shown.length > 0 && (

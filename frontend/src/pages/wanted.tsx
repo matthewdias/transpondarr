@@ -49,6 +49,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LoadError } from "@/components/load-error";
+import { EmptyState } from "@/components/empty-state";
 
 type WantedTab = "missing" | "cutoff";
 
@@ -230,6 +231,7 @@ function MissingTab({
       />
       {groups.length === 0 ? (
         <EmptyState
+          icon={ListChecks}
           title="Nothing missing"
           blurb={
             unaired
@@ -565,6 +567,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
     <>
       {groups.length === 0 ? (
         <EmptyState
+          icon={ListChecks}
           title={hasNextPage ? "None found yet" : "Nothing below cutoff"}
           blurb={
             hasNextPage
@@ -776,16 +779,6 @@ function LoadMore({
     >
       {isFetching ? "Loading…" : (label ?? "Load more")}
     </Button>
-  );
-}
-
-function EmptyState({ title, blurb }: { title: string; blurb: string }) {
-  return (
-    <div className="mx-auto flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
-      <ListChecks className="mb-3 size-6 text-faint" />
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <p className="mt-1.5 text-sm text-muted-foreground">{blurb}</p>
-    </div>
   );
 }
 

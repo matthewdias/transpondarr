@@ -3,6 +3,7 @@ import { Eye, EyeOff, Search } from "lucide-react";
 import type { TitleDetail, WantedItem } from "@/lib/api";
 import { airDate, pad2, parseTimestamp } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
@@ -134,17 +135,12 @@ export function EpisodesTab({
   // so the tab shows an explanation and the one action that unsticks it.
   if (items.length === 0) {
     return (
-      <div className="rounded-lg border bg-card px-4 py-10 text-center">
-        <p className="text-sm font-semibold">Episode count unknown</p>
-        <p className="mx-auto mt-1.5 max-w-md text-[13px] text-muted-foreground">
-          AniList publishes neither an episode count nor a broadcast schedule
-          for this title, so episodes cannot be searched automatically. Set the
-          count and Transpondarr will start searching for them.
-        </p>
-        <div className="mt-4 flex justify-center">
-          <SetEpisodeCountDialog titleId={detail.id} />
-        </div>
-      </div>
+      <EmptyState
+        title="Episode count unknown"
+        blurb="AniList publishes neither an episode count nor a broadcast schedule for this title, so episodes cannot be searched automatically. Set the count and Transpondarr will start searching for them."
+        action={<SetEpisodeCountDialog titleId={detail.id} />}
+        width="section"
+      />
     );
   }
 

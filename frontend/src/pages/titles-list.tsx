@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadError } from "@/components/load-error";
+import { EmptyState } from "@/components/empty-state";
 
 export function TitleListPage() {
   const {
@@ -39,15 +40,13 @@ export function TitleListPage() {
         {isLoading && <TitleTableSkeleton />}
 
         {titles && titles.length === 0 && (
-          <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-16 text-center">
-            <Tv className="mb-4 size-8 text-faint" />
-            <h2 className="text-base font-semibold">No titles yet</h2>
-            <p className="mb-5 mt-2 text-sm text-muted-foreground">
-              Add a series or a film from AniList to start tracking and grabbing
-              it.
-            </p>
-            <AddTitleButton />
-          </div>
+          <EmptyState
+            icon={Tv}
+            title="No titles yet"
+            as="h2"
+            blurb="Add a series or a film from AniList to start tracking and grabbing it."
+            action={<AddTitleButton />}
+          />
         )}
 
         {titles && titles.length > 0 && (

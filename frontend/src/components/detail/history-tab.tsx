@@ -1,12 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Ban,
-  ChevronDown,
-  ChevronRight,
-  History,
-  RefreshCw,
-  TriangleAlert,
-} from "lucide-react";
+import { Ban, ChevronDown, ChevronRight, History } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api, type BlocklistEntry, errorReason } from "@/lib/api";
@@ -14,6 +7,8 @@ import { GrabEventRow } from "@/components/grab-event-row";
 import { blocklistQuery, grabsQuery } from "@/lib/queries";
 import { countdownOrDate, plural, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/empty-state";
+import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import {
   Item,
@@ -64,34 +59,17 @@ export function HistoryTab({
   }
 
   if (isError) {
-    return (
-      <div className="flex flex-col items-center rounded-lg border border-dashed bg-card px-6 py-14 text-center">
-        <TriangleAlert className="mb-3 size-7 text-dl" />
-        <h3 className="text-sm font-semibold">Couldn’t load history</h3>
-        <p className="mt-1.5 max-w-md text-sm text-muted-foreground">
-          {errorReason(error)}
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-4"
-          onClick={() => refetch()}
-        >
-          <RefreshCw className="size-4" /> Try again
-        </Button>
-      </div>
-    );
+    return <LoadError what="history" error={error} onRetry={() => refetch()} />;
   }
 
   return (
     <div className="space-y-6">
       {!events || events.length === 0 ? (
-        <div className="flex flex-col items-center rounded-lg border border-dashed bg-card py-16 text-center">
-          <History className="mb-3 size-7 text-faint" />
-          <p className="text-sm text-muted-foreground">
-            No grab or import history yet. Grab a release from the Releases tab.
-          </p>
-        </div>
+        <EmptyState
+          icon={History}
+          blurb="No grab or import history yet. Grab a release from the Releases tab."
+          width="section"
+        />
       ) : (
         <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
           {events.map((e) => (
@@ -131,15 +109,11 @@ export function BlockedReleases({
     return (
       <section>
         <h3 className="mb-2 text-sm font-semibold">Blocked releases</h3>
-        <div className="flex items-center gap-3 rounded-lg border border-dashed bg-card px-3.5 py-3">
-          <TriangleAlert className="size-4 shrink-0 text-dl" />
-          <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
-            Couldn’t load blocked releases. {errorReason(error)}
-          </p>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="size-4" /> Try again
-          </Button>
-        </div>
+        <LoadError
+          what="blocked releases"
+          error={error}
+          onRetry={() => refetch()}
+        />
       </section>
     );
   }

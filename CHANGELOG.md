@@ -51,6 +51,10 @@ All notable changes to this project are documented here. The format is based on
   were too faint against their backgrounds to meet WCAG AA, the accessibility
   standard for text their size. The colours keep their look, a shade darker in
   light mode, and the faintest grey is a shade lighter in dark mode.
+- **Empty lists and failed loads look the same on every page.** An empty
+  list shows one kind of card, whether it fills a page or a tab, and a load that
+  fails shows a one-line banner with **Try again**. Before, the Calendar, Discovery and a
+  title's Releases and History tabs each had their own larger error card.
 - **The add dialog now says which episodes it will monitor**, in both choices and
   before you pick one — *All 12 episodes will be monitored*, or *6 of 12
   episodes will be monitored, from episode 7*. When a choice would monitor
