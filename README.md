@@ -182,7 +182,7 @@ integration left unconfigured is disabled, and the server still starts.
 ## Docker deployment
 
 For a real deployment alongside qBittorrent and a media server, use
-[`docker-compose.yml`](docker-compose.yml) as a template. Three things matter:
+[`docker-compose.yml`](docker-compose.yml) as a template. Four things matter:
 
 - **Imports hardlink from the path qBittorrent reports.** Mount your shared
   downloads/library volume into Transpondarr at the _same path_ qBittorrent uses,
@@ -190,29 +190,42 @@ For a real deployment alongside qBittorrent and a media server, use
   single-mount layout (`/data/torrents` + `/data/media`) satisfies both
   requirements. The movies root is one more directory under the same mount, not
   a second mount.
-- **Ownership.** `PUID`/`PGID` must be able to write into your library root and to
-  hardlink qBittorrent's downloads (see the next point). qBittorrent's own UID:GID
-  usually can do both, since qBittorrent already writes to the same volume; check
-  that it can also write to `/data/media`. The container starts as root, fixes
-  `/config` ownership, and drops to that user before serving. The folders Transpondarr creates in the library, and any file it
-  copies there (`copy` import mode, or `auto` across filesystems), are owned by that
-  user. A hardlink is the downloaded file under a second name, so it has the same
-  owner as the download, usually the user qBittorrent runs as.
-  Persist the `/config` volume (it contains the SQLite DB).
+- **Run Transpondarr as qBittorrent's user.** Set `PUID`/`PGID` to the UID:GID
+  qBittorrent runs as. That user owns the downloads, so it can hardlink them (see
+  the next point). It also needs to write into both library roots (`/data/media`
+  and `/data/media-movies` in the example), including the folders already in them,
+  so check that separately. If an import can't write into a folder, it fails with
+  "permission denied" and waits in the Activity queue; `auto` import mode doesn't
+  copy instead.
+  If you change `PUID` on an existing install, the folders the previous user
+  created are writable only by that user, so the next episode of a title already
+  in the library fails with "permission denied". Give the new user those folders,
+  running this against the library roots' host paths:
+  `find /data/media /data/media-movies -type d -exec chown <PUID>:<PGID> {} +`.
+  Change only the folders: a file in a library root may be a hardlink, and
+  changing its owner changes the download's owner too.
 - **On Linux, `PUID` needs permission to hardlink qBittorrent's downloads.** The
   kernel setting `fs.protected_hardlinks` is on by default on most distributions
   and in Docker Desktop. With it on, a hardlink to a file fails with "operation not
   permitted" unless the user making it owns the file or can both read and write it.
-  qBittorrent normally saves downloads writable only by its own user. So if `PUID`
-  is a different user, `auto` import mode copies every file instead of linking it,
-  using twice the disk space and logging nothing, and in `hardlink` import mode the
-  grab waits in the Activity queue with an "operation not permitted" error,
-  retrying on every scan until the permissions change. The simplest fix is to set
-  `PUID` and `PGID` to the UID:GID qBittorrent runs as. Alternatively, give both
-  containers the same `PGID`, make the library root writable by that group, and
-  set qBittorrent's umask to `002` (eg. `UMASK=002` in the linuxserver image), so
-  new downloads are group-writable. Files downloaded before the umask change stay
+  qBittorrent normally saves downloads writable only by its own user, so a
+  different `PUID` can't hardlink them. In `auto` import mode, Transpondarr then
+  copies every file instead, using twice the disk space and logging nothing. In
+  `hardlink` import mode, the grab waits in the Activity queue with an "operation
+  not permitted" error, and the importer retries it every 15 seconds until the
+  permissions change.
+  If you need a `PUID` other than qBittorrent's, give both containers the same
+  `PGID` and make both library roots writable by that group. Then set
+  qBittorrent's umask to `002` (eg. `UMASK=002` in the linuxserver image), so new
+  downloads are group-writable. Files downloaded before the umask change stay
   read-only to the group until you `chmod g+w` them.
+- **Who owns imported files.** The container starts as root, fixes `/config`
+  ownership, and drops to `PUID`/`PGID` before serving. The folders Transpondarr
+  creates in a library root, and any file it copies there (`copy` import mode, or
+  `auto` when a hardlink isn't possible), are owned by that user. A hardlink is the
+  downloaded file under a second name, so it has the same owner as the download.
+
+Persist the `/config` volume (it contains the SQLite DB).
 
 Verify a running deployment (the second call needs your API key):
 
