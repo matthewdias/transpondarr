@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"net/http"
 	"strings"
 
@@ -442,10 +444,60 @@ func (h *settingsHandler) updateDownload(ctx context.Context, in *downloadInput)
 // settingsError maps a service failure onto a status. A rejected secret inheritance
 // is the caller's to fix by sending the secret, so it is a 422 rather than ours (#259).
 func settingsError(err error, wrap func(string, ...error) huma.StatusError, msg string) error {
+	if detail, ok := settingsInputDetail(err); ok {
+		return huma.Error422UnprocessableEntity(detail)
+	}
 	if errors.Is(err, settings.ErrSecretRequired) {
 		return huma.Error422UnprocessableEntity(err.Error())
 	}
 	return wrap(msg, err)
+}
+
+// settingsInputError is the 422 for a rejected settings value, with fallback as the
+// detail of an error settingsInputDetail doesn't word.
+func settingsInputError(err error, fallback string) error {
+	if detail, ok := settingsInputDetail(err); ok {
+		return huma.Error422UnprocessableEntity(detail)
+	}
+	return huma.Error422UnprocessableEntity(fallback)
+}
+
+// settingsInputDetail words a settings check the user fixes by editing a field.
+func settingsInputDetail(err error) (string, bool) {
+	var category *settings.CategoryError
+	var secret *settings.SecretDestinationError
+	var dir *settings.DirError
+	switch {
+	case errors.As(err, &category):
+		return fmt.Sprintf("%q isn't a Newznab category ID. Enter positive numbers separated by commas, such as 5070.", category.Value), true
+	case errors.As(err, &secret):
+		return fmt.Sprintf("The saved %s is only sent to %s. Enter the %s for %s.", secret.What, secret.SavedFor, secret.What, secret.To), true
+	case errors.Is(err, settings.ErrDownloadURLRequired):
+		return "Enter the qBittorrent WebUI URL to test the connection.", true
+	case errors.Is(err, settings.ErrIndexerURLRequired):
+		return "Enter the Torznab URL to test the indexer.", true
+	case errors.Is(err, settings.ErrLibraryDirRequired):
+		return "Enter a library directory, a movies directory, or both.", true
+	case errors.As(err, &dir):
+		switch dir.Problem {
+		case settings.DirNotDirectory:
+			return fmt.Sprintf("The %s path %q is a file. Enter a directory.", dir.Root, dir.Path), true
+		case settings.DirNotWritable:
+			return fmt.Sprintf("Transpondarr can't write to the %s directory %q: %s. Give the user Transpondarr runs as write access.", dir.Root, dir.Path, filesystemReason(dir.Err)), true
+		case settings.DirInaccessible:
+			return fmt.Sprintf("Transpondarr can't open the %s directory %q: %s. Check that the path exists where Transpondarr runs.", dir.Root, dir.Path, filesystemReason(dir.Err)), true
+		}
+	}
+	return "", false
+}
+
+// filesystemReason drops a PathError's operation and path, which the detail already names.
+func filesystemReason(err error) string {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return pathErr.Err.Error()
+	}
+	return fmt.Sprint(err)
 }
 
 func (h *settingsHandler) testDownload(ctx context.Context, in *downloadInput) (*testOutput, error) {
@@ -463,7 +515,7 @@ func (h *settingsHandler) testDownload(ctx context.Context, in *downloadInput) (
 
 func (h *settingsHandler) updateIndexer(ctx context.Context, in *indexerInput) (*settingsOutput, error) {
 	if _, err := settings.NormalizeCategories(in.Body.Categories); err != nil {
-		return nil, huma.Error422UnprocessableEntity(err.Error())
+		return nil, settingsInputError(err, err.Error())
 	}
 	if err := h.settings.UpdateIndexer(ctx, settings.IndexerConfig{
 		Name:       in.Body.Name,
@@ -478,7 +530,7 @@ func (h *settingsHandler) updateIndexer(ctx context.Context, in *indexerInput) (
 
 func (h *settingsHandler) testIndexer(ctx context.Context, in *indexerInput) (*testOutput, error) {
 	if _, err := settings.NormalizeCategories(in.Body.Categories); err != nil {
-		return nil, huma.Error422UnprocessableEntity(err.Error())
+		return nil, settingsInputError(err, err.Error())
 	}
 	if err := h.settings.TestIndexer(ctx, settings.IndexerConfig{
 		Name:       in.Body.Name,
@@ -606,7 +658,7 @@ func (h *settingsHandler) testLibrary(ctx context.Context, in *libraryInput) (*t
 		MoviesDir: in.Body.MoviesDir,
 		Mode:      in.Body.Mode,
 	}); err != nil {
-		return nil, huma.Error422UnprocessableEntity("Transpondarr can't use that directory: " + err.Error())
+		return nil, settingsInputError(err, "Transpondarr can't use that directory: "+err.Error())
 	}
 	out := &testOutput{}
 	out.Body.Status = "ok"

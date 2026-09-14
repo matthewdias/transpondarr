@@ -28,9 +28,22 @@ func inheritSecret(supplied, stored, toURL, storedURL, what string) (string, err
 	if strings.TrimSpace(savedFor) == "" {
 		savedFor = "the host it was saved for"
 	}
-	return "", fmt.Errorf("%w: the stored %s is only sent to %s; enter the %s for %s",
-		ErrSecretRequired, what, savedFor, what, toURL)
+	return "", &SecretDestinationError{What: what, SavedFor: savedFor, To: toURL}
 }
+
+// SecretDestinationError is ErrSecretRequired with the destinations it names.
+type SecretDestinationError struct {
+	What     string // eg. "qBittorrent password"
+	SavedFor string
+	To       string
+}
+
+func (e *SecretDestinationError) Error() string {
+	return fmt.Sprintf("%v: the stored %s is only sent to %s; enter the %s for %s",
+		ErrSecretRequired, e.What, e.SavedFor, e.What, e.To)
+}
+
+func (e *SecretDestinationError) Is(target error) bool { return target == ErrSecretRequired }
 
 // sameDestination reports whether two URLs name the host that receives the secret,
 // so a path edit -- switching which Jackett indexer is probed -- is not a new
