@@ -51,6 +51,7 @@ import { MovieStatusCard } from "@/components/detail/movie-status-card";
 import { ReleasesTab } from "@/components/detail/releases-tab";
 import { HistoryTab } from "@/components/detail/history-tab";
 import { LoadError } from "@/components/load-error";
+import { EmptyState } from "@/components/empty-state";
 
 type TabKey = "episodes" | "status" | "releases" | "history";
 
@@ -232,16 +233,19 @@ export function TitleDetailPage() {
         {isLoading && <HeaderSkeleton />}
 
         {notFound && (
-          <div className="rounded-lg border border-dashed bg-card px-6 py-16 text-center">
-            <h2 className="text-base font-semibold">Title not found</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              This title is no longer in your library.{" "}
-              <Link to="/" className="text-accent-foreground hover:underline">
-                Back to titles
-              </Link>
-              .
-            </p>
-          </div>
+          <EmptyState
+            title="Title not found"
+            as="h2"
+            blurb={
+              <>
+                This title is no longer in your library.{" "}
+                <Link to="/" className="text-accent-foreground hover:underline">
+                  Back to titles
+                </Link>
+                .
+              </>
+            }
+          />
         )}
 
         {isError && !notFound && (

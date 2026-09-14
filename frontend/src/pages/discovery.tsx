@@ -9,10 +9,8 @@ import {
   Compass,
   ExternalLink,
   Plus,
-  RefreshCw,
-  TriangleAlert,
 } from "lucide-react";
-import { ApiError, type SeasonEntry } from "@/lib/api";
+import type { SeasonEntry } from "@/lib/api";
 import {
   type ChartFilters,
   filterEntries,
@@ -38,6 +36,8 @@ import { AddTitleDialog } from "@/components/add-title-form";
 import { AniListLink } from "@/components/anilist-link";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
+import { LoadError } from "@/components/load-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -212,24 +212,12 @@ export function DiscoveryPage() {
         </h2>
 
         {chart.isError && (
-          <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
-            <TriangleAlert className="mb-3 size-6 text-dl" />
-            <h3 className="text-sm font-semibold">
-              Couldn’t load the season chart
-            </h3>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              {chart.error instanceof ApiError
-                ? chart.error.message
-                : String(chart.error)}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4"
-              onClick={() => chart.refetch()}
-            >
-              <RefreshCw className="size-4" /> Try again
-            </Button>
+          <div className="mt-3">
+            <LoadError
+              what="the season chart"
+              error={chart.error}
+              onRetry={() => chart.refetch()}
+            />
           </div>
         )}
 
@@ -238,29 +226,30 @@ export function DiscoveryPage() {
         )}
 
         {chart.isSuccess && entries.length === 0 && (
-          <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
-            <Compass className="mb-3 size-6 text-faint" />
-            <h3 className="text-sm font-semibold">Nothing charted</h3>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              AniList lists no titles for {seasonLabel(ref)}.
-            </p>
+          <div className="mt-3">
+            <EmptyState
+              icon={Compass}
+              title="Nothing charted"
+              blurb={`AniList lists no titles for ${seasonLabel(ref)}.`}
+            />
           </div>
         )}
 
         {chart.isSuccess && entries.length > 0 && filtered.length === 0 && (
-          <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
-            <h3 className="text-sm font-semibold">No titles match</h3>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              Every title this season is filtered out.
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4"
-              onClick={() => setFilters(NO_FILTERS)}
-            >
-              Clear filters
-            </Button>
+          <div className="mt-3">
+            <EmptyState
+              title="No titles match"
+              blurb="Every title this season is filtered out."
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFilters(NO_FILTERS)}
+                >
+                  Clear filters
+                </Button>
+              }
+            />
           </div>
         )}
 

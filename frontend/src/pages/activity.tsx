@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LoadError } from "@/components/load-error";
+import { EmptyState } from "@/components/empty-state";
 
 export function ActivityPage() {
   return (
@@ -103,10 +104,11 @@ function QueueSection() {
       ) : isError ? (
         <LoadError what="the queue" error={error} onRetry={refetch} />
       ) : !data || data.items.length === 0 ? (
-        <div className="flex flex-col items-center rounded-lg border border-dashed bg-card py-10 text-center">
-          <Download className="mb-3 size-7 text-faint" />
-          <p className="text-sm text-muted-foreground">Nothing downloading.</p>
-        </div>
+        <EmptyState
+          icon={Download}
+          blurb="Nothing downloading."
+          width="section"
+        />
       ) : (
         <>
           {!data.client_ok && (
@@ -344,12 +346,11 @@ function HistorySection() {
       ) : isError ? (
         <LoadError what="history" error={error} onRetry={refetch} />
       ) : events.length === 0 ? (
-        <div className="flex flex-col items-center rounded-lg border border-dashed bg-card py-10 text-center">
-          <History className="mb-3 size-7 text-faint" />
-          <p className="text-sm text-muted-foreground">
-            No grab or import history yet.
-          </p>
-        </div>
+        <EmptyState
+          icon={History}
+          blurb="No grab or import history yet."
+          width="section"
+        />
       ) : (
         <>
           <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">

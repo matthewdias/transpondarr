@@ -9,12 +9,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Film,
-  RefreshCw,
-  TriangleAlert,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
-  ApiError,
   type CalendarItem,
   type ItemStatus,
   type UnscheduledTitle,
@@ -33,6 +30,8 @@ import { airDate, pad2 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { MOBILE_BREAKPOINT } from "@/hooks/use-mobile";
 import { ItemStatusBadge } from "@/components/badges";
+import { EmptyState } from "@/components/empty-state";
+import { LoadError } from "@/components/load-error";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -158,24 +157,12 @@ export function CalendarPage() {
           className="rounded-lg focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
           {cal.isError && (
-            <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
-              <TriangleAlert className="mb-3 size-6 text-dl" />
-              <h3 className="text-sm font-semibold">
-                Couldn’t load the calendar
-              </h3>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                {cal.error instanceof ApiError
-                  ? cal.error.message
-                  : String(cal.error)}
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-4"
-                onClick={() => cal.refetch()}
-              >
-                <RefreshCw className="size-4" /> Try again
-              </Button>
+            <div className="mt-4">
+              <LoadError
+                what="the calendar"
+                error={cal.error}
+                onRetry={() => cal.refetch()}
+              />
             </div>
           )}
 
@@ -419,13 +406,11 @@ function Agenda({
   const withItems = days.filter((d) => buckets.has(dayKey(d)));
   if (withItems.length === 0) {
     return (
-      <div className="mx-auto flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
-        <CalendarDays className="mb-3 size-6 text-faint" />
-        <h3 className="text-sm font-semibold">Nothing scheduled</h3>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Nothing monitored is scheduled this week.
-        </p>
-      </div>
+      <EmptyState
+        icon={CalendarDays}
+        title="Nothing scheduled"
+        blurb="Nothing monitored is scheduled this week."
+      />
     );
   }
   return (
