@@ -190,7 +190,7 @@ func snapshotDTO(s settings.Snapshot) settingsDTO {
 // Input bodies
 //
 // One rule decides every field below, and CLAUDE.md explains it (#227): a body is
-// its section's whole state, so omitempty means absent and empty are the same
+// its section's whole settings state, so omitempty means absent and empty are the same
 // instruction, and anything the service would default is required instead.
 
 type downloadInput struct {

@@ -111,7 +111,7 @@ func TestProfileInputRequiresEveryDefaultedField(t *testing.T) {
 		"upgrades_enabled", "cutoff_score", "upgrade_v2_above_cutoff",
 	}
 	// Empty is the value itself for each of these: no preference, no excludes,
-	// no ranked groups.
+	// no ranked profile groups.
 	optional := []string{"preferred_source", "sub_pref", "codec_pref", "hard_excludes", "groups"}
 
 	var created profileJSON
@@ -145,7 +145,7 @@ func TestProfileInputRequiresEveryDefaultedField(t *testing.T) {
 		}
 	}
 
-	// A group row's own switch takes the rule too: under omitempty no client
+	// A profile group row's own switch takes the rule too: under omitempty no client
 	// could state "not blocked" — this test's own body type could not, until it
 	// was fixed with the DTO.
 	unstated := profileInput("Trusted", map[string]any{

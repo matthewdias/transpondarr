@@ -70,13 +70,13 @@ service side is in [`../core/settings/CLAUDE.md`](../core/settings/CLAUDE.md).
 - **Auth is forms-based** (`internal/core/auth`): the web UI logs in (username +
   argon2id password) and gets an httpOnly session cookie; the **API key** is for
   machine clients only (`X-Api-Key`). A request to `/api/*` is authorized by a
-  valid session cookie, a valid API key, or — in `local` required-mode — a
+  valid session cookie, a valid API key, or — in `local` auth required-mode — a
   loopback/private request with no forwarding headers. The key is resolved as
   `TRANSPONDARR_API_KEY` env → DB-persisted → generate-and-persist (`resolveAPIKey`
   in `cmd/transpondarrd`); it persists across restarts.
-- **A settings body is its section's whole state, so `omitempty` is an argument
+- **A settings body is its section's whole settings state, so `omitempty` is an argument
   rather than a default (#227).** A field the service would fill in with a
-  default is required — the library mode and layout, the qBit category, the
+  default is required — the library import mode and layout, the qBit category, the
   stall hours, the ntfy server, every notify toggle — because omitting it
   *selects* that default instead of leaving it alone, invisibly to the sender:
   #129's flat library reverted to season folders on a save that never mentioned
@@ -85,11 +85,11 @@ service side is in [`../core/settings/CLAUDE.md`](../core/settings/CLAUDE.md).
   secret keeps the stored one, a blank URL, root or topic switches that piece
   off. Sending a required field empty still takes the default, and that *is* the
   distinction: the client said so — **except where the field has an `enum`
-  tag**, which rejects an empty value outright, so `mode`, `series_layout` and
+  tag**, which rejects an empty value outright, so the library's `mode`, `series_layout` and
   automation's `mode` are 422 either way and the handler's `ValidImportMode` /
   `ValidSeriesLayout` guards are unreachable defence in depth. The rule is about
   the encoding, not about Huma, so it applies to the hand-rolled bodies too —
-  `POST /api/v1/auth/mode` validates the mode itself, where the service would
+  `POST /api/v1/auth/mode` validates the auth required-mode itself, where the service would
   otherwise read an absent one as `enabled` and lock a `local` install out. It
   validates *exactly*, matching those enums: `auth.ValidRequired` rejects a case
   variant that `normalizeRequired` would have accepted, because that one reads
@@ -106,7 +106,7 @@ service side is in [`../core/settings/CLAUDE.md`](../core/settings/CLAUDE.md).
   defaults what it omits" idiom was never true here, and splitting create from
   update would have meant inventing those defaults in Go to match the ones SQLite
   already states. What stays `omitempty` is where empty is the value: no
-  preference, no excludes, no ranked groups. `blocked` on a group row is
+  preference, no excludes, no ranked profile groups. `blocked` on a profile group row is
   required for the plain reason — under `omitempty` no client can say "not
   blocked", which this repo's own Go and TypeScript test fixtures both
   demonstrated by being unable to.

@@ -28,7 +28,7 @@ func deriveItemState(inLibrary bool, grab db.Grab, hasGrab bool) itemState {
 	switch {
 	case inLibrary && grabStatus == "grabbed":
 		// An upgrade in flight over a file already in the library (#97). Every other
-		// held state stays "in_library": a deferred or failed upgrade changed nothing.
+		// held acquisition state stays "in_library": a deferred or failed upgrade changed nothing.
 		status = "downloading"
 	case inLibrary:
 		status = "in_library"

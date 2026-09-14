@@ -34,7 +34,7 @@ type titleDTO struct {
 	Tracked        int    `json:"tracked" doc:"Items this title is pursuing: monitored and already broadcast"`
 	MonitoredItems int    `json:"monitored_items" doc:"Monitored items whether or not they have aired, so a zero tracked count can name its cause"`
 	InLibrary      int    `json:"in_library" doc:"Held items inside the tracked set, so progress can never exceed it"`
-	// The state is per item and this row is per title, so it is published only
+	// The acquisition state is per item and this row is per title, so it is published only
 	// where format guarantees the two are the same thing (#208).
 	ItemStatus  string `json:"item_status,omitempty" enum:"in_library,downloading,stuck,deferred,wanted" doc:"Derived acquisition state of the sole item; present for a movie only"`
 	ImportError string `json:"import_error,omitempty" doc:"Why the last import attempt failed (item_status stuck)"`
@@ -314,7 +314,7 @@ func (h *titleHandler) listTitles(ctx context.Context, _ *struct{}) (*listTitles
 	if err != nil {
 		return nil, huma.Error500InternalServerError("failed to list titles", err)
 	}
-	// A second pass rather than a wider aggregate: the state reads the item's
+	// A second pass rather than a wider aggregate: the acquisition state reads the item's
 	// grab, which no GROUP BY can express, and deriving it once here keeps the
 	// counts query -- and so a series' progress column -- unchanged.
 	movieRows, err := h.store.Q.ListMovieItemStates(ctx)
@@ -591,8 +591,8 @@ func (h *titleHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupInp
 	if rows == 0 {
 		return nil, huma.Error404NotFound("title not found")
 	}
-	// A held title's next_search_at was computed from the pin that just changed,
-	// so without this a shortened wait or a new group does nothing until the old
+	// A pin-held title's next_search_at was computed from the pin that just changed,
+	// so without this a shortened wait or a new pinned group does nothing until the old
 	// window closes.
 	if err := h.store.Q.ResetTitleSearchState(ctx, in.ID); err != nil {
 		return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)

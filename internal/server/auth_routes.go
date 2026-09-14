@@ -82,7 +82,7 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	// Change password (requires the current one). In "local" mode the middleware
+	// Change password (requires the current one). In "local" auth mode the middleware
 	// admits any LAN peer uncredentialed, so the limiter is the only throttle here.
 	r.With(passwordLimiter).Post("/api/v1/auth/password", func(w http.ResponseWriter, req *http.Request) {
 		var in struct {
@@ -110,7 +110,7 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 		issueSession(w, req, a, a.Username(), http.StatusOK)
 	})
 
-	// Change the required-mode (enabled | local). Authed via the middleware.
+	// Change the auth required-mode (enabled | local). Authed via the middleware.
 	r.Post("/api/v1/auth/mode", func(w http.ResponseWriter, req *http.Request) {
 		var in struct {
 			Required string `json:"required"`
@@ -120,7 +120,7 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 			return
 		}
 		// The settings inputs' rule (#227) applies here too: the service reads an
-		// absent mode as "enabled", which would lock a local install out.
+		// absent required-mode as "enabled", which would lock a local install out.
 		if !auth.ValidRequired(in.Required) {
 			http.Error(w, "required must be enabled or local", http.StatusBadRequest)
 			return

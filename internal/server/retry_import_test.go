@@ -41,7 +41,7 @@ type retryJSON struct {
 
 // deferredRelease grabs one release across two items, completes it with a
 // payload whose second file is unreadable, and scans — leaving episode 2
-// deferred, which is the state the fix dialog exists for.
+// deferred, which is the acquisition state the fix dialog exists for.
 func deferredRelease(t *testing.T, h *harness) (titleID, deferredGrabID, importedGrabID int64) {
 	t.Helper()
 	titleID = seedTitle(t, h.store, "Placeholder Saga", 6)
@@ -82,7 +82,7 @@ func deferredRelease(t *testing.T, h *harness) (titleID, deferredGrabID, importe
 	return titleID, deferredGrabID, importedGrabID
 }
 
-// deferredArchiveRelease is the same state over a payload nothing can read: a
+// deferredArchiveRelease is the same acquisition state over a payload nothing can read: a
 // RAR set, which the dialog has to render or it is a dead end.
 func deferredArchiveRelease(t *testing.T, h *harness) (deferredGrabID int64) {
 	t.Helper()

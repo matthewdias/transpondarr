@@ -79,7 +79,7 @@ type grabTitleOutput struct {
 // read-only release search (match against wanted items) and the grab that sends
 // a chosen release to the download client and records it. The handlers are
 // methods on titleHandler (defined in titles_routes.go), so they share one
-// acquire.Service with the scheduled sweep.
+// acquire.Service with the scheduled search sweep.
 func registerTitleAcquisitionRoutes(api huma.API, deps routeDeps) {
 	h := newTitleHandler(deps)
 
@@ -162,7 +162,7 @@ func (h *titleHandler) grabRelease(ctx context.Context, in *grabTitleInput) (*gr
 		return nil, acquireHTTPError(err)
 	}
 
-	// Re-run the match and locate the chosen release by URL, so we grab exactly
+	// Re-run the release match and locate the chosen release by URL, so we grab exactly
 	// what the decider reports it covers rather than the client-supplied item
 	// numbers.
 	var chosen *decide.Candidate

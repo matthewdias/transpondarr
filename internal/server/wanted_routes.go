@@ -32,8 +32,8 @@ type lastPassDTO struct {
 
 // missingItemDTO is one item still worth acquiring. It reports no derived status
 // because the listing's predicate admits only wanted ones -- an in-flight grab
-// is Activity's row, not this page's. Its reason covers only what varies row to
-// row; the title's reason lives on the group and the page's on global_reason.
+// is Activity's row, not the Wanted page's. Its reason covers only what varies row to
+// row; the title's reason lives on the title group and the Wanted page's on global_reason.
 type missingItemDTO struct {
 	ID           int64        `json:"id"`
 	Number       int          `json:"number"`
@@ -45,7 +45,7 @@ type missingItemDTO struct {
 	LastPass     *lastPassDTO `json:"last_pass,omitempty" doc:"Present only when the reason is the last pass's answer, which is dated because it can go stale"`
 }
 
-// missingGroupDTO is one title's missing items. Grouping is the page's shape
+// missingGroupDTO is one title's missing items. Grouping is the Wanted page's shape
 // because the bulk action is per title: a search queues a title, never a row.
 type missingGroupDTO struct {
 	TitleID         int64            `json:"title_id"`
@@ -61,7 +61,7 @@ type missingGroupDTO struct {
 
 // cutoffItemDTO is one held item whose release scores below its profile's
 // cutoff, with the numbers behind that claim. The cutoff itself lives on the
-// group, being the profile's rather than any one item's. There is no import
+// title group, being the profile's rather than any one item's. There is no import
 // error here: a held item derives to in_library/downloading and never to stuck,
 // so a failing upgrade's reason is the Activity queue's to show, alongside the
 // deferred imports this listing also leaves to it.
@@ -125,7 +125,7 @@ type queueSearchOutput struct {
 	}
 }
 
-// setItemsMonitoredInput is one state-setter for both call sites; a single
+// setItemsMonitoredInput is one monitoring state-setter for both call sites; a single
 // toggle is a one-element array. The client chunks against maxItems.
 type setItemsMonitoredInput struct {
 	Body struct {
@@ -202,7 +202,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	out.Body.GlobalReason = globalReason(h.deps.clients.Indexer() != nil,
 		h.deps.settings.Snapshot().Automation.Mode)
 
-	// One past the page, to detect whether a next page exists.
+	// One past the results page, to detect whether a next page exists.
 	titleRows, err := h.deps.store.Q.ListMissingTitlesPage(ctx, db.ListMissingTitlesPageParams{
 		Column1:  boolParam(in.Unmonitored),
 		Column2:  boolParam(in.Unaired),
@@ -219,7 +219,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	if hasMore {
 		titleRows = titleRows[:in.Limit]
 	}
-	// The page's weight is rows, not groups, so it also closes on an item
+	// The results page's weight is rows, not title groups, so it also closes on an item
 	// budget. The aggregate already reports what each group will list, so the
 	// budget is applied before any items are fetched; the first group is always
 	// included, however large its cap.
@@ -305,7 +305,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		items := itemsByTitle[s.ID]
 		if len(items) == 0 {
 			// The two queries are not one transaction; a grab settling between
-			// them empties a group, and an empty group misreports the count.
+			// them empties a title group, and an empty group misreports the count.
 			continue
 		}
 		facts := titleFacts{
@@ -405,7 +405,7 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 	return out, nil
 }
 
-// queueSearch resets the sweep cadence and triggers a run. It never issues an
+// queueSearch resets the search sweep cadence and triggers a run. It never issues an
 // indexer request itself: titlesPerPass is the budget the whole search design
 // protects, so "search all" on a large library is a queue, not a burst.
 func (h *wantedHandler) queueSearch(ctx context.Context, in *queueSearchInput) (*queueSearchOutput, error) {
@@ -479,7 +479,7 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	return out, nil
 }
 
-// resetSelected puts the named title back at the front of the sweep queue in
+// resetSelected puts the named title back at the front of the search sweep queue in
 // one transaction: a partial reset would leave half the selection queued behind
 // a 500, with nothing in the response naming which half.
 func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
@@ -508,7 +508,7 @@ func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
 }
 
 // blockedCounts is how many releases each title currently blocks, keyed for
-// the per-row lookup the reason column does. Scoped to the page's title.
+// the per-row lookup the reason column does. Scoped to the results page's title.
 func (h *wantedHandler) blockedCounts(ctx context.Context, ids []int64, now sql.NullString) (map[int64]int64, error) {
 	rows, err := h.deps.store.Q.ListActiveBlocklistCounts(ctx, db.ListActiveBlocklistCountsParams{
 		TitleIds: ids, BlockedUntil: now,

@@ -250,7 +250,7 @@ func TestRegrabReplacesDeferredGrab(t *testing.T) {
 	}
 }
 
-// TestStuckImportShowsReason (#37): an import failing on source access must
+// TestStuckImportShowsReason (#37): an import failing on source path access must
 // surface as a distinct "stuck" status with the reason — not blend into
 // "downloading" — and recover to "in_library" once the path works.
 func TestStuckImportShowsReason(t *testing.T) {

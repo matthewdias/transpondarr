@@ -10,7 +10,7 @@ import (
 
 // acquireHTTPError maps the acquire package's sentinels to status errors. It is
 // the one boundary between huma and core: the service returns plain errors so
-// the sweep can use them too.
+// the search sweep can use them too.
 func acquireHTTPError(err error) error {
 	switch {
 	case errors.Is(err, acquire.ErrNoIndexer):

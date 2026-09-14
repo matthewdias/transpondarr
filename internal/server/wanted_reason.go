@@ -8,11 +8,11 @@ import (
 )
 
 // Why an item is still missing, split by scope (#150): one global answer for
-// the page, one per title group, one per item. The three levels render together
+// the Wanted page, one per title group, one per item. The three levels render together
 // instead of one replacing another, which is what let a failed grab and its
 // blocklist entry both be visible.
 //
-// Every reason but the item's pass reason is derived from stored state at request
+// Every reason but the item's pass reason is derived from stored database state at request
 // time and so is never stale. The pass reason is the one stored answer (#181):
 // what the last search or poll decided about this item, which is why it is
 // always rendered with its own date.
@@ -50,7 +50,7 @@ func globalReason(indexerReady bool, mode settings.AutomationMode) string {
 	return ""
 }
 
-// titleFacts is one title's standing in the sweep queue, the scope a group
+// titleFacts is one title's standing in the search sweep queue, the scope a title group
 // header covers.
 type titleFacts struct {
 	Monitored       bool
@@ -59,7 +59,7 @@ type titleFacts struct {
 	NextSearchAt    time.Time // zero when the title is due now
 }
 
-// titleReason picks the fact that most explains the group, widest-first: what
+// titleReason picks the fact that most explains the title group, widest-first: what
 // stops the title being a target, then its recorded failures, then its queue slot.
 func titleReason(f titleFacts, now time.Time) string {
 	switch {
@@ -86,8 +86,8 @@ type passFacts struct {
 	HeldUntil  time.Time
 }
 
-// itemFacts is the state that varies row to row; a zero AirsAt is a provider
-// gap, which the sweep reads as searchable, never as a date in the future.
+// itemFacts is the item state that varies row to row; a zero AirsAt is a provider
+// gap, which the search sweep reads as searchable, never as a date in the future.
 type itemFacts struct {
 	Monitored  bool
 	AirsAt     time.Time
@@ -100,7 +100,7 @@ type itemFacts struct {
 // seven, a row shows five. grabbed exists only as the tombstone that
 // invalidates an older refusal -- a listed item's grab plainly did not last,
 // and grab_failed is what that row shows. contended is silent too, because its
-// honest message is "the queue is working", which the group's reason already reports.
+// honest message is "the queue is working", which the title group's reason already reports.
 func passReason(outcome string) string {
 	switch outcome {
 	case acquire.OutcomeNoMatch:
@@ -117,15 +117,15 @@ func passReason(outcome string) string {
 	return ""
 }
 
-// itemReason is the reason specific to this row, or "" when the group and page
+// itemReason is the reason specific to this row, or "" when the title group and Wanted page
 // cover it all; fromPass reports whether the stored pass reason won, which is the
 // one that may show an "as of" date.
 //
 // A pass answer outranks a failed grab because the two differ in kind. A
 // failure is a handled past event -- the item reverted to wanted, a blocklist
-// entry was written, and the group already reads "Releases blocklisted (N)" --
+// entry was written, and the title group already reads "Releases blocklisted (N)" --
 // while a decline is a standing, unresolved, user-actionable condition that
-// appears nowhere else on the page and repeats silently every pass.
+// appears nowhere else on the Wanted page and repeats silently every pass.
 //
 // Unmonitored is widest of all and suppresses everything below it: nothing about
 // the row will be revisited while monitoring is off.

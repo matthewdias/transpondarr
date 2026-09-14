@@ -262,7 +262,7 @@ func writeGroups(ctx context.Context, q *db.Queries, profileID int64, groups []p
 }
 
 // requireNameFree applies to profile names the case-insensitive rule validate
-// already applies to group names. Callers must skip it when the name is not
+// already applies to profile group names. Callers must skip it when the name is not
 // changing, since a stored row can contain a name this rejects (see update).
 func requireNameFree(ctx context.Context, q *db.Queries, name string) error {
 	_, err := q.GetQualityProfileByName(ctx, name)
@@ -280,7 +280,7 @@ func requireNameFree(ctx context.Context, q *db.Queries, name string) error {
 func isUniqueNameErr(err error) bool { return store.IsUniqueViolation(err) }
 
 // The listing is unpaginated, so there is no id set to scope by (#91): one query
-// for groups, one for counts, three whatever the profile count.
+// for profile groups, one for counts, three whatever the profile count.
 func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesOutput, error) {
 	rows, err := h.store.Q.ListQualityProfiles(ctx)
 	if err != nil {

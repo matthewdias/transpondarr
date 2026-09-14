@@ -142,7 +142,7 @@ func authMiddleware(a *auth.Service, apiKeyFn func() string) func(http.Handler) 
 }
 
 // authorized reports whether a request may proceed: a valid machine API key, a
-// valid browser session, or — in "local" mode — a request from a local address.
+// valid browser session, or — in "local" auth mode — a request from a local address.
 func authorized(req *http.Request, a *auth.Service, apiKeyFn func() string) bool {
 	// Constant-time compare so the key can't be recovered by timing (matches the
 	// password path in the auth package).
@@ -162,7 +162,7 @@ func authorized(req *http.Request, a *auth.Service, apiKeyFn func() string) bool
 // hasValidSession reports whether the request includes a valid browser login
 // session (as opposed to being admitted by the API key or the local-address
 // bypass). The auth-status endpoint surfaces this so the UI offers "Sign out"
-// only when there is a session to end — in "local" mode a loopback client is
+// only when there is a session to end — in "local" auth mode a loopback client is
 // authorized with no session, so the action would otherwise be a no-op.
 func hasValidSession(req *http.Request, a *auth.Service) bool {
 	c, err := req.Cookie(auth.SessionCookieName)
@@ -212,7 +212,7 @@ func proxied(req *http.Request) bool {
 }
 
 // isLocalRequest reports whether the request came from a loopback or private
-// address with no proxy-forwarding headers. Note: in "local" mode this admits the
+// address with no proxy-forwarding headers. Note: in "local" auth mode this admits the
 // whole private range, not just the host — see SECURITY.md before exposing it.
 func isLocalRequest(req *http.Request) bool {
 	if proxied(req) {
@@ -224,7 +224,7 @@ func isLocalRequest(req *http.Request) bool {
 	// address, so it would otherwise pass the check above and skip auth. Requiring
 	// the Host header to be an IP literal or "localhost" — a value the attacker
 	// can't force into the victim's browser via DNS — blocks that. Reaching the
-	// UI by a hostname in local mode therefore needs a real login (session/API key).
+	// UI by a hostname in local auth mode therefore needs a real login (session/API key).
 	if !hostIsLocalLiteral(req.Host) {
 		return false
 	}

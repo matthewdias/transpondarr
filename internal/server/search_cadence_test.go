@@ -10,7 +10,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// searchCadence reads a title's accumulated sweep backoff and next-due stamp.
+// searchCadence reads a title's accumulated search sweep backoff and next-due stamp.
 func searchCadence(t *testing.T, h *harness, titleID int64) (int, *string) {
 	t.Helper()
 	var backoff int
@@ -44,7 +44,7 @@ func TestEnableMonitoringResetsSearchCadence(t *testing.T) {
 	}
 }
 
-// Changing the pin changes what the sweep is waiting for, so the wait it is
+// Changing the pin changes what the search sweep is waiting for, so the wait it is
 // currently applying is stale. Without the reset, dropping a 48h wait to 2h — or
 // pinning an entirely different group — does nothing until the old window
 // closes, which reads as the setting having been ignored.
