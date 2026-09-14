@@ -25,7 +25,7 @@ type jobStatusDTO struct {
 	IntervalMs     int64   `json:"interval_ms"`
 	Running        bool    `json:"running"`
 	LastRun        string  `json:"last_run,omitempty" doc:"RFC3339 UTC; absent until the job has run"`
-	LastDurationMs float64 `json:"last_duration_ms" doc:"Fractional: a sub-millisecond sweep would otherwise always report 0"`
+	LastDurationMs float64 `json:"last_duration_ms" doc:"Fractional: a sub-millisecond job run would otherwise always report 0"`
 	LastError      string  `json:"last_error,omitempty"`
 	NextRun        string  `json:"next_run,omitempty" doc:"RFC3339 UTC; absent while the runner is not running"`
 }

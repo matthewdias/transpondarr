@@ -18,7 +18,7 @@ import (
 
 type profileGroupDTO struct {
 	Name    string `json:"name" doc:"Release group name; array order is the preference rank"`
-	Blocked bool   `json:"blocked" doc:"Never take this group, at any quality"`
+	Blocked bool   `json:"blocked" doc:"Never take this release group, at any quality"`
 }
 
 type qualityProfileDTO struct {
@@ -51,11 +51,11 @@ type profileBody struct {
 	CodecPref       string            `json:"codec_pref,omitempty" doc:"h264, h265 or av1; empty for no preference"`
 	HardExcludes    []string          `json:"hard_excludes,omitempty" doc:"Axis values that disqualify a release: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty excludes nothing"`
 	MinScore        int64             `json:"min_score" minimum:"0" doc:"Candidates scoring below are ineligible; zero means no minimum"`
-	Groups          []profileGroupDTO `json:"groups,omitempty" doc:"Ranked group preference, most preferred first; empty ranks no group"`
+	Groups          []profileGroupDTO `json:"groups,omitempty" doc:"Ranked release group preference, most preferred first; empty ranks no release group"`
 
-	UpgradesEnabled      bool  `json:"upgrades_enabled" doc:"Re-grab a held item while its release scores below the cutoff"`
-	CutoffScore          int64 `json:"cutoff_score" minimum:"0" doc:"Ceiling: a held release scoring at least this is good enough; zero means already met"`
-	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff" doc:"Take the same release group's v2/repack of the held release even above the cutoff"`
+	UpgradesEnabled      bool  `json:"upgrades_enabled" doc:"Re-grab an item already in the library while its release scores below the cutoff"`
+	CutoffScore          int64 `json:"cutoff_score" minimum:"0" doc:"Ceiling: a release already in the library scoring at least this is good enough; zero means already met"`
+	UpgradeV2AboveCutoff bool  `json:"upgrade_v2_above_cutoff" doc:"Take the same release group's v2/repack of the release already in the library even above the cutoff"`
 }
 
 type listProfilesOutput struct {
@@ -177,10 +177,10 @@ func validate(b profileBody) error {
 	for _, g := range b.Groups {
 		name := strings.ToLower(strings.TrimSpace(g.Name))
 		if name == "" {
-			return errors.New("group names must be non-empty")
+			return errors.New("release group names must be non-empty")
 		}
 		if seen[name] {
-			return fmt.Errorf("group %q appears more than once", g.Name)
+			return fmt.Errorf("release group %q appears more than once", g.Name)
 		}
 		seen[name] = true
 	}

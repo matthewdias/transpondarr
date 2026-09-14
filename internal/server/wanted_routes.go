@@ -52,10 +52,10 @@ type missingGroupDTO struct {
 	Title           string           `json:"title"`
 	Format          string           `json:"format" doc:"Title format; the sole discriminator between movie and series wording, so a film is never called an episode"`
 	Monitored       bool             `json:"monitored"`
-	Reason          string           `json:"reason" enum:"unmonitored,blocklisted,never_searched,search_backoff,search_due" doc:"The title's standing in the sweep queue, derived from stored state at request time"`
+	Reason          string           `json:"reason" enum:"unmonitored,blocklisted,never_searched,search_backoff,search_due" doc:"The title's standing in the search sweep queue, derived at request time from stored monitoring, blocklist and search state"`
 	BlockedReleases int              `json:"blocked_releases,omitempty" doc:"Releases this title is currently refusing (reason blocklisted)"`
-	NextSearchAt    string           `json:"next_search_at,omitempty" doc:"When the sweep next reaches this title (reason search_backoff)"`
-	Missing         int              `json:"missing" doc:"Missing items in the whole group; may exceed len(items), which is capped"`
+	NextSearchAt    string           `json:"next_search_at,omitempty" doc:"When the search sweep next searches this title (reason search_backoff)"`
+	Missing         int              `json:"missing" doc:"Missing items in the whole title group; may exceed len(items), which is capped"`
 	Items           []missingItemDTO `json:"items"`
 }
 
@@ -74,7 +74,7 @@ type cutoffItemDTO struct {
 	Status      string         `json:"status" enum:"in_library,downloading" doc:"Derived acquisition state; downloading while an upgrade is in flight"`
 	HeldRelease string         `json:"held_release" doc:"The release in the library, which the score below rates"`
 	Score       int            `json:"score"`
-	UnmetGoals  []scorePartDTO `json:"unmet_goals,omitempty" doc:"Profile axes the held release scores below its best on, each with the points still available"`
+	UnmetGoals  []scorePartDTO `json:"unmet_goals,omitempty" doc:"Profile axes the release already in the library scores below its best on, each with the points still available"`
 }
 
 // cutoffGroupDTO is one title's sub-cutoff items, the listing's pagination unit.
@@ -90,7 +90,7 @@ type cutoffGroupDTO struct {
 }
 
 type wantedPageInput struct {
-	Limit       int    `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Title groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items"`
+	Limit       int    `query:"limit" minimum:"1" maximum:"200" default:"50" doc:"Title groups per results page on both tabs, and the scan batch size on cutoff-unmet; a results page may close below it once it lists about 200 items"`
 	Cursor      string `query:"cursor" doc:"Opaque cursor from the previous page's next_cursor"`
 	Unmonitored bool   `query:"unmonitored" doc:"Include items from unmonitored titles"`
 	Unaired     bool   `query:"unaired" doc:"Include items whose broadcast is still ahead; the Calendar shows upcoming broadcasts"`
@@ -113,7 +113,7 @@ type cutoffOutput struct {
 
 type queueSearchInput struct {
 	Body struct {
-		TitleIDs []int64 `json:"title_ids" required:"true" maxItems:"500" doc:"Titles to put back at the front of the sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident"`
+		TitleIDs []int64 `json:"title_ids" required:"true" maxItems:"500" doc:"Titles to put back at the front of the search sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident"`
 	}
 }
 
@@ -137,7 +137,7 @@ type setItemsMonitoredInput struct {
 type setItemsMonitoredOutput struct {
 	Body struct {
 		Updated      int `json:"updated" doc:"Items changed; below len(item_ids) when some were deleted"`
-		TitlesQueued int `json:"titles_queued" doc:"Distinct titles put back at the front of the sweep queue; always 0 when unmonitoring"`
+		TitlesQueued int `json:"titles_queued" doc:"Distinct titles put back at the front of the search sweep queue; always 0 when unmonitoring"`
 	}
 }
 
@@ -171,8 +171,8 @@ func registerWantedRoutes(api huma.API, deps routeDeps) {
 		OperationID:   "queue-wanted-search",
 		Method:        http.MethodPost,
 		Path:          "/api/v1/wanted/search",
-		Summary:       "Put titles back at the front of the sweep queue and run the sweep now",
-		Description:   "Queues work rather than searching: the sweep's per-pass limit is the indexer budget the search design protects, so a library-wide reset drains over several passes.",
+		Summary:       "Put titles back at the front of the search sweep queue and run the search sweep now",
+		Description:   "Queues work rather than searching: the search sweep's per-pass limit is the indexer budget the search design protects, so a library-wide reset drains over several passes.",
 		Tags:          []string{"wanted"},
 		DefaultStatus: http.StatusAccepted,
 	}, h.queueSearch)
@@ -425,7 +425,7 @@ func (h *wantedHandler) queueSearch(ctx context.Context, in *queueSearchInput) (
 
 	if h.deps.jobs != nil {
 		if err := h.deps.jobs.Trigger(sweepJobName); err != nil && !errors.Is(err, jobs.ErrUnknownJob) {
-			return nil, huma.Error500InternalServerError("failed to trigger the sweep", err)
+			return nil, huma.Error500InternalServerError("failed to trigger the search sweep", err)
 		} else if err == nil {
 			out.Body.RunTriggered = true
 		}
