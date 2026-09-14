@@ -92,7 +92,7 @@ describe("typed client (openapi-fetch)", () => {
         HttpResponse.json(
           {
             title: "Bad Gateway",
-            detail: "failed to add series",
+            detail: "failed to add title",
             errors: [
               {
                 message:
@@ -145,7 +145,7 @@ describe("typed client (openapi-fetch)", () => {
         HttpResponse.json(
           {
             title: "Bad Gateway",
-            detail: "failed to add series",
+            detail: "failed to add title",
             errors: [{ message: 404 }, { message: { nested: true } }],
           },
           { status: 502 },
@@ -156,7 +156,7 @@ describe("typed client (openapi-fetch)", () => {
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({
       status: 502,
-      message: "failed to add series",
+      message: "failed to add title",
     });
   });
 

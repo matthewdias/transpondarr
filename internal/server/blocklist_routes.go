@@ -127,10 +127,10 @@ func registerBlocklistRoutes(api huma.API, deps routeDeps) {
 func (h *blocklistHandler) list(ctx context.Context, in *titleBlocklistInput) (*titleBlocklistOutput, error) {
 	title, err := h.store.Q.GetTitle(ctx, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("series not found")
+		return nil, huma.Error404NotFound("title not found")
 	}
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load series", err)
+		return nil, huma.Error500InternalServerError("failed to load title", err)
 	}
 	rows, err := h.blocklist.List(ctx, title.ID)
 	if err != nil {
@@ -195,10 +195,10 @@ func (h *blocklistHandler) clearAll(ctx context.Context, _ *struct{}) (*clearedO
 func (h *blocklistHandler) clearTitle(ctx context.Context, in *clearTitleBlocklistInput) (*clearedOutput, error) {
 	title, err := h.store.Q.GetTitle(ctx, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("series not found")
+		return nil, huma.Error404NotFound("title not found")
 	}
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load series", err)
+		return nil, huma.Error500InternalServerError("failed to load title", err)
 	}
 
 	cleared := h.blocklist.ClearTitle

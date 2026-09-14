@@ -223,10 +223,10 @@ func newTitleHandler(deps routeDeps) *titleHandler {
 func (h *titleHandler) requireTitle(ctx context.Context, id int64) (db.Series, error) {
 	title, err := h.store.Q.GetTitle(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.Series{}, huma.Error404NotFound("series not found")
+		return db.Series{}, huma.Error404NotFound("title not found")
 	}
 	if err != nil {
-		return db.Series{}, huma.Error500InternalServerError("failed to load series", err)
+		return db.Series{}, huma.Error500InternalServerError("failed to load title", err)
 	}
 	return title, nil
 }
@@ -312,7 +312,7 @@ func (h *titleHandler) listTitles(ctx context.Context, _ *struct{}) (*listTitles
 		AirsAt: now, AirsAt_2: now,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list series", err)
+		return nil, huma.Error500InternalServerError("failed to list titles", err)
 	}
 	// A second pass rather than a wider aggregate: the state reads the item's
 	// grab, which no GROUP BY can express, and deriving it once here keeps the
@@ -371,7 +371,7 @@ func (h *titleHandler) addTitle(ctx context.Context, in *addTitleInput) (*addTit
 
 	title, err := h.catalog.AddTitle(ctx, in.Body.Provider, in.Body.ProviderID, monitored, mode, in.Body.QualityProfileID)
 	if errors.Is(err, catalog.ErrAlreadyExists) {
-		return nil, huma.Error409Conflict("series already exists")
+		return nil, huma.Error409Conflict("title already exists")
 	}
 	if errors.Is(err, catalog.ErrUnknownProfile) {
 		return nil, huma.Error422UnprocessableEntity("profile does not exist")
@@ -383,7 +383,7 @@ func (h *titleHandler) addTitle(ctx context.Context, in *addTitleInput) (*addTit
 		return nil, huma.Error400BadRequest("unknown metadata provider", err)
 	}
 	if err != nil {
-		return nil, huma.Error502BadGateway("failed to add series", err)
+		return nil, huma.Error502BadGateway("failed to add title", err)
 	}
 	// Dispatch is async, so this adds no request latency.
 	if d := h.clients.Notify(); d != nil {
@@ -523,10 +523,10 @@ func (h *titleHandler) deleteTitle(ctx context.Context, in *deleteTitleInput) (*
 	}
 	rows, err := h.store.Q.DeleteTitle(ctx, in.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to delete series", err)
+		return nil, huma.Error500InternalServerError("failed to delete title", err)
 	}
 	if rows == 0 {
-		return nil, huma.Error404NotFound("series not found")
+		return nil, huma.Error404NotFound("title not found")
 	}
 	return nil, nil
 }
@@ -539,7 +539,7 @@ func (h *titleHandler) setMonitored(ctx context.Context, in *setMonitoredInput) 
 		Monitored: boolToInt(in.Body.Monitored),
 		ID:        in.ID,
 	}); err != nil {
-		return nil, huma.Error500InternalServerError("failed to update series", err)
+		return nil, huma.Error500InternalServerError("failed to update title", err)
 	}
 	// Monitoring a title again means searching it now, not once a backoff
 	// accumulated before it was paused has run down.
@@ -561,11 +561,11 @@ func (h *titleHandler) setItemCount(ctx context.Context, in *setItemCountInput) 
 	created, err := h.catalog.SetItemCount(ctx, in.ID, in.Body.Count)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		return nil, huma.Error404NotFound("series not found")
+		return nil, huma.Error404NotFound("title not found")
 	case errors.Is(err, catalog.ErrTitleHasItems):
-		return nil, huma.Error409Conflict("series already has episodes")
+		return nil, huma.Error409Conflict("title already has items")
 	case err != nil:
-		return nil, huma.Error500InternalServerError("failed to create the series' items", err)
+		return nil, huma.Error500InternalServerError("failed to create the title's items", err)
 	}
 	out := &setItemCountOutput{}
 	out.Body.Created = int(created)
@@ -586,10 +586,10 @@ func (h *titleHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupInp
 		ID:            in.ID,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to update series", err)
+		return nil, huma.Error500InternalServerError("failed to update title", err)
 	}
 	if rows == 0 {
-		return nil, huma.Error404NotFound("series not found")
+		return nil, huma.Error404NotFound("title not found")
 	}
 	// A held title's next_search_at was computed from the pin that just changed,
 	// so without this a shortened wait or a new group does nothing until the old
