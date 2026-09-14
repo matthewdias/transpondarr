@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	ErrAlreadyExists = errors.New("catalog: series already exists")
+	ErrAlreadyExists = errors.New("catalog: title already exists")
 	// A row keyed on a provider nothing can read would be unrefreshable and
 	// unsearchable, so the pair is rejected at the door rather than persisted.
 	ErrUnknownProvider = errors.New("catalog: unknown metadata provider")

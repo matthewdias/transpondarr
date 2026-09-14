@@ -292,7 +292,7 @@ func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesO
 	}
 	countRows, err := h.store.Q.CountTitlesPerProfile(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to count series", err)
+		return nil, huma.Error500InternalServerError("failed to count titles", err)
 	}
 
 	// The query orders by profile before rank, so appending in scan order leaves
@@ -448,11 +448,15 @@ func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*
 
 	count, err := h.store.Q.CountTitlesByProfile(ctx, in.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to count series", err)
+		return nil, huma.Error500InternalServerError("failed to count titles", err)
 	}
 	if count > 0 && in.ReassignTo == 0 {
+		noun := "titles"
+		if count == 1 {
+			noun = "title"
+		}
 		return nil, huma.Error409Conflict(fmt.Sprintf(
-			"profile is assigned to %d series; pass reassign_to with the profile to migrate them to", count))
+			"profile is assigned to %d %s; pass reassign_to with the profile to migrate them to", count, noun))
 	}
 
 	tx, err := h.store.DB.BeginTx(ctx, nil)
@@ -464,7 +468,7 @@ func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*
 
 	if count > 0 {
 		if in.ReassignTo == in.ID {
-			return nil, huma.Error422UnprocessableEntity("cannot reassign series to the profile being deleted")
+			return nil, huma.Error422UnprocessableEntity("cannot reassign titles to the profile being deleted")
 		}
 		if _, terr := qtx.GetQualityProfile(ctx, in.ReassignTo); errors.Is(terr, sql.ErrNoRows) {
 			return nil, huma.Error422UnprocessableEntity("reassign_to profile does not exist")
@@ -474,7 +478,7 @@ func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*
 		if rerr := qtx.ReassignTitleProfile(ctx, db.ReassignTitleProfileParams{
 			QualityProfileID: in.ReassignTo, QualityProfileID_2: in.ID,
 		}); rerr != nil {
-			return nil, huma.Error500InternalServerError("failed to reassign series", rerr)
+			return nil, huma.Error500InternalServerError("failed to reassign titles", rerr)
 		}
 	}
 	rows, err := qtx.DeleteQualityProfile(ctx, in.ID)
@@ -492,9 +496,9 @@ func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*
 
 func (h *profilesHandler) assignTitle(ctx context.Context, in *assignTitleProfileInput) (*assignTitleProfileOutput, error) {
 	if _, err := h.store.Q.GetTitle(ctx, in.ID); errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("series not found")
+		return nil, huma.Error404NotFound("title not found")
 	} else if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load series", err)
+		return nil, huma.Error500InternalServerError("failed to load title", err)
 	}
 	rows, err := h.store.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{
 		QualityProfileID: in.Body.ProfileID,

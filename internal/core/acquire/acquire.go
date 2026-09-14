@@ -53,7 +53,7 @@ import (
 var (
 	ErrNoIndexer        = errors.New("acquire: no indexer configured")
 	ErrNoDownloadClient = errors.New("acquire: no download client configured")
-	ErrTitleNotFound    = errors.New("acquire: series not found")
+	ErrTitleNotFound    = errors.New("acquire: title not found")
 	ErrIndexerSearch    = errors.New("acquire: indexer search failed")
 	ErrDownloadAdd      = errors.New("acquire: download client add failed")
 )

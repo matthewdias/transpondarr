@@ -292,8 +292,8 @@ function UnmatchedSection() {
         <>
           <p className="mb-2 text-[13px] text-muted-foreground">
             In Transpondarr’s category, but no episode is waiting on them —
-            downloads a later grab replaced, and downloads kept when their
-            series was deleted. Removing one is up to you.
+            downloads a later grab replaced, and downloads kept when their title
+            was deleted. Removing one is up to you.
           </p>
           <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
             {data?.items.map((item) => (

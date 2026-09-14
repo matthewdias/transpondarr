@@ -92,7 +92,7 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 
 		unscheduled, err := deps.store.Q.ListUnscheduledTitles(ctx, boolParam(in.Unmonitored))
 		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to load unscheduled series", err)
+			return nil, huma.Error500InternalServerError("failed to load unscheduled titles", err)
 		}
 		out.Body.Unscheduled = make([]unscheduledTitleDTO, 0, len(unscheduled))
 		for _, s := range unscheduled {

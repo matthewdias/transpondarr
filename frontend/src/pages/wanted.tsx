@@ -568,7 +568,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
           title={hasNextPage ? "None found yet" : "Nothing below cutoff"}
           blurb={
             hasNextPage
-              ? "No episode below its cutoff in the series checked so far. Keep looking to check the rest of the library."
+              ? "No episode below its cutoff in the titles checked so far. Keep looking to check the rest of the library."
               : "Held episodes on a profile with upgrades enabled appear here while their release scores below that profile's cutoff."
           }
         />

@@ -213,7 +213,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		Limit:    int64(in.Limit) + 1,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list missing series", err)
+		return nil, huma.Error500InternalServerError("failed to list titles with missing items", err)
 	}
 	hasMore := len(titleRows) > in.Limit
 	if hasMore {
@@ -485,10 +485,10 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
 	found, err := h.deps.store.Q.CountTitlesByIDs(ctx, ids)
 	if err != nil {
-		return huma.Error500InternalServerError("failed to load series", err)
+		return huma.Error500InternalServerError("failed to load title", err)
 	}
 	if int(found) != len(ids) {
-		return huma.Error404NotFound("no such series")
+		return huma.Error404NotFound("no such title")
 	}
 	tx, err := h.deps.store.DB.BeginTx(ctx, nil)
 	if err != nil {

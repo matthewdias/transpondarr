@@ -802,7 +802,7 @@ export function ProfilesSection() {
               {editing ? `Edit “${editing.name}”` : "New profile"}
             </SheetTitle>
             <SheetDescription>
-              Scoring ranks releases for every series on this profile.
+              Scoring ranks releases for every title on this profile.
             </SheetDescription>
           </SheetHeader>
           {editing !== undefined && (
