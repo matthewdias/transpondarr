@@ -146,7 +146,7 @@ func TestCollectsNestedFilesWithTheirRelativePath(t *testing.T) {
 	wantCollected(t, collected(t, root), []string{"Season 01/[ExampleSubs] Placeholder Saga - 05 [1080p].mkv"})
 }
 
-// No video at all: nothing to place, and the RAR set is reported rather than
+// No video: nothing to place, and the RAR set is reported rather than
 // opened -- see the archive tests below.
 func TestCollectsNothingFromAPayloadWithoutVideo(t *testing.T) {
 	root := writeTree(t,
@@ -282,7 +282,7 @@ func TestPlainArchiveFilePayloadIsNotACandidate(t *testing.T) {
 		[]string{"placeholder.saga.s01e05.1080p.web.h264-example.rar×1"})
 }
 
-// A sample is not a video at all, so the episode is still the sole one even when
+// A sample is not a video, so the episode is still the sole one even when
 // its own title contains an extras token.
 func TestCollectsTokenedVideoBesideASample(t *testing.T) {
 	root := writeTree(t,

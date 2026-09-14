@@ -213,7 +213,7 @@ func monitorCut(mode MonitorMode, meta metadata.TitleMeta, itemCount int) (sql.N
 		from := 1
 		switch {
 		// Nothing has aired, so there is no back catalogue to exclude and the
-		// fallback below would monitor nothing at all, forever (#217). Checked
+		// fallback below would monitor nothing, forever (#217). Checked
 		// above the schedule: a cut past 1 would leave an item that is still to
 		// come unmonitored, which is the same bug in miniature.
 		case meta.NotYetReleased():

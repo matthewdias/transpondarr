@@ -114,7 +114,7 @@ func TestFlatLayoutKeepsASingleItemOVASeriesShaped(t *testing.T) {
 // removeStemMates scans. What it can remove is unchanged, which is the point of
 // asserting it here — the trailing-dot guard has been necessary and untested
 // since it was written, and only a two- against three-digit pair exercises it
-// (E03/E30 diverge at the first digit, so they need no guard at all).
+// (E03/E30 diverge at the first digit, so they need no guard).
 func TestFlatUpgradeClearsStemMatesAndSparesLongerNumbers(t *testing.T) {
 	root := t.TempDir()
 	dir := filepath.Join(root, "Placeholder Saga")

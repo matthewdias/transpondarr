@@ -68,7 +68,7 @@ func TestBreakerTripsWhenManyDistinctItemsFail(t *testing.T) {
 }
 
 // The other direction, and the one that matters more: one item cycling through
-// its candidate pool is exactly what the escalating expiry exists for. However fast it
+// its candidate pool is what the escalating expiry exists for. However fast it
 // churns, it is one item, so it must never trip the breaker.
 func TestBreakerIgnoresOneItemExhaustingItsCandidates(t *testing.T) {
 	svc, _, title := newService(t)
@@ -125,7 +125,7 @@ func TestBreakerRemembersABatchFailingItemByItem(t *testing.T) {
 }
 
 // Depth again, one level up: a batch's candidate pool churning is the escalating expiry's
-// job, exactly as a single episode's is.
+// job, as a single episode's is.
 func TestBreakerIgnoresOneBatchExhaustingItsCandidates(t *testing.T) {
 	svc, _, title := newService(t)
 	at(svc, time.Now())

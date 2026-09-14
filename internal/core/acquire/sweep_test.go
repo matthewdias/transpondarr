@@ -532,7 +532,7 @@ func TestSweepFailingTitlesDoNotStarveHealthyOnes(t *testing.T) {
 	}
 	healthyID := seedSweep(t, h.st, "Healthy Saga", true, sweepItem{number: 1, airsAt: &past})
 
-	// One pass fills entirely with the broken title; the second must search past
+	// One pass fills with the broken title alone; the second must search past
 	// them now that a failed pass backs off.
 	for range 2 {
 		_ = h.svc.SweepOnce(context.Background())

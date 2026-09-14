@@ -113,7 +113,7 @@ func run() error {
 }
 
 // stubEnv is the block the command prints or writes. It blanks the download
-// client deliberately, because .env.local outranks .env: otherwise the importer
+// client because .env.local outranks .env: otherwise the importer
 // scans a real qBittorrent, finds none of the seeded info hashes, and fails
 // every seeded grab row after the five-minute grace period.
 func stubEnv(torznabURL, anilistURL string) string {

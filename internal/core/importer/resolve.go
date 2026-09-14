@@ -20,7 +20,7 @@ var videoExts = map[string]bool{
 	".flv": true, ".mpg": true, ".mpeg": true, ".rmvb": true, ".divx": true,
 }
 
-// headExts open an archive set. Disc images, .par2 and .sfv are deliberately
+// headExts open an archive set. Disc images, .par2 and .sfv are
 // absent: none of them is something a human extracts an episode out of.
 var headExts = map[string]bool{".rar": true, ".zip": true, ".7z": true}
 
@@ -204,7 +204,7 @@ func extractAdvice(archives []archive) string {
 }
 
 // archivePart reports the set a filename belongs to and whether it is the volume
-// a human opens, or ok=false when the name is not an archive at all.
+// a human opens, or ok=false when the name is not an archive.
 func archivePart(name string) (set string, first, ok bool) {
 	ext := filepath.Ext(name)
 	stem := strings.TrimSuffix(name, ext)

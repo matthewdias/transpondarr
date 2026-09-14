@@ -285,7 +285,7 @@ func TestAccentedTitleMatchesPlainASCIIRelease(t *testing.T) {
 }
 
 // The season-collision bug: a season-2 release must NOT match a season-1 AniList entry
-// just because the episode numbers match.
+// only because the episode numbers match.
 func TestSeasonTwoReleaseRejectedForSeasonOneEntry(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga 2nd Season S2E05 [1080p]", Seeders: 100},

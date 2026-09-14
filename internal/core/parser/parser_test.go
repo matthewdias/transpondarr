@@ -276,7 +276,7 @@ func TestParseScoringAxes(t *testing.T) {
 		// The same shape without a codec token: WEB-DL alone marks the tag run.
 		{title: "Phantom Courier S01E02 1080p NF WEB-DL MULTi AAC2.0-FAKEGRP (Romaji Title, Multi-Audio, Multi-Subs)",
 			source: "web", multiSub: true},
-		// Plain release with no axis markers at all: everything stays zero.
+		// Plain release with no axis markers: everything stays zero.
 		{title: "[FakeGroup] Placeholder Saga - 28 (1080p) [ABCD1234].mkv"},
 	}
 	for _, tt := range tests {

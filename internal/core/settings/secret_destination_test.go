@@ -54,7 +54,7 @@ func stubNtfy(t *testing.T, seen *string) *httptest.Server {
 // The Test button fills a blank secret from storage, and the destination is the
 // caller's to choose — so without a check the endpoint reads the stored secret back
 // out to any host named in the request (#259). The assertion that matters is the
-// second: the caller's server must have been sent nothing at all.
+// second: the caller's server must have been sent nothing.
 func TestTestDownloadRefusesToSendTheStoredPasswordElsewhere(t *testing.T) {
 	svc, _, _ := newTestService(t)
 	ctx := context.Background()

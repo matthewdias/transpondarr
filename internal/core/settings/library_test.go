@@ -16,7 +16,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store"
 )
 
-// A saved movies root applies to the rebuilt target, not just the settings table:
+// A saved movies root applies to the rebuilt target, not only the settings table:
 // the whole point of the setting is that a movie placed after the save lands
 // there without a restart.
 func TestUpdateLibraryWiresTheMoviesRootIntoTheLiveTarget(t *testing.T) {
@@ -88,7 +88,7 @@ func TestTestLibraryChecksTheMoviesRoot(t *testing.T) {
 }
 
 // A films-only library is a supported configuration. Before #198 an empty Dir
-// meant "no import at all", which would have left a movies-only install with no
+// meant "no import", which would have left a movies-only install with no
 // target and its films stuck in the queue with nothing reported about them.
 func TestMoviesOnlyLibraryStillBuildsATarget(t *testing.T) {
 	svc, reg, _ := newTestService(t)

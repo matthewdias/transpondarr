@@ -10,7 +10,7 @@
 // under Shows. A movie with no year on record drops the suffix from both
 // components rather than filing under a year the provider has not published.
 // Layout (#129) shapes the series path within its root and is a different axis
-// from the root itself: only the series branch reads it, and the movie shape is
+// from the root: only the series branch reads it, and the movie shape is
 // the same under either.
 //
 // Anime providers model each season as a SEPARATE entry with its own title (e.g. "...
@@ -58,7 +58,7 @@ const (
 const seasonNumber = 1
 
 // ErrNoMoviesRoot and ErrNoSeriesRoot are why a file cannot be placed when the
-// root its format calls for is unset. Deliberately an error rather than a
+// root its format calls for is unset. An error rather than a
 // fallback into the other root: the grab row stays open and the next scan imports
 // it once the root is set, where a file already hardlinked into the wrong
 // library would not. Either root alone is a supported library, so each format
@@ -348,7 +348,7 @@ func (t *Target) removeStemMates(dir, stem, keep string) {
 // transfer moves bytes from src to dest according to the configured import mode. In auto
 // import mode a hardlink is attempted first and falls back to a copy when the filesystem
 // can't hardlink here (a different device, or a mount that doesn't support/permit
-// hardlinks at all).
+// hardlinks).
 func (t *Target) transfer(ctx context.Context, src, dest string) error {
 	switch t.mode {
 	case ModeCopy:
@@ -389,7 +389,7 @@ func syncLinked(dest string) error {
 	return nil
 }
 
-// isUnsupportedLink reports whether a hardlink failure means the filesystem simply
+// isUnsupportedLink reports whether a hardlink failure means the filesystem
 // can't hardlink src to dest, so auto import mode should fall back to a copy: a different
 // device (EXDEV), or a mount that doesn't permit/support hardlinks (EPERM/ENOTSUP/
 // EOPNOTSUPP — common on SMB/CIFS, FUSE, mergerfs/rclone, and some Docker volumes).

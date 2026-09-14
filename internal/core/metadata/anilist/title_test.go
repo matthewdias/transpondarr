@@ -162,7 +162,7 @@ func TestGetTitleKeepsAPublishedCountOverTheSchedule(t *testing.T) {
 
 // AniList retains only a recent window of schedule records for a null-count
 // long-runner, so the add materializes the whole run rather than that window —
-// the back catalogue is otherwise created by nothing at all.
+// the back catalogue is otherwise created by nothing.
 func TestGetTitleMaterializesALongRunnersWholeRun(t *testing.T) {
 	window := make([]int, 0, 25)
 	for n := 1123; n <= 1147; n++ {

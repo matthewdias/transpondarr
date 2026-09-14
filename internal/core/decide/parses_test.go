@@ -12,7 +12,7 @@ import (
 // test is real.
 
 // A supplied parse is used instead of parsing the release name again. The
-// supplied one deliberately differs from what Parse would return, because
+// supplied one differs from what Parse would return, because
 // matching values could not distinguish the two.
 func TestMatchUsesSuppliedReleaseParses(t *testing.T) {
 	const title = "[ExampleSubs] Placeholder Saga - 03 [1080p]"

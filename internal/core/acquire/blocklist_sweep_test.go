@@ -96,7 +96,7 @@ func TestSweepTakesAReleaseWhoseBlockExpired(t *testing.T) {
 }
 
 // A permanent entry (NULL blocked_until) blocks with nothing to fall back to,
-// and the pass must simply find nothing rather than fail.
+// and the pass must find nothing rather than fail.
 func TestSweepGrabsNothingWhenEveryReleaseIsBlocklisted(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	rel := indexer.Release{

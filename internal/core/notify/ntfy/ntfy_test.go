@@ -128,7 +128,7 @@ func TestSendRendersMultipleEpisodesOnOneLine(t *testing.T) {
 }
 
 // A movie has one item, so its number would describe nothing the title has not: the
-// item line comes out entirely rather than being reworded.
+// item line is dropped rather than reworded.
 func TestSendOmitsTheItemLineForAMovie(t *testing.T) {
 	ts, got := capture(t)
 	if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{

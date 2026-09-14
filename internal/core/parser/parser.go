@@ -264,7 +264,7 @@ func looksLikePack(e *anitogo.Elements, title string) bool {
 }
 
 // anitogo's keyword tables omit the bare WEB / WEB-DL tag, REPACK/PROPER, and
-// AV1 entirely, and tokenize scene-style dot names unevenly — hence the regex fallbacks
+// AV1, and tokenize scene-style dot names unevenly — hence the regex fallbacks
 // below, which scan the raw release name.
 var (
 	webRe      = regexp.MustCompile(`\bweb(?:[-_. ]?dl)?\b`)
@@ -279,7 +279,7 @@ var (
 )
 
 // remainderOf lowercases a raw release name and removes the parsed title and episode
-// names, so token scans cannot match words that belong to the show itself.
+// names, so token scans cannot match words that belong to the show.
 // Scene delimiters are folded to spaces first: anitogo joins parsed names with
 // spaces, so "Ghost Web" would never match a dot-named "Ghost.Web" verbatim.
 func remainderOf(raw string, e *anitogo.Elements) string {

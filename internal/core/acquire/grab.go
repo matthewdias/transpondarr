@@ -78,7 +78,7 @@ func (s *Service) AutoGrab(ctx context.Context, titleID int64, cand decide.Candi
 // take. Settled is every status but failed, matching what loadSweepItems calls
 // ungrabbable — one definition, so a re-check cannot differ from the read it
 // is guarding — with the one exception an upgrade is: an imported grab row is
-// exactly what an approved upgrade replaces.
+// what an approved upgrade replaces.
 func (s *Service) anySettled(ctx context.Context, titleID int64, ids []int64, upgrades map[int64]bool) (bool, error) {
 	grabs, err := s.store.Q.ListGrabsByTitle(ctx, titleID)
 	if err != nil {

@@ -82,7 +82,7 @@ func TestSeedCoversEveryGrabStatus(t *testing.T) {
 // The queue reads ListOpenGrabs and derives each row's status through
 // deriveItemState with in_library false, so these three predicates are that
 // function's reachable outcomes for a queue row. Counting statuses in grabs
-// would miss stuck entirely, since stuck is grabbed plus an error.
+// would miss stuck, since stuck is grabbed plus an error.
 func TestSeedProducesEveryStateTheActivityQueueRenders(t *testing.T) {
 	st := seeded(t)
 	rows, err := st.Q.ListOpenGrabs(context.Background())
@@ -397,7 +397,7 @@ func TestCutoffUnmetListsAGroup(t *testing.T) {
 				t.Errorf("%s item %d scores %d against a cutoff of %d, so it should not be listed",
 					g.TitleName, it.Number, it.Score, g.CutoffScore)
 			}
-			// Without this a profile with no axes at all would list everything
+			// Without this a profile with no axes would list everything
 			// while the screen showed nothing about why.
 			if len(it.UnmetGoals) == 0 {
 				t.Errorf("%s item %d is listed with no unmet goals; the row has no reason to show",
@@ -487,7 +487,7 @@ func TestASeededTitleHasMoreThanOneNameVariant(t *testing.T) {
 	ctx := context.Background()
 	// Two services, because the two readers fetch from different places and the
 	// cache decorator is read-through: through it, TitleVariants would return the
-	// seeded snapshot and never query the stub at all.
+	// seeded snapshot and never query the stub.
 	fromCache := catalog.NewService(st, metadata.Cached(anilistStub(t), dbcache.New(st.Q)))
 	fromStub := catalog.NewService(st, anilistStub(t))
 

@@ -183,7 +183,7 @@ func TestCachedGetTitleProviderErrorServesStale(t *testing.T) {
 	}
 }
 
-// Search bypasses the cache entirely.
+// Search bypasses the cache.
 func TestCachedSearchBypassesCache(t *testing.T) {
 	prov := &fakeProvider{}
 	cache := &fakeCache{}
@@ -347,7 +347,7 @@ func TestTitleFromCacheCacheErrorDoesNotFetch(t *testing.T) {
 	}
 }
 
-// Every wrapper shape genuinely contains a cache, so the capability must
+// Every wrapper shape contains a cache, so the capability must
 // stay visible through the embedding Cached picks per inner provider.
 func TestEveryCachedWrapperReadsTheCache(t *testing.T) {
 	for name, prov := range map[string]Provider{

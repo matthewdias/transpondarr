@@ -200,7 +200,7 @@ func TestUpgradeMatchReason(t *testing.T) {
 }
 
 // Held is only a candidate when the pass sets it: an entry point that excludes
-// the item (every one but the upgrade pool) matches exactly as it did before.
+// the item (every one but the upgrade pool) matches as it did before.
 func TestHeldItemOutsideThePassIsNotAnUpgrade(t *testing.T) {
 	its := heldItems(held480)
 	its[2].Grabbable = false
@@ -213,7 +213,7 @@ func TestHeldItemOutsideThePassIsNotAnUpgrade(t *testing.T) {
 	}
 }
 
-// Coverage ranks on what automation may actually take, so a pack whose entire
+// Coverage ranks on what automation may take, so a pack whose entire
 // coverage is cutoff-blocked cannot outrank a single covering a wanted item.
 func TestCoverageRanksOnTheTakeSet(t *testing.T) {
 	its := items(3)

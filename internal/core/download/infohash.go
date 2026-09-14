@@ -19,7 +19,7 @@ import (
 // the SHA-1 of the bencoded value of its top-level "info" key.
 //
 // Magnet parsing (below) is trivial and stays hand-rolled. The .torrent path uses
-// zeebo/bencode to capture the raw "info" bytes — the one part that is genuinely
+// zeebo/bencode to capture the raw "info" bytes — the one part that is
 // fiddly to scan by hand — and hashes those exact bytes.
 
 // ErrNoV1InfoHash marks metainfo without a v1 info hash: qBittorrent reports

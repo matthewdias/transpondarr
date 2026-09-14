@@ -28,7 +28,7 @@ func newSweepWithFeed(t *testing.T, releases []indexer.Release, cfg fakeConfig) 
 
 // With a feed configured, a newly aired episode no longer resets the sweep's
 // backoff: the feed is what covers the broadcast window, and resetting would point
-// the sweep at exactly the moments the feed already covers.
+// the sweep at the moments the feed already covers.
 func TestSweepWithFeedDoesNotResetBackoffOnANewlyAiredItem(t *testing.T) {
 	now := time.Now()
 	justAired := now.Add(-30 * time.Minute)

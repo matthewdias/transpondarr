@@ -22,7 +22,7 @@ import (
 
 // levelRecorder counts records per level and stores their messages, so a test can
 // assert that a supported configuration stayed off the error channel — and that
-// a genuine warning was actually emitted.
+// a warning was emitted.
 type levelRecorder struct {
 	slog.Handler
 	mu       sync.Mutex
@@ -99,7 +99,7 @@ func newFeedPollWithTitles(t *testing.T, entries []indexer.FeedEntry, cfg fakeCo
 }
 
 // newFeedPollWith takes the indexer directly, so a test can supply one with no
-// recent-feed capability at all.
+// recent-feed capability.
 func newFeedPollWith(t *testing.T, idx indexer.Indexer, cfg fakeConfig, titles acquire.TitleSource) *feedHarness {
 	t.Helper()
 	st := coretest.NewStore(t)
@@ -140,7 +140,7 @@ func (f *fakeCachedTitles) CachedTitleVariants(_ context.Context, id int64) ([]s
 }
 
 // setTitleProviderID sets a provider identity on a seeded title, which is what
-// makes the variant lookup reachable at all.
+// makes the variant lookup reachable.
 func setTitleProviderID(t *testing.T, st *store.Store, titleID, providerID int64) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
@@ -334,7 +334,7 @@ func TestFeedPollHonoursTheProfileMinimum(t *testing.T) {
 }
 
 // Eligibility lives in the shared path, so #126's lift applies at the feed too: a
-// pack is a candidate at either entry point, not just in the sweep.
+// pack is a candidate at either entry point, not only in the sweep.
 func TestFeedPollGrabsASeasonPack(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	pack := packRelease("Placeholder Saga")
@@ -383,7 +383,7 @@ func TestFeedPollDoesNotReprocessASeenEntry(t *testing.T) {
 	if h.feed.Polls != 2 {
 		t.Errorf("Recent called %d times, want 2", h.feed.Polls)
 	}
-	// And the sweep is exactly the safety net that covers what the feed skipped.
+	// And the sweep is the safety net that covers what the feed skipped.
 	if err := h.svc.SweepOnce(ctx); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestFeedPollDoesNotReprocessASeenEntry(t *testing.T) {
 	}
 }
 
-// A feed that publishes no pubDate at all still dedupes, on entry ids alone.
+// A feed that publishes no pubDate still dedupes, on entry ids alone.
 func TestFeedPollDedupesAFeedWithoutPublishDates(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{
@@ -568,7 +568,7 @@ func TestFeedPollWarnsWhenTheMarkScrolledOff(t *testing.T) {
 }
 
 // seedGapCadence backs a title off to a long wait, which is what a gap recovery
-// has to undo — and what makes a reset observable at all.
+// has to undo — and what makes a reset observable.
 func seedGapCadence(t *testing.T, st *store.Store, id int64, backoff int, next time.Time) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
@@ -802,7 +802,7 @@ func TestFeedPollTreatsTheMarkInstantAsContinuity(t *testing.T) {
 	}
 }
 
-// An entry the feed dated not at all is stored so it is not processed twice,
+// An entry the feed did not date is stored so it is not processed twice,
 // and that is all: a sticky item is on every page forever, so reading one as
 // coverage would disable gap detection outright and never self-correct.
 func TestFeedPollUndatedEntryDedupesButIsNotCoverage(t *testing.T) {
@@ -936,7 +936,7 @@ func TestFeedPollAcceptsAMarkStoredBeforeCoverageIDs(t *testing.T) {
 }
 
 // A mark that will not decode costs one re-processed page, never a feed that
-// stops working — the failure mode Sonarr's equivalent field actually has.
+// stops working — the failure mode Sonarr's equivalent field has.
 func TestFeedPollToleratesACorruptMark(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{

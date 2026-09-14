@@ -1,6 +1,6 @@
 //go:build linux
 
-// Package privdrop lets the container start as root just long enough to fix
+// Package privdrop lets the container start as root only long enough to fix
 // ownership of the data directory, then sheds privileges — the in-binary
 // equivalent of the PUID/PGID init step in linuxserver-style images, needed
 // because the distroless image has no shell or init to do it externally.
@@ -16,7 +16,7 @@ import (
 )
 
 // Drop is a no-op unless TRANSPONDARR_PRIVDROP=1 (set by the Dockerfile — a
-// bare-metal root run keeps today's behavior) and the process is actually root
+// bare-metal root run keeps today's behavior) and the process is root
 // (someone passing --user opted out of the root phase). Otherwise it chowns
 // dataDir recursively to PUID:PGID (env, default 1000:1000) and drops the
 // process to that uid/gid. Setting PUID=0 opts out and keeps the process as

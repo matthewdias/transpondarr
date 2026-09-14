@@ -108,7 +108,7 @@ func mapMovie(rest []candidate, covers map[int]bool, res mapResult) mapResult {
 	}
 	best, tied := largestVideo(rest)
 	if tied > 1 {
-		// Taking either silently drops the other, exactly as for same-number claims.
+		// Taking either silently drops the other, as for same-number claims.
 		res.conflicts[item] = tied
 		return withLooseFiles(res, rest)
 	}

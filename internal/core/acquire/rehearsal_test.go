@@ -111,7 +111,7 @@ func TestNotifyOnlySweepReportsInsteadOfGrabbing(t *testing.T) {
 }
 
 // The negative half: a title whose only coverage is ineligible reports what it
-// refused and why, because that is exactly the misconfiguration a rehearsal
+// refused and why, because that is the misconfiguration a rehearsal
 // exists to surface.
 func TestNotifyOnlySweepReportsNothingEligible(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -140,7 +140,7 @@ func TestNotifyOnlySweepReportsNothingEligible(t *testing.T) {
 	}
 }
 
-// A search that finds nothing at all still reports, with the reason.
+// A search that finds nothing still reports, with the reason.
 func TestNotifyOnlySweepReportsEmptySearch(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newRehearsal(t, nil, fakeConfig{notifyOnly: true})
@@ -273,8 +273,8 @@ func TestNotifyOnlyFeedAdvancesItsMark(t *testing.T) {
 	}
 }
 
-// A hold covers only its own items. Episodes no release matched at all must still
-// be reported, or an unrelated pin delay suppresses exactly the gap being rehearsed.
+// A hold covers only its own items. Episodes no release matched must still
+// be reported, or an unrelated pin delay suppresses the gap being rehearsed.
 func TestNotifyOnlySweepReportsUncoveredItemsBesideAHold(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)
 	h := newRehearsal(t, []indexer.Release{episodeRelease("Placeholder Saga", 1)},

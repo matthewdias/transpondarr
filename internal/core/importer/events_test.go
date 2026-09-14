@@ -186,7 +186,7 @@ func TestVanishedGrabAppendsFailedEventWithDetail(t *testing.T) {
 	st := coretest.NewStore(t)
 	_, titleID := seedGrab(t, st, "abc")
 	backdateMissingSince(t, st, "abc", time.Hour)
-	dl := &coretest.FakeDownload{} // client reports nothing at all
+	dl := &coretest.FakeDownload{} // client reports nothing
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}

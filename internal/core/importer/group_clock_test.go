@@ -15,7 +15,7 @@ import (
 )
 
 // TestKeepsStallClockAcrossScans and TestKeepsGrabWhileAbsenceIsWithinGracePeriod
-// are not subsumed here: they pin a stamp persisting across a scan, not just uniformity.
+// are not subsumed here: they pin a stamp persisting across a scan, not only uniformity.
 
 // seedPack creates one title covered by a pack: an item per number, each with a
 // grab row on the same hash, which is the shape groupByHash buckets.
@@ -167,7 +167,7 @@ func TestStalledPackWithALateRowTakesOneRung(t *testing.T) {
 }
 
 // The late row takes the group's earliest clock, not now: taking now would leave
-// it on a clock of its own and reproduce the split exactly.
+// it on a clock of its own and reproduce the split.
 func TestLateRowInheritsTheGroupsEarliestStallClock(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedPack(t, st, "abc", 1, 2)
@@ -279,7 +279,7 @@ func TestVanishedPackWithALateRowIsOneIncident(t *testing.T) {
 	backdateMissingSinceForItem(t, st, "abc", 1, 10*time.Minute)
 	rec := &fakeRecorder{}
 	fn := coretest.NewFakeNotifier()
-	// No status for the hash at all: the client has stopped reporting the torrent.
+	// No status for the hash: the client has stopped reporting the torrent.
 	dl := &coretest.FakeDownload{}
 	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), rec, nil)
 

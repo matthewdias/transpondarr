@@ -132,7 +132,7 @@ func TestSendSerializesItemsAsAnArray(t *testing.T) {
 // The payload is machine-facing and item_number: 1 is correct for a movie — it
 // is item-scoped, with one item numbered 1. The rendering decision that drops
 // the number for humans must not appear on the wire, so a movie's body is
-// byte-identical to the same event with no item kind at all.
+// byte-identical to the same event with no item kind.
 func TestMovieEventLeavesTheWireContractUntouched(t *testing.T) {
 	var bodies []string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

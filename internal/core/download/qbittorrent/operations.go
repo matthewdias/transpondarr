@@ -37,7 +37,7 @@ func (c *Client) Add(ctx context.Context, opts download.AddOptions) (download.Ad
 		return download.AddResult{Hash: hash, Outcome: download.AddAlreadyExists}, nil
 	}
 
-	// qBittorrent auto-creates the category named on the add, so we just pass it.
+	// qBittorrent auto-creates the category named on the add, so we pass it.
 	if magnet != "" {
 		_, err = c.qb.AddTorrentFromUrlCtx(ctx, magnet, addOptions(opts))
 	} else {

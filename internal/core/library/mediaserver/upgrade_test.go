@@ -32,7 +32,7 @@ func seedLibraryFile(t *testing.T, root, name string, size int) string {
 	return p
 }
 
-// The size check is what makes an ordinary import idempotent, and exactly what
+// The size check is what makes an ordinary import idempotent, and what
 // an upgrade must not apply: a better release can be a smaller file.
 func TestReplaceOverwritesALargerDestination(t *testing.T) {
 	root := t.TempDir()

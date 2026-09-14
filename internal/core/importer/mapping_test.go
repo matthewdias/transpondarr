@@ -67,7 +67,7 @@ func TestMapsSoleVideoCarryingAnExtrasToken(t *testing.T) {
 	}
 }
 
-// Solo identity is exactly that: two covered items means the name has to supply it.
+// Solo identity is that: two covered items means the name has to supply it.
 func TestDoesNotGuessALoneFileAcrossTwoItems(t *testing.T) {
 	res := mapFiles(files("b1946ac92492d2347c6235b4d2611184.mkv"), coverage(4, 5), nil, domain.FormatTV)
 

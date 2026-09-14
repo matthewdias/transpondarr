@@ -167,7 +167,7 @@ func TestUpdateAutomationResetsCadenceWhenSwitchedOn(t *testing.T) {
 }
 
 // Every other transition leaves the cadence alone: off is the kill switch, which
-// writes no cadence at all, and re-saving the delay while already on must not
+// writes no cadence, and re-saving the delay while already on must not
 // re-queue the whole library.
 func TestUpdateAutomationLeavesCadenceAloneOtherwise(t *testing.T) {
 	ctx := context.Background()
@@ -214,7 +214,7 @@ func TestAutomationNegativePinDelayDegradesToZero(t *testing.T) {
 }
 
 // Multiplied out raw, an hour count this size wraps int64 into a negative
-// duration, which every caller reads as "no delay at all".
+// duration, which every caller reads as "no delay".
 func TestAutomationOverlongPinDelayClamps(t *testing.T) {
 	svc := newServiceWith(t, &config.Config{PinDelayHours: "3000000"}, nil)
 	want := domain.MaxPinDelayHours * time.Hour

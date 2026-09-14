@@ -168,7 +168,7 @@ type torznabAttr struct {
 
 // torznabError models the <error code=.. description=..> failure root. Because
 // its XMLName pins the root to "error", unmarshalling a normal <rss> feed into
-// it fails — which is exactly how parseFeed distinguishes the two.
+// it fails — which is how parseFeed distinguishes the two.
 type torznabError struct {
 	XMLName     xml.Name `xml:"error"`
 	Code        string   `xml:"code,attr"`
@@ -218,7 +218,7 @@ func parseEntries(body []byte, indexerName string) ([]indexer.FeedEntry, error) 
 	return entries, nil
 }
 
-// pubDateLayouts covers what indexers actually emit. The MST verb in the RFC1123
+// pubDateLayouts covers what indexers emit. The MST verb in the RFC1123
 // and RFC822 layouts accepts a named zone — including one Go has no offset for,
 // which it reads as UTC — so GMT/UTC/PDT forms all parse here without help.
 var pubDateLayouts = []string{

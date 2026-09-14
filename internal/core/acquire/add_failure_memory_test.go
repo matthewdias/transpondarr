@@ -15,7 +15,7 @@ import (
 )
 
 // A failed add writes no grab row, so the importer never reads it and #118's
-// blocklist did not cover this path at all (#120).
+// blocklist did not cover this path (#120).
 func TestSweepRemembersAReleaseTheClientCouldNotResolve(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	dead := episodeRelease("Placeholder Saga", 3)
@@ -61,7 +61,7 @@ func TestSweepRemembersAnUnsupportedTorrentUnderItsOwnReason(t *testing.T) {
 	h := newSweep(t, []indexer.Release{v2}, fakeConfig{})
 	// The shape resolveAdd produces: badRelease() wraps whatever InfoHashFromMeta
 	// returned, so the new sentinel is wrapped in ErrBadRelease rather than replacing
-	// it — which is what keeps AutoGrab recording at all.
+	// it — which is what keeps AutoGrab recording.
 	addErr := fmt.Errorf("%w: %w", download.ErrBadRelease,
 		fmt.Errorf(`%w: its "info" dictionary carries no v1 pieces`, download.ErrNoV1InfoHash))
 	if !errors.Is(addErr, download.ErrBadRelease) || !errors.Is(addErr, download.ErrNoV1InfoHash) {

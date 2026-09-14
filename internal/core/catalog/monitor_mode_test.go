@@ -99,7 +99,7 @@ func TestAddTitleAppliesTheMonitorMode(t *testing.T) {
 		},
 		{
 			// #217: nothing has aired, so there is no back catalogue to exclude and
-			// the fallback above would monitor nothing at all, forever.
+			// the fallback above would monitor nothing, forever.
 			name: "future only on a title that has not started is every item",
 			mode: MonitorFuture, status: "NOT_YET_RELEASED", next: 0,
 			wantItems: []int{1, 2, 3, 4, 5, 6},

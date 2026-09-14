@@ -67,7 +67,7 @@ type RetryResult struct {
 	Detail     string
 }
 
-// ListPayload reports what a deferred grab's payload actually contains. It is the
+// ListPayload reports what a deferred grab's payload contains. It is the
 // read behind the retry dialog: the scan already decided it could not map these
 // files, so the only way forward is a human looking at them.
 func (im *Importer) ListPayload(ctx context.Context, grabID int64) (PayloadInfo, error) {
@@ -174,7 +174,7 @@ func (im *Importer) RetryImport(ctx context.Context, grabID int64, assignments m
 }
 
 // deferredGroup resolves a grab id to its whole release, requiring that the
-// target row is the one actually awaiting a fix and the payload is still there.
+// target row is the one awaiting a fix and the payload is still there.
 func (im *Importer) deferredGroup(ctx context.Context, grabID int64) ([]db.ListGrabsByStatusRow, download.Status, error) {
 	var none download.Status
 	dl := im.clients.Download()

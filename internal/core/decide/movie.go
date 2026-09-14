@@ -59,13 +59,13 @@ func movieCandidate(c Candidate, variants []string, itemSet map[int]bool, held m
 }
 
 // numberNamesTheFilm reports whether the number anitogo read as an episode is
-// really part of the film's name — a sequel number, "Sample Film 2" — by
+// part of the film's name — a sequel number, "Sample Film 2" — by
 // reattaching it to the parsed title and comparing against the variants, the
 // only thing that can distinguish the two. Padded widths are tried because a
 // release writes "0080" where anitogo returns 80.
 //
-// Compared exactly, not by titleBelongs' containment: on a name we assembled
-// ourselves, any variant prefixing the parsed title is contained by
+// Compared exactly, not by titleBelongs' containment: on a name we assembled,
+// any variant prefixing the parsed title is contained by
 // construction, so a fuzzy answer here can only ever be a false positive.
 func numberNamesTheFilm(p parser.Parsed, variants []string) bool {
 	if p.EpisodeEnd > p.EpisodeStart {

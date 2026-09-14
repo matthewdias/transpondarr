@@ -316,7 +316,7 @@ func TestMoviePayloadPicksTheFeatureOverSamplesAndExtras(t *testing.T) {
 }
 
 // A sample is a truncated copy of the film, never the film, so it is excluded from
-// the sole-video relaxation before the video is counted at all. The payload
+// the sole-video relaxation before the video is counted. The payload
 // yields nothing and the grab settles as a deferral a human can look at.
 func TestMovieSampleIsNeverTheFeature(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -348,7 +348,7 @@ func TestMovieSampleIsNeverTheFeature(t *testing.T) {
 	}
 }
 
-// The yield itself: one video and nothing to confuse it with means an extras
+// The yield: one video and nothing to confuse it with means an extras
 // token in its name is a word in the title, which is how a "Bonus Edition"
 // release imports instead of parking with the file present the whole time.
 func TestMovieSoleVideoWithAnExtrasTokenIsStillTheFeature(t *testing.T) {
@@ -498,7 +498,7 @@ func TestMovieTakesTheLargestVideoAsTheFeature(t *testing.T) {
 	}
 }
 
-// An exact size tie is a conflict rather than a coin flip, exactly as for
+// An exact size tie is a conflict rather than a coin flip, as for
 // same-number claimants: taking either would silently drop the other. It is the
 // one deferral a movie payload containing videos can produce, and a human resolves it
 // from Activity by naming the file — an override still overrules every rule.

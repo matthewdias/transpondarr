@@ -79,7 +79,7 @@ func buildV2OnlyMeta(t *testing.T, name string) (meta, rawInfo []byte) {
 		"piece length": spikePieceLen,
 	})
 	// The payload exceeds one piece, so BEP52 requires the piece layer; at one
-	// block per piece that layer is the leaf layer itself.
+	// block per piece that layer is the leaf layer.
 	pieceLayers := bencodeValue(t, map[string]any{string(root[:]): layer})
 
 	meta = []byte("d" + bstr("announce") + bstr(spikeAnnounce) +
@@ -148,7 +148,7 @@ func buildHybridMeta(t *testing.T, name string) (meta, rawInfo []byte) {
 func TestInfoHashFromMetaHybrid(t *testing.T) {
 	meta, rawInfo := buildHybridMeta(t, spikeV2Name)
 
-	// The fixture is only a guard if it really contains both shapes.
+	// The fixture is only a guard if it contains both shapes.
 	var info map[string]bencode.RawMessage
 	if err := bencode.DecodeBytes(rawInfo, &info); err != nil {
 		t.Fatalf("decode fixture info dict: %v", err)
@@ -175,11 +175,11 @@ func TestInfoHashFromMetaHybrid(t *testing.T) {
 
 // TestInfoHashFromMetaV2Only pins #165's fix: the SHA-1 we would derive for a
 // v2-only torrent is neither form BEP52 lets a client key it by, and qBittorrent
-// reports no v1 hash at all for one, so the release errors instead.
+// reports no v1 hash for one, so the release errors instead.
 func TestInfoHashFromMetaV2Only(t *testing.T) {
 	meta, rawInfo := buildV2OnlyMeta(t, spikeV2Name)
 
-	// The fixture is only evidence if it really contains no v1 shape.
+	// The fixture is only evidence if it contains no v1 shape.
 	var info map[string]bencode.RawMessage
 	if err := bencode.DecodeBytes(rawInfo, &info); err != nil {
 		t.Fatalf("decode fixture info dict: %v", err)
@@ -206,7 +206,7 @@ func TestInfoHashFromMetaV2Only(t *testing.T) {
 			got, hex.EncodeToString(v2[:]), hex.EncodeToString(v2[:20]))
 	}
 	// Pinned to the cause: malformed metainfo errors too, and would keep this green
-	// over a fixture that had stopped being a v2 torrent at all.
+	// over a fixture that had stopped being a v2 torrent.
 	if !errors.Is(err, ErrNoV1InfoHash) {
 		t.Errorf("error = %v, want ErrNoV1InfoHash", err)
 	}
@@ -225,7 +225,7 @@ func TestInfoHashFromMagnetV2Only(t *testing.T) {
 		t.Fatalf("InfoHashFromMagnet accepted a v2-only magnet, returning %q", got)
 	}
 	// Pinned to the reason: a merely malformed magnet errors too, and would keep
-	// this green over a fixture that had stopped being a v2 magnet at all.
+	// this green over a fixture that had stopped being a v2 magnet.
 	if !strings.Contains(err.Error(), "no urn:btih info hash") {
 		t.Errorf("error = %v, want the missing-btih refusal", err)
 	}

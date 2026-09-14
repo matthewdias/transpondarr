@@ -754,7 +754,7 @@ func TestSyncCollapsesIdenticalFailures(t *testing.T) {
 	}
 }
 
-// Collapsing duplicates is the point; aggregation is not -- two genuinely
+// Collapsing duplicates is the point; aggregation is not -- two
 // different failures are still both recorded in last_error.
 func TestSyncKeepsDistinctFailures(t *testing.T) {
 	st := coretest.NewStore(t)

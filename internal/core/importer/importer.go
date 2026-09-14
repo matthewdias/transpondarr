@@ -108,7 +108,7 @@ func WithStallPolicy(p StallPolicy) Option {
 }
 
 // New builds an Importer. The download client and library target are read from
-// src each scan, so either being unconfigured (nil) simply skips that scan.
+// src each scan, so either being unconfigured (nil) skips that scan.
 func New(st *store.Store, src ClientSource, log *slog.Logger, blocklist Recorder, claims ItemClaims, opts ...Option) *Importer {
 	im := &Importer{store: st, clients: src, log: log, blocklist: blocklist, claims: claims}
 	for _, opt := range opts {
