@@ -5,7 +5,7 @@ import { Slot } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
-// An Item is a listitem only inside a group: a listitem outside a list is itself invalid.
+// An Item is a listitem only inside a group, since a listitem outside a list is invalid.
 const InItemGroup = React.createContext(false);
 
 function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
