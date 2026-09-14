@@ -2,7 +2,7 @@
 
 How a title enters the app, what identifies it, and how many items it gets.
 
-### A missing episode count
+## A missing episode count
 
 - **A missing episode count is a normal state (the missing AniList episode
   count, #151).** AniList publishes `episodes: null` for a releasing title, for
@@ -14,7 +14,7 @@ How a title enters the app, what identifies it, and how many items it gets.
   count and the refresh cadence below, and each is deliberately not the other's
   fix.
 
-#### The item count
+### The item count
 
 - **The count is human-set and never inferred.** `catalog.SetItemCount`
   materializes `1..N` one-shot, storing nothing. Refresh only ever adds items, so
@@ -32,7 +32,7 @@ How a title enters the app, what identifies it, and how many items it gets.
   of the missing-episode-count fix (#151), and that scope can broaden
   additively.
 
-#### The refresh cadence
+### The refresh cadence
 
 - **The cadence keys on the count, not the item count.** `TTLFor(status,
   countKnown)` gives a FINISHED/CANCELLED title with a null count a 7d TTL,
@@ -47,7 +47,7 @@ How a title enters the app, what identifies it, and how many items it gets.
   passes `countKnown` true always. Its own CASE keys on status alone, because
   aired times are immutable.
 
-### Title identity
+## Title identity
 
 - **A title's identity is `(provider, provider_id)`, and the two are never
   separated (provider-generic title identity, #74).** The pair is what the
@@ -69,7 +69,7 @@ How a title enters the app, what identifies it, and how many items it gets.
   (#189). Until that layer lands, reaching for a `tmdb_id` column is the
   regression it exists to prevent.
 
-### Monitor decisions
+## Monitor decisions
 
 - **A monitor decision is stored as a numeric cut, not as a monitor mode.** The
   add-time choice (`all` / `future` / `none`) maps to `series.monitor_new_from`.

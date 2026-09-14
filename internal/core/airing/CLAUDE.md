@@ -3,7 +3,7 @@
 The only writer of `wanted_items.airs_at`, and what an absent date means.
 AniList's coverage is partial by design, so absence is a normal state here.
 
-### Absent air dates
+## Absent air dates
 
 - **Air dates are nullable everywhere, by design.** AniList's schedule coverage
   thins out badly before ~2015. It can skip episodes even for a modern title (it
@@ -17,7 +17,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
 - **Only a never-synced title pages full history.** Aired times are immutable, so
   a resync passes `notYetAired` and fetches the tail.
 
-### Densifying a schedule
+## Densifying a schedule
 
 - **The first schedule page arrives with the title (the in-band schedule fetch
   for null-count titles, #152).** `airingSchedule` is a field on `Media`, not a
@@ -50,7 +50,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   - **A tail fetch fills only inside its own span.** A tail fetch is a partial
     view of the numbering, so it does not re-derive a back catalogue every pass.
 
-### What an add creates for a long-runner
+## What an add creates for a long-runner
 
 - **The in-band schedule page is bounded; the next-broadcast minimum is not.**
   AniList keeps only a recent *window* of schedule records for a long-runner, so
@@ -68,7 +68,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   as `refresh` does). A gap-filled item has no air date, so `airedSince` never
   selects it.
 
-### Monitoring and the lookup jobs
+## Monitoring and the lookup jobs
 
 - **Monitoring limits what automation *acquires*, not what the app *looks up*
   (unmonitored titles getting no air dates, #183).** `series.monitored = 0`
@@ -104,7 +104,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   shared by both jobs. That is the rule from the missing-episode-count fix (#151)
   about the two halves not disagreeing.
 
-### The calendar footer's two absences
+## The calendar footer's two absences
 
 - **"We asked and got nothing" and "we have not asked" are different absences,
   and the calendar footer states which (unmonitored titles getting no air dates,

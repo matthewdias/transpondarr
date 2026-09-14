@@ -3,7 +3,7 @@
 Where a placed file goes and what shape it takes there. Root (destination) and
 layout (shape within a root) are deliberately different axes.
 
-### Roots per format (#198)
+## Roots per format (#198)
 
 - **The library has a root per format, and a missing one is an error, never a
   fallback (#198).** `mediaserver.Roots` splits Series from Movies because Plex
@@ -20,7 +20,7 @@ layout (shape within a root) are deliberately different axes.
 - **Root and layout stay different axes.** The per-format library root (#198)
   defines the root, and the library layout options (#129) define the shape.
 
-### Series layout (#129)
+## Series layout (#129)
 
 - **Layout parameterizes the shape inside a branch, never the branch itself
   (#129).** `library.series_layout` (`season_folders` default, `flat`) is read
@@ -47,7 +47,7 @@ layout (shape within a root) are deliberately different axes.
   stem-mate.** Otherwise an interrupted copy's `.partial` would report a layout
   switch that never happened and suppress the real warning.
 
-### Other placement rules
+## Other placement rules
 
 - **`removeStemMates`' trailing dot is necessary and only a two- against
   three-digit pair tests it.** `seasonNumber` is hardcoded to 1, so every episode

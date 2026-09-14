@@ -20,7 +20,7 @@ What a schema change costs, and the three traps that make one fail quietly.
     filenames) and leave a migration set goose rejects as a duplicate version. Renumber
     on rebase; never merge past a collision.
 
-### Rebuilding a table
+## Rebuilding a table
 
 - **A table rebuild is one `-- +goose StatementBegin` block, never loose
   statements** (`00020_provider_identity.sql` is the only one, and the recipe).

@@ -3,7 +3,7 @@
 The grab lifecycle and the rules that decide which file in a payload is which
 item. The root `CLAUDE.md` covers everything above this layer.
 
-### Grab lifecycle
+## Grab lifecycle
 
 - **Grab lifecycle (`internal/core/importer`): every status but `grabbed` is
   settled.** `grabbed` → `imported`, `failed` (errored, or absent from the
@@ -22,7 +22,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   vanished payload still frees its item. Only an explicit `RetryImport` reopens
   one, optionally naming the file.
 
-### The payload walk
+## The payload walk
 
 - **The payload walk's extras filter yields to a sole video** (archive payloads,
   #135). A payload whose only video has an extras token is collected anyway —
@@ -36,7 +36,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   info-hash group takes the video by the lone-file rule; a multi-item info-hash
   group leaves it over and defers.
 
-### Archives
+## Archives
 
 - **Nothing unpacks an archive; the payload walk names one instead** (archive
   payloads, #135). We declined unpacking deliberately. There is no Usenet client
@@ -64,7 +64,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   stops here, since hardlinking it into the library as the episode is worse than
   deferring.
 
-### Mapping files onto items
+## Mapping files onto items
 
 - **The mapping rules are narrow on purpose, because a wrong answer moves a
   file.**
@@ -79,7 +79,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   rule above.** Being wrong about a filename is the whole reason the escape
   hatch exists.
 
-### A covered item with no file
+## A covered item with no file
 
 - **A covered item with no file splits by whether a human could fix it.** Files
   still loose in the payload → defer, with the detail naming what is unmatched,
@@ -100,7 +100,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   That is why `main.go` builds one importer and passes it to both the job runner
   and `server.New`.
 
-### Movies
+## Movies
 
 - **A movie's file is identified by size; numbering is never used** (movie
   payload import, #210). `mapMovie` takes the payload's largest surviving video,
@@ -124,7 +124,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   selects the file, that deferral is unreachable for a movie. A tie and an
   unextracted archive are the only deferrals it has.
 
-### User-facing copy
+## User-facing copy
 
 - **User-facing copy keys on format as movie mapping does, and only on paths a
   movie can take** (movie payload import, #210). The importer's settled reasons
@@ -138,7 +138,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   REST contract rename from series to titles (#207) broke that contract once,
   deliberately and with an upgrade note.
 
-### Failure memory
+## Failure memory
 
 - **`failed` also means "this release is remembered" (`internal/core/blocklist`,
   #118).** Both `failed` paths record a per-title blocklist entry. The grab row
@@ -159,7 +159,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
 - **An *import* failure deliberately records nothing.** It stays `grabbed` and
   retries, because its causes are path-mapping gaps rather than bad releases.
 
-### Absent torrents
+## Absent torrents
 
 - **An absent torrent is not a verdict (#241).** `failed` settles two different
   things, and an inference justifies only one of them. Freeing the item is
@@ -184,7 +184,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
 - **`blame` is a required `failGrab` argument rather than a default**, so every
   new failure path has to pass it explicitly.
 
-### Data-missing duplicates
+## Data-missing duplicates
 
 - **Dropping the memory cost `data_missing` its only loop breaker.** The
   blocklist entry had been supplying it by accident. Converging on a duplicate
@@ -212,7 +212,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   deletes one on its own.** That is the posture behind all of the above: the
   download client is the user's disk and their ratio.
 
-### Timers per info-hash group
+## Timers per info-hash group
 
 - **Both timers are the info-hash group's, not the grab row's (#247).** Per-row
   timers let a pack whose grab rows were created at different times escalate the
