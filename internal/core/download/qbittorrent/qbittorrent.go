@@ -6,7 +6,7 @@
 // Transpondarr keeps only the app-specific glue: local info-hash derivation for a
 // deterministic ID before the add (qBittorrent's add endpoint does not return the
 // hash), an idempotent add that won't clobber an existing torrent, and mapping
-// qBittorrent's state vocabulary to download.State.
+// qBittorrent's client state vocabulary to download.State.
 package qbittorrent
 
 import (

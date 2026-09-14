@@ -332,8 +332,8 @@ func TestStatusByCategoryFiltersAtTheClient(t *testing.T) {
 
 // Status deserializes qBittorrent's /torrents/info JSON into download.Status,
 // mapping every field the import pipeline relies on — most importantly
-// content_path and the normalized state — and forwards the requested hashes
-// (lowercased) as the filter. TestMapState covers the state vocabulary in
+// content_path and the normalized download state — and forwards the requested hashes
+// (lowercased) as the filter. TestMapState covers the client state vocabulary in
 // isolation; this covers the full response parse the importer actually runs.
 func TestStatusParsesTorrentsInfo(t *testing.T) {
 	var gotHashesFilter string
@@ -405,7 +405,7 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 		t.Errorf("second added_at = %v, want the zero time when unreported", got[1].AddedAt)
 	}
 
-	// The seeding torrent maps to the complete state the importer treats as ready.
+	// The seeding torrent maps to the complete download state the importer treats as ready.
 	if got[1].State != download.StateComplete {
 		t.Errorf("second state = %v, want complete", got[1].State)
 	}

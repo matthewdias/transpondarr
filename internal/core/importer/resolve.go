@@ -228,7 +228,7 @@ func archivePart(name string) (set string, first, ok bool) {
 	return "", false, false
 }
 
-// archiveSets groups volumes in walk order, because map order is random and both
+// archiveSets groups volumes in payload walk order, because map order is random and both
 // the deferral reason and the retry dialog need a stable answer.
 type archiveSets struct {
 	order []string

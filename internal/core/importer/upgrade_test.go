@@ -49,7 +49,7 @@ func completedSource(t *testing.T, hash string) *coretest.FakeDownload {
 }
 
 // An import onto an item already in the library is a replacement, and it is the
-// single place held identity is written: the library and the name of what is in
+// single place held-release identity is written: the library and the name of what is in
 // it change together.
 func TestImportOfAHeldItemReplacesAndRecordsTheNewRelease(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -116,7 +116,7 @@ func TestFailedUpgradeLeavesTheHeldFileInPlace(t *testing.T) {
 	}
 }
 
-// A payload with nothing to place for a held item defers rather than failing it,
+// A payload with nothing to place for a held item already in the library defers rather than failing it,
 // and the deferral leaves the library exactly as it was.
 func TestDeferredUpgradeKeepsTheHeldFile(t *testing.T) {
 	const heldTitle = "[ExampleSubs] Placeholder Saga - 05 [480p]"

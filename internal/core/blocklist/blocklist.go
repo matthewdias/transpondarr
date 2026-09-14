@@ -1,7 +1,7 @@
 // Package blocklist is the pipeline's failure memory: which release of a title
-// already failed, so the sweep stops re-deriving the same doomed ranking (#118).
+// already failed, so the search sweep stops re-deriving the same doomed ranking (#118).
 //
-// Scope is deliberately per-title — a group whose encodes are broken everywhere
+// Scope is deliberately per-title — a release group whose encodes are broken everywhere
 // is the quality profile's BlockedGroups, not this. The expiry escalates rather
 // than blocking permanently on the first failure because the importer's failure
 // paths fire for environmental reasons (a full disk, a restarted client, a ratio

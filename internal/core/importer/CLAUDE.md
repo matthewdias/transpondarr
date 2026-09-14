@@ -16,18 +16,18 @@ item. The root `CLAUDE.md` covers everything above this layer.
   no-infinite-retry property) but stay in it for missing-from-client
   reconciliation, so a vanished payload still frees its item; only an explicit
   `RetryImport` reopens one, optionally naming the file.
-- **The walk's extras filter yields to a sole video (#135).** A payload whose
+- **The payload walk's extras filter yields to a sole video (#135).** A payload whose
   only video has an extras token is collected anyway — identity by
   construction again: one video and nothing to confuse it with means the token
   is a word in the title, and dropping it deferred the episode while its file
   was right there. `sampleTokens` is the exception that does not qualify (a
   sample is a truncated copy, never the episode) and so is excluded before the
   video is counted at all. Downstream the relaxation needs no special case: a
-  one-item group takes it by the lone-file rule, a multi-item group leaves it
+  one-item info-hash group takes it by the lone-file rule, a multi-item info-hash group leaves it
   over and defers.
-- **Nothing unpacks an archive; the walk names one instead (#135).** Declined
+- **Nothing unpacks an archive; the payload walk names one instead (#135).** Declined
   deliberately: there is no Usenet client here (qBittorrent only) and RAR
-  packaging is a Usenet/scene convention that anime groups do not use, so a
+  packaging is a Usenet/scene convention that anime release groups do not use, so a
   decoder would be the first dependency in the import path and its tests would
   need committed binary fixtures. So `collectPayloadFiles` returns a `payload`
   whose `archives` are a separate field *beside* `[]candidate`, never inside it — `mapFiles`
@@ -59,7 +59,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   fixable from the Activity queue. **An unextracted archive counts as still
   loose** — it contains the episode, so it is a human's to fix — which is why
   `settleGroup` takes the whole `payload` rather than its files. Nothing left
-  over at all → `failGrab`, so the item reverts to wanted and the sweep
+  over at all → `failGrab`, so the item reverts to wanted and the search sweep
   self-heals with a single; it flows through the same `remember()` grouping, so
   one payload counts as one failure toward the blocklist's escalating expiry. A file for an item the
   release never covered is placed too,
@@ -76,9 +76,9 @@ item. The root `CLAUDE.md` covers everything above this layer.
   on the movie path (#218). The number-driven mapping was actively unsafe here:
   a movie's `covers` is always `{1}`, so a numbered extra (`Deleted Scene 1`)
   claimed the film's only item, hardlinked a clip as the movie and dropped the
-  feature as a leftover — settled, held, and self-healing never. Note the
+  feature as a leftover — settled, held in the library, and self-healing never. Note the
   asymmetry it had: *two* claimants deferred safely as a conflict while *one*
-  imported. Keyed on `domain.FormatMovie` and never on a one-item group, since a
+  imported. Keyed on `domain.FormatMovie` and never on a one-item info-hash group, since a
   series' single grabbed episode is one too and its number is genuine identity
   there. The filter still runs first (a sample is never the feature, and is
   often the small file anyway, so size must not re-admit it), an exact size tie
@@ -98,9 +98,9 @@ item. The root `CLAUDE.md` covers everything above this layer.
 - **`failed` also means "this release is remembered" (`internal/core/blocklist`,
   #118).** Both `failed` paths record a per-title blocklist entry, because the
   grab row is per wanted item and the next attempt overwrites it — without that
-  memory the sweep re-derived the same ranking and re-grabbed the same doomed
+  memory the search sweep re-derived the same ranking and re-grabbed the same doomed
   release forever. `decide` reads it through the existing `ineligibleReason`,
-  so the sweep's eligibility check, the Releases tab's reason column and manual
+  so the search sweep's eligibility check, the Releases tab's reason column and manual
   grab's freedom from eligibility (PR #57) all hold unchanged. Two constants are
   deliberate rather than arbitrary: identity is the **info hash or the
   normalized release name** (`normalized_title`), because Torznab often omits the hash; and the expiry

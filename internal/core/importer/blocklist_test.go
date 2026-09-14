@@ -415,7 +415,7 @@ func TestDataMissingRecordsNoBlocklistEntry(t *testing.T) {
 }
 
 // The negative that keeps the split a split: the one path with a cause still
-// writes its entry, at the first expiry (24h). A later simplification folding
+// writes its blocklist entry, at the first expiry (24h). A later simplification folding
 // the three paths back together fails here.
 func TestErroredDownloadIsStillRememberedOnTheLadder(t *testing.T) {
 	st := coretest.NewStore(t)

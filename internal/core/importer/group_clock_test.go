@@ -116,7 +116,7 @@ func backdateOpenRows(t *testing.T, st *store.Store, hash string, ago time.Durat
 	}
 }
 
-// assertOneRung is the acceptance criterion: one incident, one entry, first rung.
+// assertOneRung is the acceptance criterion: one incident, one blocklist entry, first rung.
 // The upsert is keyed on (title, normalized release name), so a split incident shows up
 // as failures = 2 rather than as a second row -- and blockDuration reads that as
 // a repeat and blocks for 7d (#118).
@@ -271,7 +271,7 @@ func TestMetadataStallStampsAndClearsTheWholeGroup(t *testing.T) {
 
 // missing_since has the identical shape. An absence is never blamed (#241), so
 // no rung is at stake -- but remember() documents that "the grab_failed
-// notification groups the same way: one per incident", and a split group makes
+// notification groups the same way: one per incident", and a split info-hash group makes
 // that claim false.
 func TestVanishedPackWithALateRowIsOneIncident(t *testing.T) {
 	st := coretest.NewStore(t)

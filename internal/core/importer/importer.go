@@ -59,7 +59,7 @@ type ClientSource interface {
 	Notify() *notify.Dispatcher
 }
 
-// Recorder records a release that failed, so the sweep stops re-deriving it
+// Recorder records a release that failed, so the search sweep stops re-deriving it
 // (#118). Narrow on purpose; false means its breaker suppressed the record
 // (#120).
 type Recorder interface {
@@ -127,7 +127,7 @@ func (im *Importer) stallTimeout() time.Duration {
 }
 
 // ScanOnce imports every outstanding grab whose torrent has completed. It reads
-// the current clients from the source; if either the download client or the
+// the current clients from the client source; if either the download client or the
 // library is unconfigured, there is nothing to do this tick.
 func (im *Importer) ScanOnce(ctx context.Context) error {
 	im.mu.Lock()
@@ -197,7 +197,7 @@ func (im *Importer) ScanOnce(ctx context.Context) error {
 			}
 		case download.StateStalled, download.StateDownloading:
 			// A downloading or stalled torrent that has received nothing is the same
-			// fact whichever of the two states the client reports (#246).
+			// fact whichever of the two download states the client reports (#246).
 			if !st.StuckAtZero() {
 				continue
 			}
@@ -227,7 +227,7 @@ type grabGroup struct {
 }
 
 // groupByHash buckets the already-fetched rows, preserving first-seen order so a
-// scan's work is still deterministic. Title is part of the key because a group
+// scan's work is still deterministic. Title is part of the key because an info-hash group
 // is the unit of numbering and attribution both, and one torrent can back grabs
 // for two titles — no eligibility rule applies to a manual grab.
 func groupByHash(grabs []db.ListGrabsByStatusRow) []grabGroup {
@@ -250,7 +250,7 @@ func groupByHash(grabs []db.ListGrabsByStatusRow) []grabGroup {
 	return out
 }
 
-// rowsWithStatus filters a group to one status, in item-number order so a pack
+// rowsWithStatus filters an info-hash group to one status, in item-number order so a pack
 // imports front to back.
 func rowsWithStatus(rows []db.ListGrabsByStatusRow, status string) []db.ListGrabsByStatusRow {
 	out := make([]db.ListGrabsByStatusRow, 0, len(rows))
@@ -293,7 +293,7 @@ type failedGrab struct {
 	blame        blame
 }
 
-// remember reports and records one entry per failed release, not per failed
+// remember reports and records one blocklist entry per failed release, not per failed
 // row: a batch is a row per episode, and recording each escalated the expiry all the
 // way in one incident — 24h, 7d, permanent — on a release that had failed once
 // (#124). The grab_failed notification groups the same way: one per incident.
@@ -335,7 +335,7 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 			ReleaseTitle: rows[0].releaseTitle,
 			Error:        rows[0].reason,
 		})
-		// Reporting is information, recording is a judgement (#241). A group's
+		// Reporting is information, recording is a judgement (#241). A release's
 		// rows come from one path, so the first row's value covers all of them.
 		if !rows[0].blame || im.blocklist == nil {
 			continue
@@ -382,7 +382,7 @@ func (im *Importer) openGrabs(ctx context.Context) ([]db.ListGrabsByStatusRow, e
 	return append(grabbed, deferred...), nil
 }
 
-// clock is one of the two timers a group's rows share. A reader and a writer make
+// clock is one of the two timers an info-hash group's rows share. A reader and a writer make
 // "stalled_since mirrors missing_since" structural rather than a convention.
 type clock struct {
 	column string
@@ -403,7 +403,7 @@ var (
 	}
 )
 
-// sharedSince returns when a group's clock started, converging every row on it (#247).
+// sharedSince returns when an info-hash group's clock started, converging every row on it (#247).
 func (im *Importer) sharedSince(ctx context.Context, c clock, rows []db.ListGrabsByStatusRow, now time.Time) (time.Time, bool) {
 	var since time.Time
 	var earliest string
@@ -539,7 +539,7 @@ func (im *Importer) setStalledSince(ctx context.Context, id int64, v sql.NullStr
 // It returns what it failed, for the scan to remember as one incident.
 func (im *Importer) importGroup(ctx context.Context, target library.Target, active []db.ListGrabsByStatusRow, st download.Status) []failedGrab {
 	if _, err := os.Stat(st.ContentPath); err != nil {
-		// Source not reachable from here — commonly a path-mapping gap when the
+		// Source path not reachable from here — commonly a path-mapping gap when the
 		// client runs elsewhere. Leave the rows grabbed and retry next tick.
 		im.log.Warn("importer: source not accessible", "hash", st.Hash, "path", st.ContentPath, "err", err)
 		im.setLastErrors(ctx, active, "source not accessible: "+err.Error())
@@ -618,7 +618,7 @@ func (im *Importer) settleGroup(ctx context.Context, target library.Target, acti
 			continue
 		}
 		// A file nothing could map is fixable by hand; a payload with nothing left
-		// in it never will be, so the item goes back to wanted and the sweep
+		// in it never will be, so the item goes back to wanted and the search sweep
 		// self-heals with a single. An unextracted archive still contains the episode,
 		// so it counts as something left rather than as an empty payload.
 		if len(leftovers) > 0 {
@@ -681,7 +681,7 @@ func (im *Importer) place(ctx context.Context, target library.Target, source str
 	ctx = context.WithoutCancel(ctx)
 
 	// Mark the item had before flipping the grab status. The file is already in the
-	// library, so "had" is the true state; if the status write then fails, the grab
+	// library, so "had" is the true item state; if the status write then fails, the grab
 	// stays 'grabbed' and retries, and Place is idempotent, so the retry is a no-op
 	// rather than an inconsistency. The same write names what is now in the library,
 	// which is what a later upgrade scores against.

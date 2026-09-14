@@ -69,7 +69,7 @@ const (
 	StatePaused   State = "paused"
 	StateError    State = "error"
 	// The client still manages the torrent and reports its data gone from disk,
-	// not the torrent being absent, which has no state because nothing reports one.
+	// not the torrent being absent, which has no download state because nothing reports one.
 	StateDataMissing State = "data_missing"
 	StateUnknown     State = "unknown"
 )
@@ -112,7 +112,7 @@ type Client interface {
 	Test(ctx context.Context) error
 	// Add injects a torrent and returns its info hash and the outcome.
 	Add(ctx context.Context, opts AddOptions) (AddResult, error)
-	// Status returns the current state of the requested hashes. Hashes the
+	// Status returns the current download state of the requested hashes. Hashes the
 	// client has no torrent for are omitted from the result. With no hashes, it
 	// returns every torrent the client is managing.
 	Status(ctx context.Context, hashes ...string) ([]Status, error)

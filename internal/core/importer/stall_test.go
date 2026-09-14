@@ -79,8 +79,8 @@ func TestFailsGrabFetchingMetadataAtZeroPastTimeout(t *testing.T) {
 	}
 }
 
-// A download that has moved is never abandoned, whichever state it is in: the
-// widened predicate reads progress, not just the state name.
+// A download that has moved is never abandoned, whichever download state it is in: the
+// widened predicate reads progress, not just the download state name.
 func TestLeavesAFetchingMetadataDownloadWithProgressAlone(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
