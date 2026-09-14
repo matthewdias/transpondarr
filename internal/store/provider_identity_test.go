@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"testing"
 
 	"github.com/pressly/goose/v3"
@@ -13,7 +12,7 @@ import (
 // every child still existing is the acceptance criterion, not a nicety.
 func TestProviderIdentityMigrationKeepsCascadeChildren(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := goose.DownTo(st.DB, "migrations", 18); err != nil {
 		t.Fatalf("roll back to the anilist_id schema: %v", err)
@@ -137,7 +136,7 @@ func TestProviderIdentityMigrationKeepsCascadeChildren(t *testing.T) {
 // which the old single-column UNIQUE could not represent.
 func TestTitleIdentityIsThePair(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const insert = `INSERT INTO series (provider, provider_id, title) VALUES (?, ?, 'Show')`
 	if _, err := st.DB.ExecContext(ctx, insert, "anilist", 123); err != nil {
@@ -156,7 +155,7 @@ func TestTitleIdentityIsThePair(t *testing.T) {
 // exists to remove.
 func TestTitleIdentityIsBothOrNeither(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if _, err := st.DB.ExecContext(ctx,
 		`INSERT INTO series (provider, title) VALUES ('anilist', 'Show')`); err == nil {

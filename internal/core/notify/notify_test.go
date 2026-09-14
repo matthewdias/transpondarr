@@ -67,7 +67,7 @@ func TestDispatchFansOutOnlyToKindEnabledRoutes(t *testing.T) {
 		Route{Notifier: off, Kinds: map[Kind]bool{KindGrabbed: true}},
 	)
 
-	d.Dispatch(context.Background(), Event{Kind: KindImported, Title: "Placeholder Saga"})
+	d.Dispatch(t.Context(), Event{Kind: KindImported, Title: "Placeholder Saga"})
 
 	if ev := on.received(t); ev.Kind != KindImported || ev.Title != "Placeholder Saga" {
 		t.Fatalf("enabled route got %+v, want the imported event", ev)
@@ -93,7 +93,7 @@ func TestFailingRouteLogsAndDoesNotAffectOthers(t *testing.T) {
 		Route{Notifier: good, Kinds: allKinds()},
 	)
 
-	d.Dispatch(context.Background(), Event{Kind: KindGrabFailed})
+	d.Dispatch(t.Context(), Event{Kind: KindGrabFailed})
 
 	bad.received(t)
 	good.received(t)
@@ -144,7 +144,7 @@ func TestDispatchReturnsWhileASendBlocks(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		d.Dispatch(context.Background(), Event{Kind: KindImported})
+		d.Dispatch(t.Context(), Event{Kind: KindImported})
 		close(done)
 	}()
 
@@ -165,7 +165,7 @@ func TestCallerCancellationDoesNotCancelASend(t *testing.T) {
 	r := newRecorder("survivor", nil)
 	d := NewDispatcher(slog.New(slog.DiscardHandler), Route{Notifier: r, Kinds: allKinds()})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // a request-scoped ctx already gone by dispatch time
 	d.Dispatch(ctx, Event{Kind: KindTitleAdded})
 

@@ -59,7 +59,7 @@ func TestCachedGetTitleHitSkipsProvider(t *testing.T) {
 	}
 	c := Cached(prov, cache)
 
-	meta, items, err := c.GetTitle(context.Background(), 5)
+	meta, items, err := c.GetTitle(t.Context(), 5)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestCachedGetTitleMissFetchesAndStores(t *testing.T) {
 	cache := &fakeCache{ok: false}
 	c := Cached(prov, cache)
 
-	meta, items, err := c.GetTitle(context.Background(), 5)
+	meta, items, err := c.GetTitle(t.Context(), 5)
 	if err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestCachedGetTitleStaleRefetches(t *testing.T) {
 	}
 	c := Cached(prov, cache)
 
-	if _, _, err := c.GetTitle(context.Background(), 5); err != nil {
+	if _, _, err := c.GetTitle(t.Context(), 5); err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
 	if prov.getCalls != 1 {
@@ -120,7 +120,7 @@ func TestCachedGetTitleCacheGetErrorFallsBack(t *testing.T) {
 	cache := &fakeCache{getErr: errors.New("db down")}
 	c := Cached(prov, cache)
 
-	if _, _, err := c.GetTitle(context.Background(), 5); err != nil {
+	if _, _, err := c.GetTitle(t.Context(), 5); err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
 	if prov.getCalls != 1 {
@@ -134,7 +134,7 @@ func TestCachedGetTitlePutErrorIsSwallowed(t *testing.T) {
 	cache := &fakeCache{ok: false, putErr: errors.New("disk full")}
 	c := Cached(prov, cache)
 
-	meta, _, err := c.GetTitle(context.Background(), 5)
+	meta, _, err := c.GetTitle(t.Context(), 5)
 	if err != nil {
 		t.Fatalf("GetTitle should swallow a Put error, got: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestCachedGetTitleProviderErrorPropagates(t *testing.T) {
 	cache := &fakeCache{ok: false}
 	c := Cached(prov, cache)
 
-	if _, _, err := c.GetTitle(context.Background(), 5); err == nil {
+	if _, _, err := c.GetTitle(t.Context(), 5); err == nil {
 		t.Fatal("expected the provider error to propagate")
 	}
 	if cache.puts != 0 {
@@ -168,7 +168,7 @@ func TestCachedGetTitleProviderErrorServesStale(t *testing.T) {
 	}
 	c := Cached(prov, cache)
 
-	meta, items, err := c.GetTitle(context.Background(), 5)
+	meta, items, err := c.GetTitle(t.Context(), 5)
 	if err != nil {
 		t.Fatalf("expected stale snapshot to be served, got error: %v", err)
 	}
@@ -189,7 +189,7 @@ func TestCachedSearchBypassesCache(t *testing.T) {
 	cache := &fakeCache{}
 	c := Cached(prov, cache)
 
-	if _, err := c.Search(context.Background(), "term"); err != nil {
+	if _, err := c.Search(t.Context(), "term"); err != nil {
 		t.Fatalf("Search: %v", err)
 	}
 	if prov.searchCalls != 1 {
@@ -278,7 +278,7 @@ func TestCachedGetTitleRefetchesAScheduledTitleWithAnUnknownCount(t *testing.T) 
 		ok:        true,
 	}
 
-	if _, _, err := Cached(prov, cache).GetTitle(context.Background(), 5); err != nil {
+	if _, _, err := Cached(prov, cache).GetTitle(t.Context(), 5); err != nil {
 		t.Fatalf("GetTitle: %v", err)
 	}
 	if prov.getCalls != 1 {
@@ -300,7 +300,7 @@ func TestTitleFromCacheServesStaleSnapshotWithoutProvider(t *testing.T) {
 		t.Fatal("Cached does not read its own cache")
 	}
 
-	meta, items, hit, err := reader.TitleFromCache(context.Background(), 5)
+	meta, items, hit, err := reader.TitleFromCache(t.Context(), 5)
 	if err != nil {
 		t.Fatalf("TitleFromCache: %v", err)
 	}
@@ -319,7 +319,7 @@ func TestTitleFromCacheMissDoesNotFetch(t *testing.T) {
 	prov := &fakeProvider{meta: TitleMeta{ProviderID: 5}}
 	reader := Cached(prov, &fakeCache{ok: false}).(CachedTitleReader)
 
-	_, _, hit, err := reader.TitleFromCache(context.Background(), 5)
+	_, _, hit, err := reader.TitleFromCache(t.Context(), 5)
 	if err != nil {
 		t.Fatalf("a miss is not an error, got: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestTitleFromCacheCacheErrorDoesNotFetch(t *testing.T) {
 	prov := &fakeProvider{meta: TitleMeta{ProviderID: 5}}
 	reader := Cached(prov, &fakeCache{getErr: errors.New("db down")}).(CachedTitleReader)
 
-	_, _, hit, err := reader.TitleFromCache(context.Background(), 5)
+	_, _, hit, err := reader.TitleFromCache(t.Context(), 5)
 	if err == nil {
 		t.Fatal("expected the cache read error to surface")
 	}
@@ -385,7 +385,7 @@ func TestCachedForwardsAiringCapability(t *testing.T) {
 	if !ok {
 		t.Fatal("Cached dropped the AiringProvider capability of its inner provider")
 	}
-	got, err := airing.GetSchedule(context.Background(), 5, true)
+	got, err := airing.GetSchedule(t.Context(), 5, true)
 	if err != nil {
 		t.Fatalf("GetSchedule: %v", err)
 	}
@@ -427,7 +427,7 @@ func TestCachedForwardsBrowseCapability(t *testing.T) {
 	if !ok {
 		t.Fatal("Cached dropped the BrowseProvider capability of its inner provider")
 	}
-	got, err := browse.BrowseSeason(context.Background(), SeasonSpring, 2026)
+	got, err := browse.BrowseSeason(t.Context(), SeasonSpring, 2026)
 	if err != nil {
 		t.Fatalf("BrowseSeason: %v", err)
 	}
@@ -473,10 +473,10 @@ func TestCachedForwardsBothCapabilities(t *testing.T) {
 	if !ok {
 		t.Fatal("Cached dropped BrowseProvider from a provider carrying both capabilities")
 	}
-	if _, err := airing.GetSchedule(context.Background(), 1, false); err != nil {
+	if _, err := airing.GetSchedule(t.Context(), 1, false); err != nil {
 		t.Fatalf("GetSchedule: %v", err)
 	}
-	if _, err := browse.BrowseSeason(context.Background(), SeasonFall, 2025); err != nil {
+	if _, err := browse.BrowseSeason(t.Context(), SeasonFall, 2025); err != nil {
 		t.Fatalf("BrowseSeason: %v", err)
 	}
 	if prov.scheduleCalls != 1 || prov.browseCalls != 1 {

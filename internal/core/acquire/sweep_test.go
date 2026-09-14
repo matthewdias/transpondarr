@@ -33,7 +33,7 @@ type sweepItem struct {
 // seedSweep inserts a title with the given items and returns its id.
 func seedSweep(t *testing.T, st *store.Store, title string, monitored bool, items ...sweepItem) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var mon int64
 	if monitored {
 		mon = 1
@@ -103,7 +103,7 @@ type searchState struct {
 func readSearchState(t *testing.T, st *store.Store, id int64) searchState {
 	t.Helper()
 	var s searchState
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT search_backoff, next_search_at, last_searched_at FROM series WHERE id = ?`, id).
 		Scan(&s.backoff, &s.nextSearchAt, &s.lastSearched); err != nil {
 		t.Fatalf("read search state: %v", err)
@@ -129,7 +129,7 @@ func wantNextSearchNear(t *testing.T, got sql.NullString, want time.Time) {
 
 func grabbedItemNumbers(t *testing.T, st *store.Store, titleID int64) []int {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	grabs, err := st.Q.ListGrabsByTitle(ctx, titleID)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
@@ -200,7 +200,7 @@ func TestSweepGrabsEligibleAiredItem(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 1, inLibrary: true}, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -222,7 +222,7 @@ func TestSweepNoOpsWhenAutomationDisabled(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{automationOff: true})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.idx.Queries) != 0 || len(h.dl.Adds) != 0 {
@@ -241,7 +241,7 @@ func TestSweepRunsWithAutomationDisabledWhenTriggeredByHand(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{automationOff: true})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(jobs.WithManualRun(context.Background())); err != nil {
+	if err := h.svc.SweepOnce(jobs.WithManualRun(t.Context())); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.idx.Queries) == 0 {
@@ -278,7 +278,7 @@ func TestSweepNoOpsWithoutIndexerOrDownloadClient(t *testing.T) {
 			svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
 			id := seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-			if err := svc.SweepOnce(context.Background()); err != nil {
+			if err := svc.SweepOnce(t.Context()); err != nil {
 				t.Fatalf("SweepOnce: %v", err)
 			}
 			if len(idx.Queries) != 0 || len(dl.Adds) != 0 {
@@ -299,7 +299,7 @@ func TestSweepSkipsUnmonitoredTitles(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", false, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -319,7 +319,7 @@ func TestSweepSkipsFutureItemsButTreatsNullAirsAtAsEligible(t *testing.T) {
 		sweepItem{number: 3},
 		sweepItem{number: 9, airsAt: &future})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -332,13 +332,13 @@ func TestSweepSkipsFutureItemsButTreatsNullAirsAtAsEligible(t *testing.T) {
 func TestSweepNeverGrabsIneligibleOnlyCandidate(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
 		t.Fatalf("raise the profile minimum: %v", err)
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -362,13 +362,13 @@ func TestSweepDoesNotRegrabInFlightItems(t *testing.T) {
 		sweepItem{number: 3, airsAt: &past, grab: "grabbed"},
 		sweepItem{number: 4, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 1 {
 		t.Fatalf("download Add called %d times, want 1 (item 4 only)", len(h.dl.Adds))
 	}
-	grabs, _ := h.st.Q.ListGrabsByTitle(context.Background(), id)
+	grabs, _ := h.st.Q.ListGrabsByTitle(t.Context(), id)
 	for _, g := range grabs {
 		if g.InfoHash == "existing3" && g.Status != "grabbed" {
 			t.Errorf("in-flight grab was disturbed: %+v", g)
@@ -389,7 +389,7 @@ func TestSweepGrabsMultipleReleasesInOnePass(t *testing.T) {
 		sweepItem{number: 4, airsAt: &past},
 		sweepItem{number: 5, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 3 {
@@ -412,7 +412,7 @@ func TestSweepContinuesPastAFailedAdd(t *testing.T) {
 		sweepItem{number: 3, airsAt: &past},
 		sweepItem{number: 4, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v — one bad release must not fail the pass", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 4 {
@@ -437,7 +437,7 @@ func TestSweepFallsBackToTheNextCandidateForTheSameItem(t *testing.T) {
 	h.dl.FailURLs = map[string]error{best.DownloadURL: errors.New("404 fetching .torrent")}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -463,7 +463,7 @@ func TestSweepStopsAfterRepeatedAddFailures(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, items...)
 
 	before := time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err == nil {
+	if err := h.svc.SweepOnce(t.Context()); err == nil {
 		t.Fatal("SweepOnce returned nil, want the client failure surfaced")
 	}
 	if len(h.dl.Adds) > 3 {
@@ -492,7 +492,7 @@ func TestSweepIndexerFailureLeavesTheCadenceUntouched(t *testing.T) {
 	h.idx.Err = errors.New("torznab: upstream timeout")
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err == nil {
+	if err := h.svc.SweepOnce(t.Context()); err == nil {
 		t.Fatal("SweepOnce returned nil, want the indexer failure surfaced")
 	}
 	state := readSearchState(t, h.st, id)
@@ -535,7 +535,7 @@ func TestSweepFailingTitlesDoNotStarveHealthyOnes(t *testing.T) {
 	// One pass fills with the broken title alone; the second must search past
 	// them now that a failed pass backs off.
 	for range 2 {
-		_ = h.svc.SweepOnce(context.Background())
+		_ = h.svc.SweepOnce(t.Context())
 	}
 	if got := grabbedItemNumbers(t, h.st, healthyID); len(got) != 1 || got[0] != 1 {
 		t.Fatalf("healthy title grabs = %v, want [1] — it was starved by the failing ones", got)
@@ -550,7 +550,7 @@ func TestSweepEmptySearchBackoffGrowsAndCaps(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
 	before := time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	state := readSearchState(t, h.st, id)
@@ -560,12 +560,12 @@ func TestSweepEmptySearchBackoffGrowsAndCaps(t *testing.T) {
 	wantNextSearchNear(t, state.nextSearchAt, before.Add(time.Hour))
 
 	// Far enough along that the doubling would overshoot a day.
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 10, next_search_at = NULL WHERE id = ?`, id); err != nil {
 		t.Fatalf("advance the backoff: %v", err)
 	}
 	before = time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	state = readSearchState(t, h.st, id)
@@ -582,14 +582,14 @@ func TestSweepNewlyAiredItemResetsBackoff(t *testing.T) {
 	justAired := now.Add(-30 * time.Minute)
 	h := newSweep(t, nil, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &justAired})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 6, last_searched_at = ?, next_search_at = NULL WHERE id = ?`,
 		store.FormatTimestamp(now.Add(-3*time.Hour)), id); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
 	before := time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	state := readSearchState(t, h.st, id)
@@ -609,13 +609,13 @@ func TestSweepClampsNextSearchToUpcomingAirDate(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, airsAt: &past},
 		sweepItem{number: 4, airsAt: &soon})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 10, last_searched_at = ? WHERE id = ?`,
 		store.FormatTimestamp(now.Add(-1*time.Hour)), id); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	wantNextSearchNear(t, readSearchState(t, h.st, id).nextSearchAt, soon)
@@ -629,7 +629,7 @@ func TestSweepStopsAtTheTitlesPerPassCap(t *testing.T) {
 		seedSweep(t, h.st, fmt.Sprintf("Placeholder Saga %d", i), true, sweepItem{number: 1, airsAt: &past})
 	}
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.idx.Queries) != 5 {

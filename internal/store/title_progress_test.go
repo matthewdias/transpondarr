@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -12,7 +11,7 @@ import (
 func progressOf(t *testing.T, st *Store, now time.Time, title string) db.ListTitlesWithProgressRow {
 	t.Helper()
 	stamp := sql.NullString{String: FormatTimestamp(now), Valid: true}
-	rows, err := st.Q.ListTitlesWithProgress(context.Background(),
+	rows, err := st.Q.ListTitlesWithProgress(t.Context(),
 		db.ListTitlesWithProgressParams{AirsAt: stamp, AirsAt_2: stamp})
 	if err != nil {
 		t.Fatalf("list titles with progress: %v", err)

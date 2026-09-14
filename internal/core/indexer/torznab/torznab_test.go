@@ -1,7 +1,6 @@
 package torznab
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -264,7 +263,7 @@ func TestSearchHTTP(t *testing.T) {
 	defer srv.Close()
 
 	i := New("prowlarr", srv.URL, "k", "")
-	got, err := i.Search(context.Background(), indexer.Query{Term: "placeholder"})
+	got, err := i.Search(t.Context(), indexer.Query{Term: "placeholder"})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
@@ -286,7 +285,7 @@ func TestRecentHTTPUsesAnEmptyTerm(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := New("prowlarr", srv.URL, "k", "").Recent(context.Background())
+	got, err := New("prowlarr", srv.URL, "k", "").Recent(t.Context())
 	if err != nil {
 		t.Fatalf("Recent: %v", err)
 	}
@@ -315,7 +314,7 @@ func TestRecentHTTPCarriesCategories(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := New("prowlarr", srv.URL, "k", "5070,127720").Recent(context.Background()); err != nil {
+	if _, err := New("prowlarr", srv.URL, "k", "5070,127720").Recent(t.Context()); err != nil {
 		t.Fatalf("Recent: %v", err)
 	}
 	if gotCat != "5070,127720" {
@@ -380,7 +379,7 @@ func TestSearchHTTPErrorStatus(t *testing.T) {
 	defer srv.Close()
 
 	i := New("prowlarr", srv.URL, "k", "")
-	if _, err := i.Search(context.Background(), indexer.Query{Term: "x"}); err == nil {
+	if _, err := i.Search(t.Context(), indexer.Query{Term: "x"}); err == nil {
 		t.Fatal("expected an error on HTTP 500")
 	}
 }

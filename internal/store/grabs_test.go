@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"path/filepath"
 	"testing"
@@ -21,7 +20,7 @@ func tempStore(t *testing.T) *Store {
 
 func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
@@ -86,7 +85,7 @@ func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 // A batch inserts one grab row per covered item, all sharing the torrent's info hash.
 func TestUpsertGrabBatchSharesInfoHash(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {

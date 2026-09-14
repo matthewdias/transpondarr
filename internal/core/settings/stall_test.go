@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -31,7 +30,7 @@ func TestStallTimeoutDefaultsWhenUnset(t *testing.T) {
 // than meaning "immediately".
 func TestUpdateDownloadPersistsStallHours(t *testing.T) {
 	svc, _, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateDownload(ctx, DownloadConfig{URL: "http://qb:8080", StallHours: 12}); err != nil {
 		t.Fatalf("update: %v", err)
@@ -64,7 +63,7 @@ func TestUpdateDownloadPersistsStallHours(t *testing.T) {
 // possible wait into none, so it is clamped before it is stored.
 func TestStallHoursAreClampedBeforePersisting(t *testing.T) {
 	svc, _, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.UpdateDownload(ctx, DownloadConfig{URL: "http://qb:8080", StallHours: 999999999}); err != nil {
 		t.Fatalf("update: %v", err)
@@ -95,7 +94,7 @@ func TestStallHoursFromEnvBaseline(t *testing.T) {
 				t.Fatalf("open store: %v", err)
 			}
 			t.Cleanup(func() { _ = store.DB.Close() })
-			svc, err := New(context.Background(), store, &config.Config{StallTimeoutHours: tc.env},
+			svc, err := New(t.Context(), store, &config.Config{StallTimeoutHours: tc.env},
 				clients.New(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 			if err != nil {
 				t.Fatalf("new service: %v", err)

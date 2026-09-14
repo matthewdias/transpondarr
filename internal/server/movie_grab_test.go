@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -17,7 +16,7 @@ import (
 // seedMovie is #208's shape: one title, one wanted item, and a year.
 func seedMovie(t *testing.T, st *store.Store, title string, year int64) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: title, Format: "MOVIE", Monitored: 1, Year: year,
 	})

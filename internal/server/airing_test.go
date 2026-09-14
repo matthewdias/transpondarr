@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -14,7 +13,7 @@ func TestTitleDetailSurfacesAirDates(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 2)
 
-	if _, err := h.store.DB.ExecContext(context.Background(),
+	if _, err := h.store.DB.ExecContext(t.Context(),
 		`UPDATE wanted_items SET airs_at = '2026-01-04 15:30:00' WHERE series_id = ? AND number = 1`,
 		titleID); err != nil {
 		t.Fatalf("seed air date: %v", err)

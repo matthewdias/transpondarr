@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -22,10 +21,10 @@ func deferOne(t *testing.T, st *store.Store, dir string, items int) (*Importer, 
 	}}
 	target := &coretest.FakeLibrary{}
 	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	rows, err := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, err := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -48,7 +47,7 @@ func TestListPayloadReportsFilesAndItems(t *testing.T) {
 	)
 	im, _, grabID := deferOne(t, st, dir, 2)
 
-	info, err := im.ListPayload(context.Background(), grabID)
+	info, err := im.ListPayload(t.Context(), grabID)
 	if err != nil {
 		t.Fatalf("ListPayload: %v", err)
 	}
@@ -72,7 +71,7 @@ func TestListPayloadReportsFilesAndItems(t *testing.T) {
 // has to be listed, and it must never be assignable to an episode.
 func TestListPayloadReportsArchivesWhenNothingIsImportable(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	dir := writeTree(t,
 		"placeholder.saga.s01e01.1080p.web.h264-synth.rar",
 		"placeholder.saga.s01e01.1080p.web.h264-synth.r00",
@@ -112,7 +111,7 @@ func TestRetryImportAfterExtractionImports(t *testing.T) {
 
 	writeTreeInto(t, dir, "[SynthSubs] Placeholder Saga - 01 [1080p].mkv")
 
-	results, err := im.RetryImport(context.Background(), grabID, nil)
+	results, err := im.RetryImport(t.Context(), grabID, nil)
 	if err != nil {
 		t.Fatalf("RetryImport: %v", err)
 	}
@@ -134,7 +133,7 @@ func TestRetryImportWithNothingExtractedStaysDeferred(t *testing.T) {
 	)
 	im, target, grabID := deferOne(t, st, dir, 1)
 
-	results, err := im.RetryImport(context.Background(), grabID, nil)
+	results, err := im.RetryImport(t.Context(), grabID, nil)
 	if err != nil {
 		t.Fatalf("RetryImport: %v", err)
 	}
@@ -149,7 +148,7 @@ func TestRetryImportWithNothingExtractedStaysDeferred(t *testing.T) {
 	if len(target.Placed) != 0 {
 		t.Errorf("Place called %d times, want nothing placed", len(target.Placed))
 	}
-	row, err := st.Q.GetGrabByID(context.Background(), grabID)
+	row, err := st.Q.GetGrabByID(t.Context(), grabID)
 	if err != nil {
 		t.Fatalf("read back grab: %v", err)
 	}
@@ -166,7 +165,7 @@ func TestListPayloadRefusesANonDeferredGrab(t *testing.T) {
 		"b1946ac92492d2347c6235b4d2611184.mkv",
 	)
 	im, _, _ := deferOne(t, st, dir, 2)
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	var imported int64
 	for _, g := range rows {
 		if g.Status == "imported" {
@@ -174,10 +173,10 @@ func TestListPayloadRefusesANonDeferredGrab(t *testing.T) {
 		}
 	}
 
-	if _, err := im.ListPayload(context.Background(), imported); !errors.Is(err, ErrNotDeferred) {
+	if _, err := im.ListPayload(t.Context(), imported); !errors.Is(err, ErrNotDeferred) {
 		t.Errorf("err = %v, want ErrNotDeferred", err)
 	}
-	if _, err := im.ListPayload(context.Background(), 9999); !errors.Is(err, ErrGrabNotFound) {
+	if _, err := im.ListPayload(t.Context(), 9999); !errors.Is(err, ErrGrabNotFound) {
 		t.Errorf("err = %v, want ErrGrabNotFound for an unknown id", err)
 	}
 }
@@ -195,10 +194,10 @@ func TestListPayloadReportsAVanishedPayload(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	var deferred int64
 	for _, g := range rows {
 		if g.Status == "import_deferred" {
@@ -207,7 +206,7 @@ func TestListPayloadReportsAVanishedPayload(t *testing.T) {
 	}
 
 	dl.Statuses = nil // the client forgot the torrent
-	if _, err := im.ListPayload(context.Background(), deferred); !errors.Is(err, ErrPayloadGone) {
+	if _, err := im.ListPayload(t.Context(), deferred); !errors.Is(err, ErrPayloadGone) {
 		t.Errorf("err = %v, want ErrPayloadGone", err)
 	}
 }
@@ -216,7 +215,7 @@ func TestListPayloadReportsAVanishedPayload(t *testing.T) {
 // with the item marked had and the history event appended.
 func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	dir := writeTree(t,
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"b1946ac92492d2347c6235b4d2611184.mkv",
@@ -263,7 +262,7 @@ func TestRetryImportWithoutAssignmentsRemaps(t *testing.T) {
 	)
 	im, _, grabID := deferOne(t, st, dir, 2)
 
-	results, err := im.RetryImport(context.Background(), grabID, nil)
+	results, err := im.RetryImport(t.Context(), grabID, nil)
 	if err != nil {
 		t.Fatalf("RetryImport: %v", err)
 	}
@@ -291,7 +290,7 @@ func TestRetryImportRejectsInvalidAssignments(t *testing.T) {
 	}
 	for name, assignments := range tests {
 		t.Run(name, func(t *testing.T) {
-			if _, err := im.RetryImport(context.Background(), grabID, assignments); !errors.Is(err, ErrBadAssignment) {
+			if _, err := im.RetryImport(t.Context(), grabID, assignments); !errors.Is(err, ErrBadAssignment) {
 				t.Errorf("err = %v, want ErrBadAssignment", err)
 			}
 		})
@@ -311,7 +310,7 @@ func TestRetryImportRejectsDuplicateAssignments(t *testing.T) {
 	)
 	im, _, grabID := deferOne(t, st, dir, 2)
 
-	_, err := im.RetryImport(context.Background(), grabID, map[string]int{
+	_, err := im.RetryImport(t.Context(), grabID, map[string]int{
 		"b1946ac92492d2347c6235b4d2611184.mkv": 2,
 		"c1946ac92492d2347c6235b4d2611184.mkv": 2,
 	})
@@ -324,7 +323,7 @@ func TestRetryImportRejectsDuplicateAssignments(t *testing.T) {
 // is left to the scan, so a retry never disturbs it.
 func TestRetryImportLeavesGrabbedRowsAlone(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	dir := writeTree(t,
 		"[SynthSubs] Placeholder Saga - 01 [1080p].mkv",
 		"b1946ac92492d2347c6235b4d2611184.mkv",

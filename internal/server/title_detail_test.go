@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -14,7 +13,7 @@ import (
 func TestTitleDetailEnrichedFromMetadataCache(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	titleID := seedTitle(t, h.store, "Enriched Show", 2)
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := h.store.DB.ExecContext(ctx,
 		`UPDATE series SET provider = 'anilist', provider_id = 42 WHERE id = ?`, titleID); err != nil {
 		t.Fatalf("set provider identity: %v", err)

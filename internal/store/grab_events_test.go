@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/store/db"
@@ -9,7 +8,7 @@ import (
 
 func seedEventTitle(t *testing.T, st *Store, name string) int64 {
 	t.Helper()
-	title, err := st.Q.CreateTitle(context.Background(), db.CreateTitleParams{Title: name, Format: "TV", Monitored: 1})
+	title, err := st.Q.CreateTitle(t.Context(), db.CreateTitleParams{Title: name, Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create title: %v", err)
 	}
@@ -30,7 +29,7 @@ func appendEvent(t *testing.T, st *Store, titleID int64, number int64, event, cr
 
 func TestListGrabEventsPageNewestFirstWithTitleName(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	a := seedEventTitle(t, st, "Alpha")
 	b := seedEventTitle(t, st, "Beta")
 
@@ -60,7 +59,7 @@ func TestListGrabEventsPageNewestFirstWithTitleName(t *testing.T) {
 // once — the id tie-break is what the cursor's correctness depends on.
 func TestListGrabEventsPageBeforeTieBreaksOnID(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	s := seedEventTitle(t, st, "Alpha")
 
 	const stamp = "2026-01-05 12:00:00"
@@ -102,7 +101,7 @@ func TestListGrabEventsPageBeforeTieBreaksOnID(t *testing.T) {
 
 func TestListTitleGrabEventsScopesToTitle(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	a := seedEventTitle(t, st, "Alpha")
 	b := seedEventTitle(t, st, "Beta")
 

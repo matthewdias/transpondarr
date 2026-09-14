@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ func pinTitle(t *testing.T, st *store.Store, id int64, group string, hours int) 
 	if hours >= 0 {
 		delay = sql.NullInt64{Int64: int64(hours), Valid: true}
 	}
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?`,
 		sql.NullString{String: group, Valid: group != ""}, delay, id); err != nil {
 		t.Fatalf("pin series: %v", err)
@@ -33,7 +32,7 @@ func TestSweepGrabsPinnedReleaseImmediately(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	pinTitle(t, h.st, id, "ExampleSubs", -1)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -49,7 +48,7 @@ func TestSweepHoldsNonPinnedReleaseInsideTheDelay(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	pinTitle(t, h.st, id, "OtherSubs", -1)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -70,7 +69,7 @@ func TestSweepGrabsNonPinnedReleaseAfterTheDelay(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	pinTitle(t, h.st, id, "OtherSubs", -1)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -85,7 +84,7 @@ func TestSweepDelayIsInapplicableWithoutAnAirDate(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3})
 	pinTitle(t, h.st, id, "OtherSubs", -1)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -102,7 +101,7 @@ func TestSweepClampsAnAbsurdPinDelay(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	pinTitle(t, h.st, id, "OtherSubs", 3000000)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -121,7 +120,7 @@ func TestSweepPerTitleDelayOverridesTheGlobalDefault(t *testing.T) {
 		id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 		pinTitle(t, h.st, id, "OtherSubs", 6)
 
-		if err := h.svc.SweepOnce(context.Background()); err != nil {
+		if err := h.svc.SweepOnce(t.Context()); err != nil {
 			t.Fatalf("SweepOnce: %v", err)
 		}
 		if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -134,7 +133,7 @@ func TestSweepPerTitleDelayOverridesTheGlobalDefault(t *testing.T) {
 		id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 		pinTitle(t, h.st, id, "OtherSubs", 0)
 
-		if err := h.svc.SweepOnce(context.Background()); err != nil {
+		if err := h.svc.SweepOnce(t.Context()); err != nil {
 			t.Fatalf("SweepOnce: %v", err)
 		}
 		if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 {
@@ -149,7 +148,7 @@ func TestSweepDelayNeedsAPinnedGroup(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{pinDelay: 6 * time.Hour})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {

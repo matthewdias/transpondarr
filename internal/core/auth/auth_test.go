@@ -16,7 +16,7 @@ import (
 func newTestAuth(t *testing.T) (*Service, *store.Store) {
 	t.Helper()
 	st := coretest.NewStore(t)
-	svc, err := New(context.Background(), st, &config.Config{})
+	svc, err := New(t.Context(), st, &config.Config{})
 	if err != nil {
 		t.Fatalf("new auth: %v", err)
 	}
@@ -25,7 +25,7 @@ func newTestAuth(t *testing.T) (*Service, *store.Store) {
 
 func TestVerifyRejectsWrongCredentials(t *testing.T) {
 	svc, _ := newTestAuth(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if svc.Configured() {
 		t.Fatal("service should start unconfigured")
@@ -67,14 +67,14 @@ func TestHashPasswordUsesArgon2id(t *testing.T) {
 
 func TestCreateUserRejectsShortPassword(t *testing.T) {
 	svc, _ := newTestAuth(t)
-	if err := svc.CreateUser(context.Background(), "admin", "short"); err == nil {
+	if err := svc.CreateUser(t.Context(), "admin", "short"); err == nil {
 		t.Fatalf("expected rejection of password shorter than %d chars", MinPasswordLen)
 	}
 }
 
 func TestSessionLifecycle(t *testing.T) {
 	svc, _ := newTestAuth(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestSessionLifecycle(t *testing.T) {
 // CleanupExpired must remove expired rows and leave live sessions alone.
 func TestCleanupExpiredRemovesOnlyExpiredSessions(t *testing.T) {
 	svc, st := newTestAuth(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
@@ -136,7 +136,7 @@ func TestCleanupExpiredReportsStoreFailure(t *testing.T) {
 	svc, st := newTestAuth(t)
 	_ = st.DB.Close()
 
-	if err := svc.CleanupExpired(context.Background()); err == nil {
+	if err := svc.CleanupExpired(t.Context()); err == nil {
 		t.Fatal("cleanup on a closed store returned nil, want an error")
 	}
 }
@@ -145,7 +145,7 @@ func TestCleanupExpiredReportsStoreFailure(t *testing.T) {
 // logged out.
 func TestChangePasswordRevokesSessions(t *testing.T) {
 	svc, _ := newTestAuth(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -212,7 +212,7 @@ func assertOneHold(t *testing.T, svc *Service, probe *lockProbe) {
 // stored "local" silently stops enforcing auth at the next boot.
 func TestSetRequiredWritesSettingsUnderLock(t *testing.T) {
 	svc, st, probe := newProbedAuth(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.SetRequired(ctx, RequiredLocal); err != nil {
 		t.Fatalf("set required: %v", err)
@@ -235,7 +235,7 @@ func TestSetRequiredWritesSettingsUnderLock(t *testing.T) {
 // the live one.
 func TestCreateUserWritesSettingsUnderLock(t *testing.T) {
 	svc, st, probe := newProbedAuth(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
@@ -272,7 +272,7 @@ func (w *blockingWriter) UpsertSetting(ctx context.Context, arg db.UpsertSetting
 // settings write would queue the whole request path behind one admin action (#264).
 func TestReadsDoNotWaitForAWriteInFlight(t *testing.T) {
 	svc, _ := newTestAuth(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := svc.CreateUser(ctx, "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestReadsDoNotWaitForAWriteInFlight(t *testing.T) {
 // persist across the swap (#264).
 func TestAWriteKeepsTheFieldsItDoesNotTouch(t *testing.T) {
 	svc, _ := newTestAuth(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.SetRequired(ctx, RequiredLocal); err != nil {
 		t.Fatalf("set required: %v", err)
@@ -337,7 +337,7 @@ func TestAWriteKeepsTheFieldsItDoesNotTouch(t *testing.T) {
 // snapshot for it to read (#264).
 func TestNewBootstrapsAUserFromEnv(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	svc, err := New(ctx, st, &config.Config{AuthUsername: "admin", AuthPassword: "correcthorse"})
 	if err != nil {

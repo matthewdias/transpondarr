@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -39,7 +38,7 @@ func TestMonitorNew(t *testing.T) {
 // the migration silently stops the search sweep for the whole library.
 func TestMonitoredColumnDefaultsToOn(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedSearchTitle(t, st, "legacy", 1)
 
 	// The schema default is what backfills a pre-migration row, so it is asserted
@@ -66,7 +65,7 @@ func TestMonitoredColumnDefaultsToOn(t *testing.T) {
 // the airing sync run every few hours over exactly the items a user unmonitored.
 func TestUpsertsNeverClobberAStoredMonitoredFlag(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedSearchTitle(t, st, "narrowed", 1)
 
 	for _, n := range []int{1, 2} {
@@ -121,7 +120,7 @@ func TestUpsertsNeverClobberAStoredMonitoredFlag(t *testing.T) {
 // A concurrent title delete must cost only the ids it removed.
 func TestSetWantedItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedSearchTitle(t, st, "bulk", 1)
 	first := seedSearchItem(t, st, titleID, 1, 0, nil)
 	second := seedSearchItem(t, st, titleID, 2, 0, nil)
@@ -144,7 +143,7 @@ func TestSetWantedItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 
 func TestListTitleIDsForUnmonitoredItems(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedSearchTitle(t, st, "narrowing", 1)
 	off := seedSearchItem(t, st, titleID, 1, 0, nil)
 	alsoOff := seedSearchItem(t, st, titleID, 2, 0, nil)
@@ -177,7 +176,7 @@ func TestListTitleIDsForUnmonitoredItems(t *testing.T) {
 func itemMonitored(t *testing.T, st *Store, titleID int64, number int) int64 {
 	t.Helper()
 	var got int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT monitored FROM wanted_items WHERE series_id = ? AND number = ?`, titleID, number).Scan(&got); err != nil {
 		t.Fatalf("read monitored for item %d: %v", number, err)
 	}

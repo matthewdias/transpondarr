@@ -47,7 +47,7 @@ func (f *fakeRecorder) Record(_ context.Context, titleID int64, itemIDs []int64,
 // assert the reset a failure is supposed to trigger.
 func backdateSearchState(t *testing.T, st *store.Store, titleID int64) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 4, next_search_at = ? WHERE id = ?`,
 		store.FormatTimestamp(time.Now().Add(24*time.Hour)), titleID,
 	); err != nil {
@@ -59,7 +59,7 @@ func readSearchBackoff(t *testing.T, st *store.Store, titleID int64) (int64, boo
 	t.Helper()
 	var backoff int64
 	var next *string
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, titleID).Scan(&backoff, &next); err != nil {
 		t.Fatalf("read search state: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestFailedDownloadRecordsBlocklistEntry(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -115,7 +115,7 @@ func TestSuppressedRecordLeavesTheSearchQueueAlone(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -133,7 +133,7 @@ func TestSuppressedRecordLeavesTheSearchQueueAlone(t *testing.T) {
 // one grab row per covered episode, all sharing an info hash and a release name.
 func seedBatchGrab(t *testing.T, st *store.Store, hash string, items int) (titleID int64, itemIDs []int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: "Placeholder Saga", Format: "TV", Monitored: 1,
 	})
@@ -171,11 +171,11 @@ func TestBatchFailingOnceEscalatesOneStep(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(),
-		blocklist.New(st, nil), nil).ScanOnce(context.Background()); err != nil {
+		blocklist.New(st, nil), nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
-	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	entries, err := st.Q.ListBlocklistByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -195,7 +195,7 @@ func TestBatchFailingOnceEscalatesOneStep(t *testing.T) {
 func regrabBatch(t *testing.T, st *store.Store, itemIDs []int64, hash string) {
 	t.Helper()
 	for _, id := range itemIDs {
-		if _, err := st.Q.UpsertGrab(context.Background(), db.UpsertGrabParams{
+		if _, err := st.Q.UpsertGrab(t.Context(), db.UpsertGrabParams{
 			WantedItemID: id, InfoHash: hash,
 			ReleaseTitle: "[SynthSubs] Placeholder Saga - 01-03 [Batch]", Status: "grabbed",
 		}); err != nil {
@@ -208,7 +208,7 @@ func regrabBatch(t *testing.T, st *store.Store, itemIDs []int64, hash string) {
 // escalate, and the third still blocks permanently.
 func TestBatchReachesPermanentOverSeparateIncidents(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID, itemIDs := seedBatchGrab(t, st, "abc", 3)
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
@@ -245,7 +245,7 @@ func TestBatchReachesPermanentOverSeparateIncidents(t *testing.T) {
 // release did not aggregate the evidence away.
 func TestDistinctReleasesFailingAcrossItemsStillTripTheBreaker(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: "Placeholder Saga", Format: "TV", Monitored: 1,
 	})
@@ -304,11 +304,11 @@ func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
-	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	entries, err := st.Q.ListBlocklistByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -325,7 +325,7 @@ func TestWideBatchFailingIsStillRemembered(t *testing.T) {
 // in_library branch is a tripwire for a future path that marks it on failure.
 func assertItemFreed(t *testing.T, st *store.Store, titleID int64, number int) {
 	t.Helper()
-	item, err := st.Q.GetWantedItemByNumber(context.Background(), db.GetWantedItemByNumberParams{
+	item, err := st.Q.GetWantedItemByNumber(t.Context(), db.GetWantedItemByNumberParams{
 		SeriesID: titleID, Kind: "episode",
 		Number: sql.NullInt64{Int64: int64(number), Valid: true},
 	})
@@ -355,7 +355,7 @@ func TestGrabGoneFromClientRecordsNoBlocklistEntry(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -364,7 +364,7 @@ func TestGrabGoneFromClientRecordsNoBlocklistEntry(t *testing.T) {
 		t.Fatalf("status = %q, want failed past the grace period", got)
 	}
 	assertItemFreed(t, st, titleID, 5)
-	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	entries, err := st.Q.ListBlocklistByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -392,7 +392,7 @@ func TestDataMissingRecordsNoBlocklistEntry(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -401,7 +401,7 @@ func TestDataMissingRecordsNoBlocklistEntry(t *testing.T) {
 		t.Fatalf("status = %q, want failed", got)
 	}
 	assertItemFreed(t, st, titleID, 5)
-	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	entries, err := st.Q.ListBlocklistByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -426,11 +426,11 @@ func TestErroredDownloadIsStillRememberedOnTheLadder(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
-	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	entries, err := st.Q.ListBlocklistByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -457,7 +457,7 @@ func TestBlocklistWriteFailureStillFailsTheGrab(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if got := grabByHash(t, st, "abc").Status; got != "failed" {
@@ -483,7 +483,7 @@ func TestDeferredBatchDoesNotRecordBlocklistEntry(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -506,7 +506,7 @@ func TestUnplaceableImportDoesNotRecordBlocklistEntry(t *testing.T) {
 	}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	if len(rec.calls) != 0 {

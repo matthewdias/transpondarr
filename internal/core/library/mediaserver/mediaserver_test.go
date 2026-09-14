@@ -34,7 +34,7 @@ func TestPlaceHardlinkLayout(t *testing.T) {
 	root := t.TempDir()
 	target := New(Roots{Series: root}, LayoutSeasonFolders, "hardlink", nil)
 
-	dest, err := target.Place(context.Background(), req(src, "Placeholder Saga", 5))
+	dest, err := target.Place(t.Context(), req(src, "Placeholder Saga", 5))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestPlaceCopyMakesSeparateFile(t *testing.T) {
 	root := t.TempDir()
 	target := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil)
 
-	dest, err := target.Place(context.Background(), req(src, "Placeholder Saga", 1))
+	dest, err := target.Place(t.Context(), req(src, "Placeholder Saga", 1))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestPlaceCopyReclaimsStrayPartial(t *testing.T) {
 		t.Fatalf("write stray: %v", err)
 	}
 
-	dest, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).Place(context.Background(), req(src, "Placeholder Saga", 2))
+	dest, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).Place(t.Context(), req(src, "Placeholder Saga", 2))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestPlaceCopyReclaimsStrayPartial(t *testing.T) {
 func TestPlaceCopyAbortsOnCancel(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	root := t.TempDir()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	_, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).Place(ctx, req(src, "Placeholder Saga", 4))
@@ -146,7 +146,7 @@ func TestPlaceReclaimsTruncatedDest(t *testing.T) {
 	root := t.TempDir()
 	dest := plantDest(t, root, 6, "vid")
 
-	got, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).Place(context.Background(), req(src, "Placeholder Saga", 6))
+	got, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).Place(t.Context(), req(src, "Placeholder Saga", 6))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestPlaceHardlinkReclaimsTruncatedDest(t *testing.T) {
 	root := t.TempDir()
 	dest := plantDest(t, root, 8, "vid")
 
-	if _, err := New(Roots{Series: root}, LayoutSeasonFolders, "hardlink", nil).Place(context.Background(), req(src, "Placeholder Saga", 8)); err != nil {
+	if _, err := New(Roots{Series: root}, LayoutSeasonFolders, "hardlink", nil).Place(t.Context(), req(src, "Placeholder Saga", 8)); err != nil {
 		t.Fatalf("Place: %v", err)
 	}
 	si, _ := os.Stat(src)
@@ -188,7 +188,7 @@ func TestPlaceHardlinkRemovesLinkOnSyncFailure(t *testing.T) {
 	}
 	root := t.TempDir()
 
-	_, err := New(Roots{Series: root}, LayoutSeasonFolders, "hardlink", nil).Place(context.Background(), req(src, "Placeholder Saga", 10))
+	_, err := New(Roots{Series: root}, LayoutSeasonFolders, "hardlink", nil).Place(t.Context(), req(src, "Placeholder Saga", 10))
 	if err == nil {
 		t.Fatal("expected an error when the linked file cannot be synced")
 	}
@@ -204,7 +204,7 @@ func TestPlaceKeepsEqualSizedDest(t *testing.T) {
 	root := t.TempDir()
 	dest := plantDest(t, root, 9, "other-bytes") // same length as "video-bytes"
 
-	if _, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).Place(context.Background(), req(src, "Placeholder Saga", 9)); err != nil {
+	if _, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).Place(t.Context(), req(src, "Placeholder Saga", 9)); err != nil {
 		t.Fatalf("Place: %v", err)
 	}
 	if b, _ := os.ReadFile(dest); string(b) != "other-bytes" {
@@ -218,7 +218,7 @@ func TestPlaceKeepsEqualSizedDest(t *testing.T) {
 func TestPlaceSecondSeasonEntryFiledUnderSeason01(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	root := t.TempDir()
-	dest, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).Place(context.Background(), req(src, "Placeholder Saga 2nd Season", 7))
+	dest, err := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil).Place(t.Context(), req(src, "Placeholder Saga 2nd Season", 7))
 	if err != nil {
 		t.Fatalf("Place: %v", err)
 	}
@@ -248,7 +248,7 @@ func TestPlaceSanitizesName(t *testing.T) {
 // layout, not which of a payload's files is the episode.
 func TestPlaceRejectsDirectory(t *testing.T) {
 	dir := t.TempDir() // resolved by the importer before Place in the live pipeline
-	_, err := New(Roots{Series: t.TempDir()}, LayoutSeasonFolders, "copy", nil).Place(context.Background(), req(dir, "Placeholder Saga", 1))
+	_, err := New(Roots{Series: t.TempDir()}, LayoutSeasonFolders, "copy", nil).Place(t.Context(), req(dir, "Placeholder Saga", 1))
 	if err == nil {
 		t.Fatal("expected an error for a directory source")
 	}
@@ -258,11 +258,11 @@ func TestPlaceIdempotent(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	root := t.TempDir()
 	target := New(Roots{Series: root}, LayoutSeasonFolders, "copy", nil)
-	first, err := target.Place(context.Background(), req(src, "Placeholder Saga", 3))
+	first, err := target.Place(t.Context(), req(src, "Placeholder Saga", 3))
 	if err != nil {
 		t.Fatalf("first Place: %v", err)
 	}
-	second, err := target.Place(context.Background(), req(src, "Placeholder Saga", 3))
+	second, err := target.Place(t.Context(), req(src, "Placeholder Saga", 3))
 	if err != nil {
 		t.Fatalf("second Place: %v", err)
 	}

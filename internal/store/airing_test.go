@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"testing"
 
 	"github.com/pressly/goose/v3"
@@ -11,7 +10,7 @@ import (
 // already exists" instead of inserting a second row for it.
 func TestWantedItemIdentityIsUnique(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	titleID := insertTitle(t, st, 1)
 	const insert = `INSERT INTO wanted_items (series_id, kind, number) VALUES (?, 'episode', 1)`
@@ -28,7 +27,7 @@ func TestWantedItemIdentityIsUnique(t *testing.T) {
 // rolling the airing migration back, dirtying the data, and re-applying it.
 func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	titleID := insertTitle(t, st, 2)
 	// DownTo pins the rollback at the pre-airing schema; a one-step Down would
@@ -69,7 +68,7 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 func insertTitle(t *testing.T, st *Store, anilistID int64) int64 {
 	t.Helper()
 	var id int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`INSERT INTO series (provider, provider_id, title) VALUES ('anilist', ?, 'Placeholder') RETURNING id`,
 		anilistID).Scan(&id); err != nil {
 		t.Fatalf("insert series: %v", err)

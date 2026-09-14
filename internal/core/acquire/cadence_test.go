@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -34,14 +33,14 @@ func TestSweepWithFeedDoesNotResetBackoffOnANewlyAiredItem(t *testing.T) {
 	justAired := now.Add(-30 * time.Minute)
 	h := newSweepWithFeed(t, nil, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &justAired})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 6, last_searched_at = ?, next_search_at = NULL WHERE id = ?`,
 		store.FormatTimestamp(now.Add(-3*time.Hour)), id); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
 	before := time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	state := readSearchState(t, h.st, id)
@@ -62,14 +61,14 @@ func TestSweepWithFeedDoesNotClampToTheNextAirDate(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, airsAt: &past},
 		sweepItem{number: 4, airsAt: &soon})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 10, last_searched_at = ? WHERE id = ?`,
 		store.FormatTimestamp(now.Add(-1*time.Hour)), id); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
 	before := time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	wantNextSearchNear(t, readSearchState(t, h.st, id).nextSearchAt, before.Add(24*time.Hour))
@@ -85,12 +84,12 @@ func TestSweepWithFeedStillWaitsOutThePinDelay(t *testing.T) {
 		fakeConfig{pinDelay: 6 * time.Hour})
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, airsAt: &aired}, sweepItem{number: 4, airsAt: &soon})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET pinned_group = 'PinnedSubs' WHERE id = ?`, id); err != nil {
 		t.Fatalf("pin a group: %v", err)
 	}
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {

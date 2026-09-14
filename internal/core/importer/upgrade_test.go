@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +15,7 @@ import (
 func seedHeldGrab(t *testing.T, st *store.Store, hash, heldTitle string) (itemID, titleID int64) {
 	t.Helper()
 	itemID, titleID = seedGrab(t, st, hash)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE wanted_items SET in_library = 1, held_release_title = ? WHERE id = ?`,
 		heldTitle, itemID); err != nil {
 		t.Fatalf("seed held item: %v", err)
@@ -29,7 +28,7 @@ func heldTitleOf(t *testing.T, st *store.Store, itemID int64) (int64, string) {
 	t.Helper()
 	var inLibrary int64
 	var title string
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT in_library, held_release_title FROM wanted_items WHERE id = ?`, itemID).Scan(&inLibrary, &title); err != nil {
 		t.Fatalf("read held state: %v", err)
 	}
@@ -57,7 +56,7 @@ func TestImportOfAHeldItemReplacesAndRecordsTheNewRelease(t *testing.T) {
 	target := &coretest.FakeLibrary{}
 
 	im := New(st, fakeSource{dl: completedSource(t, "abc"), lib: target}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -80,7 +79,7 @@ func TestFirstImportIsNotAReplacement(t *testing.T) {
 	target := &coretest.FakeLibrary{}
 
 	im := New(st, fakeSource{dl: completedSource(t, "abc"), lib: target}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -103,7 +102,7 @@ func TestFailedUpgradeLeavesTheHeldFileInPlace(t *testing.T) {
 	}}
 
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -124,7 +123,7 @@ func TestDeferredUpgradeKeepsTheHeldFile(t *testing.T) {
 	itemID, titleID := seedHeldGrab(t, st, "abc", heldTitle)
 	// A second item on the same release, so no lone-file rule can resolve either.
 	other := addItem(t, st, titleID, 6)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`INSERT INTO grabs (wanted_item_id, info_hash, release_title, status) VALUES (?, 'abc', 'rel', 'grabbed')`,
 		other); err != nil {
 		t.Fatalf("seed the second grab row: %v", err)
@@ -141,12 +140,12 @@ func TestDeferredUpgradeKeepsTheHeldFile(t *testing.T) {
 	}}
 
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	var status string
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT status FROM grabs WHERE wanted_item_id = ?`, itemID).Scan(&status); err != nil {
 		t.Fatalf("read grab status: %v", err)
 	}

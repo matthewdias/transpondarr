@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -60,11 +59,11 @@ func deferredRelease(t *testing.T, h *harness) (titleID, deferredGrabID, importe
 	h.dl.Statuses = []download.Status{
 		{Hash: "packhash", State: download.StateComplete, ContentPath: dir},
 	}
-	if err := h.importer.ScanOnce(context.Background()); err != nil {
+	if err := h.importer.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
-	rows, err := h.store.Q.ListGrabsByInfoHash(context.Background(), "packhash")
+	rows, err := h.store.Q.ListGrabsByInfoHash(t.Context(), "packhash")
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -102,11 +101,11 @@ func deferredArchiveRelease(t *testing.T, h *harness) (deferredGrabID int64) {
 	h.dl.Statuses = []download.Status{
 		{Hash: "rarhash", State: download.StateComplete, ContentPath: dir},
 	}
-	if err := h.importer.ScanOnce(context.Background()); err != nil {
+	if err := h.importer.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
-	rows, err := h.store.Q.ListGrabsByInfoHash(context.Background(), "rarhash")
+	rows, err := h.store.Q.ListGrabsByInfoHash(t.Context(), "rarhash")
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -207,7 +206,7 @@ func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 	if got := itemStatus(t, h, titleID, 2); got != "in_library" {
 		t.Errorf("episode 2 status = %q, want in_library", got)
 	}
-	events, err := h.store.Q.ListTitleGrabEvents(context.Background(), titleID)
+	events, err := h.store.Q.ListTitleGrabEvents(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list events: %v", err)
 	}

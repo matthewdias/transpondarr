@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -35,7 +34,7 @@ type blocklistJSON struct {
 
 func seedBlocklistEntry(t *testing.T, st *store.Store, titleID int64, title string, until sql.NullString) db.ReleaseBlocklist {
 	t.Helper()
-	e, err := st.Q.UpsertBlocklistEntry(context.Background(), db.UpsertBlocklistEntryParams{
+	e, err := st.Q.UpsertBlocklistEntry(t.Context(), db.UpsertBlocklistEntryParams{
 		SeriesID:        titleID,
 		InfoHash:        "hash-" + title,
 		ReleaseTitle:    title,

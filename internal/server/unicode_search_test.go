@@ -121,7 +121,7 @@ func (p variantProvider) GetTitle(context.Context, int64) (metadata.TitleMeta, [
 // the metadata provider for title variants.
 func seedAnilistTitle(t *testing.T, h *harness, title string, anilistID int64, count int) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := h.store.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title: title, Format: "TV", Monitored: 1,
 		Provider:   sql.NullString{String: "anilist", Valid: true},

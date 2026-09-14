@@ -86,7 +86,7 @@ func seedTitle(t *testing.T, st *store.Store, title string, count int) int64 {
 // test can exercise the title-variant lookup.
 func seedAniListTitle(t *testing.T, st *store.Store, title string, anilistID int64, count int) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{
 		Title:      title,
 		Format:     "TV",
@@ -122,7 +122,7 @@ func TestMatchTitleFallsBackToVariantTerm(t *testing.T) {
 	}})
 	id := seedAniListTitle(t, st, "Sora・no・Fixture Gaiden", 42, 12)
 
-	m, err := svc.MatchTitle(context.Background(), id)
+	m, err := svc.MatchTitle(t.Context(), id)
 	if err != nil {
 		t.Fatalf("MatchSeries: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestMatchTitleWithoutIndexer(t *testing.T) {
 	svc, _ := newService(t, st, nil, fakeTitles{})
 	id := seedTitle(t, st, "Placeholder Saga", 12)
 
-	if _, err := svc.MatchTitle(context.Background(), id); !errors.Is(err, acquire.ErrNoIndexer) {
+	if _, err := svc.MatchTitle(t.Context(), id); !errors.Is(err, acquire.ErrNoIndexer) {
 		t.Fatalf("MatchSeries error = %v, want ErrNoIndexer", err)
 	}
 }
@@ -161,7 +161,7 @@ func TestMatchTitleUnknownTitle(t *testing.T) {
 	st := coretest.NewStore(t)
 	svc, _ := newService(t, st, &coretest.FakeIndexer{}, fakeTitles{})
 
-	if _, err := svc.MatchTitle(context.Background(), 404); !errors.Is(err, acquire.ErrTitleNotFound) {
+	if _, err := svc.MatchTitle(t.Context(), 404); !errors.Is(err, acquire.ErrTitleNotFound) {
 		t.Fatalf("MatchSeries error = %v, want ErrSeriesNotFound", err)
 	}
 }
@@ -173,7 +173,7 @@ func TestMatchTitleIndexerError(t *testing.T) {
 	svc, _ := newService(t, st, idx, fakeTitles{})
 	id := seedTitle(t, st, "Placeholder Saga", 12)
 
-	_, err := svc.MatchTitle(context.Background(), id)
+	_, err := svc.MatchTitle(t.Context(), id)
 	if !errors.Is(err, acquire.ErrIndexerSearch) {
 		t.Fatalf("MatchSeries error = %v, want ErrIndexerSearch", err)
 	}
@@ -190,7 +190,7 @@ func TestMatchTitleTolerationOfVariantLookupFailure(t *testing.T) {
 	svc, _ := newService(t, st, idx, fakeTitles{err: errors.New("anilist: rate limited")})
 	id := seedAniListTitle(t, st, "Placeholder Saga", 42, 12)
 
-	m, err := svc.MatchTitle(context.Background(), id)
+	m, err := svc.MatchTitle(t.Context(), id)
 	if err != nil {
 		t.Fatalf("MatchSeries: %v", err)
 	}

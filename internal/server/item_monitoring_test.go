@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -33,7 +32,7 @@ func declinedOutcome() db.UpsertPassOutcomeParams {
 func itemMonitored(t *testing.T, st *store.Store, id int64) int64 {
 	t.Helper()
 	var got int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT monitored FROM wanted_items WHERE id = ?`, id).Scan(&got); err != nil {
 		t.Fatalf("read monitored for item %d: %v", id, err)
 	}
@@ -43,7 +42,7 @@ func itemMonitored(t *testing.T, st *store.Store, id int64) int64 {
 func searchEpoch(t *testing.T, st *store.Store, titleID int64) int64 {
 	t.Helper()
 	var got int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT search_epoch FROM series WHERE id = ?`, titleID).Scan(&got); err != nil {
 		t.Fatalf("read search_epoch for series %d: %v", titleID, err)
 	}
@@ -87,7 +86,7 @@ func TestSetItemsMonitoredResetsEachTitleOnce(t *testing.T) {
 		itemID(t, h.store, first, 2),
 		itemID(t, h.store, second, 1),
 	}
-	if _, err := h.store.Q.SetWantedItemsMonitored(context.Background(),
+	if _, err := h.store.Q.SetWantedItemsMonitored(t.Context(),
 		setMonitoredParams(0, ids)); err != nil {
 		t.Fatalf("seed unmonitored items: %v", err)
 	}
@@ -137,7 +136,7 @@ func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
 	stillOn := itemID(t, h.store, titleID, 1)
 	turnedOff := itemID(t, h.store, titleID, 2)
-	if _, err := h.store.Q.SetWantedItemsMonitored(context.Background(),
+	if _, err := h.store.Q.SetWantedItemsMonitored(t.Context(),
 		setMonitoredParams(0, []int64{turnedOff})); err != nil {
 		t.Fatalf("seed an unmonitored item: %v", err)
 	}
@@ -184,7 +183,7 @@ func TestSetItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 func TestMissingHidesUnmonitoredItemsBehindTheToggle(t *testing.T) {
 	h := wantedHarness(t)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
-	if _, err := h.store.Q.SetWantedItemsMonitored(context.Background(),
+	if _, err := h.store.Q.SetWantedItemsMonitored(t.Context(),
 		setMonitoredParams(0, []int64{itemID(t, h.store, titleID, 1)})); err != nil {
 		t.Fatalf("unmonitor item 1: %v", err)
 	}
@@ -227,7 +226,7 @@ func TestUnmonitoredSuppressesAStoredPassAnswer(t *testing.T) {
 	h := wantedHarness(t)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 1)
 	recordPassOutcome(t, h.store, titleID, 1, declinedOutcome())
-	if _, err := h.store.Q.SetWantedItemsMonitored(context.Background(),
+	if _, err := h.store.Q.SetWantedItemsMonitored(t.Context(),
 		setMonitoredParams(0, []int64{itemID(t, h.store, titleID, 1)})); err != nil {
 		t.Fatalf("unmonitor item 1: %v", err)
 	}

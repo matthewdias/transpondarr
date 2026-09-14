@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -21,7 +20,7 @@ import (
 // grab row on the same hash, which is the shape groupByHash buckets.
 func seedPack(t *testing.T, st *store.Store, hash string, numbers ...int) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create title: %v", err)
@@ -46,7 +45,7 @@ func seedPack(t *testing.T, st *store.Store, hash string, numbers ...int) int64 
 // packGrabs returns every row on a hash; grabByHash cannot, since it asserts one.
 func packGrabs(t *testing.T, st *store.Store, hash string) []db.ListGrabsByInfoHashRow {
 	t.Helper()
-	rows, err := st.Q.ListGrabsByInfoHash(context.Background(), hash)
+	rows, err := st.Q.ListGrabsByInfoHash(t.Context(), hash)
 	if err != nil {
 		t.Fatalf("list grabs by hash: %v", err)
 	}
@@ -69,7 +68,7 @@ func grabIDForItem(t *testing.T, st *store.Store, hash string, number int64) int
 // backdateStalledSinceForItem puts one row of a pack ago in the past.
 func backdateStalledSinceForItem(t *testing.T, st *store.Store, hash string, number int64, ago time.Duration) {
 	t.Helper()
-	if err := st.Q.SetGrabStalledSince(context.Background(), db.SetGrabStalledSinceParams{
+	if err := st.Q.SetGrabStalledSince(t.Context(), db.SetGrabStalledSinceParams{
 		StalledSince: sql.NullString{String: store.FormatTimestamp(time.Now().Add(-ago)), Valid: true},
 		ID:           grabIDForItem(t, st, hash, number),
 	}); err != nil {
@@ -80,7 +79,7 @@ func backdateStalledSinceForItem(t *testing.T, st *store.Store, hash string, num
 // backdateMissingSinceForItem is backdateStalledSinceForItem for the other clock.
 func backdateMissingSinceForItem(t *testing.T, st *store.Store, hash string, number int64, ago time.Duration) {
 	t.Helper()
-	if err := st.Q.SetGrabMissingSince(context.Background(), db.SetGrabMissingSinceParams{
+	if err := st.Q.SetGrabMissingSince(t.Context(), db.SetGrabMissingSinceParams{
 		MissingSince: sql.NullString{String: store.FormatTimestamp(time.Now().Add(-ago)), Valid: true},
 		ID:           grabIDForItem(t, st, hash, number),
 	}); err != nil {
@@ -122,7 +121,7 @@ func backdateOpenRows(t *testing.T, st *store.Store, hash string, ago time.Durat
 // a repeat and blocks for 7d (#118).
 func assertOneRung(t *testing.T, st *store.Store, titleID int64) {
 	t.Helper()
-	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	entries, err := st.Q.ListBlocklistByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -148,7 +147,7 @@ func TestStalledPackWithALateRowTakesOneRung(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{stalled("abc", 0)}}
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -160,7 +159,7 @@ func TestStalledPackWithALateRowTakesOneRung(t *testing.T) {
 	// The incident is over, so no later scan may add to it however long the
 	// client keeps reporting the torrent.
 	backdateOpenRows(t, st, "abc", 7*time.Hour)
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("second scan: %v", err)
 	}
 	assertOneRung(t, st, titleID)
@@ -177,7 +176,7 @@ func TestLateRowInheritsTheGroupsEarliestStallClock(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{stalled("abc", 0)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -213,7 +212,7 @@ func TestMetadataStalledPackWithALateRowTakesOneRung(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -235,7 +234,7 @@ func TestMetadataStallStampsAndClearsTheWholeGroup(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0)}}
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -258,7 +257,7 @@ func TestMetadataStallStampsAndClearsTheWholeGroup(t *testing.T) {
 	// Metadata arrived: the clearing loop runs per row, so no row may keep a clock
 	// the group is no longer on.
 	dl.Statuses = []download.Status{fetchingMetadata("abc", 0.2)}
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("second scan: %v", err)
 	}
 	for _, g := range packGrabs(t, st, "abc") {
@@ -283,7 +282,7 @@ func TestVanishedPackWithALateRowIsOneIncident(t *testing.T) {
 	dl := &coretest.FakeDownload{}
 	im := New(st, notifyingSource(dl, &coretest.FakeLibrary{}, fn), discardLogger(), rec, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -307,7 +306,7 @@ func TestVanishedPackWithALateRowIsOneIncident(t *testing.T) {
 	expectNoEvent(t, fn)
 
 	// Nothing is left open to report a second time.
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("second scan: %v", err)
 	}
 	expectNoEvent(t, fn)

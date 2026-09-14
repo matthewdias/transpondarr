@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -21,7 +20,7 @@ func TestSweepNeverNewlyGrabsAnUnmonitoredItem(t *testing.T) {
 		sweepItem{number: 3, airsAt: &past, unmonitored: true},
 		sweepItem{number: 4, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 4 {
@@ -41,7 +40,7 @@ func TestSweepStillTakesAPackCoveringAMixOfMonitoredItems(t *testing.T) {
 	}
 	id := seedSweep(t, h.st, "Placeholder Saga", true, items...)
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	got := grabbedItemNumbers(t, h.st, id)
@@ -59,7 +58,7 @@ func TestSweepStillTakesAPackCoveringAMixOfMonitoredItems(t *testing.T) {
 // drops it, and so must the pass that would otherwise re-grab it (#97).
 func TestSweepDoesNotUpgradeAnUnmonitoredHeldItem(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 1)}, fakeConfig{})
-	ctx := context.Background()
+	ctx := t.Context()
 	if _, err := h.st.DB.ExecContext(ctx,
 		`UPDATE quality_profiles SET upgrades_enabled = 1, cutoff_score = 100000 WHERE id = 1`); err != nil {
 		t.Fatalf("enable upgrades: %v", err)
@@ -87,7 +86,7 @@ func TestFeedPollNeverNewlyGrabsAnUnmonitoredItem(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, airsAt: &past, unmonitored: true})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -105,10 +104,10 @@ func TestSweepLeavesAnInFlightGrabOnAnUnmonitoredItemAlone(t *testing.T) {
 		sweepItem{number: 3, airsAt: &past, grab: "grabbed", unmonitored: true},
 		sweepItem{number: 4, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
-	grabs, err := h.st.Q.ListGrabsByTitle(context.Background(), id)
+	grabs, err := h.st.Q.ListGrabsByTitle(t.Context(), id)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -132,7 +131,7 @@ func TestSweepDoesNotClampToAnUnmonitoredUpcomingBroadcast(t *testing.T) {
 		sweepItem{number: 5, airsAt: &realSoon})
 
 	before := time.Now()
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	// The empty pass backs off an hour; the monitored broadcast is further out
@@ -151,7 +150,7 @@ func TestSweepStillClampsToAMonitoredUpcomingBroadcast(t *testing.T) {
 		sweepItem{number: 3, airsAt: &past},
 		sweepItem{number: 4, airsAt: &soon})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	wantNextSearchNear(t, readSearchState(t, h.st, id).nextSearchAt, soon)
@@ -167,13 +166,13 @@ func TestSweepDoesNotResetBackoffForAnUnmonitoredBroadcast(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 3, airsAt: &long},
 		sweepItem{number: 4, airsAt: &justAired, unmonitored: true})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 6, last_searched_at = ?, next_search_at = NULL WHERE id = ?`,
 		store.FormatTimestamp(now.Add(-3*time.Hour)), id); err != nil {
 		t.Fatalf("seed a long backoff: %v", err)
 	}
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := readSearchState(t, h.st, id).backoff; got != 7 {
@@ -191,7 +190,7 @@ func TestSweepRecordsNoPassOutcomeForAnUnmonitoredItem(t *testing.T) {
 		sweepItem{number: 3, airsAt: &past, unmonitored: true},
 		sweepItem{number: 4, airsAt: &past})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if _, ok := passOutcome(t, h.st, id, 3); ok {

@@ -1,7 +1,6 @@
 package anilist
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,7 +49,7 @@ func TestBrowseSeasonPagesUntilExhausted(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := stubClient(srv.URL).BrowseSeason(context.Background(), metadata.SeasonSpring, 2026)
+	got, err := stubClient(srv.URL).BrowseSeason(t.Context(), metadata.SeasonSpring, 2026)
 	if err != nil {
 		t.Fatalf("BrowseSeason: %v", err)
 	}
@@ -80,7 +79,7 @@ func TestBrowseSeasonMapsEveryField(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := stubClient(srv.URL).BrowseSeason(context.Background(), metadata.SeasonWinter, 2025)
+	got, err := stubClient(srv.URL).BrowseSeason(t.Context(), metadata.SeasonWinter, 2025)
 	if err != nil {
 		t.Fatalf("BrowseSeason: %v", err)
 	}
@@ -137,7 +136,7 @@ func TestBrowseSeasonSparseEntry(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := stubClient(srv.URL).BrowseSeason(context.Background(), metadata.SeasonFall, 2026)
+	got, err := stubClient(srv.URL).BrowseSeason(t.Context(), metadata.SeasonFall, 2026)
 	if err != nil {
 		t.Fatalf("BrowseSeason: %v", err)
 	}
@@ -169,7 +168,7 @@ func TestBrowseSeasonKeepsANextEpisodeWithNoAiringTime(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := stubClient(srv.URL).BrowseSeason(context.Background(), metadata.SeasonFall, 2026)
+	got, err := stubClient(srv.URL).BrowseSeason(t.Context(), metadata.SeasonFall, 2026)
 	if err != nil {
 		t.Fatalf("BrowseSeason: %v", err)
 	}
@@ -190,7 +189,7 @@ func TestBrowseSeasonEmpty(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	got, err := stubClient(srv.URL).BrowseSeason(context.Background(), metadata.SeasonSummer, 1996)
+	got, err := stubClient(srv.URL).BrowseSeason(t.Context(), metadata.SeasonSummer, 1996)
 	if err != nil {
 		t.Fatalf("BrowseSeason: %v", err)
 	}
@@ -209,7 +208,7 @@ func TestBrowseSeasonCapsPaging(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := stubClient(srv.URL).BrowseSeason(context.Background(), metadata.SeasonSpring, 2026); err != nil {
+	if _, err := stubClient(srv.URL).BrowseSeason(t.Context(), metadata.SeasonSpring, 2026); err != nil {
 		t.Fatalf("BrowseSeason: %v", err)
 	}
 	if requests != maxBrowsePages {
@@ -223,7 +222,7 @@ func TestBrowseSeasonErrorStatus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := stubClient(srv.URL).BrowseSeason(context.Background(), metadata.SeasonSpring, 2026); err == nil {
+	if _, err := stubClient(srv.URL).BrowseSeason(t.Context(), metadata.SeasonSpring, 2026); err == nil {
 		t.Fatal("expected an error on HTTP 500")
 	}
 }

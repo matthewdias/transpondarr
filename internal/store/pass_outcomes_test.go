@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 
@@ -10,7 +9,7 @@ import (
 
 func outcomeItem(t *testing.T, st *Store, titleID int64, number int64) int64 {
 	t.Helper()
-	row, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
+	row, err := st.Q.CreateWantedItem(t.Context(), db.CreateWantedItemParams{
 		SeriesID: titleID, Kind: "episode",
 		Number:    sql.NullInt64{Int64: number, Valid: true},
 		Monitored: 1,
@@ -28,7 +27,7 @@ func outcomeItem(t *testing.T, st *Store, titleID int64, number int64) int64 {
 // from.
 func TestUpsertPassOutcomeReplacesInPlace(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	title := blocklistTitle(t, st, "Pass Outcome Upsert")
 	item := outcomeItem(t, st, title.ID, 1)
 
@@ -85,7 +84,7 @@ func TestUpsertPassOutcomeReplacesInPlace(t *testing.T) {
 // query can ever read.
 func TestPassOutcomeCascadesWithItsTitle(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	title := blocklistTitle(t, st, "Pass Outcome Cascade")
 	item := outcomeItem(t, st, title.ID, 1)
 

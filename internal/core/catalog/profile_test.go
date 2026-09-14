@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"context"
 	"errors"
 	"testing"
 
@@ -13,7 +12,7 @@ import (
 func titleProfile(t *testing.T, st *store.Store, titleID int64) int64 {
 	t.Helper()
 	var id int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT quality_profile_id FROM series WHERE id = ?`, titleID).Scan(&id); err != nil {
 		t.Fatalf("read quality_profile_id: %v", err)
 	}
@@ -36,7 +35,7 @@ func profileService(t *testing.T) (*store.Store, *Service) {
 // write as the title rather than by a follow-up call the user has to remember.
 func TestAddTitleAppliesTheChosenProfile(t *testing.T) {
 	st, svc := profileService(t)
-	row, err := st.DB.ExecContext(context.Background(),
+	row, err := st.DB.ExecContext(t.Context(),
 		`INSERT INTO quality_profiles (name) VALUES ('Sharper')`)
 	if err != nil {
 		t.Fatalf("seed profile: %v", err)
@@ -46,7 +45,7 @@ func TestAddTitleAppliesTheChosenProfile(t *testing.T) {
 		t.Fatalf("profile id: %v", err)
 	}
 
-	title, err := svc.AddTitle(context.Background(), "fake", 42, true, MonitorAll, profileID)
+	title, err := svc.AddTitle(t.Context(), "fake", 42, true, MonitorAll, profileID)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
@@ -60,12 +59,12 @@ func TestAddTitleAppliesTheChosenProfile(t *testing.T) {
 func TestAddTitleWithoutAProfileKeepsTheDefault(t *testing.T) {
 	st, svc := profileService(t)
 
-	title, err := svc.AddTitle(context.Background(), "fake", 42, true, MonitorAll, 0)
+	title, err := svc.AddTitle(t.Context(), "fake", 42, true, MonitorAll, 0)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
 	var want int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT id FROM quality_profiles WHERE is_default = 1`).Scan(&want); err != nil {
 		t.Fatalf("read the default profile: %v", err)
 	}
@@ -79,12 +78,12 @@ func TestAddTitleWithoutAProfileKeepsTheDefault(t *testing.T) {
 func TestAddTitleRejectsAnUnknownProfileAndPersistsNothing(t *testing.T) {
 	st, svc := profileService(t)
 
-	_, err := svc.AddTitle(context.Background(), "fake", 42, true, MonitorAll, 9999)
+	_, err := svc.AddTitle(t.Context(), "fake", 42, true, MonitorAll, 9999)
 	if !errors.Is(err, ErrUnknownProfile) {
 		t.Fatalf("AddSeries with an unknown profile = %v, want ErrUnknownProfile", err)
 	}
 	var title int
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT count(*) FROM series`).Scan(&title); err != nil {
 		t.Fatalf("count series: %v", err)
 	}

@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -23,7 +22,7 @@ func TestScanSurvivesTitleDeletedMidImport(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}

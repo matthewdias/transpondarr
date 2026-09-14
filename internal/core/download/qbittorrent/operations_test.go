@@ -1,7 +1,6 @@
 package qbittorrent
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -38,7 +37,7 @@ func TestAddSendsCategoryAndStopped(t *testing.T) {
 
 	c := New(srv.URL, "u", "p")
 	const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056&dn=x"
-	res, err := c.Add(context.Background(), download.AddOptions{
+	res, err := c.Add(t.Context(), download.AddOptions{
 		URL: magnet, Category: "transpondarr", Paused: true,
 	})
 	if err != nil {
@@ -79,7 +78,7 @@ func TestAddAlreadyExists(t *testing.T) {
 
 	c := New(srv.URL, "u", "p")
 	const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056"
-	res, err := c.Add(context.Background(), download.AddOptions{URL: magnet})
+	res, err := c.Add(t.Context(), download.AddOptions{URL: magnet})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -114,7 +113,7 @@ func TestAddRefusesADuplicateWhoseDataIsMissing(t *testing.T) {
 
 	c := New(srv.URL, "u", "p")
 	const magnet = "magnet:?xt=urn:btih:c9e15763f722f23e98a29decdfae341b98d53056"
-	_, err := c.Add(context.Background(), download.AddOptions{URL: magnet})
+	_, err := c.Add(t.Context(), download.AddOptions{URL: magnet})
 	if !errors.Is(err, download.ErrDataMissing) {
 		t.Fatalf("Add error = %v, want it to report the duplicate's data as missing", err)
 	}
@@ -156,7 +155,7 @@ func TestAddConvergesWhenAFailedAddWasADuplicate(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	res, err := New(srv.URL, "u", "p").Add(context.Background(),
+	res, err := New(srv.URL, "u", "p").Add(t.Context(),
 		download.AddOptions{URL: "magnet:?xt=urn:btih:" + hash})
 	if err != nil {
 		t.Fatalf("Add: %v, want convergence on the duplicate", err)
@@ -197,7 +196,7 @@ func TestAddConvergesOnADataMissingDuplicateFoundByTheRecheck(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	res, err := New(srv.URL, "u", "p").Add(context.Background(),
+	res, err := New(srv.URL, "u", "p").Add(t.Context(),
 		download.AddOptions{URL: "magnet:?xt=urn:btih:" + hash})
 	if err != nil {
 		t.Fatalf("Add: %v, want convergence so the torrent we may have added is not orphaned", err)
@@ -216,7 +215,7 @@ func TestAddSurfacesAFailureThatWasNotADuplicate(t *testing.T) {
 	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
 	srv := qbitStub(t, http.StatusInternalServerError)
 
-	_, err := New(srv.URL, "u", "p").Add(context.Background(),
+	_, err := New(srv.URL, "u", "p").Add(t.Context(),
 		download.AddOptions{URL: "magnet:?xt=urn:btih:" + hash})
 	if err == nil {
 		t.Fatal("expected the original add error when the hash is still absent")
@@ -282,7 +281,7 @@ func TestAddClassifiesReleaseFaultsSeparatelyFromClientFaults(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			qb := New(qbitStub(t, c.addStatus).URL, "u", "p")
-			_, err := qb.Add(context.Background(), download.AddOptions{URL: c.url})
+			_, err := qb.Add(t.Context(), download.AddOptions{URL: c.url})
 			if err == nil {
 				t.Fatal("Add succeeded, want an error")
 			}
@@ -314,7 +313,7 @@ func TestStatusByCategoryFiltersAtTheClient(t *testing.T) {
 
 	c := New(srv.URL, "u", "p")
 	var lister download.CategoryLister = c
-	got, err := lister.StatusByCategory(context.Background(), "transpondarr")
+	got, err := lister.StatusByCategory(t.Context(), "transpondarr")
 	if err != nil {
 		t.Fatalf("StatusByCategory: %v", err)
 	}
@@ -357,7 +356,7 @@ func TestStatusParsesTorrentsInfo(t *testing.T) {
 	c := New(srv.URL, "u", "p")
 	// A mixed-case hash must be sent to qBittorrent lowercased (identity is keyed on the
 	// lowercase info hash throughout the pipeline).
-	got, err := c.Status(context.Background(), "AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111")
+	got, err := c.Status(t.Context(), "AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111")
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
@@ -438,7 +437,7 @@ func TestRemoveDeletesTorrentsWithData(t *testing.T) {
 	defer srv.Close()
 
 	c := New(srv.URL, "u", "p")
-	err := c.Remove(context.Background(),
+	err := c.Remove(t.Context(),
 		[]string{"AAAA1111AAAA1111AAAA1111AAAA1111AAAA1111", "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222"}, true)
 	if err != nil {
 		t.Fatalf("Remove: %v", err)
@@ -497,7 +496,7 @@ func TestAddNeverLeaksTheDownloadURLQueryString(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			qb := New(qbitStub(t, http.StatusOK).URL, "u", "p")
-			_, err := qb.Add(context.Background(), download.AddOptions{URL: c.url})
+			_, err := qb.Add(t.Context(), download.AddOptions{URL: c.url})
 			if err == nil {
 				t.Fatal("Add succeeded, want an error")
 			}

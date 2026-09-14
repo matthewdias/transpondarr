@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"sync"
 	"testing"
 	"time"
@@ -18,7 +17,7 @@ func TestSweepSurvivesTitleDeletedMidSearch(t *testing.T) {
 	h := newSweep(t, nil, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	deleteTitle := sync.OnceFunc(func() {
 		if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
 			t.Errorf("delete title mid-search: %v", err)
@@ -39,7 +38,7 @@ func TestSweepReportsButRecoversFromTitleDeletedMidGrab(t *testing.T) {
 	h := newSweep(t, []indexer.Release{episodeRelease("Placeholder Saga", 3)}, fakeConfig{})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	deleteTitle := sync.OnceFunc(func() {
 		if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
 			t.Errorf("delete title mid-grab: %v", err)

@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -20,7 +19,7 @@ import (
 // release scores predictably: release group 2000/1900, resolution 400/300.
 func upgradingProfile(t *testing.T, st *store.Store, name string, cutoff int64) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	p, err := st.Q.CreateQualityProfile(ctx, db.CreateQualityProfileParams{
 		Name:                 name,
 		ResolutionOrder:      `["1080p","720p"]`,
@@ -46,7 +45,7 @@ func upgradingProfile(t *testing.T, st *store.Store, name string, cutoff int64) 
 // whether its held items (already in the library) are candidates.
 func putOnProfile(t *testing.T, st *store.Store, titleID, profileID int64) {
 	t.Helper()
-	rows, err := st.Q.SetTitleProfile(context.Background(), db.SetTitleProfileParams{
+	rows, err := st.Q.SetTitleProfile(t.Context(), db.SetTitleProfileParams{
 		QualityProfileID: profileID, ID: titleID, ID_2: profileID,
 	})
 	if err != nil || rows != 1 {
@@ -57,7 +56,7 @@ func putOnProfile(t *testing.T, st *store.Store, titleID, profileID int64) {
 // hold marks an item as held by a release, which is what the cutoff scores.
 func hold(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var id int64
 	if err := st.DB.QueryRowContext(ctx,
 		`SELECT id FROM wanted_items WHERE series_id = ? AND number = ?`, titleID, number).Scan(&id); err != nil {
@@ -86,7 +85,7 @@ func cutoffService(t *testing.T, st *store.Store) *acquire.Service {
 // profile's rather than any one item's.
 func TestCutoffUnmetMembership(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, st, "Placeholder Saga", 3)
 	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
 	hold(t, st, titleID, 1, "[TopSubs] Placeholder Saga - 01 [720p]")  // 2300: met
@@ -131,7 +130,7 @@ func TestCutoffUnmetMembership(t *testing.T) {
 func holdWithStatus(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle, status string) {
 	t.Helper()
 	hold(t, st, titleID, number, releaseTitle)
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE grabs SET status = ? WHERE wanted_item_id =
 		     (SELECT id FROM wanted_items WHERE series_id = ? AND number = ?)`,
 		status, titleID, number); err != nil {
@@ -154,7 +153,7 @@ func TestCutoffUnmetMembershipMatchesTheUpgradePool(t *testing.T) {
 	holdWithStatus(t, st, titleID, 3, fmt.Sprintf(held, "03"), "grabbed")
 	holdWithStatus(t, st, titleID, 4, fmt.Sprintf(held, "04"), "import_deferred")
 
-	page, err := cutoffService(t, st).CutoffUnmet(context.Background(), acquire.CutoffUnmetParams{Limit: 20})
+	page, err := cutoffService(t, st).CutoffUnmet(t.Context(), acquire.CutoffUnmetParams{Limit: 20})
 	if err != nil {
 		t.Fatalf("CutoffUnmet: %v", err)
 	}
@@ -180,7 +179,7 @@ func TestCutoffUnmetMembershipMatchesTheUpgradePool(t *testing.T) {
 // meet their cutoff, and a title never splits across results pages.
 func TestCutoffUnmetPagesGroupsPastMetTitles(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	profileID := upgradingProfile(t, st, "Upgrading", 2300)
 	// Titles sort A..F; the even ones hold sub-cutoff releases, the odd ones are
 	// fully met and must be scanned over without becoming title groups.
@@ -236,7 +235,7 @@ func TestCutoffUnmetPagesGroupsPastMetTitles(t *testing.T) {
 // calendar's rather than inventing a second meaning.
 func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, st, "Quiet Show", 1)
 	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
 	hold(t, st, titleID, 1, "[MidSubs] Quiet Show - 01 [720p]")
@@ -278,7 +277,7 @@ func TestCutoffUnmetPageClosesOnTheItemBudget(t *testing.T) {
 	}
 
 	svc := cutoffService(t, st)
-	ctx := context.Background()
+	ctx := t.Context()
 	page, err := svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20})
 	if err != nil {
 		t.Fatalf("CutoffUnmet: %v", err)
@@ -312,7 +311,7 @@ func TestCutoffUnmetCapsItemsPerGroupButNotTheCount(t *testing.T) {
 		hold(t, st, titleID, n, "[MidSubs] Very Held Saga - "+strconv.Itoa(n)+" [720p]")
 	}
 
-	page, err := cutoffService(t, st).CutoffUnmet(context.Background(), acquire.CutoffUnmetParams{Limit: 5})
+	page, err := cutoffService(t, st).CutoffUnmet(t.Context(), acquire.CutoffUnmetParams{Limit: 5})
 	if err != nil {
 		t.Fatalf("CutoffUnmet: %v", err)
 	}
@@ -344,7 +343,7 @@ func plantParse(t *testing.T, st *store.Store, titleID int64, number int, releas
 // change or a corrupted write produces.
 func plantRawParse(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string, version int64, blob string) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	var id int64
 	if err := st.DB.QueryRowContext(ctx,
 		`SELECT id FROM wanted_items WHERE series_id = ? AND number = ?`, titleID, number).Scan(&id); err != nil {
@@ -360,7 +359,7 @@ func plantRawParse(t *testing.T, st *store.Store, titleID int64, number int, rel
 // storedParses reads back what the listing stored, keyed by item id.
 func storedParses(t *testing.T, st *store.Store) map[int64]db.HeldReleaseParse {
 	t.Helper()
-	rows, err := st.DB.QueryContext(context.Background(),
+	rows, err := st.DB.QueryContext(t.Context(),
 		`SELECT wanted_item_id, release_title, parser_version, parsed FROM held_release_parses`)
 	if err != nil {
 		t.Fatalf("read held_release_parses: %v", err)
@@ -387,7 +386,7 @@ func storedParses(t *testing.T, st *store.Store) map[int64]db.HeldReleaseParse {
 // the stored parse, so nothing re-read the release name.
 func TestCutoffUnmetScoresTheStoredParse(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, st, "Placeholder Saga", 1)
 	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
 	held := "[TopSubs] Placeholder Saga - 01 [1080p]" // 2400: met, so unlisted
@@ -411,7 +410,7 @@ func TestCutoffUnmetScoresTheStoredParse(t *testing.T) {
 // invalidates its stored parse without any writer referencing the table.
 func TestCutoffUnmetIgnoresAParseOfAnotherRelease(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, st, "Placeholder Saga", 1)
 	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
 	hold(t, st, titleID, 1, "[TopSubs] Placeholder Saga - 01 [1080p]") // 2400: met
@@ -432,7 +431,7 @@ func TestCutoffUnmetIgnoresAParseOfAnotherRelease(t *testing.T) {
 // filled only from listed items would never make that case cheaper.
 func TestCutoffUnmetStoresTheParsesItScanned(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	profileID := upgradingProfile(t, st, "Upgrading", 2300)
 	metID := seedTitle(t, st, "Placeholder At Cutoff", 1)
 	putOnProfile(t, st, metID, profileID)
@@ -487,7 +486,7 @@ func TestCutoffUnmetStoresTheParsesItScanned(t *testing.T) {
 // an upgrade would be scored on the old reading and never re-examined.
 func TestCutoffUnmetIgnoresAParseFromAnotherParserVersion(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, st, "Placeholder Saga", 1)
 	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
 	held := "[TopSubs] Placeholder Saga - 01 [1080p]" // 2400: met
@@ -515,7 +514,7 @@ func TestCutoffUnmetIgnoresAParseFromAnotherParserVersion(t *testing.T) {
 // stops being unreadable.
 func TestCutoffUnmetReparsesAnUnreadableStoredParse(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, st, "Placeholder Saga", 1)
 	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
 	held := "[MidSubs] Placeholder Saga - 01 [720p]" // 2200: below cutoff
@@ -543,7 +542,7 @@ func TestCutoffUnmetReparsesAnUnreadableStoredParse(t *testing.T) {
 func page1ItemID(t *testing.T, st *store.Store, titleID int64, number int) int64 {
 	t.Helper()
 	var id int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT id FROM wanted_items WHERE series_id = ? AND number = ?`, titleID, number).Scan(&id); err != nil {
 		t.Fatalf("look up item %d: %v", number, err)
 	}
@@ -556,7 +555,7 @@ func page1ItemID(t *testing.T, st *store.Store, titleID int64, number int) int64
 func TestCutoffUnmetStoresEveryParseAcrossChunks(t *testing.T) {
 	const items = 600 // more than one parseFillBatch, so a chunk boundary falls inside
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, st, "Placeholder Long Runner", items)
 	putOnProfile(t, st, titleID, upgradingProfile(t, st, "Upgrading", 2300))
 	for n := 1; n <= items; n++ {

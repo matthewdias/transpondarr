@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -33,7 +32,7 @@ func TestSweepThenImportLifecycle(t *testing.T) {
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
 	id := seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := svc.SweepOnce(ctx); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
@@ -88,7 +87,7 @@ func TestFailedGrabDegradesToTheNextBestReleaseThenToNothing(t *testing.T) {
 	reg.SetDownload(dl)
 	reg.SetLibrary(&coretest.FakeLibrary{})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
 	im := importer.New(st, reg, discardLogger(), blocklist.New(st, nil), nil)
 	id := seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})

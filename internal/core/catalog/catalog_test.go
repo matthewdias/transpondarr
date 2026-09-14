@@ -61,7 +61,7 @@ func TestCachedTitleVariantsHitCostsNoProviderRequest(t *testing.T) {
 	}
 	svc := NewService(coretest.NewStore(t), prov)
 
-	got, ok, err := svc.CachedTitleVariants(context.Background(), 42)
+	got, ok, err := svc.CachedTitleVariants(t.Context(), 42)
 	if err != nil {
 		t.Fatalf("CachedTitleVariants: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestCachedTitleVariantsMissDoesNotFallThroughToProvider(t *testing.T) {
 	prov := &fakeCachedProvider{cachedOK: false}
 	svc := NewService(coretest.NewStore(t), prov)
 
-	got, ok, err := svc.CachedTitleVariants(context.Background(), 42)
+	got, ok, err := svc.CachedTitleVariants(t.Context(), 42)
 	if err != nil || ok || got != nil {
 		t.Fatalf("got %v / %v / %v, want nil / false / nil on a miss", got, ok, err)
 	}
@@ -97,7 +97,7 @@ func TestCachedTitleVariantsWithoutCacheCapability(t *testing.T) {
 	prov := &fakeProvider{}
 	svc := NewService(coretest.NewStore(t), prov)
 
-	got, ok, err := svc.CachedTitleVariants(context.Background(), 42)
+	got, ok, err := svc.CachedTitleVariants(t.Context(), 42)
 	if err != nil || ok || got != nil {
 		t.Fatalf("got %v / %v / %v, want nil / false / nil without the capability", got, ok, err)
 	}
@@ -120,7 +120,7 @@ func TestAddTitlePersistsTitleAndItems(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	title, err := svc.AddTitle(context.Background(), prov.Name(), 42, true, MonitorAll, 0)
+	title, err := svc.AddTitle(t.Context(), prov.Name(), 42, true, MonitorAll, 0)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestAddTitlePersistsTitleAndItems(t *testing.T) {
 	}
 
 	// Verify the rows were written to the DB, not only the returned struct.
-	srow, err := st.Q.GetTitleByProviderID(context.Background(), db.GetTitleByProviderIDParams{
+	srow, err := st.Q.GetTitleByProviderID(t.Context(), db.GetTitleByProviderIDParams{
 		Provider:   sql.NullString{String: prov.Name(), Valid: true},
 		ProviderID: sql.NullInt64{Int64: 42, Valid: true},
 	})
@@ -167,7 +167,7 @@ func TestAddTitlePersistsTitleAndItems(t *testing.T) {
 	if srow.Provider.String != prov.Name() {
 		t.Errorf("stored provider = %q, want %q", srow.Provider.String, prov.Name())
 	}
-	rows, err := st.Q.ListWantedItems(context.Background(), srow.ID)
+	rows, err := st.Q.ListWantedItems(t.Context(), srow.ID)
 	if err != nil {
 		t.Fatalf("ListWantedItems: %v", err)
 	}
@@ -184,11 +184,11 @@ func TestAddTitleIsIdempotentByProviderID(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	if _, err := svc.AddTitle(context.Background(), prov.Name(), 7, true, MonitorAll, 0); err != nil {
+	if _, err := svc.AddTitle(t.Context(), prov.Name(), 7, true, MonitorAll, 0); err != nil {
 		t.Fatalf("first AddSeries: %v", err)
 	}
 
-	_, err := svc.AddTitle(context.Background(), prov.Name(), 7, true, MonitorAll, 0)
+	_, err := svc.AddTitle(t.Context(), prov.Name(), 7, true, MonitorAll, 0)
 	if !errors.Is(err, ErrAlreadyExists) {
 		t.Fatalf("second AddSeries error = %v, want ErrAlreadyExists", err)
 	}
@@ -198,7 +198,7 @@ func TestAddTitleIsIdempotentByProviderID(t *testing.T) {
 	if prov.getCalls != 1 {
 		t.Errorf("provider GetTitle called %d times, want 1 (duplicate short-circuits)", prov.getCalls)
 	}
-	all, err := st.Q.ListTitles(context.Background())
+	all, err := st.Q.ListTitles(t.Context())
 	if err != nil {
 		t.Fatalf("ListTitles: %v", err)
 	}
@@ -218,13 +218,13 @@ func TestAddTitleIdempotencyIsScopedToTheProvider(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	if _, err := svc.AddTitle(context.Background(), prov.Name(), 7, true, MonitorAll, 0); err != nil {
+	if _, err := svc.AddTitle(t.Context(), prov.Name(), 7, true, MonitorAll, 0); err != nil {
 		t.Fatalf("first AddSeries: %v", err)
 	}
 	// The same number in another id space is another title, and this provider
 	// cannot read it -- so it is rejected for naming an unreachable id space, never
 	// for colliding with the row above.
-	_, err := svc.AddTitle(context.Background(), "mal", 7, true, MonitorAll, 0)
+	_, err := svc.AddTitle(t.Context(), "mal", 7, true, MonitorAll, 0)
 	if !errors.Is(err, ErrUnknownProvider) {
 		t.Fatalf("cross-provider AddSeries error = %v, want ErrUnknownProvider", err)
 	}
@@ -240,14 +240,14 @@ func TestAddTitleWithUnknownEpisodeCount(t *testing.T) {
 	}
 	svc := NewService(st, prov)
 
-	title, err := svc.AddTitle(context.Background(), prov.Name(), 9, true, MonitorAll, 0)
+	title, err := svc.AddTitle(t.Context(), prov.Name(), 9, true, MonitorAll, 0)
 	if err != nil {
 		t.Fatalf("AddSeries: %v", err)
 	}
 	if len(title.Items) != 0 {
 		t.Errorf("returned %d items, want 0", len(title.Items))
 	}
-	rows, err := st.Q.ListWantedItems(context.Background(), title.ID)
+	rows, err := st.Q.ListWantedItems(t.Context(), title.ID)
 	if err != nil {
 		t.Fatalf("ListWantedItems: %v", err)
 	}
@@ -263,10 +263,10 @@ func TestAddTitleProviderErrorPersistsNothing(t *testing.T) {
 	prov := &fakeProvider{getErr: errors.New("boom")}
 	svc := NewService(st, prov)
 
-	if _, err := svc.AddTitle(context.Background(), prov.Name(), 1, true, MonitorAll, 0); err == nil {
+	if _, err := svc.AddTitle(t.Context(), prov.Name(), 1, true, MonitorAll, 0); err == nil {
 		t.Fatal("expected an error from a failing provider")
 	}
-	all, err := st.Q.ListTitles(context.Background())
+	all, err := st.Q.ListTitles(t.Context())
 	if err != nil {
 		t.Fatalf("ListTitles: %v", err)
 	}

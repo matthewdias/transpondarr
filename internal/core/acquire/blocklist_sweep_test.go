@@ -1,7 +1,6 @@
 package acquire_test
 
 import (
-	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -25,14 +24,14 @@ func blockRelease(t *testing.T, st *store.Store, titleID int64, hash, title stri
 	if !until.IsZero() {
 		p.BlockedUntil = sql.NullString{String: store.FormatTimestamp(until), Valid: true}
 	}
-	if _, err := st.Q.UpsertBlocklistEntry(context.Background(), p); err != nil {
+	if _, err := st.Q.UpsertBlocklistEntry(t.Context(), p); err != nil {
 		t.Fatalf("seed blocklist entry: %v", err)
 	}
 }
 
 func grabbedReleaseTitles(t *testing.T, st *store.Store, titleID int64) []string {
 	t.Helper()
-	grabs, err := st.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, err := st.Q.ListGrabsByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -61,7 +60,7 @@ func TestSweepSkipsBlocklistedReleaseAndTakesTheNextBest(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 	blockRelease(t, h.st, id, "tophash", top.Title, time.Now().Add(24*time.Hour))
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 
@@ -87,7 +86,7 @@ func TestSweepTakesAReleaseWhoseBlockExpired(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 	blockRelease(t, h.st, id, "tophash", rel.Title, time.Now().Add(-time.Minute))
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedReleaseTitles(t, h.st, id); len(got) != 1 {
@@ -108,7 +107,7 @@ func TestSweepGrabsNothingWhenEveryReleaseIsBlocklisted(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 	blockRelease(t, h.st, id, "tophash", rel.Title, time.Time{})
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedReleaseTitles(t, h.st, id); len(got) != 0 {
@@ -132,7 +131,7 @@ func TestSweepIgnoresAnotherTitlesBlocklistEntry(t *testing.T) {
 	other := seedSweep(t, h.st, "Unrelated Show", false, sweepItem{number: 1})
 	blockRelease(t, h.st, other, "tophash", rel.Title, time.Now().Add(24*time.Hour))
 
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedReleaseTitles(t, h.st, id); len(got) != 1 {

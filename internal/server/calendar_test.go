@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"database/sql"
 	"net/http"
 	"testing"
@@ -32,7 +31,7 @@ type calendarResponse struct {
 
 func setAiringSynced(t *testing.T, st *store.Store, titleID int64) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET airing_synced_at = ? WHERE id = ?`,
 		store.FormatTimestamp(time.Now()), titleID); err != nil {
 		t.Fatalf("stamp airing_synced_at: %v", err)
@@ -41,7 +40,7 @@ func setAiringSynced(t *testing.T, st *store.Store, titleID int64) {
 
 func setAirsAt(t *testing.T, st *store.Store, titleID int64, number int, airsAt string) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE wanted_items SET airs_at = ? WHERE series_id = ? AND number = ?`,
 		airsAt, titleID, number); err != nil {
 		t.Fatalf("set airs_at: %v", err)
@@ -51,7 +50,7 @@ func setAirsAt(t *testing.T, st *store.Store, titleID int64, number int, airsAt 
 func itemID(t *testing.T, st *store.Store, titleID int64, number int) int64 {
 	t.Helper()
 	var id int64
-	if err := st.DB.QueryRowContext(context.Background(),
+	if err := st.DB.QueryRowContext(t.Context(),
 		`SELECT id FROM wanted_items WHERE series_id = ? AND number = ?`,
 		titleID, number).Scan(&id); err != nil {
 		t.Fatalf("look up item: %v", err)
@@ -72,7 +71,7 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 
 	otherID := seedTitle(t, h.store, "Unmonitored Show", 1)
 	setAirsAt(t, h.store, otherID, 1, "2026-07-08 15:00:00")
-	if _, err := h.store.DB.ExecContext(context.Background(),
+	if _, err := h.store.DB.ExecContext(t.Context(),
 		`UPDATE series SET monitored = 0 WHERE id = ?`, otherID); err != nil {
 		t.Fatalf("unmonitor series: %v", err)
 	}
@@ -113,7 +112,7 @@ func TestCalendarRangeAndMonitoredFilter(t *testing.T) {
 // Calendar items use the same derived status vocabulary as title detail.
 func TestCalendarDerivesItemStatus(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, h.store, "Status Show", 5)
 	for n := 1; n <= 5; n++ {
 		setAirsAt(t, h.store, titleID, n, "2026-07-10 15:00:00")
@@ -167,7 +166,7 @@ func TestCalendarDerivesItemStatus(t *testing.T) {
 // Unmonitored filter, so it explains exactly the population being shown (#183).
 func TestCalendarSurfacesUnscheduledTitles(t *testing.T) {
 	h := newHarness(t, nil, nil)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	noSchedule := seedTitle(t, h.store, "No Schedule Show", 2)
 

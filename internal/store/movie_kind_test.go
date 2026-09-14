@@ -1,7 +1,6 @@
 package store
 
 import (
-	"context"
 	"testing"
 
 	"github.com/pressly/goose/v3"
@@ -13,7 +12,7 @@ import (
 // movie, and the title reads 1/2 forever.
 func TestMigrationBackfillsMovieItemKind(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := goose.DownTo(st.DB, "migrations", 21); err != nil {
 		t.Fatalf("roll back to the pre-year schema: %v", err)
@@ -79,7 +78,7 @@ func TestMigrationBackfillsMovieItemKind(t *testing.T) {
 
 func TestMigrationLeavesNonMovieItemKind(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := goose.DownTo(st.DB, "migrations", 21); err != nil {
 		t.Fatalf("roll back to the pre-year schema: %v", err)
@@ -111,7 +110,7 @@ func TestMigrationLeavesNonMovieItemKind(t *testing.T) {
 
 func TestCreateTitleDefaultsYearToUnknown(t *testing.T) {
 	st := tempStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var titleID int64
 	if err := st.DB.QueryRowContext(ctx,

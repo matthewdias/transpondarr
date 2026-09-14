@@ -1,7 +1,6 @@
 package webhook
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -31,7 +30,7 @@ func TestSendPostsTheDocumentedContract(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	err := New(ts.URL).Send(context.Background(), notify.Event{
+	err := New(ts.URL).Send(t.Context(), notify.Event{
 		Kind:         notify.KindImported,
 		Title:        "Placeholder Saga",
 		ItemNumber:   5,
@@ -88,7 +87,7 @@ func TestSendReportsNon2xx(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(ts.Close)
-	err := New(ts.URL).Send(context.Background(), notify.Event{Kind: notify.KindTest})
+	err := New(ts.URL).Send(t.Context(), notify.Event{Kind: notify.KindTest})
 	if err == nil {
 		t.Fatal("want an error on a 500")
 	}
@@ -109,7 +108,7 @@ func TestSendSerializesItemsAsAnArray(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	if err := New(ts.URL).Send(context.Background(), notify.Event{
+	if err := New(ts.URL).Send(t.Context(), notify.Event{
 		Kind: notify.KindImported, Title: "Placeholder Saga", Items: []int{1, 2, 3},
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -119,7 +118,7 @@ func TestSendSerializesItemsAsAnArray(t *testing.T) {
 	}
 
 	// A single-item event still includes the key, as an empty array not null.
-	if err := New(ts.URL).Send(context.Background(), notify.Event{
+	if err := New(ts.URL).Send(t.Context(), notify.Event{
 		Kind: notify.KindImported, Title: "Placeholder Saga", ItemNumber: 5,
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -150,11 +149,11 @@ func TestMovieEventLeavesTheWireContractUntouched(t *testing.T) {
 		Path:         "/library/Placeholder Film (2019)/Placeholder Film (2019).mkv",
 	}
 	n := New(ts.URL)
-	if err := n.Send(context.Background(), ev); err != nil {
+	if err := n.Send(t.Context(), ev); err != nil {
 		t.Fatalf("send without a kind: %v", err)
 	}
 	ev.ItemKind = domain.KindMovie
-	if err := n.Send(context.Background(), ev); err != nil {
+	if err := n.Send(t.Context(), ev); err != nil {
 		t.Fatalf("send as a movie: %v", err)
 	}
 

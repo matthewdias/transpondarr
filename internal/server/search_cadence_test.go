@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -15,7 +14,7 @@ func searchCadence(t *testing.T, h *harness, titleID int64) (int, *string) {
 	t.Helper()
 	var backoff int
 	var next *string
-	if err := h.store.DB.QueryRowContext(context.Background(),
+	if err := h.store.DB.QueryRowContext(t.Context(),
 		`SELECT search_backoff, next_search_at FROM series WHERE id = ?`, titleID).
 		Scan(&backoff, &next); err != nil {
 		t.Fatalf("read search cadence: %v", err)
@@ -28,7 +27,7 @@ func searchCadence(t *testing.T, h *harness, titleID int64) (int, *string) {
 func TestEnableMonitoringResetsSearchCadence(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
-	if _, err := h.store.DB.ExecContext(context.Background(),
+	if _, err := h.store.DB.ExecContext(t.Context(),
 		`UPDATE series SET monitored = 0, search_backoff = 9, next_search_at = ? WHERE id = ?`,
 		store.FormatTimestamp(time.Now().Add(24*time.Hour)), titleID); err != nil {
 		t.Fatalf("seed a paused, backed-off series: %v", err)
@@ -60,7 +59,7 @@ func TestRepinningResetsSearchCadence(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(t, nil, nil)
 			titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
-			if _, err := h.store.DB.ExecContext(context.Background(),
+			if _, err := h.store.DB.ExecContext(t.Context(),
 				`UPDATE series SET pinned_group = 'ShinyRip', pin_delay_hours = 48,
 				        search_backoff = 4, next_search_at = ? WHERE id = ?`,
 				store.FormatTimestamp(time.Now().Add(48*time.Hour)), titleID); err != nil {
@@ -85,7 +84,7 @@ func TestRepinningResetsSearchCadence(t *testing.T) {
 func TestDisableMonitoringLeavesSearchCadence(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)
-	if _, err := h.store.DB.ExecContext(context.Background(),
+	if _, err := h.store.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = 9 WHERE id = ?`, titleID); err != nil {
 		t.Fatalf("seed a backed-off series: %v", err)
 	}

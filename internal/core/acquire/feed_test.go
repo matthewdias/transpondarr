@@ -143,7 +143,7 @@ func (f *fakeCachedTitles) CachedTitleVariants(_ context.Context, id int64) ([]s
 // makes the variant lookup reachable.
 func setTitleProviderID(t *testing.T, st *store.Store, titleID, providerID int64) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET provider = 'anilist', provider_id = ? WHERE id = ?`, providerID, titleID); err != nil {
 		t.Fatalf("set provider identity on series %d: %v", titleID, err)
 	}
@@ -161,7 +161,7 @@ func TestFeedPollMatchesOnCachedVariantWithoutFetching(t *testing.T) {
 	id := seedSweep(t, h.st, "Sora no Fixture", true, sweepItem{number: 3, airsAt: &past})
 	setTitleProviderID(t, h.st, id, 42)
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -185,7 +185,7 @@ func TestFeedPollCacheMissStillMatchesStoredTitle(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 	setTitleProviderID(t, h.st, id, 42)
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -207,7 +207,7 @@ func TestFeedPollCacheErrorStillMatchesStoredTitle(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 	setTitleProviderID(t, h.st, id, 42)
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -232,7 +232,7 @@ func TestFeedPollWithoutCacheCapabilityUsesStoredTitleOnly(t *testing.T) {
 	id := seedSweep(t, h.st, "Sora no Fixture", true, sweepItem{number: 3, airsAt: &past})
 	setTitleProviderID(t, h.st, id, 42)
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
@@ -250,7 +250,7 @@ func TestFeedPollGrabsAnAiredWantedItemWithoutSearching(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true,
 		sweepItem{number: 1, inLibrary: true}, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 || got[0] != 3 {
@@ -302,7 +302,7 @@ func TestFeedPollGrabsNothingForIneligibleEntries(t *testing.T) {
 			}, fakeConfig{})
 			tc.setup(t, h)
 
-			if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+			if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 				t.Fatalf("PollFeedOnce: %v", err)
 			}
 			if len(h.dl.Adds) != 0 {
@@ -320,12 +320,12 @@ func TestFeedPollHonoursTheProfileMinimum(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now()),
 	}, fakeConfig{})
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
-	if _, err := h.st.DB.ExecContext(context.Background(),
+	if _, err := h.st.DB.ExecContext(t.Context(),
 		`UPDATE quality_profiles SET min_score = 9000 WHERE id = 1`); err != nil {
 		t.Fatalf("raise the profile minimum: %v", err)
 	}
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 0 {
@@ -346,7 +346,7 @@ func TestFeedPollGrabsASeasonPack(t *testing.T) {
 		sweepItem{number: 3, airsAt: &past}, sweepItem{number: 4, airsAt: &past},
 		sweepItem{number: 5, airsAt: &past}, sweepItem{number: 6, airsAt: &past})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 1 {
@@ -368,7 +368,7 @@ func TestFeedPollDoesNotReprocessASeenEntry(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, published),
 	}, fakeConfig{})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := h.svc.PollFeedOnce(ctx); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
@@ -399,7 +399,7 @@ func TestFeedPollDedupesAFeedWithoutPublishDates(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Time{}),
 	}, fakeConfig{})
 
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := h.svc.PollFeedOnce(ctx); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
@@ -430,7 +430,7 @@ func TestFeedPollWithoutTheCapabilityIsAQuietNoOp(t *testing.T) {
 	h := newFeedPollWith(t, idx, fakeConfig{}, fakeTitles{})
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 0 || len(idx.Queries) != 0 {
@@ -444,7 +444,7 @@ func TestFeedPollWithoutTheCapabilityIsAQuietNoOp(t *testing.T) {
 	}
 
 	// The sweep still finds the same item, unchanged.
-	if err := h.svc.SweepOnce(context.Background()); err != nil {
+	if err := h.svc.SweepOnce(t.Context()); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 1 {
@@ -460,7 +460,7 @@ func TestFeedPollNoOpsWhenAutomationDisabled(t *testing.T) {
 	}, fakeConfig{automationOff: true})
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if h.feed.Polls != 0 || len(h.dl.Adds) != 0 {
@@ -478,7 +478,7 @@ func TestFeedPollRunsWithAutomationDisabledWhenTriggeredByHand(t *testing.T) {
 	}, fakeConfig{automationOff: true})
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := h.svc.PollFeedOnce(jobs.WithManualRun(context.Background())); err != nil {
+	if err := h.svc.PollFeedOnce(jobs.WithManualRun(t.Context())); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if h.feed.Polls != 1 {
@@ -500,7 +500,7 @@ func TestFeedPollNoOpsWithoutADownloadClient(t *testing.T) {
 	svc := acquire.New(st, reg, fakeTitles{}, fakeConfig{}, discardLogger(), nil)
 	seedSweep(t, st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 
-	if err := svc.PollFeedOnce(context.Background()); err != nil {
+	if err := svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if feed.Polls != 0 {
@@ -518,7 +518,7 @@ func TestFeedPollReportsAFetchFailureAndKeepsTheMark(t *testing.T) {
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 	h.feed.FeedErr = errors.New("prowlarr: 502 bad gateway")
 
-	ctx := context.Background()
+	ctx := t.Context()
 	err := h.svc.PollFeedOnce(ctx)
 	if !errors.Is(err, acquire.ErrIndexerSearch) {
 		t.Fatalf("err = %v, want it to wrap ErrIndexerSearch", err)
@@ -543,7 +543,7 @@ func TestFeedPollWarnsWhenTheMarkScrolledOff(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 1, time.Now().Add(-time.Hour)),
 	}, fakeConfig{})
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := h.svc.PollFeedOnce(ctx); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
@@ -571,7 +571,7 @@ func TestFeedPollWarnsWhenTheMarkScrolledOff(t *testing.T) {
 // has to undo — and what makes a reset observable.
 func seedGapCadence(t *testing.T, st *store.Store, id int64, backoff int, next time.Time) {
 	t.Helper()
-	if _, err := st.DB.ExecContext(context.Background(),
+	if _, err := st.DB.ExecContext(t.Context(),
 		`UPDATE series SET search_backoff = ?, next_search_at = ? WHERE id = ?`,
 		backoff, store.FormatTimestamp(next), id); err != nil {
 		t.Fatalf("seed cadence on series %d: %v", id, err)
@@ -583,7 +583,7 @@ func seedGapCadence(t *testing.T, st *store.Store, id int64, backoff int, next t
 func pollThenGap(t *testing.T, h *feedHarness, since time.Time) {
 	t.Helper()
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since)}
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, time.Now())}
@@ -601,7 +601,7 @@ func TestFeedPollGapResetsATitleThatAiredInsideIt(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	if !h.log.logged("front of the sweep") {
@@ -626,7 +626,7 @@ func TestFeedPollGapLeavesTitlesOutsideTheWindowAlone(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	state := readSearchState(t, h.st, id)
@@ -648,7 +648,7 @@ func TestFeedPollGapResetCoversPublishLagBeforeTheMark(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	if state := readSearchState(t, h.st, id); state.backoff != 0 || state.nextSearchAt.Valid {
@@ -673,7 +673,7 @@ func TestFeedPollGapResetIsBoundedToOnePass(t *testing.T) {
 		seedGapCadence(t, h.st, ids[i], 6, now.Add(time.Duration(i+1)*time.Hour))
 	}
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	var reset int
@@ -708,7 +708,7 @@ func TestFeedPollGapSurvivesABackdatedEntryOnThePage(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	if !h.log.logged("moved more than one page") {
@@ -726,7 +726,7 @@ func TestFeedPollRecoversAGapOnAPageWithNothingFresh(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since)}, fakeConfig{})
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Backfilled Show", 2, since.Add(-3*time.Hour))}
@@ -735,7 +735,7 @@ func TestFeedPollRecoversAGapOnAPageWithNothingFresh(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	if state := readSearchState(t, h.st, id); state.backoff != 0 || state.nextSearchAt.Valid {
@@ -751,7 +751,7 @@ func TestFeedPollOverlappingPageIsNotAGap(t *testing.T) {
 	since := now.Add(-2 * time.Hour)
 	marked := feedEntry("Placeholder Saga", 1, since)
 	h := newFeedPoll(t, []indexer.FeedEntry{marked}, fakeConfig{})
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
 	h.feed.Entries = []indexer.FeedEntry{feedEntry("Unrelated Show", 9, now), marked}
@@ -760,7 +760,7 @@ func TestFeedPollOverlappingPageIsNotAGap(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	if h.log.logged("moved more than one page") {
@@ -780,7 +780,7 @@ func TestFeedPollTreatsTheMarkInstantAsContinuity(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since)}, fakeConfig{})
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
 	renamed := feedEntry("Placeholder Saga", 1, since)
@@ -791,7 +791,7 @@ func TestFeedPollTreatsTheMarkInstantAsContinuity(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	if h.log.logged("moved more than one page") {
@@ -810,7 +810,7 @@ func TestFeedPollUndatedEntryDedupesButIsNotCoverage(t *testing.T) {
 	since := now.Add(-2 * time.Hour)
 	sticky := feedEntry("Undated Show", 4, time.Time{})
 	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since), sticky}, fakeConfig{})
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
 	// The dated entry published at the mark has scrolled off; the sticky has not.
@@ -822,7 +822,7 @@ func TestFeedPollUndatedEntryDedupesButIsNotCoverage(t *testing.T) {
 	// Seeded only now, so a re-processed sticky would be visible as a grab row.
 	sticky4 := seedSweep(t, h.st, "Undated Show", true, sweepItem{number: 4, airsAt: &aired})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	if state := readSearchState(t, h.st, id); state.backoff != 0 || state.nextSearchAt.Valid {
@@ -841,7 +841,7 @@ func TestFeedPollGapSurvivesAStaleRememberedID(t *testing.T) {
 	now := time.Now()
 	stale := feedEntry("Dead Tracker Sticky", 7, now.Add(-30*time.Hour))
 	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, now.Add(-2*time.Hour))}, fakeConfig{})
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := h.svc.PollFeedOnce(ctx); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
@@ -875,7 +875,7 @@ func TestFeedPollRecognisesTheMarkWhenTheIndexerRedatesIt(t *testing.T) {
 	now := time.Now()
 	since := now.Add(-2 * time.Hour)
 	h := newFeedPoll(t, []indexer.FeedEntry{feedEntry("Placeholder Saga", 1, since)}, fakeConfig{})
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
 	redated := feedEntry("Placeholder Saga", 1, since.Add(5*time.Minute)) // same GUID, recomputed date
@@ -885,7 +885,7 @@ func TestFeedPollRecognisesTheMarkWhenTheIndexerRedatesIt(t *testing.T) {
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	if h.log.logged("moved more than one page") {
@@ -904,7 +904,7 @@ func TestFeedPollAcceptsAMarkStoredBeforeCoverageIDs(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		feedEntry("Placeholder Saga", 1, since), feedEntry("Unrelated Show", 9, now),
 	}, fakeConfig{})
-	ctx := context.Background()
+	ctx := t.Context()
 	legacy := fmt.Sprintf(`{"latest":%q,"ids":["guid-Placeholder Saga-01"]}`,
 		since.UTC().Format(time.RFC3339Nano))
 	if err := h.st.Q.UpsertSetting(ctx, db.UpsertSettingParams{
@@ -943,7 +943,7 @@ func TestFeedPollToleratesACorruptMark(t *testing.T) {
 		feedEntry("Placeholder Saga", 3, time.Now()),
 	}, fakeConfig{})
 	seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := h.st.Q.UpsertSetting(ctx, db.UpsertSettingParams{
 		Key: "feed.seen." + h.feed.Name(), Value: "{not json",
 	}); err != nil {
@@ -972,7 +972,7 @@ func TestFeedPollDoesNotRewindOnAnOlderPage(t *testing.T) {
 	older := feedEntry("Placeholder Saga", 4, time.Now().Add(-6*time.Hour))
 
 	h := newFeedPoll(t, []indexer.FeedEntry{newer}, fakeConfig{})
-	ctx := context.Background()
+	ctx := t.Context()
 	if err := h.svc.PollFeedOnce(ctx); err != nil { // processes the newer page, no title yet
 		t.Fatalf("first PollFeedOnce: %v", err)
 	}
@@ -1013,7 +1013,7 @@ func TestFeedPollSharesOnePageAcrossTitles(t *testing.T) {
 	saga := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &past})
 	chronicle := seedSweep(t, h.st, "Sample Chronicle", true, sweepItem{number: 7, airsAt: &past})
 
-	if err := h.svc.PollFeedOnce(context.Background()); err != nil {
+	if err := h.svc.PollFeedOnce(t.Context()); err != nil {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, saga); len(got) != 1 || got[0] != 3 {

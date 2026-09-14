@@ -1,7 +1,6 @@
 package ntfy
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +35,7 @@ func capture(t *testing.T) (*httptest.Server, *captured) {
 
 func TestSendPostsToServerSlashTopic(t *testing.T) {
 	ts, got := capture(t)
-	if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{
+	if err := New(ts.URL, "transpondarr-events", "").Send(t.Context(), notify.Event{
 		Kind: notify.KindImported, Title: "Placeholder Saga", ItemNumber: 5,
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -64,7 +63,7 @@ func TestSendPostsToServerSlashTopic(t *testing.T) {
 // A topic with URL metacharacters must not alter the request path or query.
 func TestSendEscapesTheTopic(t *testing.T) {
 	ts, got := capture(t)
-	if err := New(ts.URL, "a/b?c", "").Send(context.Background(), notify.Event{Kind: notify.KindTest}); err != nil {
+	if err := New(ts.URL, "a/b?c", "").Send(t.Context(), notify.Event{Kind: notify.KindTest}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if got.path != "/a%2Fb%3Fc" {
@@ -74,7 +73,7 @@ func TestSendEscapesTheTopic(t *testing.T) {
 
 func TestSendMarksStuckHighPriority(t *testing.T) {
 	ts, got := capture(t)
-	if err := New(ts.URL, "topic", "").Send(context.Background(), notify.Event{
+	if err := New(ts.URL, "topic", "").Send(t.Context(), notify.Event{
 		Kind: notify.KindImportStuck, Title: "Placeholder Saga", Error: "source path not accessible",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -95,7 +94,7 @@ func TestSendMarksStuckHighPriority(t *testing.T) {
 
 func TestSendBearsTokenOnlyWhenSet(t *testing.T) {
 	ts, got := capture(t)
-	if err := New(ts.URL, "topic", "tk_secret").Send(context.Background(), notify.Event{Kind: notify.KindTest}); err != nil {
+	if err := New(ts.URL, "topic", "tk_secret").Send(t.Context(), notify.Event{Kind: notify.KindTest}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 	if auth := got.headers.Get("Authorization"); auth != "Bearer tk_secret" {
@@ -108,7 +107,7 @@ func TestSendReportsNon2xx(t *testing.T) {
 		w.WriteHeader(http.StatusForbidden)
 	}))
 	t.Cleanup(ts.Close)
-	err := New(ts.URL, "topic", "").Send(context.Background(), notify.Event{Kind: notify.KindTest})
+	err := New(ts.URL, "topic", "").Send(t.Context(), notify.Event{Kind: notify.KindTest})
 	if err == nil {
 		t.Fatal("want an error on a 403")
 	}
@@ -120,7 +119,7 @@ func TestSendReportsNon2xx(t *testing.T) {
 // A multi-item import flattens to one line naming the run of episodes.
 func TestSendRendersMultipleEpisodesOnOneLine(t *testing.T) {
 	ts, got := capture(t)
-	if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{
+	if err := New(ts.URL, "transpondarr-events", "").Send(t.Context(), notify.Event{
 		Kind: notify.KindImported, Title: "Placeholder Saga", Items: []int{1, 2, 3, 5},
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -134,7 +133,7 @@ func TestSendRendersMultipleEpisodesOnOneLine(t *testing.T) {
 // item line is dropped rather than reworded.
 func TestSendOmitsTheItemLineForAMovie(t *testing.T) {
 	ts, got := capture(t)
-	if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{
+	if err := New(ts.URL, "transpondarr-events", "").Send(t.Context(), notify.Event{
 		Kind: notify.KindImported, Title: "Placeholder Film", ItemNumber: 1, ItemKind: domain.KindMovie,
 	}); err != nil {
 		t.Fatalf("send: %v", err)
@@ -152,7 +151,7 @@ func TestSendOmitsTheItemLineForAMovie(t *testing.T) {
 func TestSendKeepsTheItemLineForAnEpisode(t *testing.T) {
 	for _, kind := range []domain.WantedKind{"", domain.KindEpisode} {
 		ts, got := capture(t)
-		if err := New(ts.URL, "transpondarr-events", "").Send(context.Background(), notify.Event{
+		if err := New(ts.URL, "transpondarr-events", "").Send(t.Context(), notify.Event{
 			Kind: notify.KindImported, Title: "Placeholder Saga", ItemNumber: 5, ItemKind: kind,
 		}); err != nil {
 			t.Fatalf("send: %v", err)
@@ -165,7 +164,7 @@ func TestSendKeepsTheItemLineForAnEpisode(t *testing.T) {
 
 func TestSendHeadsARehearsalByItsAutomationMode(t *testing.T) {
 	ts, got := capture(t)
-	if err := New(ts.URL, "topic", "").Send(context.Background(), notify.Event{
+	if err := New(ts.URL, "topic", "").Send(t.Context(), notify.Event{
 		Kind: notify.KindRehearsal, Title: "Placeholder Saga", Error: "would have grabbed",
 	}); err != nil {
 		t.Fatalf("send: %v", err)

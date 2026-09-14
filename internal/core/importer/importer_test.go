@@ -87,7 +87,7 @@ func (racingClaims) ReleaseClaims([]int64) {}
 // seedTitleGrab creates a named title with one grabbed item on the given hash.
 func seedTitleGrab(t *testing.T, st *store.Store, title, hash string, number int) int64 {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create title: %v", err)
@@ -111,7 +111,7 @@ func seedTitleGrab(t *testing.T, st *store.Store, title, hash string, number int
 // seedGrab creates a title + one wanted item + a grab.
 func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, titleID int64) {
 	t.Helper()
-	ctx := context.Background()
+	ctx := t.Context()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
 	if err != nil {
 		t.Fatalf("create title: %v", err)
@@ -134,7 +134,7 @@ func seedGrab(t *testing.T, st *store.Store, hash string) (itemID, titleID int64
 // addItem adds one more wanted item to a title, with no grab of its own.
 func addItem(t *testing.T, st *store.Store, titleID int64, number int) int64 {
 	t.Helper()
-	item, err := st.Q.CreateWantedItem(context.Background(), db.CreateWantedItemParams{
+	item, err := st.Q.CreateWantedItem(t.Context(), db.CreateWantedItemParams{
 		SeriesID: titleID, Kind: "episode", Number: sql.NullInt64{Int64: int64(number), Valid: true},
 		Monitored: 1,
 	})
@@ -149,7 +149,7 @@ func discardLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Disca
 // grabByHash returns the single grab row for an info hash.
 func grabByHash(t *testing.T, st *store.Store, hash string) db.ListGrabsByInfoHashRow {
 	t.Helper()
-	rows, err := st.Q.ListGrabsByInfoHash(context.Background(), hash)
+	rows, err := st.Q.ListGrabsByInfoHash(t.Context(), hash)
 	if err != nil {
 		t.Fatalf("list grabs by hash: %v", err)
 	}
@@ -162,7 +162,7 @@ func grabByHash(t *testing.T, st *store.Store, hash string) db.ListGrabsByInfoHa
 // setGrabStatus forces a grab's status, standing in for an earlier scan.
 func setGrabStatus(t *testing.T, st *store.Store, hash, status string) {
 	t.Helper()
-	if err := st.Q.SetGrabStatus(context.Background(), db.SetGrabStatusParams{
+	if err := st.Q.SetGrabStatus(t.Context(), db.SetGrabStatusParams{
 		Status: status, ID: grabByHash(t, st, hash).ID,
 	}); err != nil {
 		t.Fatalf("set grab status: %v", err)
@@ -172,7 +172,7 @@ func setGrabStatus(t *testing.T, st *store.Store, hash, status string) {
 // setLastError forces a grab's last_error, standing in for an earlier failed attempt.
 func setLastError(t *testing.T, st *store.Store, hash, msg string) {
 	t.Helper()
-	if err := st.Q.SetGrabLastError(context.Background(), db.SetGrabLastErrorParams{
+	if err := st.Q.SetGrabLastError(t.Context(), db.SetGrabLastErrorParams{
 		LastError: sql.NullString{String: msg, Valid: true}, ID: grabByHash(t, st, hash).ID,
 	}); err != nil {
 		t.Fatalf("set last_error: %v", err)
@@ -184,7 +184,7 @@ func setLastError(t *testing.T, st *store.Store, hash, msg string) {
 func backdateMissingSince(t *testing.T, st *store.Store, hash string, ago time.Duration) string {
 	t.Helper()
 	value := store.FormatTimestamp(time.Now().Add(-ago))
-	if err := st.Q.SetGrabMissingSince(context.Background(), db.SetGrabMissingSinceParams{
+	if err := st.Q.SetGrabMissingSince(t.Context(), db.SetGrabMissingSinceParams{
 		MissingSince: sql.NullString{String: value, Valid: true},
 		ID:           grabByHash(t, st, hash).ID,
 	}); err != nil {
@@ -212,7 +212,7 @@ func TestImportsCompletedGrab(t *testing.T) {
 	target := &coretest.FakeLibrary{}
 	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -224,11 +224,11 @@ func TestImportsCompletedGrab(t *testing.T) {
 	}
 
 	// Grab marked imported, item marked had.
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	if len(rows) != 1 || rows[0].Status != "imported" {
 		t.Errorf("grab status = %v, want imported", rows)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
+	items, _ := st.Q.ListWantedItems(t.Context(), titleID)
 	if items[0].InLibrary != 1 {
 		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
@@ -244,7 +244,7 @@ func TestFinishesInFlightImportAfterCancel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	target := &cancelOnPlace{cancel: cancel}
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
@@ -256,7 +256,7 @@ func TestFinishesInFlightImportAfterCancel(t *testing.T) {
 	if g := grabByHash(t, st, "abc"); g.Status != "imported" {
 		t.Errorf("status = %q, want imported: the file was already placed when the cancel arrived", g.Status)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
+	items, _ := st.Q.ListWantedItems(t.Context(), titleID)
 	if items[0].InLibrary != 1 {
 		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
@@ -281,7 +281,7 @@ func TestStopsScanMidwayOnCancel(t *testing.T) {
 		statuses = append(statuses, download.Status{Hash: hash, State: download.StateComplete, ContentPath: src})
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	target := &cancelOnPlace{cancel: cancel}
 	dl := &coretest.FakeDownload{Statuses: statuses}
@@ -307,7 +307,7 @@ func TestStopsScanMidwayOnCancel(t *testing.T) {
 func TestDoesNotScanAfterCancel(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
@@ -332,7 +332,7 @@ func TestScanOnceReturnsStatusError(t *testing.T) {
 	dl := &coretest.FakeDownload{StatusErr: errors.New("client unreachable")}
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
 
-	err := im.ScanOnce(context.Background())
+	err := im.ScanOnce(t.Context())
 
 	if err == nil || !strings.Contains(err.Error(), "client unreachable") {
 		t.Errorf("ScanOnce() = %v, want the download client error", err)
@@ -349,7 +349,7 @@ func TestScanOnceReturnsListGrabsError(t *testing.T) {
 	dl := &coretest.FakeDownload{}
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
 
-	err := im.ScanOnce(context.Background())
+	err := im.ScanOnce(t.Context())
 
 	if err == nil || !strings.Contains(err.Error(), "list grabs") {
 		t.Errorf("ScanOnce() = %v, want the list-grabs error", err)
@@ -363,14 +363,14 @@ func TestSkipsIncompleteGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	if len(target.Placed) != 0 {
 		t.Errorf("Place called for an incomplete download")
 	}
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	if rows[0].Status != "grabbed" {
 		t.Errorf("status = %q, want still grabbed", rows[0].Status)
 	}
@@ -391,7 +391,7 @@ func TestImportsFolderWrappedEpisode(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -404,7 +404,7 @@ func TestImportsFolderWrappedEpisode(t *testing.T) {
 	if grabByHash(t, st, "abc").Status != "imported" {
 		t.Errorf("status = %q, want imported", grabByHash(t, st, "abc").Status)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
+	items, _ := st.Q.ListWantedItems(t.Context(), titleID)
 	if items[0].InLibrary != 1 {
 		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
@@ -426,7 +426,7 @@ func TestImportsItsOwnEpisodeFromAMultiEpisodeDirectory(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -439,7 +439,7 @@ func TestImportsItsOwnEpisodeFromAMultiEpisodeDirectory(t *testing.T) {
 	if g := grabByHash(t, st, "abc"); g.Status != "imported" {
 		t.Errorf("status = %q, want imported", g.Status)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
+	items, _ := st.Q.ListWantedItems(t.Context(), titleID)
 	if items[0].InLibrary != 1 {
 		t.Errorf("in_library = %d, want 1", items[0].InLibrary)
 	}
@@ -459,7 +459,7 @@ func TestImportsEveryEpisodeOfASeasonPack(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -471,7 +471,7 @@ func TestImportsEveryEpisodeOfASeasonPack(t *testing.T) {
 			t.Errorf("Place %d took item %d, want %d (front to back)", i, p.Item.Number, i+1)
 		}
 	}
-	rows, err := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, err := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -480,7 +480,7 @@ func TestImportsEveryEpisodeOfASeasonPack(t *testing.T) {
 			t.Errorf("grab for item %d = %q, want imported", g.ItemNumber.Int64, g.Status)
 		}
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
+	items, _ := st.Q.ListWantedItems(t.Context(), titleID)
 	for _, it := range items {
 		if it.InLibrary != 1 {
 			t.Errorf("item %d in_library = %d, want 1", it.Number.Int64, it.InLibrary)
@@ -509,12 +509,12 @@ func TestDefersWhenAFileIsMissingButOthersAreLoose(t *testing.T) {
 	}}
 	rec := &fakeRecorder{}
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	byStatus := map[string]string{}
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	for _, g := range rows {
 		byStatus[g.Status] = g.LastError.String
 		if g.ItemNumber.Int64 == 2 && g.Status != "import_deferred" {
@@ -528,7 +528,7 @@ func TestDefersWhenAFileIsMissingButOthersAreLoose(t *testing.T) {
 	if len(rec.calls) != 0 {
 		t.Errorf("blocklist records = %+v, want none for a deferral", rec.calls)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
+	items, _ := st.Q.ListWantedItems(t.Context(), titleID)
 	for _, it := range items {
 		if want := int64(0); it.Number.Int64 == 2 && it.InLibrary != want {
 			t.Errorf("item 2 in_library = %d, want %d", it.InLibrary, want)
@@ -550,11 +550,11 @@ func TestFailsAndBlocklistsWhenThePayloadHasNothingLeft(t *testing.T) {
 	}}
 	rec := &fakeRecorder{}
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), rec, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	for _, g := range rows {
 		want := "failed"
 		if g.ItemNumber.Int64 == 1 {
@@ -579,7 +579,7 @@ func TestFailsAndBlocklistsWhenThePayloadHasNothingLeft(t *testing.T) {
 // exists and is still wanted, with a grab row written after the fact.
 func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID, _ := seedBatchGrab(t, st, "abc", 1)
 	extra := addItem(t, st, titleID, 2)
 	dir := writeTree(t,
@@ -632,7 +632,7 @@ func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 // not an oversight; #157's file adoption closes the same hole from the other end.
 func TestImportsAFileForAnUnmonitoredItemAnyway(t *testing.T) {
 	st := coretest.NewStore(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID, _ := seedBatchGrab(t, st, "abc", 1)
 	extra := addItem(t, st, titleID, 2)
 	if _, err := st.DB.ExecContext(ctx,
@@ -672,13 +672,13 @@ func TestLeavesAnUnclaimedFileAloneWhenTheGuardRefuses(t *testing.T) {
 	}{
 		{"item is already had", func(t *testing.T, st *store.Store, titleID int64) {
 			id := addItem(t, st, titleID, 2)
-			if err := st.Q.SetWantedItemInLibrary(context.Background(), db.SetWantedItemInLibraryParams{InLibrary: 1, ID: id}); err != nil {
+			if err := st.Q.SetWantedItemInLibrary(t.Context(), db.SetWantedItemInLibraryParams{InLibrary: 1, ID: id}); err != nil {
 				t.Fatal(err)
 			}
 		}},
 		{"item has a grab of its own", func(t *testing.T, st *store.Store, titleID int64) {
 			id := addItem(t, st, titleID, 2)
-			if _, err := st.Q.UpsertGrab(context.Background(), db.UpsertGrabParams{
+			if _, err := st.Q.UpsertGrab(t.Context(), db.UpsertGrabParams{
 				WantedItemID: id, InfoHash: "other", ReleaseTitle: "other release", Status: "grabbed",
 			}); err != nil {
 				t.Fatal(err)
@@ -701,7 +701,7 @@ func TestLeavesAnUnclaimedFileAloneWhenTheGuardRefuses(t *testing.T) {
 			}}
 			target := &coretest.FakeLibrary{}
 			if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).
-				ScanOnce(context.Background()); err != nil {
+				ScanOnce(t.Context()); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 
@@ -728,7 +728,7 @@ func TestLeavesAnUnclaimedFileAloneWhileItsItemIsClaimed(t *testing.T) {
 	}}
 	target := &coretest.FakeLibrary{}
 	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, refusingClaims{}).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -754,14 +754,14 @@ func TestLeavesAnUnclaimedFileAloneWhenItsItemIsGrabbedUnderTheClaim(t *testing.
 	}}
 	target := &coretest.FakeLibrary{}
 	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, racingClaims{st: st, itemID: extra}).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	if len(target.Placed) != 1 {
 		t.Errorf("Place called %d times, want only the claimed episode", len(target.Placed))
 	}
-	grabs, err := st.Q.ListGrabsByTitle(context.Background(), titleID)
+	grabs, err := st.Q.ListGrabsByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list grabs: %v", err)
 	}
@@ -793,7 +793,7 @@ func TestKeepsTwoTitlesSharingAnInfoHashApart(t *testing.T) {
 	fn := coretest.NewFakeNotifier()
 	target := &coretest.FakeLibrary{}
 	if err := New(st, notifyingSource(dl, target, fn), discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -823,10 +823,10 @@ func TestConvergesAfterAMidGroupPlaceFailure(t *testing.T) {
 	target := &failOnItem{fail: 2}
 	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	for _, g := range rows {
 		want := "imported"
 		if g.ItemNumber.Int64 == 2 {
@@ -838,10 +838,10 @@ func TestConvergesAfterAMidGroupPlaceFailure(t *testing.T) {
 	}
 
 	target.fail = 0 // the condition clears
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("second scan: %v", err)
 	}
-	rows, _ = st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ = st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	for _, g := range rows {
 		if g.Status != "imported" {
 			t.Errorf("after scan 2, item %d = %q, want imported", g.ItemNumber.Int64, g.Status)
@@ -857,9 +857,9 @@ func TestConvergesAfterAMidGroupPlaceFailure(t *testing.T) {
 func TestSkipsAGroupWithNothingStillGrabbed(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedBatchGrab(t, st, "abc", 2)
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	for _, g := range rows {
-		if err := st.Q.SetGrabStatus(context.Background(), db.SetGrabStatusParams{
+		if err := st.Q.SetGrabStatus(t.Context(), db.SetGrabStatusParams{
 			Status: "import_deferred", ID: g.ID,
 		}); err != nil {
 			t.Fatal(err)
@@ -875,7 +875,7 @@ func TestSkipsAGroupWithNothingStillGrabbed(t *testing.T) {
 	}}
 	target := &coretest.FakeLibrary{}
 	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -896,7 +896,7 @@ func TestDoesNotReexamineDeferredGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: dir},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -918,7 +918,7 @@ func TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 
 	dl := &coretest.FakeDownload{} // client reports nothing
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -935,7 +935,7 @@ func TestWatchesDeferredGrabOnFirstAbsence(t *testing.T) {
 
 	dl := &coretest.FakeDownload{}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -955,14 +955,14 @@ func TestFailsErroredGrab(t *testing.T) {
 		{Hash: "abc", State: download.StateError, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	if len(target.Placed) != 0 {
 		t.Error("an errored download should not be placed")
 	}
-	rows, _ := st.Q.ListGrabsByInfoHash(context.Background(), "abc")
+	rows, _ := st.Q.ListGrabsByInfoHash(t.Context(), "abc")
 	if rows[0].Status != "failed" {
 		t.Errorf("status = %q, want failed", rows[0].Status)
 	}
@@ -978,7 +978,7 @@ func TestWatchesGrabOnFirstAbsenceFromClient(t *testing.T) {
 		{Hash: "zzz", State: download.StateComplete, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -1003,7 +1003,7 @@ func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 
 	dl := &coretest.FakeDownload{} // client reports nothing
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -1027,7 +1027,7 @@ func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 		{Hash: "zzz", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -1038,7 +1038,7 @@ func TestFailsGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	if g.Status != "failed" {
 		t.Errorf("status = %q, want failed once the absence outlived the grace period", g.Status)
 	}
-	items, _ := st.Q.ListWantedItems(context.Background(), titleID)
+	items, _ := st.Q.ListWantedItems(t.Context(), titleID)
 	for _, it := range items {
 		if it.ID == itemID && it.InLibrary != 0 {
 			t.Errorf("in_library = %d, want 0 for a failed grab", it.InLibrary)
@@ -1057,7 +1057,7 @@ func TestReappearingHashClearsMissingSince(t *testing.T) {
 		{Hash: "abc", State: download.StateDownloading, ContentPath: "/whatever"},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -1080,7 +1080,7 @@ func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: filepath.Join(t.TempDir(), "does-not-exist.mkv")},
 	}}
 	target := &coretest.FakeLibrary{}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -1109,7 +1109,7 @@ func TestRecordsLastErrorWhenPlaceFails(t *testing.T) {
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
 	target := &coretest.FakeLibrary{DestErr: errors.New("mkdir /library: permission denied")}
-	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -1135,7 +1135,7 @@ func TestClearsLastErrorOnSuccessfulImport(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "abc", State: download.StateComplete, ContentPath: src},
 	}}
-	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
+	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -1155,7 +1155,7 @@ func TestClearsLastErrorOnRegrab(t *testing.T) {
 	itemID, _ := seedGrab(t, st, "abc")
 	setLastError(t, st, "abc", "import failed: disk full")
 
-	if _, err := st.Q.UpsertGrab(context.Background(), db.UpsertGrabParams{
+	if _, err := st.Q.UpsertGrab(t.Context(), db.UpsertGrabParams{
 		WantedItemID: itemID, InfoHash: "def", ReleaseTitle: "rel2", Status: "grabbed",
 	}); err != nil {
 		t.Fatalf("re-grab: %v", err)

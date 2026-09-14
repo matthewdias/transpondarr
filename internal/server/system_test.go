@@ -64,7 +64,7 @@ func TestListJobsReportsLastRunDurationAndError(t *testing.T) {
 		return errors.New("boom")
 	}})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := h.jobs.Start(ctx)
 	<-ran
 	// Forcing a second run proves the first one's bookkeeping is committed.
@@ -109,7 +109,7 @@ func TestRunJobTriggersTheJob(t *testing.T) {
 		return nil
 	}})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	done := h.jobs.Start(ctx)
 	defer func() { cancel(); <-done }()
 

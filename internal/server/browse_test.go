@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -38,7 +37,7 @@ func seedSeasonCache(t *testing.T, h *harness, season string, year int, raw stri
 	t.Helper()
 	// The harness provider cannot browse, so a served chart can only have come
 	// from this row.
-	if _, err := h.store.DB.ExecContext(context.Background(),
+	if _, err := h.store.DB.ExecContext(t.Context(),
 		`INSERT INTO season_cache (provider, season, year, raw) VALUES ('anilist', ?, ?, ?)`,
 		season, year, raw); err != nil {
 		t.Fatalf("seed season cache: %v", err)
@@ -148,7 +147,7 @@ func TestBrowseSeasonMarksTrackedAndOverlaysAiring(t *testing.T) {
 		 "next_airing": {"number": 2, "airs_at": "2026-07-29T15:30:00Z"}}
 	]`)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	titleID := seedTitle(t, h.store, "Tracked Show", 6)
 	localNext := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Second)
 	if _, err := h.store.DB.ExecContext(ctx,

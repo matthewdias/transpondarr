@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -22,7 +21,7 @@ func TestSearchExposesScoreBreakdown(t *testing.T) {
 	h := newHarness(t, idx, nil)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 12)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	def, err := h.store.Q.GetDefaultQualityProfile(ctx)
 	if err != nil {
 		t.Fatalf("get default profile: %v", err)

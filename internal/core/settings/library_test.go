@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"context"
 	"io"
 	"log/slog"
 	"os"
@@ -21,7 +20,7 @@ import (
 // there without a restart.
 func TestUpdateLibraryWiresTheMoviesRootIntoTheLiveTarget(t *testing.T) {
 	svc, reg, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	series, movies := t.TempDir(), t.TempDir()
 
 	if err := svc.UpdateLibrary(ctx, LibraryConfig{Dir: series, MoviesDir: movies, Mode: "copy"}); err != nil {
@@ -58,7 +57,7 @@ func TestLibraryMoviesRootFromEnvBaseline(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = st.DB.Close() })
 	base := &config.Config{LibraryDir: "/media/Anime", LibraryMoviesDir: "/media/Anime Films"}
-	svc, err := New(context.Background(), st, base, clients.New(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	svc, err := New(t.Context(), st, base, clients.New(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatalf("new service: %v", err)
 	}
@@ -73,10 +72,10 @@ func TestTestLibraryChecksTheMoviesRoot(t *testing.T) {
 	svc, _, _ := newTestService(t)
 	series := t.TempDir()
 
-	if err := svc.TestLibrary(context.Background(), LibraryConfig{Dir: series}); err != nil {
+	if err := svc.TestLibrary(t.Context(), LibraryConfig{Dir: series}); err != nil {
 		t.Fatalf("an unset movies root is not an error: %v", err)
 	}
-	err := svc.TestLibrary(context.Background(), LibraryConfig{
+	err := svc.TestLibrary(t.Context(), LibraryConfig{
 		Dir: series, MoviesDir: filepath.Join(series, "nope"),
 	})
 	if err == nil {
@@ -92,7 +91,7 @@ func TestTestLibraryChecksTheMoviesRoot(t *testing.T) {
 // target and its films stuck in the queue with nothing reported about them.
 func TestMoviesOnlyLibraryStillBuildsATarget(t *testing.T) {
 	svc, reg, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	movies := t.TempDir()
 
 	if err := svc.UpdateLibrary(ctx, LibraryConfig{MoviesDir: movies, Mode: "copy"}); err != nil {
@@ -133,7 +132,7 @@ func TestNoRootsBuildsNoTarget(t *testing.T) {
 // " /media/films" otherwise passes Test and then files somewhere else.
 func TestUpdateLibraryTrimsBothRoots(t *testing.T) {
 	svc, reg, st := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 	series, movies := t.TempDir(), t.TempDir()
 
 	if err := svc.UpdateLibrary(ctx, LibraryConfig{
@@ -169,7 +168,7 @@ func TestUpdateLibraryTrimsBothRoots(t *testing.T) {
 // neither root set is the one case with nothing to check.
 func TestTestLibraryAcceptsAMoviesOnlyLibrary(t *testing.T) {
 	svc, _, _ := newTestService(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err := svc.TestLibrary(ctx, LibraryConfig{MoviesDir: t.TempDir()}); err != nil {
 		t.Errorf("a movies-only library is valid: %v", err)

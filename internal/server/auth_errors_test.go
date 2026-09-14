@@ -2,7 +2,6 @@ package server_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -49,7 +48,7 @@ func TestAuthSetupShortPasswordIsProblemJSON(t *testing.T) {
 
 func TestAuthLoginErrorsAreProblemJSON(t *testing.T) {
 	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredEnabled})
-	if err := authSvc.CreateUser(context.Background(), "admin", "correcthorse"); err != nil {
+	if err := authSvc.CreateUser(t.Context(), "admin", "correcthorse"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 	creds := map[string]string{"username": "admin", "password": "wrongpass"}

@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -26,7 +25,7 @@ func (s *stallAfter) StallTimeout() time.Duration { return s.d }
 func backdateStalledSince(t *testing.T, st *store.Store, hash string, ago time.Duration) string {
 	t.Helper()
 	value := store.FormatTimestamp(time.Now().Add(-ago))
-	if err := st.Q.SetGrabStalledSince(context.Background(), db.SetGrabStalledSinceParams{
+	if err := st.Q.SetGrabStalledSince(t.Context(), db.SetGrabStalledSinceParams{
 		StalledSince: sql.NullString{String: value, Valid: true},
 		ID:           grabByHash(t, st, hash).ID,
 	}); err != nil {
@@ -60,7 +59,7 @@ func TestFailsGrabFetchingMetadataAtZeroPastTimeout(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -70,7 +69,7 @@ func TestFailsGrabFetchingMetadataAtZeroPastTimeout(t *testing.T) {
 	assertItemFreed(t, st, titleID, 5)
 	// Blame is inherited from #242's branch rather than re-decided: the client still manages
 	// the torrent and reports no swarm, which is observed, not inferred (#241).
-	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	entries, err := st.Q.ListBlocklistByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -88,7 +87,7 @@ func TestLeavesAFetchingMetadataDownloadWithProgressAlone(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0.01)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -112,7 +111,7 @@ func TestKeepsMetadataStallClockAcrossScans(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{fetchingMetadata("abc", 0)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -135,7 +134,7 @@ func TestFailsGrabStalledAtZeroPastTimeout(t *testing.T) {
 	target := &coretest.FakeLibrary{}
 
 	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -159,14 +158,14 @@ func TestStalledGrabRecordsBlocklistEntry(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{stalled("abc", 0)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	if got := grabByHash(t, st, "abc").Status; got != statusFailed {
 		t.Fatalf("status = %q, want failed past the timeout", got)
 	}
-	entries, err := st.Q.ListBlocklistByTitle(context.Background(), titleID)
+	entries, err := st.Q.ListBlocklistByTitle(t.Context(), titleID)
 	if err != nil {
 		t.Fatalf("list blocklist: %v", err)
 	}
@@ -191,7 +190,7 @@ func TestWatchesStallOnFirstObservation(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{stalled("abc", 0)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -212,7 +211,7 @@ func TestKeepsStallClockAcrossScans(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{stalled("abc", 0)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -234,7 +233,7 @@ func TestLeavesStallWithProgressAlone(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{stalled("abc", 0.01)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
@@ -255,7 +254,7 @@ func TestStallThatResumesClearsTheClock(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{stalled("abc", 0)}}
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil)
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
 	if !grabByHash(t, st, "abc").StalledSince.Valid {
@@ -263,7 +262,7 @@ func TestStallThatResumesClearsTheClock(t *testing.T) {
 	}
 
 	dl.Statuses = []download.Status{stalled("abc", 0.2)} // a peer turned up
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("second scan: %v", err)
 	}
 
@@ -296,7 +295,7 @@ func TestStatesTheClientIsNotTryingAreNeverGivenUpOn(t *testing.T) {
 			}}
 
 			if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
-				ScanOnce(context.Background()); err != nil {
+				ScanOnce(t.Context()); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 
@@ -317,7 +316,7 @@ func TestStatesTheClientIsNotTryingAreNeverGivenUpOn(t *testing.T) {
 func TestStalledUpgradeLeavesTheHeldFileAlone(t *testing.T) {
 	st := coretest.NewStore(t)
 	itemID, titleID := seedGrab(t, st, "abc")
-	if err := st.Q.SetWantedItemHeld(context.Background(), db.SetWantedItemHeldParams{
+	if err := st.Q.SetWantedItemHeld(t.Context(), db.SetWantedItemHeldParams{
 		InLibrary: 1, HeldReleaseTitle: "the release we hold", ID: itemID,
 	}); err != nil {
 		t.Fatalf("mark item held: %v", err)
@@ -326,14 +325,14 @@ func TestStalledUpgradeLeavesTheHeldFileAlone(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{stalled("abc", 0)}}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	if g := grabByHash(t, st, "abc"); g.Status != statusFailed {
 		t.Errorf("status = %q, want failed", g.Status)
 	}
-	item, err := st.Q.GetWantedItemByNumber(context.Background(), db.GetWantedItemByNumberParams{
+	item, err := st.Q.GetWantedItemByNumber(t.Context(), db.GetWantedItemByNumberParams{
 		SeriesID: titleID, Kind: "episode", Number: sql.NullInt64{Int64: 5, Valid: true},
 	})
 	if err != nil {
@@ -366,13 +365,13 @@ func TestStallFanOutIsContainedByTheBreaker(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: statuses}
 
 	if err := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), svc, nil).
-		ScanOnce(context.Background()); err != nil {
+		ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 
 	recorded := 0
 	for _, id := range titleIDs {
-		entries, err := st.Q.ListBlocklistByTitle(context.Background(), id)
+		entries, err := st.Q.ListBlocklistByTitle(t.Context(), id)
 		if err != nil {
 			t.Fatalf("list blocklist: %v", err)
 		}
@@ -400,7 +399,7 @@ func TestStallTimeoutIsReadEachScan(t *testing.T) {
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil,
 		WithStallPolicy(policy))
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
 	if g := grabByHash(t, st, "abc"); g.Status != statusGrabbed {
@@ -408,7 +407,7 @@ func TestStallTimeoutIsReadEachScan(t *testing.T) {
 	}
 
 	policy.d = time.Hour // the user shortened it in Settings
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("second scan: %v", err)
 	}
 	if g := grabByHash(t, st, "abc"); g.Status != statusFailed {
@@ -429,7 +428,7 @@ func TestStallTimeoutZeroNeverGivesUpAndBanksNoTime(t *testing.T) {
 	im := New(st, fakeSource{dl: dl, lib: &coretest.FakeLibrary{}}, discardLogger(), noRecorder{}, nil,
 		WithStallPolicy(policy))
 
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
 	g := grabByHash(t, st, "abc")
@@ -441,7 +440,7 @@ func TestStallTimeoutZeroNeverGivesUpAndBanksNoTime(t *testing.T) {
 	}
 
 	policy.d = 6 * time.Hour // restored a month later
-	if err := im.ScanOnce(context.Background()); err != nil {
+	if err := im.ScanOnce(t.Context()); err != nil {
 		t.Fatalf("second scan: %v", err)
 	}
 	if g := grabByHash(t, st, "abc"); g.Status != statusGrabbed {

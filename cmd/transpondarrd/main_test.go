@@ -26,7 +26,7 @@ func TestStragglingNamesARunningJob(t *testing.T) {
 		return nil
 	}})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	jobsDone := runner.Start(ctx)
 	<-entered
