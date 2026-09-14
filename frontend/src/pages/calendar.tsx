@@ -64,7 +64,7 @@ const statusLabel: Record<ItemStatus, string> = {
 const isPremiere = (item: CalendarItem) => item.format === "MOVIE";
 
 // A film's deferral is a size tie or an unextracted archive (#210), never a
-// batch. Worded exactly as ItemStatusBadge does, so the two renderers on this
+// batch. Worded as ItemStatusBadge does, so the two renderers on this
 // page show the same wording; every other status reads the same either way.
 const statusText = (item: CalendarItem) =>
   isPremiere(item) && item.status === "deferred"

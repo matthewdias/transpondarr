@@ -51,7 +51,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-// Records what the add actually sent, which is the only place the form's two
+// Records what the add sent, which is the only place the form's two
 // choices become observable.
 function captureAdd() {
   const bodies: Record<string, unknown>[] = [];

@@ -50,7 +50,7 @@ export function AutomationSection({ settings }: { settings: Settings }) {
     ...saveToast,
     onSuccess: (fresh) => {
       saveToast.onSuccess(fresh);
-      // The service clamps the delay, so re-seed from what was actually saved.
+      // The service clamps the delay, so re-seed from what was saved.
       setPinDelay(String(fresh.automation.pin_delay_hours));
     },
   });

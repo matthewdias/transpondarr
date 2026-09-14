@@ -55,7 +55,7 @@ type TabKey = "episodes" | "status" | "releases" | "history";
 const isMovieFormat = (format: string) => format === "MOVIE";
 
 // The first tab is the format's own, so a tab kept across a title-to-title
-// navigation resolves to the one this format actually renders.
+// navigation resolves to the one this format renders.
 function resolveTab(tab: TabKey | null, isMovie: boolean): TabKey {
   const first: TabKey = isMovie ? "status" : "episodes";
   if (tab === null || tab === "episodes" || tab === "status") return first;
@@ -255,7 +255,7 @@ export function TitleDetailPage() {
 
             <Tabs
               value={activeTab}
-              // Radix fires this only on a user-driven change, which is exactly
+              // Radix fires this only on a user-driven change, which is
               // the seam: clicking the tab is the title-wide intent.
               onValueChange={(v) => {
                 setFocusItem(null);

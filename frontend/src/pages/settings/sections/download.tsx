@@ -45,7 +45,7 @@ export function DownloadSection({ settings }: { settings: Settings }) {
     ...saveToast,
     onSuccess: (fresh) => {
       saveToast.onSuccess(fresh);
-      // The service clamps the hours, so re-seed from what was actually saved.
+      // The service clamps the hours, so re-seed from what was saved.
       setStallHours(String(fresh.download.stall_hours));
     },
   });

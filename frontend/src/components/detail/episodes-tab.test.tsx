@@ -71,7 +71,7 @@ describe("EpisodesTab search buttons", () => {
 
   // A live grab is no reason to hide it: the Releases tab grabs at any status,
   // so a condition here would block nothing -- and a stuck import, which retries
-  // the same release forever, is exactly when another release is wanted.
+  // the same release forever, is when another release is wanted.
   it("offers it while a grab is in flight or its import is stuck", async () => {
     const { onSearchItem, user } = renderTab([
       item({ id: 1, number: 5, status: "downloading" }),
@@ -235,7 +235,7 @@ describe("EpisodesTab monitoring", () => {
   });
 
   // The same empty denominator, the other cause: every episode has aired and
-  // every one was switched off, where "nothing aired yet" is simply false.
+  // every one was switched off, where "nothing aired yet" is false.
   it("names monitoring when that is what emptied the denominator", () => {
     renderStrip([
       item({ id: 1, number: 1, monitored: false }),
@@ -261,7 +261,7 @@ describe("EpisodesTab monitoring", () => {
 
 describe("EpisodesTab selection range", () => {
   // What makes a 1,000-episode series workable: click the first, shift-click the
-  // last. Whole-row click is deliberately not a thing -- it would collide with
+  // last. Whole-row click is not a thing -- it would collide with
   // the in-row Search button.
   it("selects the inclusive range on shift-click", async () => {
     const onSelectRange = vi.fn();
@@ -391,7 +391,7 @@ describe("EpisodesTab unmonitored status", () => {
 
     expect(screen.getByText("Not monitored")).toBeInTheDocument();
     expect(screen.queryByText("Wanted")).not.toBeInTheDocument();
-    // An unmonitored episode with a grab in flight really is downloading.
+    // An unmonitored episode with a grab in flight is downloading.
     expect(screen.getByText("Downloading")).toBeInTheDocument();
   });
 

@@ -84,7 +84,7 @@ function renderPage() {
 }
 
 describe("ActivityPage", () => {
-  // data_missing is alarming on purpose: we decline to blame the release for it
+  // data_missing is alarming because we decline to blame the release for it
   // (#241), leaving the user as the only one who can act. Paused shares the row
   // shape and is not alarming, so it is what makes the tone assertion mean something.
   it("flags a download whose data the client has lost, but not a paused one", async () => {
@@ -593,7 +593,7 @@ describe("fixing a deferred import", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/3 parts/)).toBeInTheDocument();
     expect(screen.getByText(/does not unpack archives/i)).toBeInTheDocument();
-    // Nothing to assign, so the file picker must not be offered at all.
+    // Nothing to assign, so the file picker must not be offered.
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
 
     // The point of the dialog: extract in place, then retry re-runs the mapping.

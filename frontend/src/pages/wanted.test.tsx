@@ -666,7 +666,7 @@ it("unmonitors a missing row in place", async () => {
 
 // The count follows the filter, so with the Unmonitored chip on a narrowed
 // long-runner reads "1173 episodes missing" above rows deliberately switched
-// off. Splitting it shows what is actually being searched for.
+// off. Splitting it shows what is being searched for.
 it("splits the group count when unmonitored rows are shown", async () => {
   useHandlers({
     pages: {
@@ -724,7 +724,7 @@ it("offers an unmonitored cutoff row its own monitor toggle", async () => {
   const user = userEvent.setup();
   await user.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
 
-  // The library really does contain both, so both keep that status; the toggle is
+  // The library contains both, so both keep that status; the toggle is
   // what distinguishes them, and re-monitoring stays reachable from this tab.
   expect(await screen.findAllByText("In library")).toHaveLength(2);
   expect(
@@ -770,7 +770,7 @@ it("never calls a film's item an episode, or dates it to the hour", async () => 
 
 // A film's stored instant may be noon UTC representing a day (#224), so a
 // countdown would state precision the provider never published. Inside the
-// week, which is exactly where countdownOrDate would otherwise count down.
+// week, which is where countdownOrDate would otherwise count down.
 it("shows a film's near release as a date, never as a countdown", async () => {
   const airsAt = new Date(Date.now() + 3 * 86400 * 1000).toISOString();
   useHandlers({
@@ -796,7 +796,7 @@ it("shows a film's near release as a date, never as a countdown", async () => {
   expect(screen.getAllByText(/^in \d+d$/)).toHaveLength(1);
 });
 
-// The cutoff tab groups by title too, and its count line is just as episodic.
+// The cutoff tab groups by title too, and its count line is episodic too.
 it("keeps a film's cutoff group from counting in episodes", async () => {
   useHandlers({
     cutoffGroups: [

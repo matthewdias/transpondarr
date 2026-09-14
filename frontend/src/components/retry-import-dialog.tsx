@@ -36,7 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const SKIP = "skip";
 
 // parseSummary shows what the filename itself claimed, which is the whole reason
-// the row needs a human: an empty summary is exactly why nothing mapped it.
+// the row needs a human: an empty summary is why nothing mapped it.
 function parseSummary(file: PayloadFile): string {
   const bits: string[] = [];
   if (file.batch) bits.push("batch");

@@ -46,7 +46,7 @@ export function LibraryProgress({
   }
   const pct = tracked > 0 ? (inLibrary / tracked) * 100 : 0;
   const complete = tracked > 0 && inLibrary >= tracked;
-  // "0 / 0" would read as "this series has no episodes", which is exactly wrong
+  // "0 / 0" would read as "this series has no episodes", which is wrong
   // for a seasonal show added the week before it premieres. A zero denominator
   // has two causes, and naming the wrong one is a plain false statement.
   const empty = tracked === 0 && total > 0;
@@ -54,7 +54,7 @@ export function LibraryProgress({
     monitored === 0 ? "Nothing monitored" : "Nothing aired yet";
   return (
     <div className="flex items-center gap-2.5 sm:min-w-[140px]">
-      {/* the bar needs room; on mobile we keep just the count to avoid overflow.
+      {/* the bar needs room; on mobile we keep only the count to avoid overflow.
           With a zero denominator it collapses to a few pixels beside the words. */}
       {!empty && (
         <div className="hidden h-1.5 flex-1 overflow-hidden rounded border border-border bg-panel-2 sm:block">

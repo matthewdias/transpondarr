@@ -26,7 +26,7 @@ function jobLabel(name: string): string {
 /**
  * Duration at a precision suited to its unit. Only sub-millisecond runs keep
  * three decimals — they are the common case and the reason the API reports
- * fractional milliseconds at all, but "4.667 ms" is noise at every other scale.
+ * fractional milliseconds, but "4.667 ms" is noise at every other scale.
  */
 function jobDuration(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(1)} s`;
@@ -219,7 +219,7 @@ export function JobsSection() {
 }
 
 // Running a gated job by hand is explicit intent, so it bypasses the kill switch
-// — and that is exactly why it is worth spelling out first.
+// — and that is why it is worth spelling out first.
 function ConfirmGatedRunDialog({
   name,
   automationUnknown,

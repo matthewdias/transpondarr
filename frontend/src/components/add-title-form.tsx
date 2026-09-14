@@ -55,7 +55,7 @@ const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
 ];
 
 /**
- * The set the stored cut will cover, in the words of the episodes themselves.
+ * The set the stored cut will cover, in the words of the episodes.
  * Its branches mirror catalog.monitorCut's so the two agree by construction: the
  * status determines the cut there, so nothing here may re-derive an answer from it.
  */
@@ -235,7 +235,7 @@ export function AddTitleForm({
               </SelectContent>
             </Select>
           )}
-          {/* Outside the dropdown deliberately: the trigger shows the label
+          {/* Outside the dropdown: the trigger shows the label
               alone, so a consequence only the open menu shows is unread. */}
           <p
             id="monitor-summary"
@@ -249,7 +249,7 @@ export function AddTitleForm({
         </div>
 
         {/* The row is reserved but never blocking: the add omits the profile until
-            one is picked, so a slow or failed fetch just takes the server's
+            one is picked, so a slow or failed fetch takes the server's
             default rather than disabling the button. */}
         {(profiles.isPending || profiles.isPaused) && (
           <div className="space-y-1">
@@ -285,7 +285,7 @@ export function AddTitleForm({
       </div>
 
       {/* DialogFooter in a drawer too: below sm it stacks the primary action on
-          top, which is exactly the mobile container's shape. */}
+          top, which is the mobile container's shape. */}
       <DialogFooter className="mt-4">
         {onBack && (
           <Button

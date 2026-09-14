@@ -327,7 +327,7 @@ describe("ReleasesTab episode focus", () => {
     expect(screen.getByText("2 of 4 results")).toBeInTheDocument();
 
     // The chip is the way out of the filter, so it has to name the action and
-    // not just the filter state it reads as on screen.
+    // not only the filter state it reads as on screen.
     await user.click(
       screen.getByRole("button", { name: /covering e3.*clear filter/i }),
     );

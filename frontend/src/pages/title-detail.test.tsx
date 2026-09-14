@@ -278,7 +278,7 @@ describe("ProfilePicker", () => {
   });
 
   // A failed fetch used to be indistinguishable from a title with no profile
-  // control at all, and nothing let you ask again.
+  // control, and nothing let you ask again.
   it("reports the failure and retries when the profiles cannot be read", async () => {
     server.use(
       http.get(
@@ -532,7 +532,7 @@ describe("TitleDetailPage episode search", () => {
   });
 
   // ?item no longer implies the tab, so it lands on the format's own tab and
-  // the focus it sets is simply not on screen -- never a half-focused one.
+  // the focus it sets is not on screen -- never a half-focused one.
   it("leaves the landing tab alone when the URL names only an item", async () => {
     renderPage("/titles/7?item=5");
 
