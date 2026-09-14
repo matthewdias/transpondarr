@@ -46,6 +46,11 @@ All notable changes to this project are documented here. The format is based on
   **Import blocked**, as the app does, and a notify-only report **Notify only**
   instead of "Rehearsal". A script matching on those notification headings
   needs updating.
+- **Small secondary text and status colours are easier to read in both themes.**
+  Dates, counts, sidebar headings and the green, amber and red status badges
+  were too faint against their backgrounds to meet WCAG AA, the accessibility
+  standard for text their size. The colours keep their look, a shade darker in
+  light mode, and the faintest grey is a shade lighter in dark mode.
 - **The add dialog now says which episodes it will monitor**, in both choices and
   before you pick one — *All 12 episodes will be monitored*, or *6 of 12
   episodes will be monitored, from episode 7*. When a choice would monitor
@@ -73,6 +78,9 @@ All notable changes to this project are documented here. The format is based on
   The first now gives the minimum length and the second how long to wait, and a
   wrong password reads *Wrong username or password.* instead of the generic
   *Invalid credentials*.
+- **Screen readers now read the calendar and the activity lists correctly.** The
+  Month, Week and Agenda tabs pointed at a panel that did not exist, and the
+  Activity page and a title's History tab announced lists with nothing in them.
 - **Two auth changes made at once can no longer disagree with what was saved.**
   Changing the authentication mode from two places at the same moment could
   leave the running server enforcing one mode while the database held the other,
