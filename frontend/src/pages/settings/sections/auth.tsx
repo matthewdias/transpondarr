@@ -25,7 +25,7 @@ export function AuthSection({ settings }: { settings: Settings }) {
       toast.success("Authentication mode updated");
     },
     onError: (e) =>
-      toast.error("Could not update mode", {
+      toast.error("Could not update authentication mode", {
         description: e instanceof Error ? e.message : String(e),
       }),
   });

@@ -221,8 +221,8 @@ describe("upgrade policy", () => {
   });
 
   it("names the landmarks the score weights compose", () => {
-    expect(landmarkLabel(2400)).toBe("Top group, best resolution");
-    expect(landmarkLabel(2000)).toBe("Top-ranked group");
+    expect(landmarkLabel(2400)).toBe("Top release group, best resolution");
+    expect(landmarkLabel(2000)).toBe("Top-ranked release group");
     expect(SCORE_LANDMARKS.map((l) => l.score)).toEqual([
       400, 1000, 1400, 2000, 2300, 2400,
     ]);

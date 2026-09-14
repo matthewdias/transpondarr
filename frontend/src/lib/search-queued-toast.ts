@@ -18,7 +18,7 @@ export function searchQueuedToast(res: QueueSearchResult) {
   return {
     title: `Search queued for ${what}.${caveat}`,
     description: res.run_triggered
-      ? "The sweep is running now and works through its queue a few titles per pass."
-      : "The next scheduled sweep will run it.",
+      ? "The search sweep is running now and works through its queue a few titles per pass."
+      : "The next scheduled search sweep will run it.",
   };
 }

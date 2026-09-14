@@ -53,7 +53,9 @@ describe("PinnedGroupChip", () => {
     renderChip(detail({}));
 
     // Unset pin state prompts for a pin rather than showing an empty value.
-    await user.click(screen.getByRole("button", { name: /pin group/i }));
+    await user.click(
+      screen.getByRole("button", { name: /pin release group/i }),
+    );
     await user.type(
       screen.getByRole("textbox", { name: /release group/i }),
       "ShinyRip",
@@ -81,7 +83,9 @@ describe("PinnedGroupChip", () => {
     const save = () => screen.getByRole("button", { name: /save/i });
     const input = () => screen.getByRole("textbox", { name: /release group/i });
 
-    await user.click(screen.getByRole("button", { name: /pin group/i }));
+    await user.click(
+      screen.getByRole("button", { name: /pin release group/i }),
+    );
     expect(save()).toBeDisabled();
     await user.type(input(), "  ");
     expect(save()).toBeDisabled();

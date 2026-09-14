@@ -471,7 +471,7 @@ export function PinnedGroupChip({ detail }: { detail: TitleDetail }) {
           className={cn(chipClass, "hover:text-accent-foreground")}
         >
           <Pin className="size-3" aria-hidden />
-          {current ? `Pin: ${current}${delaySuffix}` : "Pin group"}
+          {current ? `Pin: ${current}${delaySuffix}` : "Pin release group"}
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
