@@ -61,6 +61,10 @@ All notable changes to this project are documented here. The format is based on
   every server error is logged with the request that caused it. When Transpondarr
   can't reach AniList, an indexer or the download client, the service's own reply
   still follows the message.
+- **Sign-in errors now say what went wrong.** A too-short password on first-run
+  setup showed only *HTTP 400*, and too many sign-in attempts showed *HTTP 429*.
+  Both now say what to do, including how long to wait, and a wrong password says
+  so instead of the generic *Invalid credentials*.
 - **Two auth changes made at once can no longer disagree with what was saved.**
   Changing the authentication mode from two places at the same moment could
   leave the running server enforcing one mode while the database held the other,

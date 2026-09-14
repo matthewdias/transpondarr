@@ -2,7 +2,9 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -27,7 +29,7 @@ const (
 
 // registerAuthRoutes wires the plain-chi authentication endpoints. They are chi
 // (not Huma) handlers because they set and read the session cookie directly.
-func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
+func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string, logger *slog.Logger) {
 	// Login and change-password verify the same admin password, so they share one
 	// bucket: separate ones would double the guesses available per window.
 	passwordLimiter := passwordAttemptLimiter()
@@ -46,32 +48,32 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 	// First-run: create the admin account. Only works while none exists.
 	r.Post("/api/v1/auth/setup", func(w http.ResponseWriter, req *http.Request) {
 		if a.Configured() {
-			http.Error(w, "already configured", http.StatusConflict)
+			writeProblem(w, http.StatusConflict, "An admin account already exists. Sign in instead.")
 			return
 		}
 		var in credentials
 		if err := decodeJSON(w, req, &in); err != nil {
-			http.Error(w, "invalid body", http.StatusBadRequest)
+			writeProblem(w, http.StatusBadRequest, "The request body isn't valid JSON.")
 			return
 		}
 		if err := a.CreateUser(req.Context(), in.Username, in.Password); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			credentialsError(w, req, logger, err)
 			return
 		}
-		issueSession(w, req, a, in.Username, http.StatusCreated)
+		issueSession(w, req, a, logger, in.Username, http.StatusCreated)
 	})
 
 	r.With(passwordLimiter).Post("/api/v1/auth/login", func(w http.ResponseWriter, req *http.Request) {
 		var in credentials
 		if err := decodeJSON(w, req, &in); err != nil {
-			http.Error(w, "invalid body", http.StatusBadRequest)
+			writeProblem(w, http.StatusBadRequest, "The request body isn't valid JSON.")
 			return
 		}
 		if !a.Verify(strings.TrimSpace(in.Username), in.Password) {
-			http.Error(w, "invalid username or password", http.StatusUnauthorized)
+			writeProblem(w, http.StatusUnauthorized, "Wrong username or password.")
 			return
 		}
-		issueSession(w, req, a, strings.TrimSpace(in.Username), http.StatusOK)
+		issueSession(w, req, a, logger, strings.TrimSpace(in.Username), http.StatusOK)
 	})
 
 	r.Post("/api/v1/auth/logout", func(w http.ResponseWriter, req *http.Request) {
@@ -90,24 +92,24 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 			NewPassword     string `json:"new_password"`
 		}
 		if err := decodeJSON(w, req, &in); err != nil {
-			http.Error(w, "invalid body", http.StatusBadRequest)
+			writeProblem(w, http.StatusBadRequest, "The request body isn't valid JSON.")
 			return
 		}
 		if !a.Verify(a.Username(), in.CurrentPassword) {
-			http.Error(w, "current password is incorrect", http.StatusUnauthorized)
+			writeProblem(w, http.StatusUnauthorized, "Your current password is wrong.")
 			return
 		}
 		if len(in.NewPassword) < auth.MinPasswordLen {
-			http.Error(w, fmt.Sprintf("new password must be at least %d characters", auth.MinPasswordLen), http.StatusBadRequest)
+			writeProblem(w, http.StatusBadRequest, passwordTooShortDetail)
 			return
 		}
 		// CreateUser rotates the hash and drops existing sessions, so re-issue one
 		// for this browser to keep it logged in.
 		if err := a.CreateUser(req.Context(), a.Username(), in.NewPassword); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			credentialsError(w, req, logger, err)
 			return
 		}
-		issueSession(w, req, a, a.Username(), http.StatusOK)
+		issueSession(w, req, a, logger, a.Username(), http.StatusOK)
 	})
 
 	// Change the auth required-mode (enabled | local). Authed via the middleware.
@@ -116,17 +118,17 @@ func registerAuthRoutes(r *chi.Mux, a *auth.Service, apiKeyFn func() string) {
 			Required string `json:"required"`
 		}
 		if err := decodeJSON(w, req, &in); err != nil {
-			http.Error(w, "invalid body", http.StatusBadRequest)
+			writeProblem(w, http.StatusBadRequest, "The request body isn't valid JSON.")
 			return
 		}
 		// The settings inputs' rule (#227) applies here too: the service reads an
 		// absent required-mode as "enabled", which would lock a local install out.
 		if !auth.ValidRequired(in.Required) {
-			http.Error(w, "required must be enabled or local", http.StatusBadRequest)
+			writeProblem(w, http.StatusBadRequest, `The authentication mode must be "enabled" or "local".`)
 			return
 		}
 		if err := a.SetRequired(req.Context(), in.Required); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeServerError(w, req, logger, "Couldn't save the authentication mode. The server log has the cause.", err)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"required": a.Required()})
@@ -139,10 +141,10 @@ type credentials struct {
 }
 
 // issueSession creates a session and sets the cookie, then returns the username.
-func issueSession(w http.ResponseWriter, req *http.Request, a *auth.Service, username string, status int) {
+func issueSession(w http.ResponseWriter, req *http.Request, a *auth.Service, logger *slog.Logger, username string, status int) {
 	tok, exp, err := a.CreateSession(req.Context(), username)
 	if err != nil {
-		http.Error(w, "failed to create session", http.StatusInternalServerError)
+		writeServerError(w, req, logger, "Couldn't sign you in. The server log has the cause.", err)
 		return
 	}
 	setSessionCookie(w, req, tok, exp)
@@ -190,7 +192,8 @@ func passwordAttemptLimiter() func(http.Handler) http.Handler {
 	return httprate.LimitBy(
 		passwordRateLimit, passwordRateWindow, keyByRemoteAddr,
 		httprate.WithLimitHandler(func(w http.ResponseWriter, _ *http.Request) {
-			http.Error(w, "too many password attempts; try again later", http.StatusTooManyRequests)
+			writeProblem(w, http.StatusTooManyRequests, fmt.Sprintf(
+				"Too many password attempts. Wait %d minutes, then try again.", int(passwordRateWindow.Minutes())))
 		}),
 	)
 }
@@ -211,4 +214,19 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+var passwordTooShortDetail = fmt.Sprintf("Use a password of at least %d characters.", auth.MinPasswordLen)
+
+// credentialsError answers a failed CreateUser: a rejected credential is the
+// caller's to fix, and anything else is a store failure.
+func credentialsError(w http.ResponseWriter, req *http.Request, logger *slog.Logger, err error) {
+	switch {
+	case errors.Is(err, auth.ErrCredentialsRequired):
+		writeProblem(w, http.StatusBadRequest, "Enter a username and a password.")
+	case errors.Is(err, auth.ErrPasswordTooShort):
+		writeProblem(w, http.StatusBadRequest, passwordTooShortDetail)
+	default:
+		writeServerError(w, req, logger, "Couldn't save the account. The server log has the cause.", err)
+	}
 }

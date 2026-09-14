@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Snail, User, KeyRound, Loader2 } from "lucide-react";
-import { api, AUTH_EXPIRED_EVENT, UnauthorizedError } from "@/lib/api";
+import { api, ApiError, AUTH_EXPIRED_EVENT } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -124,11 +124,11 @@ function CredentialsForm({
       else await api.login(username.trim(), password);
       await onDone();
     } catch (err) {
-      if (err instanceof UnauthorizedError) {
-        setError("Invalid username or password.");
-      } else {
-        setError(err instanceof Error ? err.message : "Something went wrong.");
-      }
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Couldn’t reach Transpondarr. Check that the server is running, then try again.",
+      );
       setBusy(false);
     }
   }

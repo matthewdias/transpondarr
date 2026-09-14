@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 
@@ -27,4 +28,23 @@ func logServerErrors(logger *slog.Logger) huma.Transformer {
 		}
 		return model, nil
 	}
+}
+
+// writeProblem is the problem+json body Huma sends, for the handlers outside Huma.
+func writeProblem(w http.ResponseWriter, status int, detail string) {
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"title":  http.StatusText(status),
+		"status": status,
+		"detail": detail,
+	})
+}
+
+// writeServerError is logServerErrors for the handlers outside Huma.
+func writeServerError(w http.ResponseWriter, req *http.Request, logger *slog.Logger, detail string, err error) {
+	logger.Error("server error",
+		"method", req.Method, "path", req.URL.Path,
+		"status", http.StatusInternalServerError, "detail", detail, "causes", []string{err.Error()})
+	writeProblem(w, http.StatusInternalServerError, detail)
 }

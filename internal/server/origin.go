@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"net"
 	"net/http"
 	"net/url"
@@ -151,11 +150,5 @@ func impliedPort(scheme, port string) bool {
 // writeForbidden sends problem+json, not http.Error's text/plain: the SPA reads
 // `detail`, and a plain body shows the operator "HTTP 403" with no reason.
 func writeForbidden(w http.ResponseWriter, detail string) {
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(http.StatusForbidden)
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"title":  "Forbidden",
-		"status": http.StatusForbidden,
-		"detail": detail,
-	})
+	writeProblem(w, http.StatusForbidden, detail)
 }
