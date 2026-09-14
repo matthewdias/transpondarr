@@ -15,6 +15,7 @@ import {
   api,
   ApiError,
   AUTH_EXPIRED_EVENT,
+  errorReason,
   UnauthorizedError,
 } from "@/lib/api";
 
@@ -277,5 +278,63 @@ describe("auth endpoints (rawFetch)", () => {
     expect(err).toBeInstanceOf(UnauthorizedError);
     expect(err).toMatchObject({ message: "Wrong username or password." });
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe("errorReason", () => {
+  const noResponse = "Transpondarr didn’t respond. Check that it’s running.";
+
+  it("blames the connection only when fetch got no response", async () => {
+    server.use(
+      http.get("/api/v1/titles", () => HttpResponse.error()),
+      http.get("/api/v1/auth/status", () => HttpResponse.error()),
+    );
+    const typed = await api.listTitles().catch((e: unknown) => e);
+    const raw = await api.authStatus().catch((e: unknown) => e);
+    expect(errorReason(typed)).toBe(noResponse);
+    expect(errorReason(raw)).toBe(noResponse);
+  });
+
+  it("leaves a cancelled request an AbortError, not a network failure", async () => {
+    server.use(
+      http.get("/api/v1/titles", () => HttpResponse.json({ titles: [] })),
+    );
+    const controller = new AbortController();
+    controller.abort();
+    const err = await api
+      .listTitles(controller.signal)
+      .catch((e: unknown) => e);
+    expect(err).toMatchObject({ name: "AbortError" });
+    expect(errorReason(err)).not.toBe(noResponse);
+  });
+
+  it("shows the server's message for an ApiError", () => {
+    expect(errorReason(new ApiError(422, "Enter a Torznab URL."))).toBe(
+      "Enter a Torznab URL.",
+    );
+  });
+
+  // A TypeError from our own code is not a network failure, whatever its type.
+  it("doesn't blame the server for an error in the app", () => {
+    const reason = errorReason(
+      new TypeError("Cannot read properties of undefined (reading 'id')"),
+    );
+    expect(reason).not.toBe(noResponse);
+    expect(reason).toContain("Cannot read properties of undefined");
+  });
+
+  it("doesn't blame the server for a 2xx body that won't parse", async () => {
+    server.use(
+      http.get(
+        "/api/v1/auth/status",
+        () =>
+          new HttpResponse("<html>proxy page</html>", {
+            status: 200,
+            headers: { "Content-Type": "text/html" },
+          }),
+      ),
+    );
+    const err = await api.authStatus().catch((e: unknown) => e);
+    expect(errorReason(err)).not.toBe(noResponse);
   });
 });
