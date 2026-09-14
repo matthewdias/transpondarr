@@ -36,7 +36,7 @@ import { ItemStatusBadge } from "@/components/badges";
 import { Topbar } from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Toggle } from "@/components/ui/toggle";
 
 const statusDot: Record<ItemStatus, string> = {
@@ -99,7 +99,11 @@ export function CalendarPage() {
     <>
       <Topbar title="Calendar" />
 
-      <div className="px-4 py-6 sm:px-6">
+      <Tabs
+        value={view}
+        onValueChange={(v) => setView(v as CalendarView)}
+        className="block px-4 py-6 sm:px-6"
+      >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1">
@@ -141,77 +145,74 @@ export function CalendarPage() {
             >
               <EyeOff /> Unmonitored
             </Toggle>
-            <Tabs
-              value={view}
-              onValueChange={(v) => setView(v as CalendarView)}
-            >
-              <TabsList>
-                <TabsTrigger value="month">Month</TabsTrigger>
-                <TabsTrigger value="week">Week</TabsTrigger>
-                <TabsTrigger value="agenda">Agenda</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <TabsList>
+              <TabsTrigger value="month">Month</TabsTrigger>
+              <TabsTrigger value="week">Week</TabsTrigger>
+              <TabsTrigger value="agenda">Agenda</TabsTrigger>
+            </TabsList>
           </div>
         </div>
 
-        {cal.isError && (
-          <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
-            <TriangleAlert className="mb-3 size-6 text-dl" />
-            <h3 className="text-sm font-semibold">
-              Couldn’t load the calendar
-            </h3>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              {cal.error instanceof ApiError
-                ? cal.error.message
-                : String(cal.error)}
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-4"
-              onClick={() => cal.refetch()}
-            >
-              <RefreshCw className="size-4" /> Try again
-            </Button>
-          </div>
-        )}
+        <TabsContent value={view}>
+          {cal.isError && (
+            <div className="mx-auto mt-10 flex max-w-md flex-col items-center rounded-lg border border-dashed bg-card px-6 py-12 text-center">
+              <TriangleAlert className="mb-3 size-6 text-dl" />
+              <h3 className="text-sm font-semibold">
+                Couldn’t load the calendar
+              </h3>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                {cal.error instanceof ApiError
+                  ? cal.error.message
+                  : String(cal.error)}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={() => cal.refetch()}
+              >
+                <RefreshCw className="size-4" /> Try again
+              </Button>
+            </div>
+          )}
 
-        {(cal.isPending || cal.isPaused) && !cal.isError && (
-          <CalendarSkeleton />
-        )}
+          {(cal.isPending || cal.isPaused) && !cal.isError && (
+            <CalendarSkeleton />
+          )}
 
-        {cal.isSuccess && (
-          <div className={cn("mt-4", cal.isPlaceholderData && "opacity-50")}>
-            {view === "month" && (
-              <MonthGrid
-                days={days}
-                anchor={anchor}
-                buckets={buckets}
-                todayKey={todayKey}
+          {cal.isSuccess && (
+            <div className={cn("mt-4", cal.isPlaceholderData && "opacity-50")}>
+              {view === "month" && (
+                <MonthGrid
+                  days={days}
+                  anchor={anchor}
+                  buckets={buckets}
+                  todayKey={todayKey}
+                />
+              )}
+              {view === "week" && (
+                <WeekGrid days={days} buckets={buckets} todayKey={todayKey} />
+              )}
+              {view === "agenda" && (
+                <Agenda days={days} buckets={buckets} todayKey={todayKey} />
+              )}
+
+              <UnscheduledNote
+                icon={CalendarOff}
+                label="No schedule data:"
+                titles={cal.data.unscheduled.filter((s) => s.schedule_checked)}
+                explanation="AniList publishes no air dates for these, so nothing they are still missing can be placed on the calendar."
               />
-            )}
-            {view === "week" && (
-              <WeekGrid days={days} buckets={buckets} todayKey={todayKey} />
-            )}
-            {view === "agenda" && (
-              <Agenda days={days} buckets={buckets} todayKey={todayKey} />
-            )}
-
-            <UnscheduledNote
-              icon={CalendarOff}
-              label="No schedule data:"
-              titles={cal.data.unscheduled.filter((s) => s.schedule_checked)}
-              explanation="AniList publishes no air dates for these, so nothing they are still missing can be placed on the calendar."
-            />
-            <UnscheduledNote
-              icon={CalendarClock}
-              label="Not checked yet:"
-              titles={cal.data.unscheduled.filter((s) => !s.schedule_checked)}
-              explanation="Their broadcast times have not been looked up yet, and they will be placed once they are."
-            />
-          </div>
-        )}
-      </div>
+              <UnscheduledNote
+                icon={CalendarClock}
+                label="Not checked yet:"
+                titles={cal.data.unscheduled.filter((s) => !s.schedule_checked)}
+                explanation="Their broadcast times have not been looked up yet, and they will be placed once they are."
+              />
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
     </>
   );
 }

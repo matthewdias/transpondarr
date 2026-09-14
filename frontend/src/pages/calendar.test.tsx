@@ -265,6 +265,26 @@ describe("CalendarPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("points each selected view tab at the panel it shows", async () => {
+    server.use(calendarHandler([item({})]));
+
+    renderPage();
+    await screen.findByRole("link", { name: /signal anomaly/i });
+
+    for (const view of ["Agenda", "Week", "Month"]) {
+      await userEvent.click(screen.getByRole("tab", { name: view }));
+      const tab = screen.getByRole("tab", { name: view, selected: true });
+      const panel = document.getElementById(
+        tab.getAttribute("aria-controls") ?? "",
+      );
+      expect(panel, view).toHaveAttribute("role", "tabpanel");
+      expect(panel).toHaveAccessibleName(view);
+      expect(
+        within(panel!).getByRole("link", { name: /signal anomaly/i }),
+      ).toBeInTheDocument();
+    }
+  });
+
   it("defaults to the agenda view on a narrow screen with a single fetch", async () => {
     const wide = window.innerWidth;
     window.innerWidth = 375;
