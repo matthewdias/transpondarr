@@ -83,7 +83,7 @@ mutation that lives, so `TestKeepsMetadataStallClockAcrossScans` exists to kill 
 ### No fetching-metadata state, on purpose
 
 Queued is near-universal: five of six surveyed clients have it, rTorrent has no
-queue, and a missing state degrades cleanly because an adapter simply never emits
+queue, and a missing download state degrades cleanly because an adapter simply never emits
 it.
 
 Fetching-metadata is one client's taxonomy. qBittorrent and Deluge are both
@@ -93,7 +93,7 @@ construction in qBittorrent, whose `updateState()` tests `isQueued()` first insi
 the `!hasMetadata()` branch.
 
 If "Fetching metadata" is ever wanted in the UI it is a detail field beside
-`State`, never a state value. Sonarr renders it as a detail field, and
+`State`, never a download state value. Sonarr renders it as a detail field, and
 Transmission's `metadata_percent_complete` and rTorrent's `d.is_meta` are shaped
 for the same use.
 
@@ -108,7 +108,7 @@ the duration lives.
 ### Absence wins over the stall clock, and what the queue shows
 
 Between the two timers, absence wins by construction. The `!ok` branch
-`continue`s before the state switch, so a torrent that goes missing is settled on
+`continue`s before the download-state switch, so a torrent that goes missing is settled on
 the 5-minute grace and the stall clock is never read.
 
 The queue's `abandon_at` is the part `client_state` could not express — that we are
@@ -160,7 +160,7 @@ The limitation we accepted on the other side: an `.upgrade` file orphaned by a
 crash isn't swept until its *payload's* mtime passes 24 hours, so it can stay
 on disk after it stops being useful. Late, never wrong.
 
-### Resolving roots, and the order the sweep works in
+### Resolving roots, and the order the staging sweep works in
 
 Roots are resolved before the enumeration starts. `WalkDir` won't descend a
 symlinked root, and `/media` pointing at `/mnt/user/media` is an ordinary NAS
