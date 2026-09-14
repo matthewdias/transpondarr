@@ -27,7 +27,7 @@ describe("ItemStatusBadge", () => {
 
   // A film's deferral is a size tie or an unextracted archive (#210), never a
   // batch, so neither the label nor the advice to grab a single episode applies.
-  it("words a deferred film off its kind rather than off episodes", () => {
+  it("words a deferred film off its item kind rather than off episodes", () => {
     render(<ItemStatusBadge status="deferred" movie />);
 
     expect(screen.queryByText("Batch downloaded")).not.toBeInTheDocument();

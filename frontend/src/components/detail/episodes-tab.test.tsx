@@ -58,9 +58,9 @@ describe("EpisodesTab search buttons", () => {
     expect(onSearchAll).not.toHaveBeenCalled();
   });
 
-  // A held episode is a legitimate grab candidate since #97, and Cutoff Unmet
+  // An episode held in the library is a legitimate grab candidate since #97, and Cutoff Unmet
   // already links to this same episode-filtered view.
-  it("offers a held episode the same row search", async () => {
+  it("offers an episode held in the library the same row search", async () => {
     const { onSearchItem, user } = renderTab([
       item({ id: 1, number: 4, in_library: true, status: "in_library" }),
     ]);

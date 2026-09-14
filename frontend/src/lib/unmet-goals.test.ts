@@ -13,7 +13,7 @@ describe("sharedGoals", () => {
   });
 
   it("treats the same axis at a different depth as a different goal", () => {
-    // One item is a rank below the top group, the other two ranks below: both
+    // One item is a rank below the top release group, the other two ranks below: both
     // miss "group TopSubs" but at different points, so nothing is shared.
     const items = [
       { unmet_goals: [g("group TopSubs", 100)] },

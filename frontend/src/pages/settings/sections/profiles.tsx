@@ -63,7 +63,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, SectionShell } from "../section-shell";
 
-// ── Sortable rows (shared by the group and resolution lists) ─────────────────
+// ── Sortable rows (shared by the profile group and resolution lists) ─────────
 
 function SortableRow({
   id,

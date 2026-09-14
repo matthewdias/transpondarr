@@ -18,7 +18,7 @@ const toggleVariants = cva(
         // am looking at". Distinct from Switch on purpose -- a switch reads as "I am
         // changing a stored preference", which is what Monitored is.
         chip: "rounded-full border border-border bg-transparent text-muted-foreground hover:bg-panel-2 hover:text-foreground data-[state=on]:border-transparent",
-        // Icon-only, no chrome in either state: pressed has to read at least as
+        // Icon-only, no chrome in either toggle state: pressed has to read at least as
         // strongly as unpressed, or the visual conflicts with aria-pressed.
         // Marking an unmonitored row is the status column's job, not this
         // button's -- one property cannot be both an affordance and a row flag.

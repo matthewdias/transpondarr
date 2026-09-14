@@ -114,7 +114,7 @@ describe("GroupCell", () => {
   });
 
   // The marker explains a ranking outcome, and an unmatched release has none —
-  // a foreign-title reject still parses a group, so it would otherwise be
+  // a foreign-title reject still parses a release group, so it would otherwise be
   // marked on a row that has nothing to do with this title.
   it("omits the pin from an unmatched release", () => {
     render(
@@ -327,7 +327,7 @@ describe("ReleasesTab episode focus", () => {
     expect(screen.getByText("2 of 4 results")).toBeInTheDocument();
 
     // The chip is the way out of the filter, so it has to name the action and
-    // not just the state it reads as on screen.
+    // not just the filter state it reads as on screen.
     await user.click(
       screen.getByRole("button", { name: /covering e3.*clear filter/i }),
     );

@@ -25,9 +25,9 @@ function renderCard(over: Partial<WantedItem> = {}, on = { search: vi.fn() }) {
   return user;
 }
 
-// The card replaces the episodes table, so it must show the state that
+// The card replaces the episodes table, so it must show the acquisition state that
 // table's row showed -- and never the episode number, which is the whole point.
-it("reads the film's own state without naming an episode", async () => {
+it("reads the film's own acquisition state without naming an episode", async () => {
   renderCard({ status: "in_library", in_library: true, release_title: "REL" });
 
   expect(screen.getByText("In library")).toBeInTheDocument();

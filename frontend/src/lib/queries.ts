@@ -68,7 +68,7 @@ export const browseSeasonQuery = ({ season, year }: SeasonRef) =>
     placeholderData: keepPreviousData,
   });
 
-// keepPreviousData keeps the outgoing grid while a prev/next page loads
+// keepPreviousData keeps the outgoing grid while a prev/next calendar page loads
 // instead of flashing it empty.
 export const calendarQuery = (
   start: string,
@@ -150,7 +150,7 @@ export const activityUnmatchedQuery = () =>
     refetchInterval: ACTIVITY_QUEUE_POLL_MS,
   });
 
-// Keyset pagination: each page contains the cursor for the next, absent on the last.
+// Keyset pagination: each results page contains the cursor for the next, absent on the last.
 export const activityHistoryQuery = () =>
   infiniteQueryOptions({
     queryKey: ["activity-history"],

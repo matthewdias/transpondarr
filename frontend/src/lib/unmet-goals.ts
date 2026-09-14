@@ -1,7 +1,7 @@
 // Hoisting for the Cutoff Unmet group header: the goals every item in a group
 // shares are shown once on the header, and a row keeps only what is its own.
 // Identity is label AND points -- the same axis at a different depth (one item
-// two group-ranks down, another one) is not the same goal.
+// two release-group ranks down, another one) is not the same goal.
 
 type Goal = { label: string; points: number };
 

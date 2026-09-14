@@ -338,7 +338,7 @@ const EpisodeRow = memo(function EpisodeRow({
       </TableCell>
       <TableCell>
         {/* Substituted, not qualified: every other status stays true when
-            unmonitored, and the row's toggle already shows the state. */}
+            unmonitored, and the row's toggle already shows the monitored state. */}
         {unmonitoredWanted ? (
           <UnmonitoredItemBadge />
         ) : (

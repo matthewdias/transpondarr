@@ -62,7 +62,7 @@ const releasesLink = (titleId: number, format: string, number: number) =>
     : `/titles/${titleId}?tab=releases&item=${number}`;
 
 // The reason levels' vocabulary (#150): the page shows what blocks everything,
-// a group header shows where its title is in the sweep queue, and a row
+// a group header shows where its title is in the search sweep queue, and a row
 // shows a reason only when it has its own story. Tone separates "you have to do
 // something" from "the queue is working".
 const globalReasonText: Record<GlobalMissingReason, string> = {
@@ -118,7 +118,7 @@ const itemReasonTone: Record<ItemMissingReason, string> = {
 
 export function WantedPage() {
   const [tab, setTab] = useState<WantedTab>("missing");
-  // One group of independent filters, so the state is the set that is on. The
+  // One group of independent filters, so the filter state is the set that is on. The
   // two flags below are what the queries take; nothing else reads the set.
   const [scope, setScope] = useState<string[]>([]);
   const unaired = scope.includes("unaired");
@@ -307,7 +307,7 @@ function GroupSection({
   );
 }
 
-// Invalidates rather than patching a page: unmonitoring removes the row from
+// Invalidates rather than patching a results page: unmonitoring removes the row from
 // the default view entirely, which no in-place edit could express.
 function useSetItemMonitored() {
   const queryClient = useQueryClient();
@@ -557,7 +557,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
   if (isError)
     return <ListError what="the cutoff list" error={error} onRetry={refetch} />;
 
-  // An empty page can still have a cursor: membership is computed in Go, so a
+  // An empty results page can still have a cursor: membership is computed in Go, so a
   // request that scanned its whole budget without finding a sub-cutoff release
   // returns nothing and a place to resume. Returning early here would show
   // "Nothing below cutoff" over a library that has some, further down.

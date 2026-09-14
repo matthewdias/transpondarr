@@ -52,7 +52,7 @@ describe("PinnedGroupChip", () => {
     const user = userEvent.setup();
     renderChip(detail({}));
 
-    // Unset state prompts for a pin rather than showing an empty value.
+    // Unset pin state prompts for a pin rather than showing an empty value.
     await user.click(screen.getByRole("button", { name: /pin group/i }));
     await user.type(
       screen.getByRole("textbox", { name: /release group/i }),
@@ -179,7 +179,7 @@ describe("PinnedGroupChip", () => {
     expect(screen.getByText(/how many hours/i)).toBeVisible();
   });
 
-  // Clearing the group leaves the disabled field's value in state, and the
+  // Clearing the group leaves the disabled field's value in React state, and the
   // server would drop it — so sending it puts a number on the wire that means
   // nothing and misreads as a wait that was set.
   it("omits the wait when the group is cleared", async () => {
@@ -657,7 +657,7 @@ describe("TitleDetailPage movie surface", () => {
   it("gives a film a status card and its year, never an episodes table", async () => {
     renderPage({ format: "MOVIE", title: "Placeholder Film", year: 2019 });
 
-    // The card is the landing tab, so the state reads without a click.
+    // The card is the landing tab, so the acquisition state reads without a click.
     expect(await screen.findByRole("tab", { name: /status/i })).toBeVisible();
     expect(screen.getByText("Wanted")).toBeInTheDocument();
     expect(

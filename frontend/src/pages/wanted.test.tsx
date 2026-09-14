@@ -179,7 +179,7 @@ it("renders group and item reasons at their own levels", async () => {
   ]);
 });
 
-// #181's pass reason is the one stored reason on the page, so the chip shows a
+// #181's pass reason is the one stored reason on the Wanted page, so the chip shows a
 // visible age -- a past-tense verb plus "2h ago" cannot read as "now" -- and
 // the tooltip names the release, the refusal reason and which entry point
 // decided. A row with nothing of its own still stays quiet.
@@ -351,7 +351,7 @@ it("moves between the scope chips with arrows and toggles from the keyboard", as
 });
 
 // Both toggles go to the server rather than filtering what already arrived: the
-// listing is paginated, so a client-side filter would leave short pages.
+// listing is paginated, so a client-side filter would leave short results pages.
 it("sends the unaired and unmonitored toggles to the server", async () => {
   const seen: URLSearchParams[] = [];
   useHandlers({
@@ -369,7 +369,7 @@ it("sends the unaired and unmonitored toggles to the server", async () => {
   expect(seen[1].get("unaired")).toBe("true");
 });
 
-it("pages whole groups with the cursor the previous page returned", async () => {
+it("pages whole groups with the cursor the previous results page returned", async () => {
   useHandlers({
     pages: {
       "": {
@@ -393,7 +393,7 @@ it("pages whole groups with the cursor the previous page returned", async () => 
   expect(screen.queryByRole("button", { name: /load more/i })).toBeNull();
 });
 
-// Selection is per group because a search is per title: the sweep's unit.
+// Selection is per group because a search is per title: the search sweep's unit.
 it("queues a search for the selected groups' titles", async () => {
   const bodies: { title_ids?: number[] }[] = [];
   useHandlers({
@@ -464,7 +464,7 @@ it("hoists shared goals to the cutoff group header", async () => {
   expect(
     screen.getByText("Wanted: resolution 1080p (+100)"),
   ).toBeInTheDocument();
-  // ...and the group gap stays on the one row that has it.
+  // ...and the release-group gap stays on the one row that has it.
   expect(
     screen.getByText("Also wanted: group FakeTop (+100)"),
   ).toBeInTheDocument();
@@ -475,7 +475,7 @@ it("hoists shared goals to the cutoff group header", async () => {
 // Cutoff Unmet computes membership in Go, so a request can scan its whole budget
 // without finding anything and still have somewhere to resume. Showing "nothing
 // below cutoff" there would hide a library that has some, further down.
-it("offers to keep looking when an empty cutoff page still has a cursor", async () => {
+it("offers to keep looking when an empty cutoff results page still has a cursor", async () => {
   useHandlers({
     pages: { "": { groups: [] } },
     cutoffPages: {
@@ -495,7 +495,7 @@ it("offers to keep looking when an empty cutoff page still has a cursor", async 
   ).toBeInTheDocument();
 });
 
-// The last page with nothing on it is the real empty state.
+// The last results page with nothing on it is the real empty state.
 it("shows the nothing-below-cutoff state when the scan is exhausted", async () => {
   useHandlers({
     pages: { "": { groups: [] } },
@@ -551,7 +551,7 @@ it("collapses a group to its header", async () => {
   );
   expect(screen.queryByText("Episode 4")).toBeNull();
   expect(screen.getByText("1 episode missing")).toBeInTheDocument();
-  // The accessible name follows the state rather than contradicting it.
+  // The accessible name follows the collapsed state rather than contradicting it.
   await userEvent.click(
     screen.getByRole("button", { name: "Expand Signal Anomaly" }),
   );

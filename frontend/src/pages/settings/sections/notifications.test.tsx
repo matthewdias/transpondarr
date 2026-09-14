@@ -160,7 +160,7 @@ describe("NotificationsSection", () => {
 
     await user.click(screen.getByRole("button", { name: "Test ntfy" }));
     expect(await screen.findByText("notification test failed")).toBeTruthy();
-    // The discord result line must remain after the ntfy failure: state is per adapter.
+    // The discord result line must remain after the ntfy failure: test-result state is per adapter.
     expect(screen.getByText("Test notification sent.")).toBeTruthy();
   });
 

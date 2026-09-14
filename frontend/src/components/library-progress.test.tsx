@@ -110,7 +110,7 @@ it.each([
   expect(screen.queryByText(/\d+ \/ \d+/)).not.toBeInTheDocument();
 });
 
-// The defect: every one of these was "not held", so the interim had to fall
+// The defect: every one of these was "not held" in the library, so the interim had to fall
 // back to 0 / 1 and a downloading film was indistinguishable from a wanted one.
 it("distinguishes a downloading film from a wanted one", () => {
   render(
@@ -164,7 +164,7 @@ it("names monitoring instead of Wanted for an unmonitored film", () => {
   expect(screen.queryByText("Wanted")).not.toBeInTheDocument();
 });
 
-it("keeps a film's real state when it is unmonitored", () => {
+it("keeps a film's real item state when it is unmonitored", () => {
   render(
     <LibraryProgress
       format="MOVIE"
@@ -180,9 +180,9 @@ it("keeps a film's real state when it is unmonitored", () => {
   expect(screen.queryByText("Not monitored")).not.toBeInTheDocument();
 });
 
-// A film with no item at all publishes no state; the shared count path is the
+// A film with no item at all publishes no item state; the shared count path is the
 // answer, not a movie-shaped guess at one.
-it("takes the count path for a film with no state to report", () => {
+it("takes the count path for a film with no item state to report", () => {
   render(
     <LibraryProgress
       format="MOVIE"

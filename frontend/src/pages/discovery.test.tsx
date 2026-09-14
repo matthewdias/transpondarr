@@ -70,7 +70,7 @@ const chartHandler = (entries: SeasonEntry[]) =>
   });
 
 describe("DiscoveryPage", () => {
-  it("renders the chart with tracked entries marked and countdowns clamped", async () => {
+  it("renders the chart with tracked AniList entries marked and countdowns clamped", async () => {
     const inTwoDays = new Date(Date.now() + 2.5 * 86400_000).toISOString();
     const threeHoursAgo = new Date(Date.now() - 3 * 3600_000).toISOString();
     server.use(
@@ -109,7 +109,7 @@ describe("DiscoveryPage", () => {
     // The stale cached timestamp clamps to "aired", never a negative countdown.
     expect(screen.getByText("Ep 9 aired")).toBeInTheDocument();
 
-    // The tracked entry offers its library page, not a second add.
+    // The tracked AniList entry offers its library page, not a second add.
     const inLibrary = screen.getByRole("link", { name: /in library/i });
     expect(inLibrary).toHaveAttribute("href", "/titles/7");
     expect(screen.getAllByRole("button", { name: /^add$/i })).toHaveLength(1);

@@ -220,7 +220,7 @@ export function BlockedReleases({
 }
 
 // Bulk unblock. An environmental fault blocks a whole candidate pool at once,
-// and clearing that one entry at a time is the problem, not the recovery.
+// and clearing that one blocklist entry at a time is the problem, not the recovery.
 function useClearBlocklist(titleId: number) {
   const queryClient = useQueryClient();
   return useMutation({

@@ -230,7 +230,7 @@ it("describes the control with the summary", async () => {
   );
 });
 
-// The mode keys on the format alone, so a series is untouched.
+// The monitor mode keys on the format alone, so a series is untouched.
 it("keeps the monitor mode for a series", async () => {
   const bodies = captureAdd();
   const user = renderForm(title, "Placeholder Saga");
