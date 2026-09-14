@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Snail, User, KeyRound, Loader2 } from "lucide-react";
-import { api, ApiError, AUTH_EXPIRED_EVENT } from "@/lib/api";
+import { api, AUTH_EXPIRED_EVENT, errorReason, NetworkError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -125,9 +125,9 @@ function CredentialsForm({
       await onDone();
     } catch (err) {
       setError(
-        err instanceof ApiError
-          ? err.message
-          : "Couldn’t reach Transpondarr. Check that the server is running, then try again.",
+        err instanceof NetworkError
+          ? "Couldn’t reach Transpondarr. Check that the server is running, then try again."
+          : errorReason(err),
       );
       setBusy(false);
     }

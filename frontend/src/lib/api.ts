@@ -27,11 +27,31 @@ export class ApiError extends Error {
   }
 }
 
-/** Why a request failed, in words; a failure that isn't an ApiError got no HTTP response. */
+/** Thrown when fetch rejected, so no HTTP response arrived. */
+export class NetworkError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = "NetworkError";
+  }
+}
+
+// An abort is a cancellation, not a failure to reach the server.
+function asNetworkError(error: unknown): unknown {
+  return error instanceof DOMException && error.name === "AbortError"
+    ? error
+    : new NetworkError(error);
+}
+
+/** Why a request failed, in words a user can act on. */
 export function errorReason(error: unknown): string {
-  return error instanceof ApiError
-    ? error.message
-    : "Transpondarr didn’t respond. Check that it’s running.";
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof NetworkError)
+    return "Transpondarr didn’t respond. Check that it’s running.";
+  const message =
+    error instanceof Error ? error.message.trim().replace(/\.$/, "") : "";
+  return message
+    ? `The app hit an unexpected error: ${message}. Reload the page and try again.`
+    : "The app hit an unexpected error. Reload the page and try again.";
 }
 
 /** Raised specifically on 401 so callers can special-case bad/missing auth. */
@@ -105,6 +125,7 @@ function problemMessage(status: number, problem: ProblemBody): string {
 // Browser auth uses the httpOnly session cookie (same-origin); openapi-fetch
 // sets Content-Type: application/json for requests with a body.
 const client = createClient<paths>({ credentials: "same-origin" });
+client.use({ onError: ({ error }) => asNetworkError(error) as Error });
 
 // openapi-fetch resolves to { data, error, response } and never throws; unwrap
 // restores throw-on-error semantics (React Query queryFns/mutationFns rely on a
@@ -125,11 +146,12 @@ async function rawFetch<T>(
 ): Promise<T> {
   const headers = new Headers(init.headers);
   if (init.body) headers.set("Content-Type", "application/json");
-  const res = await fetch(path, {
-    ...init,
-    headers,
-    credentials: "same-origin",
-  });
+  let res: Response;
+  try {
+    res = await fetch(path, { ...init, headers, credentials: "same-origin" });
+  } catch (error) {
+    throw asNetworkError(error);
+  }
   if (!res.ok) {
     let body: unknown = null;
     try {
