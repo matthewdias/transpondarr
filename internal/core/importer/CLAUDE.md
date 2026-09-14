@@ -22,11 +22,11 @@ item. The root `CLAUDE.md` covers everything above this layer.
   is a word in the title, and dropping it deferred the episode while its file
   was right there. `sampleTokens` is the exception that does not qualify (a
   sample is a truncated copy, never the episode) and so is excluded before the
-  video is counted at all. Downstream the relaxation needs no special case: a
+  video is counted. Downstream the relaxation needs no special case: a
   one-item info-hash group takes it by the lone-file rule, a multi-item info-hash group leaves it
   over and defers.
 - **Nothing unpacks an archive; the payload walk names one instead (#135).** Declined
-  deliberately: there is no Usenet client here (qBittorrent only) and RAR
+  because there is no Usenet client here (qBittorrent only) and RAR
   packaging is a Usenet/scene convention that anime release groups do not use, so a
   decoder would be the first dependency in the import path and its tests would
   need committed binary fixtures. So `collectPayloadFiles` returns a `payload`
@@ -45,7 +45,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   because deferral is settled either way. A single-file `.rar` payload is an
   archive too: identity by construction stops here, since hardlinking it into
   the library as the episode is worse than deferring.
-- **The mapping rules are narrow on purpose, because a wrong answer moves a
+- **The mapping rules are narrow, because a wrong answer moves a
   file.** A lone file for a lone item is identity by construction (we chose this
   release); a file claims a number only when it names exactly one, with
   season-relative beating absolute when both land inside the release, matching
@@ -59,7 +59,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   fixable from the Activity queue. **An unextracted archive counts as still
   loose** — it contains the episode, so it is a human's to fix — which is why
   `settleGroup` takes the whole `payload` rather than its files. Nothing left
-  over at all → `failGrab`, so the item reverts to wanted and the search sweep
+  over → `failGrab`, so the item reverts to wanted and the search sweep
   self-heals with a single; it flows through the same `remember()` grouping, so
   one payload counts as one failure toward the blocklist's escalating expiry. A file for an item the
   release never covered is placed too,
@@ -108,7 +108,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   environmental reasons that can fail many grabs at once, so permanent-on-first
   would blocklist a whole in-flight set on one qBit incident. Expired entries are
   filtered, never deleted — the row stores the failure count `blockDuration` reads.
-  An *import* failure deliberately records nothing: it stays `grabbed` and
+  An *import* failure records nothing: it stays `grabbed` and
   retries, because its causes are path-mapping gaps rather than bad releases.
 - **An absent torrent is not a verdict (#241).** `failed` settles two different
   things and an inference justifies only one of them: freeing the item is self-healing and
@@ -132,7 +132,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   supplying by accident: converging on a duplicate (`AddAlreadyExists`) assumes the
   torrent can still finish, and one whose data is gone never will, so the same release
   ranked first and "grabbed" every pass while the item stayed unacquirable. The
-  adapter now returns `download.ErrDataMissing` for that add — deliberately not
+  adapter now returns `download.ErrDataMissing` for that add — not
   `ErrBadRelease`, which is the one `acquire.AutoGrab` blocklists — so the pass
   moves on to the next-best release instead. **Only the branch where the torrent
   demonstrably existed before our add returns that error**, which is the
@@ -144,7 +144,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   error on the next pass. One extra cycle, not a loop. Converging on a *healthy*
   duplicate is unchanged either way, and is what makes re-grabbing an in-flight
   torrent safe. A stalled torrent is *present* and takes none of these paths, so
-  the doomed-release case #118 guards against cannot arise from absence at all. The posture behind it: this
+  the doomed-release case #118 guards against cannot arise from absence. The posture behind it: this
   app disassociates a torrent from the library and never removes or deletes one
   on its own, because the download client is the user's disk and their ratio.
 - **Both timers are the info-hash group's, not the row's (#247).** A pack is one
@@ -158,7 +158,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   and not in `remember()`, whose per-scan grouping is #124's design and correct;
   widening *it* would need cross-scan state the design avoids. Three
   consequences. **Earliest, not `now`** — the clock belongs to the torrent, and
-  taking `now` for the late row would reproduce the split exactly; it also makes
+  taking `now` for the late row would reproduce the split; it also makes
   an install upgrading mid-stall converge rather than stay inconsistent. **The
   value is written, not just computed**, because the Activity queue renders
   `abandon_at` from each row's own column, so a divergent stamp would show one

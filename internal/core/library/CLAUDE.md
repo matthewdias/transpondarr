@@ -49,6 +49,6 @@ layout (shape within a root) are deliberately different axes.
 - **The library flag and the derived item status share one name, deliberately
   (#84): `in_library`.** `wanted_items.in_library` sources the status
   `deriveItemState` returns, so renaming either alone would hide the derivation.
-  The name is mechanism-agnostic on purpose — `imported` would name the importer
+  The name is mechanism-agnostic — `imported` would name the importer
   as the only route into the library, which pre-existing-library import and hash
   identification (deferred, not rejected) would make untrue in the API contract.

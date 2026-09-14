@@ -8,7 +8,7 @@ a pass records about what it decided.
   on it through `grabPass`, so the profile's minimum score, the blocklist, pinned-group delay and
   the coverage ranking are written once. The feed is only a cheaper *trigger*: it
   inverts the sweep's lookup (a release name needing a title, rather than a
-  title needing releases), which is why it is title × entry — deliberately
+  title needing releases), which is why it is title × entry —
   unoptimised, since a page is ~100 entries and the due query already drops any
   title with nothing wanted. It writes no search cadence: nothing was searched,
   and a grab settles its item, so the sweep's `EXISTS` drops the title anyway.
@@ -34,7 +34,7 @@ a pass records about what it decided.
   at a slightly different instant.
   Reading a mere straggler as coverage is what masked the gap: the old signal was
   "every entry is fresh", and one backdated entry on the page defeated it. Sonarr's
-  `oldestReleaseDate < lastReleaseInfo.PublishDate` is exactly that reading, and is
+  `oldestReleaseDate < lastReleaseInfo.PublishDate` is that reading, and is
   safe *there* only because Sonarr re-processes its whole page each sync and
   dedupes downstream, where `unseenEntries` skips what it dates before the mark —
   so the precedent is one to understand and not to copy. Two consequences: a page
@@ -45,7 +45,7 @@ a pass records about what it decided.
   `titlesPerPass` and reorders the sweep queue rather than adding searches to it.
   They split the work by when a release was published: the feed handles
   releases published while it is polling, and the sweep handles what already
-  existed, plus everything when no feed is configured. **Cadence follows that division; grab scope deliberately does
+  existed, plus everything when no feed is configured. **Cadence follows that division; grab scope does
   not** — a sweep search that turns up a current release still grabs it, because
   the feed's dedupe is one-shot and an entry seen before the title or item it matches
   existed never comes around again. Concretely, `writeSearchState` drops the
@@ -63,7 +63,7 @@ a pass records about what it decided.
   at debug. The high-water mark lives in `settings` under `feed.seen.<indexer>`:
   newest `pubDate` plus the ids sharing it, which is Sonarr's
   `LastRssSyncReleaseInfo` shape. Two entry ids matter — the GUID is unreliable
-  across Torznab implementations (Sonarr keys on the download URL for exactly
+  across Torznab implementations (Sonarr keys on the download URL for
   that reason), and a feed publishing no dates dedupes on ids alone.
 - **A pass stores what it decided; the Missing page surfaces less than it stores
   (#181).** `walkCandidates` writes one `pass_outcomes` row per wanted item,
@@ -143,7 +143,7 @@ a pass records about what it decided.
   backoff up to the daily cap. Meanwhile the feed mark advances as usual (not
   advancing it would make a 15-minute poll a repeating firehose), so a rehearsed
   entry never comes around again. Without the reset on resume, "flip to on and it
-  grabs" would wait out a backoff the rehearsal itself accrued, for releases the
+  grabs" would wait out a backoff the rehearsal accrued, for releases the
   feed will not re-offer; with it, the sweep re-searches and finds them.
 - **The two cadence helpers filter on `monitored`, not on `grabbable`.** An unaired
   item is never grabbable by construction, so filtering `nextAiring` on

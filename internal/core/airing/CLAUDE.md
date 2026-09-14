@@ -71,7 +71,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   while `RELEASING` on the 6h TTL permanently, never graduating to 30d. Fixing
   one query and not both would have turned a bounded one-off cost into a
   recurring one. Reaching instead for a per-job TTL override was declined:
-  `TTLFor` is deliberately one policy shared by both jobs, which is #151's rule
+  `TTLFor` is one policy shared by both jobs, which is #151's rule
   about the two halves not disagreeing.
 - **"We asked and got nothing" and "we have not asked" are different absences,
   and the calendar footer states which (#183).** `internal/core/airing` is the
@@ -79,11 +79,11 @@ AniList's coverage is partial by design, so absence is a normal state here.
   #152's in-band schedule page carries episode numbers alone — so **every** title is
   briefly undated between being added and its first sync, and the footer was
   telling the user AniList publishes no air dates for titles nobody had asked
-  AniList about. That predated unmonitored titles being synced at all and was
+  AniList about. That predated unmonitored titles being synced and was
   merely widened by it. `ListUnscheduledTitles` therefore selects
   `airing_synced_at IS NOT NULL AS schedule_checked` and the calendar page renders two
   notes off it, because the sync stamps that column **even when the provider
-  returns nothing** — which is exactly what makes it the discriminator rather
+  returns nothing** — which is what makes it the discriminator rather
   than a proxy for one. Only the checked half may state a verdict; the unchecked
   half says the lookup is still pending, so a wrong claim degrades into a
   temporary one. The footer is *not* the place to hide either: dropping the
