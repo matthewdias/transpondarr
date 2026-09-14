@@ -131,7 +131,7 @@ access and no real credentials.
 The fixtures are in `internal/devdata`. The seeder and both stubs read the same
 set, so a search for a seeded title returns release names that fit its run; those
 release names are synthetic. Three further titles are served by the stubs and
-deliberately not seeded, so the add dialog still has something to add offline.
+not seeded, so the add dialog still has something to add offline.
 
 ### No fake download client
 
@@ -216,7 +216,7 @@ So add the entry in the PR that changes the behaviour, under `[Unreleased]`:
 
 - **Which section:** `Added` / `Changed` / `Fixed` / `Security` for anything a
   user would notice; `Internal` for work that changes no observable behaviour.
-  Refactors, test-only changes and doc edits usually need no entry at all.
+  Refactors, test-only changes and doc edits usually need no entry.
 - **Write it for someone who did not read the diff.** Lead with the symptom or
   the capability, not the mechanism, and say *why* where the reason isn't
   obvious. Match the surrounding entries: a bolded opening sentence, then the
