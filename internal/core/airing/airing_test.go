@@ -447,7 +447,7 @@ func TestSyncRefetchesOnlyTheTailOnResync(t *testing.T) {
 		t.Fatalf("provider called %d times, want 1", len(prov.calls))
 	}
 	if !prov.notYetAired[101] {
-		t.Error("a resync re-paged aired history instead of just the tail")
+		t.Error("a resync re-paged aired history instead of only the tail")
 	}
 }
 

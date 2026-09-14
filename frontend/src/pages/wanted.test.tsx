@@ -584,7 +584,7 @@ it("clears the selection when the scope filters change", async () => {
 
 // The endpoint queues; saying it searched would be wrong, and under notify-only
 // saying it grabbed would be worse.
-it("words the queued-search toast for what actually happened", () => {
+it("words the queued-search toast for what happened", () => {
   expect(
     searchQueuedToast({
       titles_queued: -1,

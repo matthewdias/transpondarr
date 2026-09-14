@@ -400,7 +400,7 @@ func TestMovieArchivePayloadDefersWithTheExtractionAdvice(t *testing.T) {
 		t.Error("nothing was placed, so the item must not read as held")
 	}
 	if len(rec.calls) != 0 {
-		t.Errorf("recorded %d blocklist entries; the release is fine, it is just packed", len(rec.calls))
+		t.Errorf("recorded %d blocklist entries; the release is fine, it is only packed", len(rec.calls))
 	}
 }
 

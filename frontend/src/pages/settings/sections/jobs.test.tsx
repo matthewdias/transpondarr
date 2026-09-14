@@ -82,7 +82,7 @@ describe("JobsTable", () => {
   // The snapshot this renders from is up to one poll old, so a short-interval
   // job (import-scan runs every 15s) always shows a next run that has just
   // passed. Calling that overdue would flag a healthy runner on every poll.
-  it("does not call a job overdue while the snapshot could simply be stale", () => {
+  it("does not call a job overdue while the snapshot could be stale", () => {
     render(
       <JobsTable
         jobs={[
