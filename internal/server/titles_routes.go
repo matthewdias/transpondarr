@@ -28,7 +28,7 @@ type titleDTO struct {
 	ID             int64  `json:"id"`
 	Title          string `json:"title"`
 	Format         string `json:"format"`
-	Year           int    `json:"year,omitempty" doc:"Release year; absent when the provider publishes none"`
+	Year           int    `json:"year,omitzero" doc:"Release year; absent when the provider publishes none"`
 	Monitored      bool   `json:"monitored"`
 	Total          int    `json:"total"`
 	Tracked        int    `json:"tracked" doc:"Items this title is pursuing: monitored and already broadcast"`
@@ -59,7 +59,7 @@ type titleDetailDTO struct {
 	ProviderID int64           `json:"provider_id"`
 	Title      string          `json:"title"`
 	Format     string          `json:"format"`
-	Year       int             `json:"year,omitempty" doc:"Release year; absent when the provider publishes none"`
+	Year       int             `json:"year,omitzero" doc:"Release year; absent when the provider publishes none"`
 	Monitored  bool            `json:"monitored"`
 	Items      []wantedItemDTO `json:"items"`
 }
@@ -76,7 +76,7 @@ type addTitleInput struct {
 		MonitorItems string `json:"monitor_items,omitempty" enum:"all,future" default:"all" doc:"Which items to monitor, now and as the title grows: all, or only those that have not yet aired"`
 		// Included in the add so it is one atomic write; omitted (0) takes the
 		// default profile, which stays right as that default changes.
-		QualityProfileID int64 `json:"quality_profile_id,omitempty" minimum:"1" doc:"Quality profile to assign; omitted takes the default profile"`
+		QualityProfileID int64 `json:"quality_profile_id,omitzero" minimum:"1" doc:"Quality profile to assign; omitted takes the default profile"`
 	}
 }
 
@@ -102,12 +102,12 @@ type detailItemDTO struct {
 type titleDetailReadDTO struct {
 	ID               int64           `json:"id"`
 	Provider         string          `json:"provider,omitempty" doc:"Metadata provider this title is keyed on; absent when untracked"`
-	ProviderID       int64           `json:"provider_id,omitempty"`
+	ProviderID       int64           `json:"provider_id,omitzero"`
 	Title            string          `json:"title"`
 	English          string          `json:"english,omitempty"`
 	Native           string          `json:"native,omitempty"`
 	Format           string          `json:"format"`
-	Year             int             `json:"year,omitempty" doc:"Release year; absent when the provider publishes none"`
+	Year             int             `json:"year,omitzero" doc:"Release year; absent when the provider publishes none"`
 	Status           string          `json:"status,omitempty" doc:"Provider status (e.g. RELEASING, FINISHED)"`
 	CoverURL         string          `json:"cover_url,omitempty"`
 	Monitored        bool            `json:"monitored"`

@@ -255,14 +255,12 @@ func TestContentionIsRecordedAsContendedNotDeclined(t *testing.T) {
 	ctx := context.Background()
 	// The poll lands and takes item 3 while the sweep's search is in flight,
 	// after the sweep has already read the item as grabbable.
-	var once sync.Once
-	h.feed.SearchHook = func(indexer.Query) {
-		once.Do(func() {
-			if err := h.svc.PollFeedOnce(ctx); err != nil {
-				t.Errorf("PollFeedOnce: %v", err)
-			}
-		})
-	}
+	pollFeed := sync.OnceFunc(func() {
+		if err := h.svc.PollFeedOnce(ctx); err != nil {
+			t.Errorf("PollFeedOnce: %v", err)
+		}
+	})
+	h.feed.SearchHook = func(indexer.Query) { pollFeed() }
 	if err := h.svc.SweepOnce(ctx); err != nil {
 		t.Fatalf("SweepOnce: %v", err)
 	}

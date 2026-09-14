@@ -158,14 +158,12 @@ func TestSweepDoesNotRegrabAnItemThePollTookMidSearch(t *testing.T) {
 	ctx := context.Background()
 	// The poll lands while the sweep's search is in flight, after the sweep has
 	// already read item 3 as grabbable.
-	var once sync.Once
-	h.feed.SearchHook = func(indexer.Query) {
-		once.Do(func() {
-			if err := h.svc.PollFeedOnce(ctx); err != nil {
-				t.Errorf("PollFeedOnce: %v", err)
-			}
-		})
-	}
+	pollFeed := sync.OnceFunc(func() {
+		if err := h.svc.PollFeedOnce(ctx); err != nil {
+			t.Errorf("PollFeedOnce: %v", err)
+		}
+	})
+	h.feed.SearchHook = func(indexer.Query) { pollFeed() }
 
 	if err := h.svc.SweepOnce(ctx); err != nil {
 		t.Fatalf("SweepOnce: %v", err)

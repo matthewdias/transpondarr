@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -50,7 +50,7 @@ func collected(t *testing.T, root string) []string {
 	for _, c := range p.files {
 		out = append(out, c.rel)
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 

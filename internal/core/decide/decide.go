@@ -15,8 +15,9 @@
 package decide
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/matthewdias/transpondarr/internal/core/domain"
@@ -201,31 +202,35 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 	}
 
 	// Scoring ranks within the matched set; it never relaxes matching itself.
-	sort.SliceStable(out, func(a, b int) bool {
-		if out[a].Matched != out[b].Matched {
-			return out[a].Matched // matched first
-		}
-		if out[a].Eligible != out[b].Eligible {
-			return out[a].Eligible
-		}
-		if out[a].Pinned != out[b].Pinned {
-			return out[a].Pinned
-		}
-		// Wider coverage first is "one grab instead of N" (#126), counted on what
-		// automation may take so a pack whose held coverage is all cutoff-blocked
-		// cannot outrank a single covering a wanted item. Below the pin
-		// deliberately: a pin is per-title knowledge, so coverage only decides
-		// among equally pinned candidates. Weekly singles tie at 1 and fall
-		// through to score.
-		if out[a].takeCount() != out[b].takeCount() {
-			return out[a].takeCount() > out[b].takeCount()
-		}
-		if out[a].Score != out[b].Score {
-			return out[a].Score > out[b].Score
-		}
-		return out[a].Release.Seeders > out[b].Release.Seeders
+	slices.SortStableFunc(out, func(a, b Candidate) int {
+		return cmp.Or(
+			trueFirst(a.Matched, b.Matched),
+			trueFirst(a.Eligible, b.Eligible),
+			trueFirst(a.Pinned, b.Pinned),
+			// Wider coverage first is "one grab instead of N" (#126), counted on what
+			// automation may take so a pack whose held coverage is all cutoff-blocked
+			// cannot outrank a single covering a wanted item. Below the pin
+			// deliberately: a pin is per-title knowledge, so coverage only decides
+			// among equally pinned candidates. Weekly singles tie at 1 and fall
+			// through to score.
+			cmp.Compare(b.takeCount(), a.takeCount()),
+			cmp.Compare(b.Score, a.Score),
+			cmp.Compare(b.Release.Seeders, a.Release.Seeders),
+		)
 	})
 	return out
+}
+
+// trueFirst orders true before false for a sort comparator.
+func trueFirst(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case a:
+		return -1
+	default:
+		return 1
+	}
 }
 
 // Fixed axis weights: release group dominates by construction — its lowest weight exceeds the

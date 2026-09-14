@@ -100,8 +100,7 @@ func safeURL(raw string) string {
 // withoutURL strips the URL net/http repeats back in every *url.Error, which
 // would otherwise re-add the query string safeURL just removed.
 func withoutURL(err error) error {
-	var ue *url.Error
-	if errors.As(err, &ue) {
+	if ue, ok := errors.AsType[*url.Error](err); ok {
 		return ue.Err
 	}
 	return err

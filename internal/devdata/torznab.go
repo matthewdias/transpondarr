@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 )
@@ -58,7 +58,7 @@ func buildEntries(now time.Time, rngSeed int64) []feedEntry {
 			})
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].published.After(out[j].published) })
+	slices.SortStableFunc(out, func(a, b feedEntry) int { return b.published.Compare(a.published) })
 	return out
 }
 

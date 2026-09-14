@@ -60,8 +60,10 @@ func TestTorznabStubParsesWithTheRealAdapter(t *testing.T) {
 		case strings.Contains(r.Title, "06v2"):
 			sawV2 = true
 		}
-		if i := strings.Index(r.Title, "]"); strings.HasPrefix(r.Title, "[") && i > 1 {
-			groups[r.Title[1:i]] = true
+		if rest, ok := strings.CutPrefix(r.Title, "["); ok {
+			if group, _, ok := strings.Cut(rest, "]"); ok && group != "" {
+				groups[group] = true
+			}
 		}
 	}
 	if len(groups) < 3 {

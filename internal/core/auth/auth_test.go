@@ -279,8 +279,7 @@ func TestReadsDoNotWaitForAWriteInFlight(t *testing.T) {
 
 	w := &blockingWriter{inner: svc.settings, started: make(chan struct{}), release: make(chan struct{})}
 	svc.settings = w
-	var releaseOnce sync.Once
-	release := func() { releaseOnce.Do(func() { close(w.release) }) }
+	release := sync.OnceFunc(func() { close(w.release) })
 	t.Cleanup(release)
 
 	done := make(chan error, 1)

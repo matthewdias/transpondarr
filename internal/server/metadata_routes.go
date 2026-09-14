@@ -19,9 +19,9 @@ type candidateDTO struct {
 	Format     string `json:"format,omitempty"`
 	Episodes   int    `json:"episodes"`
 	Status     string `json:"status,omitempty"`
-	Year       int    `json:"year,omitempty"`
+	Year       int    `json:"year,omitzero"`
 	CoverURL   string `json:"cover_url,omitempty"`
-	NextItem   int    `json:"next_item,omitempty" doc:"Number of the next scheduled broadcast; omitted when nothing is scheduled"`
+	NextItem   int    `json:"next_item,omitzero" doc:"Number of the next scheduled broadcast; omitted when nothing is scheduled"`
 }
 
 type searchMetadataInput struct {

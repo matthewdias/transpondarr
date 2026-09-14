@@ -27,10 +27,10 @@ type seasonEntryDTO struct {
 	AverageScore int        `json:"average_score"`
 	Studio       string     `json:"studio,omitempty"`
 	CoverURL     string     `json:"cover_url,omitempty"`
-	NextEpisode  int        `json:"next_episode,omitempty"`
+	NextEpisode  int        `json:"next_episode,omitzero"`
 	NextAirsAt   *time.Time `json:"next_airs_at,omitempty"`
 	Tracked      bool       `json:"tracked"`
-	TitleID      int64      `json:"title_id,omitempty" doc:"Local title id when tracked"`
+	TitleID      int64      `json:"title_id,omitzero" doc:"Local title id when tracked"`
 }
 
 type browseSeasonInput struct {

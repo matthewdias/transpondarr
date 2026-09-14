@@ -268,7 +268,7 @@ func seedBlocklist(ctx context.Context, st *store.Store, t title, titleID int64,
 		var row db.ReleaseBlocklist
 		// The upsert is what increments failures, so the count rises by repeating
 		// the entry rather than by writing it.
-		for i := 0; i < max(b.failures, 1); i++ {
+		for range max(b.failures, 1) {
 			var err error
 			row, err = st.Q.UpsertBlocklistEntry(ctx, db.UpsertBlocklistEntryParams{
 				SeriesID:        titleID,
