@@ -85,7 +85,7 @@ describe("typed client (openapi-fetch)", () => {
   });
 
   // The 2026-08-15 AniList outage: the provider's explanation was in errors[], and
-  // the handler's summary alone did not say what went wrong.
+  // the handler's summary alone didn't show what went wrong.
   it("leads a 5xx with the handler's detail and keeps the errors[] cause", async () => {
     server.use(
       http.post("/api/v1/titles", () =>

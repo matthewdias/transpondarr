@@ -8,8 +8,8 @@ import (
 	"github.com/danielgtaylor/huma/v2"
 )
 
-// logServerErrors is a Huma transformer: every 5xx is logged here once, and a
-// 500's cause stays in the log, because it is internal and gives the user nothing to act on.
+// logServerErrors is a Huma transformer that logs every 5xx once. A 500's cause
+// is removed from the response, since it is internal and nothing a user can act on.
 func logServerErrors(logger *slog.Logger) huma.Transformer {
 	return func(ctx huma.Context, _ string, v any) (any, error) {
 		model, ok := v.(*huma.ErrorModel)
@@ -49,7 +49,7 @@ func writeServerError(w http.ResponseWriter, req *http.Request, logger *slog.Log
 	writeProblem(w, http.StatusInternalServerError, detail)
 }
 
-// storeError is the 500 for a failed store read or write, whose cause only the log keeps.
+// storeError is the 500 for a failed store read or write; its cause goes only to the log.
 func storeError(action string, errs ...error) huma.StatusError {
 	return huma.Error500InternalServerError("Couldn't "+action+". The server log has the cause.", errs...)
 }

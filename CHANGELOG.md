@@ -39,12 +39,13 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
-- **Error messages say what couldn't be done and what to try next.** A failed
-  save, grab or load now reads "Couldn't save the quality profile" with the
+- **Error messages now name what couldn't be done and what to try next.** A
+  failed save, grab or load reads "Couldn't save the quality profile" with the
   reason beneath it instead of "Save failed", and every failed load offers
-  **Try again**. Discord and ntfy now title a stuck import **Import blocked**,
-  as the app does, and title a notify-only report **Notify only** instead of
-  "Rehearsal". A script matching on those notification titles needs updating.
+  **Try again**. Discord and ntfy now head a stuck-import notification
+  **Import blocked**, as the app does, and a notify-only report **Notify only**
+  instead of "Rehearsal". A script matching on those notification headings
+  needs updating.
 - **The add dialog now says which episodes it will monitor**, in both choices and
   before you pick one — *All 12 episodes will be monitored*, or *6 of 12
   episodes will be monitored, from episode 7*. When a choice would monitor
@@ -61,16 +62,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
-- **A server error now says what failed, and the server log records it.** Before,
-  the app showed an internal message such as *sql: database is closed*, and
-  nothing was written to the log. The app now shows what couldn't be done, and
-  every server error is logged with the request that caused it. When Transpondarr
-  can't reach AniList, an indexer or the download client, the service's own reply
-  still follows the message.
-- **Sign-in errors now say what went wrong.** A too-short password on first-run
+- **A server error now shows what failed, and is written to the server log.**
+  Before, the app showed an internal message such as *sql: database is closed*,
+  and nothing was logged. The app now shows what couldn't be done, and every
+  server error is logged with the request that caused it. When Transpondarr can't
+  reach AniList, an indexer or the download client, that service's reply still
+  appears after the message.
+- **Sign-in errors now show what went wrong.** A too-short password on first-run
   setup showed only *HTTP 400*, and too many sign-in attempts showed *HTTP 429*.
-  Both now say what to do, including how long to wait, and a wrong password says
-  so instead of the generic *Invalid credentials*.
+  The first now gives the minimum length and the second how long to wait, and a
+  wrong password reads *Wrong username or password.* instead of the generic
+  *Invalid credentials*.
 - **Two auth changes made at once can no longer disagree with what was saved.**
   Changing the authentication mode from two places at the same moment could
   leave the running server enforcing one mode while the database held the other,

@@ -2,7 +2,7 @@ import { RefreshCw, TriangleAlert } from "lucide-react";
 import { errorReason } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
-/** Why a query failed and a retry, in the dashed card the page sections share. */
+/** Why a query failed, with a retry button, in the dashed card every failed load uses. */
 export function LoadError({
   what,
   error,
