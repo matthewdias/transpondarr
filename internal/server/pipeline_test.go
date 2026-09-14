@@ -60,6 +60,13 @@ func newHarness(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownlo
 // tests that need TitleVariants to answer (the stub errors by design).
 func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownload, provider metadata.Provider) *harness {
 	t.Helper()
+	return newHarnessWithLogger(t, idx, dl, provider, discardLogger())
+}
+
+// newHarnessWithLogger is newHarnessWithProvider with the server's logger supplied,
+// for tests asserting what the HTTP layer logs.
+func newHarnessWithLogger(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownload, provider metadata.Provider, logger *slog.Logger) *harness {
+	t.Helper()
 	ctx := context.Background()
 	st := coretest.NewStore(t)
 
@@ -93,7 +100,7 @@ func newHarnessWithProvider(t *testing.T, idx *coretest.FakeIndexer, dl *coretes
 	importSvc := importer.New(st, reg, discardLogger(), blocklistSvc, acquireSvc)
 	h := server.New(server.Deps{
 		Store:     st,
-		Logger:    discardLogger(),
+		Logger:    logger,
 		Provider:  provider,
 		Clients:   reg,
 		Settings:  settingsSvc,

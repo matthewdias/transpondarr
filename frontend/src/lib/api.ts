@@ -78,13 +78,19 @@ function throwApiError(status: number, body: unknown, authEvent = true): never {
     throw new UnauthorizedError();
   }
   const problem = body as ProblemBody;
-  throw new ApiError(
-    status,
-    problemCause(problem) ||
-      problem?.detail ||
-      problem?.title ||
-      `HTTP ${status}`,
-  );
+  throw new ApiError(status, problemMessage(status, problem));
+}
+
+// A 4xx cause is what the user must fix, so it leads. A 5xx detail says what
+// failed and what to do, and the cause (a 502's upstream reply) follows it.
+function problemMessage(status: number, problem: ProblemBody): string {
+  const cause = problemCause(problem);
+  const detail =
+    typeof problem?.detail === "string" ? problem.detail.trim() : "";
+  if (status >= 500 && detail && cause) {
+    return `${/[.!?]$/.test(detail) ? detail : `${detail}.`} ${cause}`;
+  }
+  return cause || detail || problem?.title || `HTTP ${status}`;
 }
 
 // Browser auth uses the httpOnly session cookie (same-origin); openapi-fetch

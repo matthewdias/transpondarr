@@ -55,6 +55,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **A server error now says what failed, and the server log records it.** Before,
+  the app showed an internal message such as *sql: database is closed*, and
+  nothing was written to the log. The app now shows what couldn't be done, and
+  every server error is logged with the request that caused it. When Transpondarr
+  can't reach AniList, an indexer or the download client, the service's own reply
+  still follows the message.
 - **Two auth changes made at once can no longer disagree with what was saved.**
   Changing the authentication mode from two places at the same moment could
   leave the running server enforcing one mode while the database held the other,
