@@ -94,7 +94,7 @@ func TestSendIncludesOnlyApplicableFields(t *testing.T) {
 		Title:        "Placeholder Saga",
 		ItemNumber:   5,
 		ReleaseTitle: "[Group] Placeholder Saga - 05 (1080p)",
-		Error:        "source not accessible",
+		Error:        "source path not accessible",
 	})
 	if err != nil {
 		t.Fatalf("send: %v", err)
@@ -104,7 +104,7 @@ func TestSendIncludesOnlyApplicableFields(t *testing.T) {
 		"Title":   "Placeholder Saga",
 		"Episode": "5",
 		"Release": "[Group] Placeholder Saga - 05 (1080p)",
-		"Error":   "source not accessible",
+		"Error":   "source path not accessible",
 	} {
 		if v, ok := fieldValue(e, name); !ok || v != want {
 			t.Errorf("field %s = %q (present=%v), want %q", name, v, ok, want)

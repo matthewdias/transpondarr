@@ -164,10 +164,10 @@ var (
 func (t *Target) Place(ctx context.Context, req library.ImportRequest) (string, error) {
 	info, err := os.Stat(req.SourcePath)
 	if err != nil {
-		return "", fmt.Errorf("mediaserver: stat source: %w", err)
+		return "", fmt.Errorf("mediaserver: stat source path: %w", err)
 	}
 	if info.IsDir() {
-		return "", fmt.Errorf("mediaserver: source is a directory (batch import not yet supported): %s", req.SourcePath)
+		return "", fmt.Errorf("mediaserver: source path is a directory (batch import not yet supported): %s", req.SourcePath)
 	}
 
 	name := sanitize(req.Title.Name)
@@ -406,7 +406,7 @@ func isUnsupportedLink(err error) bool {
 func (t *Target) copyFile(ctx context.Context, src, dest string) error {
 	in, err := os.Open(src)
 	if err != nil {
-		return fmt.Errorf("mediaserver: open source: %w", err)
+		return fmt.Errorf("mediaserver: open source path: %w", err)
 	}
 	defer func() { _ = in.Close() }()
 

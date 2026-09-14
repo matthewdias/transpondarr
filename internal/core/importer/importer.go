@@ -541,8 +541,8 @@ func (im *Importer) importGroup(ctx context.Context, target library.Target, acti
 	if _, err := os.Stat(st.ContentPath); err != nil {
 		// Source path not reachable from here — commonly a path-mapping gap when the
 		// client runs elsewhere. Leave the rows grabbed and retry next tick.
-		im.log.Warn("importer: source not accessible", "hash", st.Hash, "path", st.ContentPath, "err", err)
-		im.setLastErrors(ctx, active, "source not accessible: "+err.Error())
+		im.log.Warn("importer: source path not accessible", "hash", st.Hash, "path", st.ContentPath, "err", err)
+		im.setLastErrors(ctx, active, "source path not accessible: "+err.Error())
 		return nil
 	}
 	p, err := collectPayloadFiles(st.ContentPath)

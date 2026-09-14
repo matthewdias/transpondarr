@@ -75,7 +75,7 @@ func TestSendEscapesTheTopic(t *testing.T) {
 func TestSendMarksStuckHighPriority(t *testing.T) {
 	ts, got := capture(t)
 	if err := New(ts.URL, "topic", "").Send(context.Background(), notify.Event{
-		Kind: notify.KindImportStuck, Title: "Placeholder Saga", Error: "source not accessible",
+		Kind: notify.KindImportStuck, Title: "Placeholder Saga", Error: "source path not accessible",
 	}); err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestSendMarksStuckHighPriority(t *testing.T) {
 	if tags := got.headers.Get("Tags"); tags != "warning" {
 		t.Errorf("tags = %q, want warning", tags)
 	}
-	if !strings.Contains(got.body, "source not accessible") {
+	if !strings.Contains(got.body, "source path not accessible") {
 		t.Errorf("body %q should carry the error", got.body)
 	}
 }
