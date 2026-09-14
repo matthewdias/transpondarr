@@ -232,8 +232,8 @@ function MissingTab({
           title="Nothing missing"
           blurb={
             unaired
-              ? "Every monitored episode is either in the library or in flight."
-              : "Every aired, monitored episode is either in the library or in flight. Turn on Unaired to see what is still to come."
+              ? "Everything monitored is either in the library or in flight."
+              : "Everything monitored that has aired is either in the library or in flight. Turn on Unaired to see what is still to come."
           }
         />
       ) : (
@@ -569,7 +569,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
           blurb={
             hasNextPage
               ? "Nothing below cutoff in the titles checked so far. Keep looking to check the rest of the library."
-              : "Held episodes on a profile with upgrades enabled appear here while their release scores below that profile's cutoff."
+              : "Anything you have on a profile with upgrades enabled appears here while its release scores below that profile's cutoff."
           }
         />
       ) : (
