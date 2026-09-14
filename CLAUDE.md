@@ -53,16 +53,19 @@ reproduce it locally — run what the change touched.
   filters by filename; `--project unit` / `--project dom` runs one project, `-t "name"`
   one test. Use the direct binary rather than `npx` throughout — `npx` adds ~1.5s to
   vitest and ~0.8s to oxlint, on commands you run dozens of times a session.
-- **vitest does not typecheck** — it strips types, so a file with a hard type error runs
-  green, and `make lint` doesn't check types either. Otherwise `tsc -b` runs only inside
-  `npm run build`, which is why CI is normally the first to report the error. After a
-  frontend type change run `make typecheck`; it depends on `web-deps`, so a fresh worktree
-  installs `frontend/node_modules` first. Without that install neither spelling reports on
-  this project's TypeScript: `./node_modules/.bin/tsc -b` exits 127 on the missing binary,
-  and `npm run typecheck` falls back to whatever `tsc` is on `PATH`.
-  It covers `*.test.ts(x)` too (`tsconfig.app.json` includes all of `src`), and re-checks
-  the whole program every run (~4.5s; `noEmit` without `composite` makes the tsbuildinfo
-  near-useless), so run it once before committing rather than per edit.
+- **vitest does not typecheck, so run `make typecheck` after a frontend type change.**
+  vitest strips types, so a file with a hard type error runs green, and `make lint`
+  doesn't check types either. Otherwise `tsc -b` runs only inside `npm run build`, which
+  is why CI is normally the first to report the error.
+- **A fresh worktree needs `frontend/node_modules` before a typecheck reports anything.**
+  `make typecheck` depends on `web-deps`, so it installs `frontend/node_modules` first.
+  Without that install neither of the other spellings reports on this project's
+  TypeScript: `./node_modules/.bin/tsc -b` exits 127 on the missing binary, and
+  `npm run typecheck` falls back to whatever `tsc` is on `PATH`.
+- **Run `make typecheck` once before committing rather than per edit.** It covers
+  `*.test.ts(x)` too (`tsconfig.app.json` includes all of `src`). It re-checks the whole
+  program every run (~4.5s; `noEmit` without `composite` makes the tsbuildinfo
+  near-useless).
 - **Before committing, run `go vet ./...`** — 0.6s idle, ~2s after a change to a core
   package, and it type-checks `_test.go` files too, so it catches a broken test in a
   package you never ran. Don't scope it; the packages you didn't touch are the whole
@@ -86,10 +89,12 @@ reproduce it locally — run what the change touched.
 - **Optional provider capabilities are type assertions, not wider interfaces.**
   `metadata.AiringProvider` (broadcast schedules) sits alongside `Provider`
   because paging a schedule costs one request per 50 episodes and `GetTitle` is
-  on the request path. Two rules follow: a decorator must forward the capability
-  *conditionally* (`metadata.Cached` returns a schedule-carrying wrapper only
-  when its inner provider has one, so the assertion is never wrong), and the caller
-  treats a missing capability as a supported configuration, not an error.
+  on the request path.
+- **A decorator must forward an optional capability *conditionally*.**
+  `metadata.Cached` returns a schedule-carrying wrapper only when its inner provider
+  has one, so the type assertion is never wrong.
+- **A caller treats a missing optional capability as a supported configuration, not an
+  error.**
 
 ## Development process — TDD, red/green
 
@@ -107,39 +112,22 @@ Behaviour changes are test-driven. Work red → green → refactor:
   wrong — and say so in the commit if it is.
 - Use the shared `internal/coretest` harness (temp store + fake indexer/download/
   library) for pipeline-level tests instead of hand-rolling fixtures.
-- **`internal/devdata` is keyed on vocabularies, so a new value in one of them
-  needs a fixture (#184).** It is the other harness, and the two are easy to
-  confuse: `coretest` builds a temp world per test, where `devdata` seeds the
-  persistent one `make seed` leaves behind. What a screen can show is a closed set
-  each time — `deriveItemState`'s five item statuses, the four grab statuses, the
-  outcomes `passReason` surfaces, the two values `schedule_checked` takes — and
-  the seed covers only the values whoever wrote it listed. Four of #271's review
-  findings were one shape: a named constant that no fixture created, hidden
-  because the test counted rows in the table a value is stored in instead of
-  running the query the screen runs. So adding a value to one of those sets, or
-  reading them in a new combination, means seeding a fixture and asserting
-  through the real query. Two things follow. A fixture must not pair values the
-  code cannot pair either: a `failed` grab row with a `last_error` is
-  unreachable, because settling clears it, and that pairing is why #273 went
-  unnoticed for a round. And where a value is left unseeded on purpose, say so
-  where its fixture would have been, because an unstated decision is
-  indistinguishable from an oversight — which is how these four findings got past
-  a review and fourteen mutations.
 - **Test interval loops with `testing/synctest`, not sleeps** (see
   `internal/core/jobs/jobs_test.go`). Inside a bubble the clock is virtual, so
   "the first run waits a full interval" and "the schedule does not drift" become
-  exact assertions instead of tolerant polls. Two gotchas: a pending
-  `synctest.Wait()` takes priority over advancing the clock, so the test
-  goroutine must `time.Sleep` to let a job's own sleep elapse (the `advance`
-  helper does both); and bubbles forbid real I/O, so store- or network-backed
-  tests stay on the real clock and synchronise on a channel.
-- **The frontend suite runs in two vitest projects** (`frontend/vite.config.ts`):
-  `unit` (node, no setup file) for the pure-logic suites named in `unitTests`, and
-  `dom` (happy-dom + `src/test/setup.ts`) for everything else, which is the
-  default — a new pure-logic suite runs correctly but slowly until it is added to
-  the list. Building a DOM costs ~350ms per file, and a page test's cost is its
-  renders: `render()` of a page is 300-400ms, so prefer asserting more per mount
-  over more mounts.
+  exact assertions instead of tolerant polls. Two gotchas:
+  - A pending `synctest.Wait()` takes priority over advancing the clock, so the test
+    goroutine must `time.Sleep` to let a job's own sleep elapse. The `advance` helper
+    does both.
+  - Bubbles forbid real I/O, so store- or network-backed tests stay on the real clock
+    and synchronise on a channel.
+- **The frontend suite runs in two vitest projects** (`frontend/vite.config.ts`).
+  `unit` (node, no setup file) runs the pure-logic suites named in `unitTests`. `dom`
+  (happy-dom + `src/test/setup.ts`) runs everything else and is the default, so a new
+  pure-logic suite runs correctly but slowly until it is added to the `unitTests` list.
+- **A page test's cost is its renders, so prefer asserting more per mount over more
+  mounts.** Building a DOM costs ~350ms per file, and `render()` of a page is
+  300-400ms.
 - **Tests run in a pinned zone (`America/New_York`), set in
   `frontend/vite.config.ts` before the workers spawn.** Local-day logic needs a
   known zone, and setting `TZ` from *inside* a worker — `vi.stubEnv("TZ", ...)`
@@ -149,86 +137,129 @@ Behaviour changes are test-driven. Work red → green → refactor:
 - Pure mechanical changes (renames, generated code via `make gen`, docs) don't
   need a new test — everything that changes behaviour does.
 
+### The dev seed, `internal/devdata`
+
+- **`internal/devdata` is the other harness, and it is easy to confuse with
+  `coretest`.** `coretest` builds a temp world per test, where `devdata` seeds the
+  persistent one `make seed` leaves behind.
+- **`internal/devdata` is keyed on vocabularies, so a new value in one of them
+  needs a fixture (the dense dev seed, #184).** What a screen can show is a closed set
+  each time: `deriveItemState`'s five item statuses, the four grab statuses, the
+  outcomes `passReason` surfaces, and the two values `schedule_checked` takes. The
+  seed covers only the values whoever wrote it listed.
+- **Assert a seeded value through the query the screen runs.** Four of the dev seed
+  PR's review findings (#271) were one shape: a named constant that no fixture
+  created. Each stayed hidden because the test counted rows in the table a value is
+  stored in, instead of running the query the screen runs. So adding a value to one
+  of those sets, or reading them in a new combination, means seeding a fixture and
+  asserting through the real query.
+- **A fixture must not pair values the code cannot pair either.** A `failed` grab row
+  with a `last_error` is unreachable, because settling clears it. That pairing is why
+  the always-empty grab-failed detail on the Missing screen (#273) went unnoticed for
+  a round.
+- **Where a value is left unseeded on purpose, say so where its fixture would have
+  been.** An unstated decision is indistinguishable from an oversight, which is how
+  the four seed review findings (#271) got past a review and fourteen mutations.
+
 ## Conventions
 
 Nine subsystems have their own rules in a nested `CLAUDE.md`, loaded when you work
-under that directory — read the one you are in, not all nine:
-[`decide`](internal/core/decide/CLAUDE.md) (release matching, eligibility, movies),
-[`acquire`](internal/core/acquire/CLAUDE.md) (search sweep, feed, pass outcomes),
-[`importer`](internal/core/importer/CLAUDE.md) (grab lifecycle, file mapping,
-failure blame), [`library`](internal/core/library/CLAUDE.md) (placement, layout),
-[`catalog`](internal/core/catalog/CLAUDE.md) (title identity, item counts,
-monitoring), [`airing`](internal/core/airing/CLAUDE.md) (air dates, the calendar),
-[`settings`](internal/core/settings/CLAUDE.md) (config precedence, stored
-secrets), [`server`](internal/server/CLAUDE.md) (routes, the cross-origin write
-guard, settings-body encoding) and [`store`](internal/store/CLAUDE.md) (migrations,
-the sqlc layer). Two are security rationale and worth naming here so nobody
-rediscovers them the hard way: **a write whose `Origin` names another origin is
-rejected** (#269), and **a stored secret is only ever sent to the host it was saved
-for** (#259).
+under that directory. Read the one you are in, not all nine:
+
+| Guide | Covers |
+|---|---|
+| [`decide`](internal/core/decide/CLAUDE.md) | release matching, eligibility, movies |
+| [`acquire`](internal/core/acquire/CLAUDE.md) | search sweep, feed, pass outcomes |
+| [`importer`](internal/core/importer/CLAUDE.md) | grab lifecycle, file mapping, failure blame |
+| [`library`](internal/core/library/CLAUDE.md) | placement, layout |
+| [`catalog`](internal/core/catalog/CLAUDE.md) | title identity, item counts, monitoring |
+| [`airing`](internal/core/airing/CLAUDE.md) | air dates, the calendar |
+| [`settings`](internal/core/settings/CLAUDE.md) | config precedence, stored secrets |
+| [`server`](internal/server/CLAUDE.md) | routes, the cross-origin write guard, settings-body encoding |
+| [`store`](internal/store/CLAUDE.md) | migrations, the sqlc layer |
+
+Two of the nested guides' rules are security rationale and worth naming here so nobody
+rediscovers them the hard way:
+
+- **A write whose `Origin` names another origin is rejected** (the cross-origin write
+  guard, #269).
+- **A stored secret is only ever sent to the host it was saved for** (a blank secret
+  field filled from storage for a caller-supplied URL, #259).
 
 What stays here is what applies before you know which package you are in.
 
 - **A stall at exactly 0% is the one absence-shaped thing that is the release's
   fault (#242).** Long enough to need its own section — see
   [`docs/design-notes.md`](docs/design-notes.md).
-- **Periodic work goes on the job runner (`internal/core/jobs`), not a bare
-  `go`.** Register by name with an interval in `main.go`; the runner handles panic
-  containment, the "log failures only when `ctx.Err() == nil`" rule, and the
-  drained shutdown that keeps the store open until in-flight work finishes. It never cancels
-  a job itself — `ctx` is the only shutdown signal, so work past a point of no
-  return can still finish. A job closure must read its dependencies from the
-  registry/service each run, not capture a snapshot, or live config edits stop
-  applying. **The importer is deliberately still on its own goroutine** (its
-  shutdown semantics predate the runner); migrating it is tracked separately.
 - **`frontend/src/lib/api-types.ts` is generated and CI fails on drift**, so every
   backend schema change regenerates it and every concurrent branch conflicts there.
   Resolve by re-running `make gen-api` against the merged spec — never by hand-editing
   the conflict, which produces types that pass review and don't match the server.
 - **Quality profiles inform manual actions; they restrict only automation.** A manual
-  grab always succeeds in one request — the grab endpoint evaluates eligibility
+  grab always succeeds in one request. The grab endpoint evaluates eligibility
   server-side at grab time and returns `ineligible_reason` on the 201, but never
   rejects the request (no confirm flag, no 422). Enforcement belongs to the scheduler's
   automatic choices; a manual grab is explicit user intent. Don't make a manual
   path reject an ineligible grab again (decided in PR #57).
 - Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.
-- **Format is the discriminator everywhere; item count never is (#208).** Movie
-  treatment — title+year matching (#209), movie naming (#198), no episodes table
-  (#212) — keys on `domain.FormatMovie` alone, never on `len(items) == 1`. A
-  single-episode OVA/ONA/special stays series-shaped, which is also what Plex and
-  Jellyfin expect (OVAs file under Shows). The rule is enforced at the top of the
-  funnel: `highestItem` returns `1` for a movie *before* reading `episodes`, so
-  add and refresh agree by construction and a film whose three shorts ship as one
-  AniList entry cannot create three items. Downstream, `domain.KindFor(Format)` is the one
-  helper every create site writes `kind` through (catalog, refresh, airing) — and
-  since it derives from the format frozen at add time, **any future
-  `SetTitleFormat` must re-key the existing items**, exactly as `00022`'s
-  backfill does: `idx_wanted_items_identity` is `(series_id, kind, number)`, so a
-  stale `('episode', 1)` does not collide with `('movie', 1)` and the next refresh
-  silently doubles the title instead of failing.
-- **In Go and in the frontend, `series` now means the episodic format and
-  nothing else (#215).** #207 renamed the contract and this renamed the
-  identifiers behind it, so a tracked work is a `title` everywhere: `AddTitle`,
-  `titleHandler`, `requireTitle`, `titleID`, the sqlc query names, the React
-  Query key `["titles"]`. What deliberately kept the old word is the *other*
-  meaning, which Movies made true rather than false — `mediaserver.Roots.Series`
-  is the Shows root opposite Movies, `ErrNoSeriesRoot` and `seriesShape` are
-  its branch of the path code, and `library.series_layout` (#129) shapes that
-  branch alone. So
-  `series` in a name is now a claim about format, and a reviewer should read it
-  as one. Three things sit outside the rename by construction and must stay:
-  the **`series` table and its columns** (SQLite has no DROP CONSTRAINT, and a
-  `DROP TABLE series` cascade-deletes the library — so `db.Series` and a
-  real-column `SeriesID` field are correct); the settings key
-  `series_added` (`eventTitleAdded`), whose *value* a rename would turn into a
-  silently re-enabled notification; and the `series_layout` settings key and
-  API field. A SELECT alias is ours and renamed with the queries, which is why
-  `s.title AS title_name` and a schema `SeriesID` now sit in the same struct.
+
+### Periodic work and the job runner
+
+- **Periodic work goes on the job runner (`internal/core/jobs`), not a bare
+  `go`.** Register by name with an interval in `main.go`. The runner handles panic
+  containment, the "log failures only when `ctx.Err() == nil`" rule, and the
+  drained shutdown that keeps the store open until in-flight work finishes.
+- **The job runner never cancels a job.** `ctx` is the only shutdown signal, so work
+  past a point of no return can still finish.
+- **A job closure must read its dependencies from the registry/service each run, not
+  capture a snapshot**, or live config edits stop applying.
+- **The importer is deliberately still on its own goroutine** (its shutdown semantics
+  predate the runner); migrating it is tracked separately.
+
+### Format is the discriminator everywhere; item count never is (#208)
+
+- **Movie treatment keys on `domain.FormatMovie` alone, never on `len(items) == 1`.**
+  That treatment covers title+year matching (#209), movie naming (#198), and a movie
+  detail with no episodes table (#212).
+- **A single-episode OVA/ONA/special stays series-shaped.** Plex and Jellyfin expect
+  the same shape (OVAs file under Shows).
+- **The format rule is enforced at the top of the funnel, in `highestItem`.**
+  `highestItem` returns `1` for a movie *before* reading `episodes`. So add and refresh
+  agree by construction, and a film whose three shorts ship as one AniList entry cannot
+  create three items.
+- **Every create site writes `kind` through `domain.KindFor(Format)`** (catalog,
+  refresh, airing).
+- **Any future `SetTitleFormat` must re-key the existing items**, exactly as `00022`'s
+  backfill does. `domain.KindFor` derives from the format frozen at add time, and
+  `idx_wanted_items_identity` is `(series_id, kind, number)`. So a stale
+  `('episode', 1)` does not collide with `('movie', 1)`, and the next refresh silently
+  doubles the title instead of failing.
+
+### In Go and in the frontend, `series` now means the episodic format and nothing else (#215)
+
+- **A tracked work is a `title` everywhere.** The contract rename (#207) renamed the
+  REST resource, and the internals rename (#215) renamed the identifiers behind it:
+  `AddTitle`, `titleHandler`, `requireTitle`, `titleID`, the sqlc query names, the
+  React Query key `["titles"]`.
+- **`series` in a name is now a claim about format, and a reviewer should read it as
+  one.** What deliberately kept the old word is the *other* meaning, which Movies made
+  true rather than false. `mediaserver.Roots.Series` is the Shows root opposite Movies,
+  `ErrNoSeriesRoot` and `seriesShape` are its branch of the path code, and
+  `library.series_layout` (library layout options, #129) shapes that branch alone.
+- **Three things sit outside the rename by construction and must stay:**
+  - **The `series` table and its columns.** SQLite has no DROP CONSTRAINT, and a
+    `DROP TABLE series` cascade-deletes the library, so `db.Series` and a real-column
+    `SeriesID` field are correct.
+  - **The settings key `series_added`** (`eventTitleAdded`), whose *value* a rename
+    would turn into a silently re-enabled notification.
+  - **The `series_layout` settings key and API field.**
+- **A SELECT alias is ours and renamed with the queries**, so `s.title AS title_name`
+  and a schema `SeriesID` now sit in the same struct.
 
 ## Comments
 
 How to word a comment, a doc, a CHANGELOG entry or a PR body is
-[`docs/style.md`](docs/style.md) — including the 15 words this codebase uses
+[`docs/style.md`](docs/style.md). It includes the 15 words this codebase uses
 twice, which prose has to qualify and identifiers already do. This section sets
 the budget; that file covers the wording.
 
@@ -268,14 +299,16 @@ Concretely, in `internal/core/decide`:
   rather than depending on TVDB.
 - **The indexer is the scheduled search sweep's scarce resource.** A pass costs one
   search per title (two when the zero-result title-variant fallback fires), so
-  `titlesPerPass` × the job interval sets the whole search rate. Cost scales with
-  titles carrying *unfilled* items, not library size: the due query's `EXISTS`
-  drops a title as soon as nothing is wanted, so a complete library is free and a
-  satisfied one leaves the queue instead of taking a second slot. To raise
-  **back-catalog drain rate**, shorten the interval rather than widen the pass —
-  the ratio sets throughput, the width sets peak burst, and a pass issues its
-  searches back-to-back with no pacing. That is now the only thing the ratio
-  controls: the feed sets acquisition latency for a current release.
+  `titlesPerPass` × the job interval sets the whole search rate.
+- **Search cost scales with titles carrying *unfilled* items, not library size.** The
+  due query's `EXISTS` drops a title as soon as nothing is wanted. So a complete
+  library is free, and a satisfied title leaves the queue instead of taking a second
+  slot.
+- **To raise back-catalog drain rate, shorten the interval rather than widen the
+  pass.** The ratio of `titlesPerPass` to the interval sets throughput, the width sets
+  peak burst, and a pass issues its searches back-to-back with no pacing. Drain rate is
+  now the only thing the ratio controls: the feed sets acquisition latency for a
+  current release.
 - **The recent feed inverts that cost, which is why it is the hot path.** One
   request covers every title, so `feed-poll` is flat in library size while the
   search sweep is linear in due titles. That is what makes the sweep affordable as a
