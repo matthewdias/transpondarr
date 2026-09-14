@@ -190,7 +190,7 @@ func registerWantedRoutes(api huma.API, deps routeDeps) {
 func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*missingOutput, error) {
 	cursor, err := pageCursor(in.Cursor)
 	if err != nil {
-		return nil, huma.Error400BadRequest("invalid cursor")
+		return nil, huma.Error400BadRequest(staleCursorDetail)
 	}
 	if cursor == (acquire.QueueCursor{}) {
 		cursor = acquire.QueueCursorTop()
@@ -213,7 +213,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		Limit:    int64(in.Limit) + 1,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list titles with missing items", err)
+		return nil, storeError("load the Missing list", err)
 	}
 	hasMore := len(titleRows) > in.Limit
 	if hasMore {
@@ -253,7 +253,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 		AirsAt:   nowStored,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list missing items", err)
+		return nil, storeError("load the Missing list", err)
 	}
 	itemsByTitle := make(map[int64][]missingItemDTO, len(titleRows))
 	for _, r := range itemRows {
@@ -353,13 +353,13 @@ func scorePartDTOs(parts []decide.ScorePart) []scorePartDTO {
 
 func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput) (*cutoffOutput, error) {
 	if h.deps.acquire == nil {
-		return nil, huma.Error503ServiceUnavailable("the acquisition service is not available")
+		return nil, huma.Error503ServiceUnavailable("Search isn't running. Restart Transpondarr.")
 	}
 	// The zero cursor is this listing's natural top: it ascends by title, so
 	// every row is past ("", 0) already.
 	cursor, err := pageCursor(in.Cursor)
 	if err != nil {
-		return nil, huma.Error400BadRequest("invalid cursor")
+		return nil, huma.Error400BadRequest(staleCursorDetail)
 	}
 	page, err := h.deps.acquire.CutoffUnmet(ctx, acquire.CutoffUnmetParams{
 		Limit:              in.Limit,
@@ -367,7 +367,7 @@ func (h *wantedHandler) listCutoffUnmet(ctx context.Context, in *wantedPageInput
 		IncludeUnmonitored: in.Unmonitored,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list cutoff-unmet items", err)
+		return nil, storeError("load the Cutoff Unmet list", err)
 	}
 
 	out := &cutoffOutput{}
@@ -414,7 +414,7 @@ func (h *wantedHandler) queueSearch(ctx context.Context, in *queueSearchInput) (
 
 	if len(in.Body.TitleIDs) == 0 {
 		if err := h.deps.store.Q.ResetAllTitlesSearchState(ctx); err != nil {
-			return nil, huma.Error500InternalServerError("failed to reset the search queue", err)
+			return nil, storeError("queue the search", err)
 		}
 		out.Body.TitlesQueued = -1
 	} else if err := h.resetSelected(ctx, in.Body.TitleIDs); err != nil {
@@ -425,7 +425,7 @@ func (h *wantedHandler) queueSearch(ctx context.Context, in *queueSearchInput) (
 
 	if h.deps.jobs != nil {
 		if err := h.deps.jobs.Trigger(sweepJobName); err != nil && !errors.Is(err, jobs.ErrUnknownJob) {
-			return nil, huma.Error500InternalServerError("failed to trigger the search sweep", err)
+			return nil, storeError("queue the search", err)
 		} else if err == nil {
 			out.Body.RunTriggered = true
 		}
@@ -444,7 +444,7 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 
 	tx, err := h.deps.store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
+		return nil, storeError("change monitoring", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.deps.store.Q.WithTx(tx)
@@ -455,7 +455,7 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	if in.Body.Monitored {
 		titleIDs, err = qtx.ListTitleIDsForUnmonitoredItems(ctx, in.Body.ItemIDs)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to load the items", err)
+			return nil, storeError("change monitoring", err)
 		}
 	}
 	updated, err := qtx.SetWantedItemsMonitored(ctx, db.SetWantedItemsMonitoredParams{
@@ -463,15 +463,15 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 		Ids:       in.Body.ItemIDs,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
+		return nil, storeError("change monitoring", err)
 	}
 	for _, id := range titleIDs {
 		if err := qtx.ResetTitleSearchState(ctx, id); err != nil {
-			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
+			return nil, storeError("change monitoring", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, huma.Error500InternalServerError("failed to update item monitoring", err)
+		return nil, storeError("change monitoring", err)
 	}
 	// Both counts describe committed work, so neither is reported before it is.
 	out.Body.Updated = int(updated)
@@ -485,24 +485,24 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
 	found, err := h.deps.store.Q.CountTitlesByIDs(ctx, ids)
 	if err != nil {
-		return huma.Error500InternalServerError("failed to load title", err)
+		return storeError("queue the search", err)
 	}
 	if int(found) != len(ids) {
-		return huma.Error404NotFound("no such title")
+		return huma.Error404NotFound(titleGoneDetail)
 	}
 	tx, err := h.deps.store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return huma.Error500InternalServerError("failed to reset the search queue", err)
+		return storeError("queue the search", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.deps.store.Q.WithTx(tx)
 	for _, id := range ids {
 		if err := qtx.ResetTitleSearchState(ctx, id); err != nil {
-			return huma.Error500InternalServerError("failed to reset the search queue", err)
+			return storeError("queue the search", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return huma.Error500InternalServerError("failed to reset the search queue", err)
+		return storeError("queue the search", err)
 	}
 	return nil
 }
@@ -514,7 +514,7 @@ func (h *wantedHandler) blockedCounts(ctx context.Context, ids []int64, now sql.
 		TitleIds: ids, BlockedUntil: now,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load blocklist counts", err)
+		return nil, storeError("load the Missing list", err)
 	}
 	counts := make(map[int64]int64, len(rows))
 	for _, r := range rows {

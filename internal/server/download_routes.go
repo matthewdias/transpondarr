@@ -24,11 +24,10 @@ func registerDownloadRoutes(api huma.API, deps routeDeps) {
 	}, func(ctx context.Context, _ *struct{}) (*testDownloadOutput, error) {
 		dl := deps.clients.Download()
 		if dl == nil {
-			return nil, huma.Error503ServiceUnavailable(
-				"no download client configured (set it in Settings, or TRANSPONDARR_QBIT_URL/_USER/_PASSWORD)")
+			return nil, huma.Error503ServiceUnavailable(noDownloadClientDetail)
 		}
 		if err := dl.Test(ctx); err != nil {
-			return nil, huma.Error502BadGateway("download client test failed", err)
+			return nil, huma.Error502BadGateway("Couldn't connect to the download client. Check Settings > Download client.", err)
 		}
 		out := &testDownloadOutput{}
 		out.Body.Status = "ok"

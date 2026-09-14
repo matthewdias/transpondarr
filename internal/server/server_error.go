@@ -48,3 +48,18 @@ func writeServerError(w http.ResponseWriter, req *http.Request, logger *slog.Log
 		"status", http.StatusInternalServerError, "detail", detail, "causes", []string{err.Error()})
 	writeProblem(w, http.StatusInternalServerError, detail)
 }
+
+// storeError is the 500 for a failed store read or write, whose cause only the log keeps.
+func storeError(action string, errs ...error) huma.StatusError {
+	return huma.Error500InternalServerError("Couldn't "+action+". The server log has the cause.", errs...)
+}
+
+// Details more than one route returns.
+const (
+	staleCursorDetail      = "This results page is out of date. Reload the page."
+	titleGoneDetail        = "This title is no longer in your library."
+	profileGoneDetail      = "That quality profile no longer exists. Choose another."
+	profileNameTakenDetail = "A quality profile with that name already exists. Choose another name."
+	noIndexerDetail        = "No indexer is set up. Add one in Settings > Indexer."
+	noDownloadClientDetail = "No download client is set up. Add one in Settings > Download client."
+)

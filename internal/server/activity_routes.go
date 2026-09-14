@@ -209,7 +209,7 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 	}, func(ctx context.Context, _ *struct{}) (*activityQueueOutput, error) {
 		rows, err := deps.store.Q.ListOpenGrabs(ctx)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to list open grabs", err)
+			return nil, storeError("load the queue", err)
 		}
 
 		// Client trouble degrades to grab state, never a 5xx: the queue's job is
@@ -301,18 +301,18 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 			var err error
 			rows, err = deps.store.Q.ListGrabEventsPage(ctx, int64(limit)+1)
 			if err != nil {
-				return nil, huma.Error500InternalServerError("failed to list history", err)
+				return nil, storeError("load the history", err)
 			}
 		} else {
 			at, id, err := decodeKeysetCursor(in.Cursor)
 			if err != nil {
-				return nil, huma.Error400BadRequest("invalid cursor")
+				return nil, huma.Error400BadRequest(staleCursorDetail)
 			}
 			before, err := deps.store.Q.ListGrabEventsPageBefore(ctx, db.ListGrabEventsPageBeforeParams{
 				CreatedAt: at, CreatedAt_2: at, ID: id, Limit: int64(limit) + 1,
 			})
 			if err != nil {
-				return nil, huma.Error500InternalServerError("failed to list history", err)
+				return nil, storeError("load the history", err)
 			}
 			rows = make([]db.ListGrabEventsPageRow, len(before))
 			for i, r := range before {
@@ -424,7 +424,7 @@ func (h *activityHandler) listUnmatched(ctx context.Context, _ *struct{}) (*acti
 	}
 	referenced, err := h.referencedHashes(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list grab hashes", err)
+		return nil, storeError("load the unmatched downloads", err)
 	}
 	for _, s := range pickUnmatched(statuses, referenced, category) {
 		item := unmatchedItemDTO{
@@ -448,7 +448,7 @@ func (h *activityHandler) listUnmatched(ctx context.Context, _ *struct{}) (*acti
 func (h *activityHandler) removeUnmatched(ctx context.Context, in *removeUnmatchedInput) (*struct{}, error) {
 	category := h.downloadCategory()
 	if category == "" {
-		return nil, huma.Error503ServiceUnavailable("no download category is configured, so Transpondarr's own downloads cannot be told apart")
+		return nil, huma.Error503ServiceUnavailable("Set a category in Settings > Download client, so Transpondarr can tell its own downloads apart.")
 	}
 	dl := h.deps.clients.Download()
 	if dl == nil {
@@ -456,11 +456,11 @@ func (h *activityHandler) removeUnmatched(ctx context.Context, in *removeUnmatch
 	}
 	statuses, err := download.StatusInCategory(ctx, dl, category)
 	if err != nil {
-		return nil, huma.Error502BadGateway("failed to read the download client", err)
+		return nil, huma.Error502BadGateway("Couldn't reach the download client. Check Settings > Download client.", err)
 	}
 	referenced, err := h.referencedHashes(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list grab hashes", err)
+		return nil, storeError("remove the download", err)
 	}
 
 	hash := strings.ToLower(in.Hash)
@@ -472,13 +472,13 @@ func (h *activityHandler) removeUnmatched(ctx context.Context, in *removeUnmatch
 		}
 	}
 	if !ours {
-		return nil, huma.Error404NotFound("no download in Transpondarr's category has that hash")
+		return nil, huma.Error404NotFound("That download is no longer in the download client. Refresh the list.")
 	}
 	if referenced[hash] {
-		return nil, huma.Error409Conflict("that download is referenced by a grab again; refresh the queue")
+		return nil, huma.Error409Conflict("A grab uses that download now, so it wasn't removed. Refresh the list.")
 	}
 	if err := dl.Remove(ctx, []string{hash}, in.DeleteData); err != nil {
-		return nil, huma.Error502BadGateway("failed to remove the download from the client", err)
+		return nil, huma.Error502BadGateway("Couldn't remove the download from the download client.", err)
 	}
 	return nil, nil
 }
@@ -486,7 +486,7 @@ func (h *activityHandler) removeUnmatched(ctx context.Context, in *removeUnmatch
 // getPayload lists a deferred grab's payload for the import-fix dialog.
 func (h *activityHandler) getPayload(ctx context.Context, in *queuePayloadInput) (*queuePayloadOutput, error) {
 	if h.deps.importer == nil {
-		return nil, huma.Error503ServiceUnavailable("the importer is not available")
+		return nil, huma.Error503ServiceUnavailable("The importer isn't running. Restart Transpondarr.")
 	}
 	info, err := h.deps.importer.ListPayload(ctx, in.ID)
 	if err != nil {
@@ -526,12 +526,12 @@ func (h *activityHandler) getPayload(ctx context.Context, in *queuePayloadInput)
 // reopens: the scan never re-walks bytes it already settled.
 func (h *activityHandler) retryImport(ctx context.Context, in *retryImportInput) (*retryImportOutput, error) {
 	if h.deps.importer == nil {
-		return nil, huma.Error503ServiceUnavailable("the importer is not available")
+		return nil, huma.Error503ServiceUnavailable("The importer isn't running. Restart Transpondarr.")
 	}
 	assignments := make(map[string]int, len(in.Body.Assignments))
 	for _, a := range in.Body.Assignments {
 		if _, dup := assignments[a.File]; dup {
-			return nil, huma.Error422UnprocessableEntity("file " + a.File + " was assigned twice")
+			return nil, huma.Error422UnprocessableEntity("The file " + a.File + " is assigned twice. Assign it once.")
 		}
 		assignments[a.File] = a.ItemNumber
 	}
@@ -556,15 +556,15 @@ func (h *activityHandler) retryImport(ctx context.Context, in *retryImportInput)
 func importerError(err error) error {
 	switch {
 	case errors.Is(err, importer.ErrGrabNotFound):
-		return huma.Error404NotFound("no such grab")
+		return huma.Error404NotFound("That grab no longer exists. Refresh the queue.")
 	case errors.Is(err, importer.ErrNotDeferred):
-		return huma.Error409Conflict("this grab is not awaiting an import fix")
+		return huma.Error409Conflict("This download no longer needs an import fix. Refresh the queue.")
 	case errors.Is(err, importer.ErrPayloadGone):
-		return huma.Error409Conflict("the payload is no longer available: " + err.Error())
+		return huma.Error409Conflict("The downloaded files are no longer available, so grab the release again: " + err.Error())
 	case errors.Is(err, importer.ErrNoClient):
-		return huma.Error503ServiceUnavailable("no download client or library is configured")
+		return huma.Error503ServiceUnavailable("Set up a download client and a library in Settings to import.")
 	case errors.Is(err, importer.ErrBadAssignment):
 		return huma.Error422UnprocessableEntity(err.Error())
 	}
-	return huma.Error500InternalServerError("import retry failed", err)
+	return storeError("retry the import", err)
 }

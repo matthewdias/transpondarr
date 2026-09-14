@@ -173,10 +173,10 @@ func (h *titleHandler) grabRelease(ctx context.Context, in *grabTitleInput) (*gr
 		}
 	}
 	if chosen == nil {
-		return nil, huma.Error404NotFound("release not found in current search results")
+		return nil, huma.Error404NotFound("That release is no longer in the search results. Search again.")
 	}
 	if !chosen.Matched || len(chosen.Items) == 0 {
-		return nil, huma.Error422UnprocessableEntity("release does not match any wanted item: " + chosen.Reason)
+		return nil, huma.Error422UnprocessableEntity("That release doesn't cover anything this title still wants: " + chosen.Reason)
 	}
 
 	// Eligibility is reported, never enforced, on a manual grab (PR #57).

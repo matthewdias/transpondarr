@@ -223,10 +223,10 @@ func newTitleHandler(deps routeDeps) *titleHandler {
 func (h *titleHandler) requireTitle(ctx context.Context, id int64) (db.Series, error) {
 	title, err := h.store.Q.GetTitle(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return db.Series{}, huma.Error404NotFound("title not found")
+		return db.Series{}, huma.Error404NotFound(titleGoneDetail)
 	}
 	if err != nil {
-		return db.Series{}, huma.Error500InternalServerError("failed to load title", err)
+		return db.Series{}, storeError("load the title", err)
 	}
 	return title, nil
 }
@@ -312,14 +312,14 @@ func (h *titleHandler) listTitles(ctx context.Context, _ *struct{}) (*listTitles
 		AirsAt: now, AirsAt_2: now,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list titles", err)
+		return nil, storeError("load the titles", err)
 	}
 	// A second pass rather than a wider aggregate: the acquisition state reads the item's
 	// grab, which no GROUP BY can express, and deriving it once here keeps the
 	// counts query -- and so a series' progress column -- unchanged.
 	movieRows, err := h.store.Q.ListMovieItemStates(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load movie item state", err)
+		return nil, storeError("load the titles", err)
 	}
 	stateByTitle := make(map[int64]itemState, len(movieRows))
 	for _, r := range movieRows {
@@ -371,19 +371,19 @@ func (h *titleHandler) addTitle(ctx context.Context, in *addTitleInput) (*addTit
 
 	title, err := h.catalog.AddTitle(ctx, in.Body.Provider, in.Body.ProviderID, monitored, mode, in.Body.QualityProfileID)
 	if errors.Is(err, catalog.ErrAlreadyExists) {
-		return nil, huma.Error409Conflict("title already exists")
+		return nil, huma.Error409Conflict("This title is already in your library.")
 	}
 	if errors.Is(err, catalog.ErrUnknownProfile) {
-		return nil, huma.Error422UnprocessableEntity("profile does not exist")
+		return nil, huma.Error422UnprocessableEntity(profileGoneDetail)
 	}
 	// Unreachable while the request enum lists exactly the configured provider --
 	// huma rejects anything else at validation with a 422. It fires once the enum
 	// widens past what is wired up.
 	if errors.Is(err, catalog.ErrUnknownProvider) {
-		return nil, huma.Error400BadRequest("unknown metadata provider", err)
+		return nil, huma.Error400BadRequest("Titles can't be added from that metadata provider.", err)
 	}
 	if err != nil {
-		return nil, huma.Error502BadGateway("failed to add title", err)
+		return nil, huma.Error502BadGateway("Couldn't add the title.", err)
 	}
 	// Dispatch is async, so this adds no request latency.
 	if d := h.clients.Notify(); d != nil {
@@ -420,13 +420,13 @@ func (h *titleHandler) getTitle(ctx context.Context, in *getTitleInput) (*getTit
 
 	rows, err := h.store.Q.ListWantedItems(ctx, title.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load wanted items", err)
+		return nil, storeError("load the title", err)
 	}
 
 	// Index active grabs by wanted item so each row can report downloading state.
 	grabRows, err := h.store.Q.ListGrabsByTitle(ctx, title.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load grabs", err)
+		return nil, storeError("load the title", err)
 	}
 	grabByItem := make(map[int64]db.Grab, len(grabRows))
 	for _, g := range grabRows {
@@ -497,7 +497,7 @@ func (h *titleHandler) deleteTitle(ctx context.Context, in *deleteTitleInput) (*
 	if in.RemoveDownloads {
 		grabs, err := h.store.Q.ListGrabsByTitle(ctx, in.ID)
 		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to load grabs", err)
+			return nil, storeError("delete the title", err)
 		}
 		// Every status but failed still has a client entry: imported torrents seed
 		// and deferred payloads remain in the client; failed means errored or gone.
@@ -517,16 +517,16 @@ func (h *titleHandler) deleteTitle(ctx context.Context, in *deleteTitleInput) (*
 				return nil, acquireHTTPError(acquire.ErrNoDownloadClient)
 			}
 			if err := dl.Remove(ctx, hashes, true); err != nil {
-				return nil, huma.Error502BadGateway("failed to remove downloads from the client", err)
+				return nil, huma.Error502BadGateway("Couldn't remove the title's downloads from the download client, so the title wasn't deleted.", err)
 			}
 		}
 	}
 	rows, err := h.store.Q.DeleteTitle(ctx, in.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to delete title", err)
+		return nil, storeError("delete the title", err)
 	}
 	if rows == 0 {
-		return nil, huma.Error404NotFound("title not found")
+		return nil, huma.Error404NotFound(titleGoneDetail)
 	}
 	return nil, nil
 }
@@ -539,13 +539,13 @@ func (h *titleHandler) setMonitored(ctx context.Context, in *setMonitoredInput) 
 		Monitored: boolToInt(in.Body.Monitored),
 		ID:        in.ID,
 	}); err != nil {
-		return nil, huma.Error500InternalServerError("failed to update title", err)
+		return nil, storeError("change monitoring", err)
 	}
 	// Monitoring a title again means searching it now, not once a backoff
 	// accumulated before it was paused has run down.
 	if in.Body.Monitored {
 		if err := h.store.Q.ResetTitleSearchState(ctx, in.ID); err != nil {
-			return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
+			return nil, storeError("change monitoring", err)
 		}
 	}
 	out := &setMonitoredOutput{}
@@ -561,11 +561,11 @@ func (h *titleHandler) setItemCount(ctx context.Context, in *setItemCountInput) 
 	created, err := h.catalog.SetItemCount(ctx, in.ID, in.Body.Count)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		return nil, huma.Error404NotFound("title not found")
+		return nil, huma.Error404NotFound(titleGoneDetail)
 	case errors.Is(err, catalog.ErrTitleHasItems):
-		return nil, huma.Error409Conflict("title already has items")
+		return nil, huma.Error409Conflict("This title already has episodes.")
 	case err != nil:
-		return nil, huma.Error500InternalServerError("failed to create the title's items", err)
+		return nil, storeError("create the episodes", err)
 	}
 	out := &setItemCountOutput{}
 	out.Body.Created = int(created)
@@ -586,16 +586,16 @@ func (h *titleHandler) setPinnedGroup(ctx context.Context, in *setPinnedGroupInp
 		ID:            in.ID,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to update title", err)
+		return nil, storeError("pin the release group", err)
 	}
 	if rows == 0 {
-		return nil, huma.Error404NotFound("title not found")
+		return nil, huma.Error404NotFound(titleGoneDetail)
 	}
 	// A pin-held title's next_search_at was computed from the pin that just changed,
 	// so without this a shortened wait or a new pinned group does nothing until the old
 	// window closes.
 	if err := h.store.Q.ResetTitleSearchState(ctx, in.ID); err != nil {
-		return nil, huma.Error500InternalServerError("failed to reset the search cadence", err)
+		return nil, storeError("pin the release group", err)
 	}
 	out := &setPinnedGroupOutput{}
 	out.Body.TitleID = in.ID
@@ -611,7 +611,7 @@ func (h *titleHandler) listGrabs(ctx context.Context, in *titleGrabsInput) (*tit
 
 	events, err := h.store.Q.ListTitleGrabEvents(ctx, title.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load grab history", err)
+		return nil, storeError("load the grab history", err)
 	}
 
 	out := &titleGrabsOutput{}

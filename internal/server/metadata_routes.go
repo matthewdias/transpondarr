@@ -45,7 +45,7 @@ func registerMetadataRoutes(api huma.API, deps routeDeps) {
 	}, func(ctx context.Context, in *searchMetadataInput) (*searchMetadataOutput, error) {
 		cands, err := svc.Search(ctx, in.Term)
 		if err != nil {
-			return nil, huma.Error502BadGateway("metadata search failed", err)
+			return nil, huma.Error502BadGateway("Couldn't search AniList. Try again in a few minutes.", err)
 		}
 		provider := svc.ProviderName()
 		out := &searchMetadataOutput{}
