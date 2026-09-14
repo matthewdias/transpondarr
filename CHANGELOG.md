@@ -39,6 +39,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- **Error messages say what couldn't be done and what to try next.** A failed
+  save, grab or load now reads "Couldn't save the quality profile" with the
+  reason beneath it instead of "Save failed", and every failed load offers
+  **Try again**. Discord and ntfy now title a stuck import **Import blocked**,
+  as the app does, and title a notify-only report **Notify only** instead of
+  "Rehearsal". A script matching on those notification titles needs updating.
 - **The add dialog now says which episodes it will monitor**, in both choices and
   before you pick one — *All 12 episodes will be monitored*, or *6 of 12
   episodes will be monitored, from episode 7*. When a choice would monitor
