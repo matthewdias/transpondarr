@@ -434,7 +434,7 @@ func (h *settingsHandler) updateDownload(ctx context.Context, in *downloadInput)
 		Category:   in.Body.Category,
 		StallHours: in.Body.StallHours,
 	}); err != nil {
-		return nil, settingsError(err, huma.Error500InternalServerError, "failed to save download settings")
+		return nil, settingsError(err, storeError, "save the download client settings")
 	}
 	return h.respond(), nil
 }
@@ -454,7 +454,7 @@ func (h *settingsHandler) testDownload(ctx context.Context, in *downloadInput) (
 		User:     in.Body.User,
 		Password: in.Body.Password,
 	}); err != nil {
-		return nil, settingsError(err, huma.Error502BadGateway, "download client test failed")
+		return nil, settingsError(err, huma.Error502BadGateway, "Couldn't connect to qBittorrent. Check the URL, username and password.")
 	}
 	out := &testOutput{}
 	out.Body.Status = "ok"
@@ -471,7 +471,7 @@ func (h *settingsHandler) updateIndexer(ctx context.Context, in *indexerInput) (
 		APIKey:     in.Body.APIKey,
 		Categories: in.Body.Categories,
 	}); err != nil {
-		return nil, settingsError(err, huma.Error500InternalServerError, "failed to save indexer settings")
+		return nil, settingsError(err, storeError, "save the indexer settings")
 	}
 	return h.respond(), nil
 }
@@ -486,7 +486,7 @@ func (h *settingsHandler) testIndexer(ctx context.Context, in *indexerInput) (*t
 		APIKey:     in.Body.APIKey,
 		Categories: in.Body.Categories,
 	}); err != nil {
-		return nil, settingsError(err, huma.Error502BadGateway, "indexer test failed")
+		return nil, settingsError(err, huma.Error502BadGateway, "Couldn't reach the indexer. Check the Torznab URL and API key.")
 	}
 	out := &testOutput{}
 	out.Body.Status = "ok"
@@ -497,10 +497,10 @@ func (h *settingsHandler) testIndexer(ctx context.Context, in *indexerInput) (*t
 // unrecognized value, so neither is reachable through Huma.
 func (h *settingsHandler) updateLibrary(ctx context.Context, in *libraryInput) (*settingsOutput, error) {
 	if !settings.ValidImportMode(in.Body.Mode) {
-		return nil, huma.Error422UnprocessableEntity("invalid import mode (want auto, hardlink or copy)")
+		return nil, huma.Error422UnprocessableEntity(`The import mode must be "auto", "hardlink" or "copy".`)
 	}
 	if !settings.ValidSeriesLayout(in.Body.SeriesLayout) {
-		return nil, huma.Error422UnprocessableEntity("invalid series layout (want season_folders or flat)")
+		return nil, huma.Error422UnprocessableEntity(`The series layout must be "season_folders" or "flat".`)
 	}
 	if err := h.settings.UpdateLibrary(ctx, settings.LibraryConfig{
 		Dir:          in.Body.Dir,
@@ -508,7 +508,7 @@ func (h *settingsHandler) updateLibrary(ctx context.Context, in *libraryInput) (
 		SeriesLayout: in.Body.SeriesLayout,
 		Mode:         in.Body.Mode,
 	}); err != nil {
-		return nil, huma.Error500InternalServerError("failed to save library settings", err)
+		return nil, storeError("save the library settings", err)
 	}
 	return h.respond(), nil
 }
@@ -518,7 +518,7 @@ func (h *settingsHandler) updateAutomation(ctx context.Context, in *automationIn
 		Mode:          settings.AutomationMode(in.Body.Mode),
 		PinDelayHours: in.Body.PinDelayHours,
 	}); err != nil {
-		return nil, huma.Error500InternalServerError("failed to save automation settings", err)
+		return nil, storeError("save the automation settings", err)
 	}
 	return h.respond(), nil
 }
@@ -555,35 +555,35 @@ func notifyConfigFrom(in *notificationsInput) settings.NotifyConfig {
 
 func (h *settingsHandler) updateNotifications(ctx context.Context, in *notificationsInput) (*settingsOutput, error) {
 	if err := h.settings.UpdateNotify(ctx, notifyConfigFrom(in)); err != nil {
-		return nil, settingsError(err, huma.Error500InternalServerError, "failed to save notification settings")
+		return nil, settingsError(err, storeError, "save the notification settings")
 	}
 	return h.respond(), nil
 }
 
 func (h *settingsHandler) testNotifyDiscord(ctx context.Context, in *notificationsInput) (*testOutput, error) {
 	if strings.TrimSpace(in.Body.Discord.URL) == "" {
-		return nil, huma.Error422UnprocessableEntity("a Discord webhook URL is required")
+		return nil, huma.Error422UnprocessableEntity("Enter a Discord webhook URL to send a test.")
 	}
 	return notifyTestResult(h.settings.TestNotifyDiscord(ctx, notifyConfigFrom(in)))
 }
 
 func (h *settingsHandler) testNotifyWebhook(ctx context.Context, in *notificationsInput) (*testOutput, error) {
 	if strings.TrimSpace(in.Body.Webhook.URL) == "" {
-		return nil, huma.Error422UnprocessableEntity("a webhook URL is required")
+		return nil, huma.Error422UnprocessableEntity("Enter a webhook URL to send a test.")
 	}
 	return notifyTestResult(h.settings.TestNotifyWebhook(ctx, notifyConfigFrom(in)))
 }
 
 func (h *settingsHandler) testNotifyNtfy(ctx context.Context, in *notificationsInput) (*testOutput, error) {
 	if strings.TrimSpace(in.Body.Ntfy.Topic) == "" {
-		return nil, huma.Error422UnprocessableEntity("an ntfy topic is required")
+		return nil, huma.Error422UnprocessableEntity("Enter an ntfy topic to send a test.")
 	}
 	return notifyTestResult(h.settings.TestNotifyNtfy(ctx, notifyConfigFrom(in)))
 }
 
 func notifyTestResult(err error) (*testOutput, error) {
 	if err != nil {
-		return nil, settingsError(err, huma.Error502BadGateway, "notification test failed")
+		return nil, settingsError(err, huma.Error502BadGateway, "Couldn't send the test notification.")
 	}
 	out := &testOutput{}
 	out.Body.Status = "ok"
@@ -593,7 +593,7 @@ func notifyTestResult(err error) (*testOutput, error) {
 func (h *settingsHandler) regenerateAPIKey(ctx context.Context, _ *struct{}) (*apiKeyOutput, error) {
 	key, err := h.settings.RegenerateAPIKey(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to regenerate api key", err)
+		return nil, storeError("regenerate the API key", err)
 	}
 	out := &apiKeyOutput{}
 	out.Body.APIKey = key
@@ -606,7 +606,7 @@ func (h *settingsHandler) testLibrary(ctx context.Context, in *libraryInput) (*t
 		MoviesDir: in.Body.MoviesDir,
 		Mode:      in.Body.Mode,
 	}); err != nil {
-		return nil, huma.Error422UnprocessableEntity("library check failed: " + err.Error())
+		return nil, huma.Error422UnprocessableEntity("Transpondarr can't use that directory: " + err.Error())
 	}
 	out := &testOutput{}
 	out.Body.Status = "ok"

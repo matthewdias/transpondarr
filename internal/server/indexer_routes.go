@@ -38,12 +38,11 @@ func registerIndexerRoutes(api huma.API, deps routeDeps) {
 	}, func(ctx context.Context, in *searchIndexerInput) (*searchIndexerOutput, error) {
 		idx := deps.clients.Indexer()
 		if idx == nil {
-			return nil, huma.Error503ServiceUnavailable(
-				"no indexer configured (set it in Settings, or TRANSPONDARR_TORZNAB_URL/_APIKEY)")
+			return nil, huma.Error503ServiceUnavailable(noIndexerDetail)
 		}
 		releases, err := idx.Search(ctx, indexer.Query{Term: in.Term})
 		if err != nil {
-			return nil, huma.Error502BadGateway("indexer search failed", err)
+			return nil, huma.Error502BadGateway("Couldn't search the indexer. Check Settings > Indexer.", err)
 		}
 		out := &searchIndexerOutput{}
 		out.Body.Results = make([]releaseDTO, 0, len(releases))

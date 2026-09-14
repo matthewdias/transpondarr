@@ -64,7 +64,7 @@ func registerBrowseRoutes(api huma.API, deps routeDeps) {
 
 		entries, err := deps.browse.Chart(ctx, season, year)
 		if err != nil {
-			return nil, huma.Error502BadGateway("seasonal browse failed", err)
+			return nil, huma.Error502BadGateway("Couldn't load the season chart from AniList. Try again in a few minutes.", err)
 		}
 
 		provider := deps.browse.ProviderName()

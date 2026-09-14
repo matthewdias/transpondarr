@@ -14,18 +14,16 @@ import (
 func acquireHTTPError(err error) error {
 	switch {
 	case errors.Is(err, acquire.ErrNoIndexer):
-		return huma.Error503ServiceUnavailable(
-			"no indexer configured (set TRANSPONDARR_TORZNAB_URL, _APIKEY)")
+		return huma.Error503ServiceUnavailable(noIndexerDetail)
 	case errors.Is(err, acquire.ErrNoDownloadClient):
-		return huma.Error503ServiceUnavailable(
-			"no download client configured (set it in Settings, or TRANSPONDARR_QBIT_URL/_USER/_PASSWORD)")
+		return huma.Error503ServiceUnavailable(noDownloadClientDetail)
 	case errors.Is(err, acquire.ErrTitleNotFound):
-		return huma.Error404NotFound("title not found")
+		return huma.Error404NotFound(titleGoneDetail)
 	case errors.Is(err, acquire.ErrIndexerSearch):
-		return huma.Error502BadGateway("indexer search failed", err)
+		return huma.Error502BadGateway("Couldn't search the indexer. Check Settings > Indexer.", err)
 	case errors.Is(err, acquire.ErrDownloadAdd):
-		return huma.Error502BadGateway("download client add failed", err)
+		return huma.Error502BadGateway("The download client didn't accept the release.", err)
 	default:
-		return huma.Error500InternalServerError("acquisition failed", err)
+		return storeError("finish the search or grab", err)
 	}
 }

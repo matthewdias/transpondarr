@@ -53,7 +53,7 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 		Tags:        []string{"calendar"},
 	}, func(ctx context.Context, in *calendarInput) (*calendarOutput, error) {
 		if !in.End.After(in.Start) {
-			return nil, huma.Error422UnprocessableEntity("end must be after start")
+			return nil, huma.Error422UnprocessableEntity("The end date must be after the start date.")
 		}
 
 		rows, err := deps.store.Q.ListCalendarItems(ctx, db.ListCalendarItemsParams{
@@ -61,7 +61,7 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 			AirsAt_2: sql.NullString{String: store.FormatTimestamp(in.End), Valid: true},
 		})
 		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to load calendar items", err)
+			return nil, storeError("load the calendar", err)
 		}
 
 		out := &calendarOutput{}
@@ -92,7 +92,7 @@ func registerCalendarRoutes(api huma.API, deps routeDeps) {
 
 		unscheduled, err := deps.store.Q.ListUnscheduledTitles(ctx, boolParam(in.Unmonitored))
 		if err != nil {
-			return nil, huma.Error500InternalServerError("failed to load unscheduled titles", err)
+			return nil, storeError("load the calendar", err)
 		}
 		out.Body.Unscheduled = make([]unscheduledTitleDTO, 0, len(unscheduled))
 		for _, s := range unscheduled {

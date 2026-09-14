@@ -160,27 +160,27 @@ var (
 // cannot fill"). hard_excludes and resolution_order stay unchecked, settled by
 // #94 (wontfix): the UI must round-trip stored tokens it does not offer, and
 // the resolution axis is open.
-func validate(b profileBody) error {
+func validate(b profileBody) huma.StatusError {
 	if strings.TrimSpace(b.Name) == "" {
-		return errors.New("name must not be blank")
+		return huma.Error422UnprocessableEntity("Give the profile a name.")
 	}
 	if !slices.Contains(sourceVocab, b.PreferredSource) {
-		return fmt.Errorf("preferred_source %q is not one of web, bd, tv, dvd", b.PreferredSource)
+		return huma.Error422UnprocessableEntity(fmt.Sprintf("The preferred source %q must be web, bd, tv or dvd.", b.PreferredSource))
 	}
 	if !slices.Contains(subVocab, b.SubPref) {
-		return fmt.Errorf("sub_pref %q is not softsub or hardsub", b.SubPref)
+		return huma.Error422UnprocessableEntity(fmt.Sprintf("The subtitle preference %q must be softsub or hardsub.", b.SubPref))
 	}
 	if !slices.Contains(codecVocab, b.CodecPref) {
-		return fmt.Errorf("codec_pref %q is not one of h264, h265, av1", b.CodecPref)
+		return huma.Error422UnprocessableEntity(fmt.Sprintf("The preferred codec %q must be h264, h265 or av1.", b.CodecPref))
 	}
 	seen := map[string]bool{}
 	for _, g := range b.Groups {
 		name := strings.ToLower(strings.TrimSpace(g.Name))
 		if name == "" {
-			return errors.New("release group names must be non-empty")
+			return huma.Error422UnprocessableEntity("A release group name can't be blank.")
 		}
 		if seen[name] {
-			return fmt.Errorf("release group %q appears more than once", g.Name)
+			return huma.Error422UnprocessableEntity(fmt.Sprintf("The release group %q is listed twice. Remove one.", g.Name))
 		}
 		seen[name] = true
 	}
@@ -270,9 +270,9 @@ func requireNameFree(ctx context.Context, q *db.Queries, name string) error {
 		return nil
 	}
 	if err != nil {
-		return huma.Error500InternalServerError("failed to check profile name", err)
+		return storeError("save the quality profile", err)
 	}
-	return huma.Error409Conflict("a profile with that name already exists")
+	return huma.Error409Conflict(profileNameTakenDetail)
 }
 
 // Neither the create nor the update statement writes is_default, so name is the
@@ -284,15 +284,15 @@ func isUniqueNameErr(err error) bool { return store.IsUniqueViolation(err) }
 func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesOutput, error) {
 	rows, err := h.store.Q.ListQualityProfiles(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list profiles", err)
+		return nil, storeError("load the quality profiles", err)
 	}
 	groupRows, err := h.store.Q.ListAllProfileGroups(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to list profile groups", err)
+		return nil, storeError("load the quality profiles", err)
 	}
 	countRows, err := h.store.Q.CountTitlesPerProfile(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to count titles", err)
+		return nil, storeError("load the quality profiles", err)
 	}
 
 	// The query orders by profile before rank, so appending in scan order leaves
@@ -311,7 +311,7 @@ func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesO
 	for _, p := range rows {
 		dto, derr := profileDTO(p, groups[p.ID], counts[p.ID])
 		if derr != nil {
-			return nil, huma.Error500InternalServerError("failed to load profile", derr)
+			return nil, storeError("load the quality profiles", derr)
 		}
 		out.Body.Profiles = append(out.Body.Profiles, dto)
 	}
@@ -320,11 +320,11 @@ func (h *profilesHandler) list(ctx context.Context, _ *struct{}) (*listProfilesO
 
 func (h *profilesHandler) create(ctx context.Context, in *createProfileInput) (*profileOutput, error) {
 	if err := validate(in.Body); err != nil {
-		return nil, huma.Error422UnprocessableEntity(err.Error())
+		return nil, err
 	}
 	tx, err := h.store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to begin transaction", err)
+		return nil, storeError("save the quality profile", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.store.Q.WithTx(tx)
@@ -349,32 +349,32 @@ func (h *profilesHandler) create(ctx context.Context, in *createProfileInput) (*
 		UpgradeV2AboveCutoff: boolInt(in.Body.UpgradeV2AboveCutoff),
 	})
 	if isUniqueNameErr(err) {
-		return nil, huma.Error409Conflict("a profile with that name already exists")
+		return nil, huma.Error409Conflict(profileNameTakenDetail)
 	}
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to create profile", err)
+		return nil, storeError("save the quality profile", err)
 	}
 	if err := writeGroups(ctx, qtx, row.ID, in.Body.Groups); err != nil {
-		return nil, huma.Error500InternalServerError("failed to write groups", err)
+		return nil, storeError("save the quality profile", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, huma.Error500InternalServerError("failed to commit", err)
+		return nil, storeError("save the quality profile", err)
 	}
 
 	dto, err := h.loadDTO(ctx, row)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load profile", err)
+		return nil, storeError("save the quality profile", err)
 	}
 	return &profileOutput{Body: dto}, nil
 }
 
 func (h *profilesHandler) update(ctx context.Context, in *updateProfileInput) (*profileOutput, error) {
 	if err := validate(in.Body); err != nil {
-		return nil, huma.Error422UnprocessableEntity(err.Error())
+		return nil, err
 	}
 	tx, err := h.store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to begin transaction", err)
+		return nil, storeError("save the quality profile", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.store.Q.WithTx(tx)
@@ -382,9 +382,9 @@ func (h *profilesHandler) update(ctx context.Context, in *updateProfileInput) (*
 	// An unknown id is a 404, not a name clash, so existence is checked first.
 	current, gerr := qtx.GetQualityProfile(ctx, in.ID)
 	if errors.Is(gerr, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("profile not found")
+		return nil, huma.Error404NotFound("That quality profile no longer exists.")
 	} else if gerr != nil {
-		return nil, huma.Error500InternalServerError("failed to load profile", gerr)
+		return nil, storeError("save the quality profile", gerr)
 	}
 	// Only an actual rename is checked: an install predating this rule can contain
 	// Anime and anime, and the second row's own lookup returns the first.
@@ -412,24 +412,24 @@ func (h *profilesHandler) update(ctx context.Context, in *updateProfileInput) (*
 		ID: in.ID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("profile not found")
+		return nil, huma.Error404NotFound("That quality profile no longer exists.")
 	}
 	if isUniqueNameErr(err) {
-		return nil, huma.Error409Conflict("a profile with that name already exists")
+		return nil, huma.Error409Conflict(profileNameTakenDetail)
 	}
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to update profile", err)
+		return nil, storeError("save the quality profile", err)
 	}
 	if err := writeGroups(ctx, qtx, row.ID, in.Body.Groups); err != nil {
-		return nil, huma.Error500InternalServerError("failed to write groups", err)
+		return nil, storeError("save the quality profile", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, huma.Error500InternalServerError("failed to commit", err)
+		return nil, storeError("save the quality profile", err)
 	}
 
 	dto, err := h.loadDTO(ctx, row)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load profile", err)
+		return nil, storeError("save the quality profile", err)
 	}
 	return &profileOutput{Body: dto}, nil
 }
@@ -437,18 +437,18 @@ func (h *profilesHandler) update(ctx context.Context, in *updateProfileInput) (*
 func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*struct{}, error) {
 	prof, err := h.store.Q.GetQualityProfile(ctx, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("profile not found")
+		return nil, huma.Error404NotFound("That quality profile no longer exists.")
 	}
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load profile", err)
+		return nil, storeError("delete the quality profile", err)
 	}
 	if prof.IsDefault == 1 {
-		return nil, huma.Error422UnprocessableEntity("the default profile cannot be deleted")
+		return nil, huma.Error422UnprocessableEntity("The default quality profile can't be deleted.")
 	}
 
 	count, err := h.store.Q.CountTitlesByProfile(ctx, in.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to count titles", err)
+		return nil, storeError("delete the quality profile", err)
 	}
 	if count > 0 && in.ReassignTo == 0 {
 		noun := "titles"
@@ -456,49 +456,49 @@ func (h *profilesHandler) delete(ctx context.Context, in *deleteProfileInput) (*
 			noun = "title"
 		}
 		return nil, huma.Error409Conflict(fmt.Sprintf(
-			"profile is assigned to %d %s; pass reassign_to with the profile to migrate them to", count, noun))
+			"%d %s use this quality profile. Choose a profile to move them to.", count, noun))
 	}
 
 	tx, err := h.store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to begin transaction", err)
+		return nil, storeError("delete the quality profile", err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.store.Q.WithTx(tx)
 
 	if count > 0 {
 		if in.ReassignTo == in.ID {
-			return nil, huma.Error422UnprocessableEntity("cannot reassign titles to the profile being deleted")
+			return nil, huma.Error422UnprocessableEntity("Choose a different profile to move the titles to than the one being deleted.")
 		}
 		if _, terr := qtx.GetQualityProfile(ctx, in.ReassignTo); errors.Is(terr, sql.ErrNoRows) {
-			return nil, huma.Error422UnprocessableEntity("reassign_to profile does not exist")
+			return nil, huma.Error422UnprocessableEntity("The profile to move the titles to no longer exists. Choose another.")
 		} else if terr != nil {
-			return nil, huma.Error500InternalServerError("failed to load target profile", terr)
+			return nil, storeError("delete the quality profile", terr)
 		}
 		if rerr := qtx.ReassignTitleProfile(ctx, db.ReassignTitleProfileParams{
 			QualityProfileID: in.ReassignTo, QualityProfileID_2: in.ID,
 		}); rerr != nil {
-			return nil, huma.Error500InternalServerError("failed to reassign titles", rerr)
+			return nil, storeError("delete the quality profile", rerr)
 		}
 	}
 	rows, err := qtx.DeleteQualityProfile(ctx, in.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to delete profile", err)
+		return nil, storeError("delete the quality profile", err)
 	}
 	if rows != 1 {
-		return nil, huma.Error409Conflict("profile could not be deleted (still in use?)")
+		return nil, huma.Error409Conflict("Titles were assigned to this quality profile while it was being deleted. Try again.")
 	}
 	if err := tx.Commit(); err != nil {
-		return nil, huma.Error500InternalServerError("failed to commit", err)
+		return nil, storeError("delete the quality profile", err)
 	}
 	return nil, nil
 }
 
 func (h *profilesHandler) assignTitle(ctx context.Context, in *assignTitleProfileInput) (*assignTitleProfileOutput, error) {
 	if _, err := h.store.Q.GetTitle(ctx, in.ID); errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("title not found")
+		return nil, huma.Error404NotFound(titleGoneDetail)
 	} else if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load title", err)
+		return nil, storeError("change the title's quality profile", err)
 	}
 	rows, err := h.store.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{
 		QualityProfileID: in.Body.ProfileID,
@@ -506,10 +506,10 @@ func (h *profilesHandler) assignTitle(ctx context.Context, in *assignTitleProfil
 		ID_2:             in.Body.ProfileID,
 	})
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to assign profile", err)
+		return nil, storeError("change the title's quality profile", err)
 	}
 	if rows == 0 {
-		return nil, huma.Error422UnprocessableEntity("profile does not exist")
+		return nil, huma.Error422UnprocessableEntity(profileGoneDetail)
 	}
 	out := &assignTitleProfileOutput{}
 	out.Body.TitleID = in.ID

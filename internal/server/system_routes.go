@@ -83,11 +83,11 @@ func registerSystemRoutes(api huma.API, deps routeDeps) {
 		Name string `path:"name" doc:"The runner's job name, as reported by list-jobs"`
 	}) (*struct{}, error) {
 		if deps.jobs == nil {
-			return nil, huma.Error404NotFound("unknown job")
+			return nil, huma.Error404NotFound("No background job has that name.")
 		}
 		if err := deps.jobs.Trigger(in.Name); err != nil {
 			if errors.Is(err, jobs.ErrUnknownJob) {
-				return nil, huma.Error404NotFound("unknown job")
+				return nil, huma.Error404NotFound("No background job has that name.")
 			}
 			return nil, err
 		}

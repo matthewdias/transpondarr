@@ -127,14 +127,14 @@ func registerBlocklistRoutes(api huma.API, deps routeDeps) {
 func (h *blocklistHandler) list(ctx context.Context, in *titleBlocklistInput) (*titleBlocklistOutput, error) {
 	title, err := h.store.Q.GetTitle(ctx, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("title not found")
+		return nil, huma.Error404NotFound(titleGoneDetail)
 	}
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load title", err)
+		return nil, storeError("load the title's blocked releases", err)
 	}
 	rows, err := h.blocklist.List(ctx, title.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load blocklist", err)
+		return nil, storeError("load the title's blocked releases", err)
 	}
 
 	now := time.Now().UTC()
@@ -159,7 +159,7 @@ func (h *blocklistHandler) list(ctx context.Context, in *titleBlocklistInput) (*
 func (h *blocklistHandler) summary(ctx context.Context, _ *struct{}) (*blocklistSummaryOutput, error) {
 	counts, err := h.blocklist.Summary(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to summarize the blocklist", err)
+		return nil, storeError("load the blocked releases", err)
 	}
 	b := h.blocklist.BreakerState()
 
@@ -183,7 +183,7 @@ func (h *blocklistHandler) summary(ctx context.Context, _ *struct{}) (*blocklist
 func (h *blocklistHandler) clearAll(ctx context.Context, _ *struct{}) (*clearedOutput, error) {
 	n, err := h.blocklist.ClearAll(ctx)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to clear the blocklist", err)
+		return nil, storeError("unblock the releases", err)
 	}
 	out := &clearedOutput{}
 	out.Body.Cleared = n
@@ -195,10 +195,10 @@ func (h *blocklistHandler) clearAll(ctx context.Context, _ *struct{}) (*clearedO
 func (h *blocklistHandler) clearTitle(ctx context.Context, in *clearTitleBlocklistInput) (*clearedOutput, error) {
 	title, err := h.store.Q.GetTitle(ctx, in.ID)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, huma.Error404NotFound("title not found")
+		return nil, huma.Error404NotFound(titleGoneDetail)
 	}
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to load title", err)
+		return nil, storeError("unblock the title's releases", err)
 	}
 
 	cleared := h.blocklist.ClearTitle
@@ -207,7 +207,7 @@ func (h *blocklistHandler) clearTitle(ctx context.Context, in *clearTitleBlockli
 	}
 	n, err := cleared(ctx, title.ID)
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to clear blocklist", err)
+		return nil, storeError("unblock the title's releases", err)
 	}
 	out := &clearedOutput{}
 	out.Body.Cleared = n
@@ -217,10 +217,10 @@ func (h *blocklistHandler) clearTitle(ctx context.Context, in *clearTitleBlockli
 func (h *blocklistHandler) clear(ctx context.Context, in *clearBlocklistEntryInput) (*struct{}, error) {
 	err := h.blocklist.Clear(ctx, in.ID, in.EntryID)
 	if errors.Is(err, blocklist.ErrNotFound) {
-		return nil, huma.Error404NotFound("blocklist entry not found")
+		return nil, huma.Error404NotFound("That release is no longer blocked.")
 	}
 	if err != nil {
-		return nil, huma.Error500InternalServerError("failed to clear blocklist entry", err)
+		return nil, storeError("unblock the release", err)
 	}
 	return nil, nil
 }
