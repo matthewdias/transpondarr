@@ -235,10 +235,10 @@ type ListCutoffTitlesPageRow struct {
 // Candidate title groups for Cutoff Unmet: titles on an upgrading profile with
 // any item the upgrade pool could act on. The status set is the sweep's pool
 // (imported, failed -- see loadSweepItems) plus grabbed, which is an upgrade
-// already in flight and worth showing as such. import_deferred is deliberately
+// already in flight and worth showing as such. import_deferred is
 // out: that item's fix is the Activity queue's, and a grab from here would
 // overwrite the deferred grab row and orphan its payload. Whether a held release
-// actually scores below the cutoff needs the parser and is settled in Go, so a
+// scores below the cutoff needs the parser and is settled in Go, so a
 // title here may contribute no title group and the caller scans on. Ordered by title
 // -- this listing is an inventory, not a queue, so alphabetical reads best --
 // with the id tie-break ascending and a zero cursor as the natural top.
@@ -335,7 +335,7 @@ type ListMissingItemsByTitleRow struct {
 // The items behind one results page of title groups. Same predicates as ListMissingTitlesPage, so a
 // group and its items are computed from one reading of the world; the title
 // half of the monitoring filter is left to ListMissingTitlesPage, since every id
-// here came from it. Number ascends within a title deliberately: a back catalogue
+// here came from it. Number ascends within a title because a back catalogue
 // drains forwards, and episodes enumerate forwards however their dates fall.
 // Both joins are 1:1, so neither multiplies item rows. The grab's created_at is
 // selected because the reason column ranks a stored pass outcome against it: an

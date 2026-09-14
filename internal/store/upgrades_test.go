@@ -153,7 +153,7 @@ func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 	// whose row was overwritten by a later failed grab.
 	imported := seedPreUpgradeItem(t, st, titleID, 1, 1, "[ExampleSubs] Some Show - 01 (1080p)", "imported")
 	overwritten := seedPreUpgradeItem(t, st, titleID, 2, 1, "[OtherSubs] Some Show - 02 (1080p)", "failed")
-	// Not held at all: nothing to record.
+	// Not held: nothing to record.
 	wanted := seedPreUpgradeItem(t, st, titleID, 3, 0, "[ExampleSubs] Some Show - 03 (1080p)", "grabbed")
 
 	if err := goose.Up(st.DB, "migrations"); err != nil {

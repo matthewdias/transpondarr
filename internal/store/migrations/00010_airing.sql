@@ -1,6 +1,6 @@
 -- +goose Up
 -- Broadcast times, so the scheduled search sweep can search for items that have
--- actually aired instead of blind-polling every wanted item. Nullable because
+-- aired instead of blind-polling every wanted item. Nullable because
 -- AniList's schedule coverage thins out badly before ~2015: every consumer must
 -- treat "no air date" as normal rather than as an error.
 ALTER TABLE wanted_items ADD COLUMN airs_at TEXT;

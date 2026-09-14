@@ -43,7 +43,7 @@ func TestMonitoredColumnDefaultsToOn(t *testing.T) {
 	titleID := seedSearchTitle(t, st, "legacy", 1)
 
 	// The schema default is what backfills a pre-migration row, so it is asserted
-	// through an insert that names no monitored column at all.
+	// through an insert that names no monitored column.
 	if _, err := st.DB.ExecContext(ctx,
 		`INSERT INTO wanted_items (series_id, kind, number) VALUES (?, 'episode', 1)`, titleID); err != nil {
 		t.Fatalf("insert legacy-shaped item: %v", err)
@@ -63,7 +63,7 @@ func TestMonitoredColumnDefaultsToOn(t *testing.T) {
 }
 
 // The two upserts are the reason a narrowed title stays narrowed: refresh and
-// the airing sync run every few hours over exactly the items a user unmonitored.
+// the airing sync run every few hours over the items a user unmonitored.
 func TestUpsertsNeverClobberAStoredMonitoredFlag(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()

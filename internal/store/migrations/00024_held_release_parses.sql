@@ -2,11 +2,11 @@
 -- The parse of a wanted item's held release (issue #185). Cutoff Unmet
 -- computes membership by scoring every held release on every request, and
 -- parsing a release name costs ~113x what scoring the parse does -- so the tab was at
--- its most expensive exactly when a library was healthy and nothing qualified.
+-- its most expensive when a library was healthy and nothing qualified.
 -- Only the parse is cached: it is a pure function of the stored release name, where a
 -- score depends on the profile and would have to be invalidated whenever one
 -- was edited. release_title is the parse's own key rather than a record of it:
--- the read joins on it, so a parse row left behind by a superseded release simply
+-- the read joins on it, so a parse row left behind by a superseded release
 -- does not match, and the one writer of wanted_items.held_release_title never
 -- touches this table. One parse row per item, overwritten in place, so the
 -- table stays bounded by wanted_items and needs no retention. No backfill --

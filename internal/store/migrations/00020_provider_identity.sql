@@ -17,7 +17,7 @@
 -- database/sql runs on a single pooled connection -- the only way to guarantee
 -- that the per-connection PRAGMA and the DROP share that connection. NO
 -- TRANSACTION is required because PRAGMA foreign_keys is a silent no-op inside
--- one; the explicit BEGIN keeps the rebuild itself atomic.
+-- one; the explicit BEGIN keeps the rebuild atomic.
 -- +goose StatementBegin
 PRAGMA foreign_keys = off;
 BEGIN;
@@ -56,7 +56,7 @@ SELECT
 FROM series;
 DROP TABLE series;
 ALTER TABLE series_new RENAME TO series;
--- Step 10 of SQLite's ALTER recipe, made to actually abort: a bare
+-- Step 10 of SQLite's ALTER recipe, made to abort: a bare
 -- PRAGMA foreign_key_check only *returns* offending rows, and a migration runs
 -- through Exec, which discards them -- so orphaned children would commit
 -- silently. Landing the count in a CHECK turns them into a failed statement.

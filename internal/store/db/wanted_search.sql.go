@@ -117,7 +117,7 @@ type ListTitlesDueWantedSearchParams struct {
 	Limit        int64          `json:"limit"`
 }
 
-// Monitored titles with something actually searchable right now: an item still
+// Monitored titles with something searchable right now: an item still
 // wanted (never grabbed, or a grab that failed), itself monitored, whose
 // broadcast has happened or was never published. Air dates are nullable by
 // design, so a missing one must read as searchable rather than as "not yet".
@@ -202,7 +202,7 @@ ORDER BY s.id
 // Monitored titles with something worth grabbing right now, ignoring search
 // cadence. The feed poll issues no indexer request per title -- one request
 // serves every title at once -- so the budget the search sweep's LIMIT protects
-// does not apply here. The wanted half is deliberately the sweep's predicate,
+// does not apply here. The wanted half is the sweep's predicate,
 // character for character, so both entry points compute one grabbable set.
 // The upgrade half is the deliberate divergence (#97): a complete title is
 // worth re-examining only against a feed page that cost nothing, so upgrades use
