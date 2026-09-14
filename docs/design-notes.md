@@ -13,13 +13,19 @@ A `stalledDL` torrent is *present*, so neither `reconcileMissing` nor
 `StateError` handled it, and its grab stayed open forever. That is the doomed
 release the blocklist was built for (#118), and it never got a blocklist entry.
 
+### Progress above zero is the discriminator
+
 Progress is the discriminator, strictly `> 0`. A torrent that made any progress
 proves a peer had the data, so those bytes are the user's to discard. A percentage
 threshold would draw a line nothing supports.
 
+### Why a 0% stall blames the release
+
 This is `blameRelease`, unlike a torrent that has vanished (#241). Nobody
 seeding a release we can see is a fact about that release, and without the
 blocklist entry the search sweep re-picks the same first-ranked release and loops.
+
+### What bounds a VPN drop's fan-out
 
 Two things bound how far a VPN drop can fan out. Every such failure runs through
 `blocklist.Record`, so the failure breaker (#120) blames four items and suppresses
@@ -38,13 +44,13 @@ moves on the first 16 KiB block. Over a six-hour timeout that is under a byte pe
 second, which puts the slow-torrent false positive out of reach. The refinement
 solves nothing that needed solving.
 
-A second reason to distrust it is that it rests on reasoning instead of on traced
-fact, and is flagged here as such. libtorrent documents `all_time_download` only
-as an accumulated payload counter and describes `total_failed_bytes` separately,
-so the documentation does not settle whether a byte counter excludes what a hash
-check later discards. If it does not, a torrent failing every check would report
-bytes received and `progress == 0` forever, and "has received nothing" would never
-abandon it.
+A second reason to distrust the refinement rests on reasoning instead of on
+traced fact, and is flagged here as such. libtorrent documents
+`all_time_download` only as an accumulated payload counter, and describes
+`total_failed_bytes` separately. So the documentation does not settle whether a
+byte counter excludes what a hash check later discards. If it does not, a torrent
+failing every check would report bytes received and `progress == 0` forever, and
+"has received nothing" would never abandon it.
 
 ### The clock and the timeout
 
@@ -61,8 +67,8 @@ a fresh window instead of banking the wait.
 
 The trigger is the client reporting an *active* download, with progress 0. That
 means `StateStalled` or `StateDownloading`, so `metaDL` and `forcedMetaDL` are
-covered — the magnet stuck at "Downloading metadata", which #242's own wording
-had to exclude.
+covered. That is the magnet stuck at "Downloading metadata", which the original
+0% stall rule's own wording (#242) had to exclude.
 
 `StatePaused` is deliberate user intent and `StateUnknown` is a gap in `mapState`,
 so neither takes that branch. `queuedDL` is excluded by having its own
@@ -70,9 +76,13 @@ so neither takes that branch. `queuedDL` is excluded by having its own
 torrent is not an active download. Folding the two together is what made "widen the predicate"
 and "never abandon a queued download" look like opposites.
 
+### Why `stalled_since` kept its name
+
 `Status.StuckAtZero` names the predicate. `stalled_since` deliberately keeps a
 name it has outgrown, because the clock did not change — it still mirrors
 `missing_since`, and a migration for a column name is cosmetics.
+
+### The stamp-clearing loop and the switch read one predicate
 
 The stamp-clearing loop and the switch's `StateStalled`/`StateDownloading` case
 must read the one predicate. Widening only that case clears the clock every scan while `sharedSince` re-derives it from
@@ -102,14 +112,17 @@ for the same use.
 Ours is qBittorrent's instantaneous `download_payload_rate == 0`. Transmission's
 `is_stalled` is a 30-minute idle timer, so mapping that boolean would silently
 stack `stall_hours` on top of it and make the threshold mean something different
-per client. `stalled` stays instantaneous everywhere, and `stalled_since` is where
-the duration lives.
+per client. `stalled` stays instantaneous in every adapter, including the
+additional download clients (#159), and `stalled_since` is where the duration
+lives.
 
-### Absence wins over the stall clock, and what the queue shows
+### Absence wins over the stall clock
 
 Between the two timers, absence wins by construction. The `!ok` branch
 `continue`s before the download-state switch, so a torrent that goes missing is settled on
 the 5-minute grace and the stall clock is never read.
+
+### What the queue's `abandon_at` shows
 
 The queue's `abandon_at` is the part `client_state` could not express — that we are
 going to act, and when. It is therefore keyed on the *live* status as well as on
@@ -120,10 +133,12 @@ piece lands, and on a magnet for as long as metadata takes. That is accepted
 instead of hidden below some fraction of the timeout, which would invent a second
 threshold with nothing behind it.
 
+### Why the `abandon_at` countdown goes stale
+
 Its countdown is stale for as long as the tab is open, not for one poll. A queue
 of only stalled rows serializes byte-identically, so React Query's structural
-sharing re-renders nothing. That is the class #144 named, and `activity.tsx` is a
-third call site for that audit.
+sharing re-renders nothing. That is the class the relative-timestamp audit (#144)
+named, and `activity.tsx` is a third call site for that audit.
 
 ## The staging sweep deletes using rules instead of enumerating the library (#132)
 
@@ -156,17 +171,21 @@ write returns. Both paths are given the name instead of computing it, which mean
 a staging file can't exist without being registered. `removeUnstaged` does the
 check and the unlink under one lock, so a transfer can't register between the two.
 
-The limitation we accepted on the other side: an `.upgrade` file orphaned by a
-crash isn't swept until its *payload's* mtime passes 24 hours, so it can stay
-on disk after it stops being useful. Late, never wrong.
+### An orphaned `.upgrade` file is swept late
 
-### Resolving roots, and the order the staging sweep works in
+We accepted a limitation on the `.upgrade` side. If a crash orphans an `.upgrade`
+file, the staging sweep skips it until its *payload's* mtime passes 24 hours. So
+it can stay on disk after it stops being useful. Late, never wrong.
+
+### Roots are resolved before the enumeration starts
 
 Roots are resolved before the enumeration starts. `WalkDir` won't descend a
 symlinked root, and `/media` pointing at `/mnt/user/media` is an ordinary NAS
 layout. `staged` keys on a `canonical` path so that the registry doesn't silently
 fail to match in that setup. Links inside the tree are still not followed, so the
 enumeration stays within a root.
+
+### The order the staging sweep works in
 
 Every root is enumerated before anything is removed. `collectStale` builds the
 whole list first, and a second loop deletes from it. If one root is inside the
@@ -193,15 +212,17 @@ any `.partial` on disk, and it is a third place that depends on `videoExts` bein
 the importer's list. If the two lists drift, the cost is a missed sweep and never
 a wrong delete, and that is the only direction allowed to fail.
 
-### Why it is an optional capability and its own job
+### Why the staging sweep is an optional capability
 
 `library.StagingSweeper` is an optional capability found by type assertion, so
 `library.Target` is still `Name()` and `Place()`, with no method that
 lists what a target currently contains. A target without the capability is a supported
-configuration, not an error. That general read path is #170, and manual file
+configuration, not an error. That general library read path is #170, and manual file
 adoption (#157) and library drift detection (#171) both need it. The issue has to
 settle the question this sweep's design already answered locally: whether listing belongs
 on `Target` itself, or stays an optional capability like this one.
+
+### Why the staging sweep runs as its own job
 
 The sweep runs as its own slow job instead of inside the 15-second import scan,
 because it enumerates every root.
