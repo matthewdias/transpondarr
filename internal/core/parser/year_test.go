@@ -34,7 +34,7 @@ func TestParseYear(t *testing.T) {
 	}
 }
 
-// A dual-titled release still yields the year, and the title keeps its own
+// A dual-titled release still yields the year, and the parsed title keeps its own
 // trailing number: both readings of a four-digit token can appear in one name.
 func TestParseYearAlongsideATitleNumber(t *testing.T) {
 	p := Parse("[ExampleSubs] Sample Film 2019 (2021) [1080p]")

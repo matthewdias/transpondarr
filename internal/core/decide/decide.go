@@ -86,7 +86,7 @@ type MatchOpts struct {
 	Parses ReleaseParses
 }
 
-// ReleaseParses maps a release title to its parse. Read-only here, so one map is
+// ReleaseParses maps a release name to its parse. Read-only here, so one map is
 // shareable without a lock; a miss is parsed, making it a cache never a filter.
 type ReleaseParses map[string]parser.Parsed
 
@@ -94,7 +94,7 @@ type ReleaseParses map[string]parser.Parsed
 // stays pure. A release matches on either axis: Torznab often omits the infohash.
 type BlockedSet struct {
 	Hashes map[string]string // lowercased info hash -> reason
-	Titles map[string]string // normalized release title -> reason
+	Titles map[string]string // normalized release name -> reason
 }
 
 // reason reports why this release is blocked, if it is.
@@ -559,7 +559,7 @@ func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {
 	return out
 }
 
-// titleBelongs reports whether a parsed release title matches one of the title's
+// titleBelongs reports whether a release's parsed title matches one of the title's
 // accepted names, comparing on a punctuation- and space-stripped form so
 // "Frieren: Beyond Journey's End" and "Frieren Beyond Journeys End" compare equal.
 func titleBelongs(parsedTitle string, variants []string) bool {
@@ -579,7 +579,7 @@ func matchesVariant(got string, variants []string) bool {
 		if got == v {
 			return true
 		}
-		// Substring (fuzzy) match only when the shorter, contained title is long
+		// Substring (fuzzy) match only when the shorter, contained name is long
 		// enough to be meaningful. Without a minimum length, short or prefix names — "K",
 		// "Air", "Fate" — match unrelated shows ("Fairy Tail", "Fate/Zero") whose
 		// normalized title happens to contain them. Exact matches above still cover
@@ -595,7 +595,7 @@ func matchesVariant(got string, variants []string) bool {
 	return false
 }
 
-// minFuzzyTitleLen is the shortest normalized title allowed to match by substring
+// minFuzzyTitleLen is the shortest normalized name allowed to match by substring
 // containment rather than exact equality (see titleBelongs).
 const minFuzzyTitleLen = 5
 

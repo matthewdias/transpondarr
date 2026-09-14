@@ -96,7 +96,7 @@ func TestSweepRemembersAnUnsupportedTorrentUnderItsOwnReason(t *testing.T) {
 // release's fault.
 func TestSweepTakesTheNextReleaseWhenADuplicatesDataIsMissing(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
-	// Distinct group names, or the two releases share a title and "the next-best
+	// Distinct group names, or the two releases share a release name and "the next-best
 	// was grabbed" passes for either candidate.
 	held := episodeRelease("Placeholder Saga", 3)
 	held.Title = "[TopSubs] Placeholder Saga - 03 [1080p]"

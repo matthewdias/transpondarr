@@ -12,7 +12,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// blockRelease seeds an active blocklist entry for a release title.
+// blockRelease seeds an active blocklist entry for a release name.
 func blockRelease(t *testing.T, st *store.Store, titleID int64, hash, title string, until time.Time) {
 	t.Helper()
 	p := db.UpsertBlocklistEntryParams{

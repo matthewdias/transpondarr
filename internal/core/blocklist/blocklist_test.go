@@ -100,7 +100,7 @@ func assertBlockedFor(t *testing.T, e db.ReleaseBlocklist, want time.Duration) {
 	}
 }
 
-// Record stores the normalized title decide matches on, so a release differing
+// Record stores the normalized release name decide matches on, so a release differing
 // only in spacing or case is still matched.
 func TestRecordStoresTheNormalizedTitle(t *testing.T) {
 	svc, _, title := newService(t)

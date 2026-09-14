@@ -130,7 +130,7 @@ func TestSuppressedRecordLeavesTheSearchQueueAlone(t *testing.T) {
 }
 
 // seedBatchGrab grabs one release across items, the shape a season batch takes:
-// one grab row per covered episode, all sharing an info hash and a title.
+// one grab row per covered episode, all sharing an info hash and a release name.
 func seedBatchGrab(t *testing.T, st *store.Store, hash string, items int) (titleID int64, itemIDs []int64) {
 	t.Helper()
 	ctx := context.Background()
