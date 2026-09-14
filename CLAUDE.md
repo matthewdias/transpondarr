@@ -153,8 +153,8 @@ Behaviour changes are test-driven. Work red → green → refactor:
 
 Nine subsystems have their own rules in a nested `CLAUDE.md`, loaded when you work
 under that directory — read the one you are in, not all nine:
-[`decide`](internal/core/decide/CLAUDE.md) (matching, eligibility, movies),
-[`acquire`](internal/core/acquire/CLAUDE.md) (sweep, feed, pass outcomes),
+[`decide`](internal/core/decide/CLAUDE.md) (release matching, eligibility, movies),
+[`acquire`](internal/core/acquire/CLAUDE.md) (search sweep, feed, pass outcomes),
 [`importer`](internal/core/importer/CLAUDE.md) (grab lifecycle, file mapping,
 failure blame), [`library`](internal/core/library/CLAUDE.md) (placement, layout),
 [`catalog`](internal/core/catalog/CLAUDE.md) (title identity, item counts,
@@ -199,7 +199,7 @@ What stays here is what applies before you know which package you are in.
   Jellyfin expect (OVAs file under Shows). The rule is enforced at the top of the
   funnel: `highestItem` returns `1` for a movie *before* reading `episodes`, so
   add and refresh agree by construction and a film whose three shorts ship as one
-  entry cannot create three items. Downstream, `domain.KindFor(Format)` is the one
+  AniList entry cannot create three items. Downstream, `domain.KindFor(Format)` is the one
   helper every create site writes `kind` through (catalog, refresh, airing) — and
   since it derives from the format frozen at add time, **any future
   `SetTitleFormat` must re-key the existing items**, exactly as `00022`'s
@@ -266,7 +266,7 @@ Concretely, in `internal/core/decide`:
 - **AniList**: ~30 req/min (degraded state, not the documented 90) and **no
   per-episode metadata** — cache aggressively, and degrade to absolute numbering
   rather than depending on TVDB.
-- **The indexer is the scheduled sweep's scarce resource.** A pass costs one
+- **The indexer is the scheduled search sweep's scarce resource.** A pass costs one
   search per title (two when the zero-result title-variant fallback fires), so
   `titlesPerPass` × the job interval sets the whole search rate. Cost scales with
   titles carrying *unfilled* items, not library size: the due query's `EXISTS`
@@ -278,7 +278,7 @@ Concretely, in `internal/core/decide`:
   controls: the feed sets acquisition latency for a current release.
 - **The recent feed inverts that cost, which is why it is the hot path.** One
   request covers every title, so `feed-poll` is flat in library size while the
-  sweep is linear in due titles. That is what makes the sweep affordable as a
+  search sweep is linear in due titles. That is what makes the sweep affordable as a
   safety net rather than the mechanism. Don't shorten `feedPollInterval` below
   15 minutes: indexer operators ask for it, and Sonarr — which sets the
   community's expectation here — defaults to 15 and rejects anything below 10.
