@@ -53,7 +53,7 @@ const (
 // in-flight background work.
 const shutdownTimeout = 10 * time.Second
 
-// sessionCleanupInterval is how often expired session rows are swept; daily is
+// sessionCleanupInterval is how often expired session rows are removed; daily is
 // plenty for a 30-day session TTL.
 const sessionCleanupInterval = 24 * time.Hour
 
