@@ -45,12 +45,12 @@ type clearBlocklistEntryInput struct {
 
 type clearTitleBlocklistInput struct {
 	ID      int64 `path:"id" doc:"Title id"`
-	Expired bool  `query:"expired" doc:"Clear only the entries whose block has lapsed, keeping what still blocks"`
+	Expired bool  `query:"expired" doc:"Clear only the blocklist entries whose block has lapsed, keeping what still blocks"`
 }
 
 type clearedOutput struct {
 	Body struct {
-		Cleared int64 `json:"cleared" doc:"How many entries were forgotten"`
+		Cleared int64 `json:"cleared" doc:"How many blocklist entries were forgotten"`
 	}
 }
 

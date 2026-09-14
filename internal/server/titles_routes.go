@@ -33,7 +33,7 @@ type titleDTO struct {
 	Total          int    `json:"total"`
 	Tracked        int    `json:"tracked" doc:"Items this title is pursuing: monitored and already broadcast"`
 	MonitoredItems int    `json:"monitored_items" doc:"Monitored items whether or not they have aired, so a zero tracked count can name its cause"`
-	InLibrary      int    `json:"in_library" doc:"Held items inside the tracked set, so progress can never exceed it"`
+	InLibrary      int    `json:"in_library" doc:"Items already in the library, counted inside the tracked set so progress can never exceed it"`
 	// The acquisition state is per item and this row is per title, so it is published only
 	// where format guarantees the two are the same thing (#208).
 	ItemStatus  string `json:"item_status,omitempty" enum:"in_library,downloading,stuck,deferred,wanted" doc:"Derived acquisition state of the sole item; present for a movie only"`
@@ -113,7 +113,7 @@ type titleDetailReadDTO struct {
 	Monitored        bool            `json:"monitored"`
 	QualityProfileID int64           `json:"quality_profile_id"`
 	PinnedGroup      string          `json:"pinned_group,omitempty" doc:"Release group pinned above profile scoring; absent when none"`
-	PinDelayHours    *int            `json:"pin_delay_hours,omitempty" doc:"Per-title override of how long the sweep waits for the pinned group; absent means the global default"`
+	PinDelayHours    *int            `json:"pin_delay_hours,omitempty" doc:"Per-title override of how long the search sweep waits for the pinned group; absent means the global default"`
 	Items            []detailItemDTO `json:"items"`
 }
 
@@ -145,7 +145,7 @@ type setPinnedGroupInput struct {
 		Group string `json:"group" maxLength:"100" doc:"Release group to pin above profile scoring; empty clears the pin"`
 		// maximum mirrors acquire.MaxPinDelayHours, which a struct tag cannot
 		// reference: past it the duration multiply wraps and the wait vanishes.
-		DelayHours *int `json:"delay_hours,omitempty" minimum:"0" maximum:"8760" doc:"Hours the scheduled sweep waits for this group before taking another (max 8760); omit to use the global default"`
+		DelayHours *int `json:"delay_hours,omitempty" minimum:"0" maximum:"8760" doc:"Hours the scheduled search sweep waits for this release group before taking another (max 8760); omit to use the global default"`
 	}
 }
 

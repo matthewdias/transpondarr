@@ -758,8 +758,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Put titles back at the front of the sweep queue and run the sweep now
-         * @description Queues work rather than searching: the sweep's per-pass limit is the indexer budget the search design protects, so a library-wide reset drains over several passes.
+         * Put titles back at the front of the search sweep queue and run the search sweep now
+         * @description Queues work rather than searching: the search sweep's per-pass limit is the indexer budget the search design protects, so a library-wide reset drains over several passes.
          */
         post: operations["queue-wanted-search"];
         delete?: never;
@@ -1090,7 +1090,7 @@ export interface components {
             readonly $schema?: string;
             /**
              * Format: int64
-             * @description How many entries were forgotten
+             * @description How many blocklist entries were forgotten
              */
             cleared: number;
         };
@@ -1130,7 +1130,7 @@ export interface components {
              * @enum {string}
              */
             status: "in_library" | "downloading";
-            /** @description Profile axes the held release scores below its best on, each with the points still available */
+            /** @description Profile axes the release already in the library scores below its best on, each with the points still available */
             unmet_goals?: components["schemas"]["ScorePartDTO"][];
         };
         CutoffOutputBody: {
@@ -1332,7 +1332,7 @@ export interface components {
             interval_ms: number;
             /**
              * Format: double
-             * @description Fractional: a sub-millisecond sweep would otherwise always report 0
+             * @description Fractional: a sub-millisecond job run would otherwise always report 0
              */
             last_duration_ms: number;
             last_error?: string;
@@ -1427,14 +1427,14 @@ export interface components {
             items: components["schemas"]["MissingItemDTO"][];
             /**
              * Format: int64
-             * @description Missing items in the whole group; may exceed len(items), which is capped
+             * @description Missing items in the whole title group; may exceed len(items), which is capped
              */
             missing: number;
             monitored: boolean;
-            /** @description When the sweep next reaches this title (reason search_backoff) */
+            /** @description When the search sweep next searches this title (reason search_backoff) */
             next_search_at?: string;
             /**
-             * @description The title's standing in the sweep queue, derived from stored state at request time
+             * @description The title's standing in the search sweep queue, derived at request time from stored monitoring, blocklist and search state
              * @enum {string}
              */
             reason: "unmonitored" | "blocklisted" | "never_searched" | "search_backoff" | "search_due";
@@ -1585,10 +1585,10 @@ export interface components {
             codec_pref?: string;
             /**
              * Format: int64
-             * @description Ceiling: a held release scoring at least this is good enough; zero means already met
+             * @description Ceiling: a release already in the library scoring at least this is good enough; zero means already met
              */
             cutoff_score: number;
-            /** @description Ranked group preference, most preferred first; empty ranks no group */
+            /** @description Ranked release group preference, most preferred first; empty ranks no release group */
             groups?: components["schemas"]["ProfileGroupDTO"][];
             /** @description Axis values that disqualify a release: hardsub, softsub, h264, h265, av1, web, bd, tv, dvd, or a resolution like 1080p. Matched case-insensitively; unknown tokens are stored but never fire. Empty excludes nothing */
             hard_excludes?: string[];
@@ -1605,13 +1605,13 @@ export interface components {
             resolution_order: string[];
             /** @description softsub or hardsub; empty for no preference */
             sub_pref?: string;
-            /** @description Take the same release group's v2/repack of the held release even above the cutoff */
+            /** @description Take the same release group's v2/repack of the release already in the library even above the cutoff */
             upgrade_v2_above_cutoff: boolean;
-            /** @description Re-grab a held item while its release scores below the cutoff */
+            /** @description Re-grab an item already in the library while its release scores below the cutoff */
             upgrades_enabled: boolean;
         };
         ProfileGroupDTO: {
-            /** @description Never take this group, at any quality */
+            /** @description Never take this release group, at any quality */
             blocked: boolean;
             /** @description Release group name; array order is the preference rank */
             name: string;
@@ -1693,7 +1693,7 @@ export interface components {
              * @example https://example.com/schemas/QueueSearchInputBody.json
              */
             readonly $schema?: string;
-            /** @description Titles to put back at the front of the sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident */
+            /** @description Titles to put back at the front of the search sweep queue; an explicit empty array means the whole library, and omitting the field is rejected so a mis-serialized request cannot reset everything by accident */
             title_ids: number[];
         };
         QueueSearchOutputBody: {
@@ -1869,7 +1869,7 @@ export interface components {
             readonly $schema?: string;
             /**
              * Format: int64
-             * @description Distinct titles put back at the front of the sweep queue; always 0 when unmonitoring
+             * @description Distinct titles put back at the front of the search sweep queue; always 0 when unmonitoring
              */
             titles_queued: number;
             /**
@@ -1908,7 +1908,7 @@ export interface components {
             readonly $schema?: string;
             /**
              * Format: int64
-             * @description Hours the scheduled sweep waits for this group before taking another (max 8760); omit to use the global default
+             * @description Hours the scheduled search sweep waits for this release group before taking another (max 8760); omit to use the global default
              */
             delay_hours?: number;
             /** @description Release group to pin above profile scoring; empty clears the pin */
@@ -1980,7 +1980,7 @@ export interface components {
             import_error?: string;
             /**
              * Format: int64
-             * @description Held items inside the tracked set, so progress can never exceed it
+             * @description Items already in the library, counted inside the tracked set so progress can never exceed it
              */
             in_library: number;
             /**
@@ -2047,7 +2047,7 @@ export interface components {
             native?: string;
             /**
              * Format: int64
-             * @description Per-title override of how long the sweep waits for the pinned group; absent means the global default
+             * @description Per-title override of how long the search sweep waits for the pinned group; absent means the global default
              */
             pin_delay_hours?: number;
             /** @description Release group pinned above profile scoring; absent when none */
@@ -3374,7 +3374,7 @@ export interface operations {
     "clear-title-blocklist": {
         parameters: {
             query?: {
-                /** @description Clear only the entries whose block has lapsed, keeping what still blocks */
+                /** @description Clear only the blocklist entries whose block has lapsed, keeping what still blocks */
                 expired?: boolean;
             };
             header?: never;
@@ -3649,7 +3649,7 @@ export interface operations {
     "list-wanted-cutoff-unmet": {
         parameters: {
             query?: {
-                /** @description Title groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
+                /** @description Title groups per results page on both tabs, and the scan batch size on cutoff-unmet; a results page may close below it once it lists about 200 items */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;
@@ -3720,7 +3720,7 @@ export interface operations {
     "list-wanted-missing": {
         parameters: {
             query?: {
-                /** @description Title groups per page on both tabs, and the scan batch size on cutoff-unmet; a page may close below it once it lists about 200 items */
+                /** @description Title groups per results page on both tabs, and the scan batch size on cutoff-unmet; a results page may close below it once it lists about 200 items */
                 limit?: number;
                 /** @description Opaque cursor from the previous page's next_cursor */
                 cursor?: string;
