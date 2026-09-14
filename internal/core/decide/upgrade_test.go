@@ -1,6 +1,7 @@
 package decide
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -145,7 +146,7 @@ func TestUpgradePolicy(t *testing.T) {
 			if !c.Matched {
 				t.Fatalf("release did not match a held item: %s", c.Reason)
 			}
-			taken := contains(c.UpgradeItems, 3)
+			taken := slices.Contains(c.UpgradeItems, 3)
 			blocked, wasBlocked := c.UpgradeBlocked[3]
 			if taken == wasBlocked {
 				t.Fatalf("item 3 must be either upgradable or blocked: upgrade=%v blocked=%q",
@@ -157,7 +158,7 @@ func TestUpgradePolicy(t *testing.T) {
 			if tc.reason != "" && !strings.Contains(blocked, tc.reason) {
 				t.Errorf("refusal = %q, want it to mention %q", blocked, tc.reason)
 			}
-			if take := c.TakeItems(); tc.want != contains(take, 3) {
+			if take := c.TakeItems(); tc.want != slices.Contains(take, 3) {
 				t.Errorf("TakeItems() = %v, want item 3 present = %v", take, tc.want)
 			}
 		})
@@ -255,13 +256,4 @@ func TestScoreLandmarksArePinned(t *testing.T) {
 	if scoreResStep != 100 {
 		t.Errorf("scoreResStep = %d, want 100 (anchors the second-best-resolution landmark)", scoreResStep)
 	}
-}
-
-func contains(list []int, n int) bool {
-	for _, v := range list {
-		if v == n {
-			return true
-		}
-	}
-	return false
 }

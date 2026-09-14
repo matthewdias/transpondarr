@@ -1,6 +1,7 @@
 package decide
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/matthewdias/transpondarr/internal/core/domain"
@@ -31,7 +32,7 @@ func TestMatchUsesSuppliedReleaseParses(t *testing.T) {
 		t.Errorf("release group = %q, want the supplied parse to enrich the release",
 			c.Release.ReleaseGroup)
 	}
-	if !c.Matched || !contains(c.Items, 3) {
+	if !c.Matched || !slices.Contains(c.Items, 3) {
 		t.Errorf("supplied parse must still map normally: matched=%v items=%v", c.Matched, c.Items)
 	}
 }
@@ -52,7 +53,7 @@ func TestMatchParsesAReleaseTheLookupMisses(t *testing.T) {
 	if c.Parsed.Group != "OtherSubs" {
 		t.Errorf("parsed group = %q, want the freshly parsed %q", c.Parsed.Group, "OtherSubs")
 	}
-	if !c.Matched || !contains(c.Items, 4) {
+	if !c.Matched || !slices.Contains(c.Items, 4) {
 		t.Errorf("a missed release must still match: matched=%v items=%v", c.Matched, c.Items)
 	}
 }

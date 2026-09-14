@@ -184,12 +184,12 @@ func TestItemReasonTreatsNoAirDateAsSearchable(t *testing.T) {
 // so a new outcome that surfaces must be added to it or the UI receives a reason
 // it has no label for.
 func TestEveryPassReasonIsInTheDTOEnum(t *testing.T) {
-	field, ok := reflect.TypeOf(missingItemDTO{}).FieldByName("Reason")
+	field, ok := reflect.TypeFor[missingItemDTO]().FieldByName("Reason")
 	if !ok {
 		t.Fatal("missingItemDTO has no Reason field")
 	}
 	listed := map[string]bool{}
-	for _, v := range strings.Split(field.Tag.Get("enum"), ",") {
+	for v := range strings.SplitSeq(field.Tag.Get("enum"), ",") {
 		listed[v] = true
 	}
 	for _, outcome := range acquire.AllOutcomes {
