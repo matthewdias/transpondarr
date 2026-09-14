@@ -20,7 +20,7 @@ type upgradeProfileJSON struct {
 	UpgradeV2AboveCutoff bool `json:"upgrade_v2_above_cutoff"`
 }
 
-// hold marks an item as held by a named release, the state an upgrade acts on.
+// hold marks an item as held by a named release, the item state an upgrade acts on.
 func hold(t *testing.T, h *harness, titleID int64, number int, release string) {
 	t.Helper()
 	if _, err := h.store.DB.ExecContext(context.Background(),

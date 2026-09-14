@@ -241,7 +241,7 @@ func TestCalendarSeparatesNeverCheckedFromNoSchedule(t *testing.T) {
 }
 
 // Format is what distinguishes a film's premiere from an episode, and a film with
-// a TV premiere appears on the calendar today: without it the entry renders as "Ep 01".
+// a TV premiere appears on the calendar today: without it the calendar entry renders as "Ep 01".
 func TestCalendarCarriesFormat(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	titleID := seedTitle(t, h.store, "Airing Show", 1)

@@ -49,7 +49,7 @@ type missingResponse struct {
 	NextCursor   string         `json:"next_cursor"`
 }
 
-// items flattens the groups for tests that only care which items are present.
+// items flattens the title groups for tests that only care which items are present.
 func (r missingResponse) items() []missingItem {
 	var out []missingItem
 	for _, g := range r.Groups {
@@ -116,7 +116,7 @@ func nullable(s string) any {
 	return s
 }
 
-// Missing is the sweep's own predicate lifted library-wide: a held item and one
+// Missing is the search sweep's own predicate lifted library-wide: a held item and one
 // with a live grab are both absent, a failed grab puts its item back in.
 func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 	h := wantedHarness(t)
@@ -162,7 +162,7 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 
 // The Calendar is responsible for the forward-looking view, so an unaired item
 // is withheld until asked for; an item with no schedule at all is not unaired
-// and always shows, matching how the sweep reads a null air date.
+// and always shows, matching how the search sweep reads a null air date.
 func TestMissingUnairedToggle(t *testing.T) {
 	h := wantedHarness(t)
 	titleID := seedTitle(t, h.store, "Airing Show", 3)
@@ -205,7 +205,7 @@ func TestMissingUnairedToggle(t *testing.T) {
 // An episode's air date is when it becomes acquirable, so withholding it until
 // then is complete information. A film's is only the earliest it could be: the
 // date AniList publishes is the theatrical premiere, months ahead of anything
-// grabbable. Hiding it there would delete the whole title from the page a user
+// grabbable. Hiding it there would delete the whole title from the Wanted page a user
 // tracks it on, where hiding one episode still leaves its title listed.
 func TestMissingKeepsAnAnnouncedFilmVisible(t *testing.T) {
 	h := wantedHarness(t)
@@ -343,7 +343,7 @@ func TestMissingUnmonitoredToggle(t *testing.T) {
 	}
 }
 
-// The reason is re-derived from stored state on every request, so the sweep's
+// The reason is re-derived from stored database state on every request, so the search sweep's
 // cadence columns and the blocklist show through without a write anywhere.
 func TestMissingReasonReadsStoredState(t *testing.T) {
 	h := wantedHarness(t)
@@ -393,7 +393,7 @@ func TestMissingReasonReadsStoredState(t *testing.T) {
 	}
 }
 
-// Groups order by their newest missing broadcast, an all-undated title last;
+// Title groups order by their newest missing broadcast, an all-undated title last;
 // inside a group episodes enumerate forwards regardless of their dates, since
 // that is how a run reads and how a back catalogue drains.
 func TestMissingOrdersRecentGroupsFirstAndEpisodesForwards(t *testing.T) {
@@ -426,7 +426,7 @@ func TestMissingOrdersRecentGroupsFirstAndEpisodesForwards(t *testing.T) {
 	}
 }
 
-// A group past the cap still reports its full size: the header count is the
+// A title group past the cap still reports its full size: the header count is the
 // back-catalog progress display, the listed rows are just the front of the run.
 func TestMissingCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	h := wantedHarness(t)
@@ -448,7 +448,7 @@ func TestMissingCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	}
 }
 
-// A page's weight is rows, not groups: it closes early once its groups would
+// A results page's weight is rows, not title groups: it closes early once its groups would
 // list about 200 items, so a run of capped back-catalog groups cannot stack
 // into one giant paint. The cursor resumes without a skip or an overlap.
 func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
@@ -495,7 +495,7 @@ func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
 	}
 }
 
-// The page-level reason: what stops any search running at all is reported once, not
+// The Wanted page-level reason: what stops any search running at all is reported once, not
 // stamped on every row.
 func TestMissingReportsTheGlobalReason(t *testing.T) {
 	h := wantedHarness(t) // automation on, indexer set
@@ -531,7 +531,7 @@ func TestMissingReportsTheGlobalReason(t *testing.T) {
 	}
 }
 
-// The pagination unit is the group, so a title never splits across a page
+// The pagination unit is the title group, so a title never splits across a results page
 // boundary: every group appears exactly once, whole, and the last page has
 // no cursor.
 func TestMissingPaginatesByGroup(t *testing.T) {
@@ -584,7 +584,7 @@ func TestMissingPaginatesByGroup(t *testing.T) {
 	}
 }
 
-// Cutoff Unmet is queried from stored state: the held release is re-scored under
+// Cutoff Unmet is queried from stored database state: the held release is re-scored under
 // the title's current profile, so the row reports the numbers behind the claim.
 func TestCutoffUnmetRoute(t *testing.T) {
 	h := wantedHarness(t)
@@ -623,7 +623,7 @@ func TestCutoffUnmetRoute(t *testing.T) {
 	if g.TitleID != titleID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
 		t.Errorf("group = %+v, want the profile and cutoff hoisted to the header", g)
 	}
-	// Format is on the group so the page can word a film's row without labelling
+	// Format is on the title group so the Wanted page can word a film's row without labelling
 	// it an episode (#215); it comes through acquire.CutoffGroup, not the
 	// row's own struct, which is the join this asserts.
 	if g.Format != "TV" {
@@ -643,7 +643,7 @@ func TestCutoffUnmetRoute(t *testing.T) {
 		t.Error("want the held release title carried through")
 	}
 	// The held [MidSubs] 720p under TopSubs>MidSubs at 1080p>720p leaves the top
-	// group and top resolution unawarded, 100 points each.
+	// profile group and top resolution unawarded, 100 points each.
 	goals := map[string]int{}
 	for _, g := range got.UnmetGoals {
 		goals[g.Label] = g.Points

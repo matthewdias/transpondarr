@@ -63,7 +63,7 @@ func TestAutomationSettingsRoundTrip(t *testing.T) {
 	}
 }
 
-// The mode is a closed enum: a typo'd client value must not silently become off.
+// The automation mode is a closed enum: a typo'd client value must not silently become off.
 func TestAutomationSettingsRejectsUnknownMode(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	code := do(t, h, http.MethodPut, "/api/v1/settings/automation",

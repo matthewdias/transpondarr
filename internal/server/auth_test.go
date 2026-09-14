@@ -164,7 +164,7 @@ func TestAuthLocalModeBypassAndGuards(t *testing.T) {
 }
 
 // TestAuthEnabledModeIgnoresLocalAddress confirms local admission depends on the
-// required-mode: in "enabled" mode a loopback request with no credentials is
+// auth required-mode: in "enabled" auth mode a loopback request with no credentials is
 // still rejected, while the public health endpoint stays open.
 func TestAuthEnabledModeIgnoresLocalAddress(t *testing.T) {
 	ts, _ := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredEnabled})
@@ -183,7 +183,7 @@ func TestAuthEnabledModeIgnoresLocalAddress(t *testing.T) {
 	}
 }
 
-// The required-mode is the settings inputs' rule (#227) outside Huma: an enum
+// The auth required-mode is the settings inputs' rule (#227) outside Huma: an enum
 // the service defaults, so an omitted field is an error rather than a silent
 // switch to "enabled" that locks a local install out of its own API.
 func TestAuthModeRequiresTheModeItSets(t *testing.T) {
@@ -229,7 +229,7 @@ func setAuthMode(t *testing.T, ts *httptest.Server, body map[string]string) int 
 }
 
 // TestAuthPasswordChangeIsRateLimited covers the change-password endpoint in
-// "local" mode, where the middleware admits any LAN peer with no credential at
+// "local" auth mode, where the middleware admits any LAN peer with no credential at
 // all: without the limiter it is an unmetered password-guessing oracle.
 func TestAuthPasswordChangeIsRateLimited(t *testing.T) {
 	ts, authSvc := newAuthServer(t, &config.Config{AuthRequired: auth.RequiredLocal})

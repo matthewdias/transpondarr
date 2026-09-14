@@ -85,8 +85,8 @@ func TestTitleListReadsAFailedGrabAsWanted(t *testing.T) {
 }
 
 // #208 guarantees one item only for a film added since it. 00022 re-keys a
-// legacy movie's episodes to kind 'movie' without collapsing them, so a
-// pre-#208 add of a film whose shorts shipped as one entry persists through the
+// legacy movie's episodes to item kind 'movie' without collapsing them, so a
+// pre-#208 add of a film whose shorts shipped as one AniList entry persists through the
 // upgrade as several -- and the list must then report what the detail page
 // reports, which is items[0] (ListWantedItems orders by number).
 func TestTitleListReadsTheFirstItemOfALegacyMultiItemFilm(t *testing.T) {
@@ -115,7 +115,7 @@ func TestTitleListReadsTheFirstItemOfALegacyMultiItemFilm(t *testing.T) {
 	}
 }
 
-// The state is per item and the row is per title, so it is published only where
+// The acquisition state is per item and the row is per title, so it is published only where
 // format guarantees the two are the same thing (#208) -- absent, not "wanted",
 // for a series whose progress column is the count it always was.
 func TestTitleListOmitsItemStatusForASeries(t *testing.T) {

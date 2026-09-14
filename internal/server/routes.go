@@ -19,7 +19,7 @@ import (
 // live download/indexer clients (either may be nil when unconfigured; handlers
 // report that as 503); settings backs the runtime-config endpoints; jobs backs
 // the job-status endpoint and is nil on the spec-dump path. acquire is built
-// once here rather than per handler group, so the manual routes and the sweep
+// once here rather than per handler group, so the manual routes and the search sweep
 // share one service.
 type routeDeps struct {
 	store     *store.Store

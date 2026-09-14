@@ -12,7 +12,7 @@ import (
 
 // Each reason level is a ranking, not a set: a slot states the one fact that
 // most explains its scope, so the order between reasons is the whole contract.
-// The levels never replace one another -- the page shows all three at once.
+// The levels never replace one another -- the Wanted page shows all three at once.
 
 func TestGlobalReasonRanking(t *testing.T) {
 	cases := []struct {
@@ -92,7 +92,7 @@ func TestItemReasonRanking(t *testing.T) {
 		{"would grab", itemFacts{AirsAt: aired, Pass: pass(acquire.OutcomeWouldGrab)}, reasonWouldGrab, true},
 		{"add failed", itemFacts{AirsAt: aired, Pass: pass(acquire.OutcomeAddFailed)}, reasonAddFailed, true},
 		// A decline is standing and user-actionable; a failure has already been
-		// handled -- the item reverted to wanted and the group reads blocklisted.
+		// handled -- the item reverted to wanted and the title group reads blocklisted.
 		{"a pass answer outranks a failed grab", itemFacts{
 			AirsAt: aired, GrabFailed: true, GrabbedAt: now.Add(-6 * time.Hour),
 			Pass: pass(acquire.OutcomeDeclined),
@@ -126,7 +126,7 @@ func TestItemReasonRanking(t *testing.T) {
 // The stored set and the surfaced set differ on purpose. grabbed is only the
 // tombstone that invalidates an older refusal -- a listed item's grab plainly
 // did not last, and grab_failed is what that row shows -- and contention's honest
-// message is "the queue is working", which the group's reason already reports.
+// message is "the queue is working", which the title group's reason already reports.
 func TestGrabbedAndContendedSurfaceNothing(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
 	for _, outcome := range []string{acquire.OutcomeGrabbed, acquire.OutcomeContended} {
@@ -172,7 +172,7 @@ func TestAPassAnswerOlderThanItsGrabIsSuppressed(t *testing.T) {
 
 // A null air date is not a future one. AniList's coverage thins out badly before
 // ~2015 and skips episodes even for modern titles, so an item with no schedule
-// is searchable -- the sweep's own reading -- and must never read as unaired.
+// is searchable -- the search sweep's own reading -- and must never read as unaired.
 func TestItemReasonTreatsNoAirDateAsSearchable(t *testing.T) {
 	now := time.Date(2026, 8, 5, 12, 0, 0, 0, time.UTC)
 	if got, _ := itemReason(itemFacts{Monitored: true}, now); got != "" {

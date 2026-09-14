@@ -49,7 +49,7 @@ type harness struct {
 }
 
 // newHarness stands up server.New over a temp store with the given fake clients.
-// Auth is in "local" mode, so the loopback httptest client is authorized without
+// Auth is in "local" auth mode, so the loopback httptest client is authorized without
 // a login — leaving the pipeline (not the auth layer) as what the test exercises.
 func newHarness(t *testing.T, idx *coretest.FakeIndexer, dl *coretest.FakeDownload) *harness {
 	t.Helper()

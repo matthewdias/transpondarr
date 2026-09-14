@@ -17,7 +17,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// queueItemDTO is one in-flight grab with the live client-reported state
+// queueItemDTO is one in-flight grab with the live client-reported download state
 // alongside the derived status the rest of the UI uses.
 type queueItemDTO struct {
 	ID           int64    `json:"id"`
@@ -295,7 +295,7 @@ func registerActivityRoutes(api huma.API, deps routeDeps) {
 	}, func(ctx context.Context, in *activityHistoryInput) (*activityHistoryOutput, error) {
 		limit := in.Limit
 
-		// Fetch one past the page to detect whether a next page exists.
+		// Fetch one past the results page to detect whether a next page exists.
 		var rows []db.ListGrabEventsPageRow
 		if in.Cursor == "" {
 			var err error

@@ -15,7 +15,7 @@ type setItemsMonitoredResponse struct {
 	TitlesQueued int `json:"titles_queued"`
 }
 
-// setMonitoredParams seeds the flag directly, so a test can arrive at the state
+// setMonitoredParams seeds the flag directly, so a test can arrive at the monitoring state
 // the endpoint under test is meant to leave behind.
 func setMonitoredParams(monitored int64, ids []int64) db.SetWantedItemsMonitoredParams {
 	return db.SetWantedItemsMonitoredParams{Monitored: monitored, Ids: ids}
@@ -76,7 +76,7 @@ func TestSetItemsMonitoredUnmonitorsWithoutTouchingTheSearchQueue(t *testing.T) 
 	}
 }
 
-// Re-monitoring resets the sweep cadence once per distinct title: the feed's
+// Re-monitoring resets the search sweep cadence once per distinct title: the feed's
 // dedupe is one-shot, so only a fresh search finds a release that already exists.
 func TestSetItemsMonitoredResetsEachTitleOnce(t *testing.T) {
 	h := wantedHarness(t)
@@ -130,7 +130,7 @@ func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
 	}
 }
 
-// A selection covering both states resets once, on the strength of the item
+// A selection covering both monitoring states resets once, on the strength of the item
 // that actually moved.
 func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 	h := wantedHarness(t)
@@ -158,7 +158,7 @@ func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 }
 
 // A hand-built selection must still work when a title was deleted in another tab:
-// for a state-setter a missing id is vacuous -- the item is gone, so "stop wanting
+// for a monitoring state-setter a missing id is vacuous -- the item is gone, so "stop wanting
 // it" is already true -- which is why this diverges from resetSelected's 404.
 func TestSetItemsMonitoredSkipsUnknownIDs(t *testing.T) {
 	h := wantedHarness(t)
