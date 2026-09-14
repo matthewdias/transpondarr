@@ -607,7 +607,7 @@ it("words the queued-search toast for what happened", () => {
     }),
   ).toMatchObject({
     title: "Search queued for 1 title.",
-    description: "The next scheduled sweep will run it.",
+    description: "The next scheduled search sweep will run it.",
   });
 });
 

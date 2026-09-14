@@ -323,8 +323,8 @@ export function ExcludePicker({
       </span>
       <span className="mb-2 block text-[11px] text-faint">
         Attributes are read from the release name, so a release that does not
-        label one is not detected. Rank trusted groups and set a minimum score
-        for real protection.
+        label one is not detected. Rank trusted release groups and set a minimum
+        score for real protection.
       </span>
       <div className="space-y-2">
         {EXCLUDE_AXES.map((a) => (
@@ -440,8 +440,8 @@ function ProfileEditor({
             Release groups — most preferred first
           </span>
           <span className="mb-2 block text-[11px] text-faint">
-            Group is the dominant signal: any listed group outranks every
-            unlisted one. Blocked groups are never taken.
+            Release group is the dominant signal: any listed group outranks
+            every unlisted one. Blocked groups are never taken.
           </span>
           <SortableList
             rows={state.groups}
@@ -748,7 +748,7 @@ export function ProfilesSection() {
     <SectionShell
       icon={ListOrdered}
       title="Quality profiles"
-      description="What a release should be — ranked groups first, then resolution, source, subs, codec."
+      description="What a release should be — ranked release groups first, then resolution, source, subs, codec."
     >
       {profiles.isLoading && (
         <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">

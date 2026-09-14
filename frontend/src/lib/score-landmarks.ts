@@ -1,5 +1,5 @@
 // Mirrors the score weights in internal/core/decide/decide.go, so an upgrade
-// cutoff is chosen as a landmark ("top group, best resolution") rather than as a
+// cutoff is chosen as a landmark ("top release group, best resolution") rather than as a
 // bare number nobody can rank. A Go guard test pins the two the landmarks are
 // built from (TestScoreLandmarksArePinned), so a reweighting has to move this
 // file too.
@@ -12,15 +12,18 @@ export type ScoreLandmark = { score: number; label: string };
 
 // Worst first, so each option down the select is a stricter "good enough".
 export const SCORE_LANDMARKS: ScoreLandmark[] = [
-  { score: RES_BASE, label: "Best resolution, any group" },
-  { score: GROUP_MIN, label: "Any ranked group" },
-  { score: GROUP_MIN + RES_BASE, label: "Any ranked group, best resolution" },
-  { score: GROUP_BASE, label: "Top-ranked group" },
+  { score: RES_BASE, label: "Best resolution, any release group" },
+  { score: GROUP_MIN, label: "Any ranked release group" },
+  {
+    score: GROUP_MIN + RES_BASE,
+    label: "Any ranked release group, best resolution",
+  },
+  { score: GROUP_BASE, label: "Top-ranked release group" },
   {
     score: GROUP_BASE + RES_BASE - RES_STEP,
-    label: "Top group, second-best resolution",
+    label: "Top release group, second-best resolution",
   },
-  { score: GROUP_BASE + RES_BASE, label: "Top group, best resolution" },
+  { score: GROUP_BASE + RES_BASE, label: "Top release group, best resolution" },
 ];
 
 // What a first opt-in lands on: upgrade until the held release is the best this

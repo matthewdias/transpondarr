@@ -125,11 +125,11 @@ describe("UpgradePolicyFields", () => {
       fields({ upgradesEnabled: true, cutoffScore: DEFAULT_CUTOFF, onChange }),
     );
     const cutoff = screen.getByRole("combobox", { name: /upgrade until/i });
-    expect(cutoff).toHaveTextContent("Top group, best resolution");
+    expect(cutoff).toHaveTextContent("Top release group, best resolution");
 
     await user.click(cutoff);
     await user.click(
-      await screen.findByRole("option", { name: "Top-ranked group" }),
+      await screen.findByRole("option", { name: "Top-ranked release group" }),
     );
     expect(onChange).toHaveBeenLastCalledWith({ cutoffScore: 2000 });
 
