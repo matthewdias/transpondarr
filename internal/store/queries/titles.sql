@@ -101,7 +101,7 @@ UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?;
 -- Titles whose broadcast schedule has never been synced or has gone stale. A
 -- finished title's aired times are immutable, so it uses the long cutoff
 -- while anything still moving uses the short one. A title with no cache
--- row has unknown status and deliberately uses the short cutoff: unknown is
+-- row has unknown status and uses the short cutoff: unknown is
 -- likelier a transient anomaly than a finished title, and the cost is one tail
 -- request per short TTL. Unmonitored titles are ordered last rather than
 -- filtered out (#183): monitoring limits what automation acts on, not what we

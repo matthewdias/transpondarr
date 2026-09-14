@@ -182,7 +182,7 @@ FROM wanted_items
 WHERE id IN (/*SLICE:ids*/?) AND monitored = 0
 `
 
-// The titles a re-monitor will actually change, so the cadence reset lands once
+// The titles a re-monitor will change, so the cadence reset lands once
 // per title and only where something moved. Read before the update, in the
 // same transaction, since the update reports only a row count.
 func (q *Queries) ListTitleIDsForUnmonitoredItems(ctx context.Context, ids []int64) ([]int64, error) {
@@ -368,7 +368,7 @@ type SetWantedItemsMonitoredParams struct {
 	Ids       []int64 `json:"ids"`
 }
 
-// The bulk monitored-state setter behind both monitoring UIs. Unknown ids are simply not
+// The bulk monitored-state setter behind both monitoring UIs. Unknown ids are not
 // matched, which is what lets a concurrent title delete cost only those ids.
 func (q *Queries) SetWantedItemsMonitored(ctx context.Context, arg SetWantedItemsMonitoredParams) (int64, error) {
 	query := setWantedItemsMonitored

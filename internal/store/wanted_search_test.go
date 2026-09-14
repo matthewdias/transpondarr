@@ -83,7 +83,7 @@ func contains(list []string, want string) bool {
 }
 
 // The due predicate is the whole budget control for the search sweep: it must admit
-// only monitored titles that actually have something searchable right now.
+// only monitored titles that have something searchable right now.
 func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()
@@ -93,7 +93,7 @@ func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 
 	// Included: a monitored title with an aired, ungrabbed item.
 	seedSearchItem(t, st, seedSearchTitle(t, st, "aired", 1), 1, 0, &past)
-	// Included: no air date at all — AniList coverage gaps are normal, not a reason
+	// Included: no air date — AniList coverage gaps are normal, not a reason
 	// to never search.
 	seedSearchItem(t, st, seedSearchTitle(t, st, "unscheduled", 1), 1, 0, nil)
 	// Included: a previous grab that failed is wanted again.
@@ -219,7 +219,7 @@ func gapTitles(t *testing.T, st *Store, now, lo, hi time.Time, limit int64) []st
 }
 
 // The gap-recovery set is the search sweep's wanted predicate narrowed to a broadcast
-// window and to titles the backoff is actually postponing: a reset does nothing
+// window and to titles the backoff is postponing: a reset does nothing
 // for a due title, and would use one of the bounded slots.
 func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 	st := tempStore(t)
@@ -252,7 +252,7 @@ func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 	setNextSearchAt(t, st, mustSeed(t, st, "aired-at-hi", 1, 1, 0, &hi), later)
 	// Excluded: not broadcast yet.
 	setNextSearchAt(t, st, mustSeed(t, st, "aired-after", 1, 1, 0, ptr(now.Add(time.Hour))), later)
-	// Excluded: no air date at all -- nothing places it inside the gap.
+	// Excluded: no air date -- nothing places it inside the gap.
 	setNextSearchAt(t, st, mustSeed(t, st, "unscheduled", 1, 1, 0, nil), later)
 	// Excluded: already in the library.
 	setNextSearchAt(t, st, mustSeed(t, st, "all-had", 1, 1, 1, &inside), later)

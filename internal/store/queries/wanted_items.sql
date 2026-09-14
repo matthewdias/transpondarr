@@ -26,12 +26,12 @@ LEFT JOIN grabs g ON g.wanted_item_id = w.id
 WHERE w.series_id = ? AND w.kind = ? AND w.number = ?;
 
 -- name: SetWantedItemsMonitored :execrows
--- The bulk monitored-state setter behind both monitoring UIs. Unknown ids are simply not
+-- The bulk monitored-state setter behind both monitoring UIs. Unknown ids are not
 -- matched, which is what lets a concurrent title delete cost only those ids.
 UPDATE wanted_items SET monitored = ? WHERE id IN (sqlc.slice('ids'));
 
 -- name: ListTitleIDsForUnmonitoredItems :many
--- The titles a re-monitor will actually change, so the cadence reset lands once
+-- The titles a re-monitor will change, so the cadence reset lands once
 -- per title and only where something moved. Read before the update, in the
 -- same transaction, since the update reports only a row count.
 SELECT DISTINCT series_id

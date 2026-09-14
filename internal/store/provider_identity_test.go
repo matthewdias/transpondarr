@@ -25,7 +25,7 @@ func TestProviderIdentityMigrationKeepsCascadeChildren(t *testing.T) {
 		 VALUES (4321, 'Populated Show', 'TV', 1, 7, 'ExampleSubs', 3) RETURNING id`).Scan(&titleID); err != nil {
 		t.Fatalf("seed series: %v", err)
 	}
-	// A second row with no provider id at all: the CHECK must accept it, and the
+	// A second row with no provider id: the CHECK must accept it, and the
 	// rebuild must not supply a provider for it.
 	var untrackedID int64
 	if err := st.DB.QueryRowContext(ctx,
@@ -85,7 +85,7 @@ func TestProviderIdentityMigrationKeepsCascadeChildren(t *testing.T) {
 	}
 
 	// Every other column the eight accumulated ALTERs added must still exist after
-	// the rebuild with its value, not just its name.
+	// the rebuild with its value, not only its name.
 	var (
 		provider      string
 		providerID    int64
