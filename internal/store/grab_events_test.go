@@ -112,17 +112,17 @@ func TestListTitleGrabEventsScopesToTitle(t *testing.T) {
 
 	events, err := st.Q.ListTitleGrabEvents(ctx, a)
 	if err != nil {
-		t.Fatalf("list series events: %v", err)
+		t.Fatalf("list title events: %v", err)
 	}
 	if len(events) != 2 {
-		t.Fatalf("expected 2 events for series a, got %d", len(events))
+		t.Fatalf("expected 2 events for title a, got %d", len(events))
 	}
 	if events[0].Event != "imported" || events[1].Event != "grabbed" {
 		t.Errorf("order = %s, %s; want imported, grabbed", events[0].Event, events[1].Event)
 	}
 	for _, e := range events {
 		if e.SeriesID != a {
-			t.Errorf("event %d has series %d, want %d", e.ID, e.SeriesID, a)
+			t.Errorf("event %d has title %d, want %d", e.ID, e.SeriesID, a)
 		}
 	}
 }

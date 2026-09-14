@@ -100,13 +100,13 @@ func TestSetItemsMonitoredResetsEachTitleOnce(t *testing.T) {
 		t.Fatalf("PATCH items = %d, want 200", code)
 	}
 	if out.Updated != 3 || out.TitlesQueued != 2 {
-		t.Errorf("response = %+v, want 3 updated across 2 series", out)
+		t.Errorf("response = %+v, want 3 updated across 2 titles", out)
 	}
 	if got := searchEpoch(t, h.store, first); got != firstBefore+1 {
-		t.Errorf("series %d epoch = %d, want %d -- two items, one reset", first, got, firstBefore+1)
+		t.Errorf("title %d epoch = %d, want %d -- two items, one reset", first, got, firstBefore+1)
 	}
 	if got := searchEpoch(t, h.store, second); got != secondBefore+1 {
-		t.Errorf("series %d epoch = %d, want %d", second, got, secondBefore+1)
+		t.Errorf("title %d epoch = %d, want %d", second, got, secondBefore+1)
 	}
 }
 

@@ -34,7 +34,7 @@ func TestTitleDetailEnrichedFromMetadataCache(t *testing.T) {
 		CoverURL   string `json:"cover_url"`
 	}
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
-		t.Fatalf("GET series detail = %d, want 200", code)
+		t.Fatalf("GET title detail = %d, want 200", code)
 	}
 	// The enrichment is looked up on the title's own provider, not a literal.
 	if out.Provider != "anilist" || out.ProviderID != 42 {
@@ -63,7 +63,7 @@ func TestAddTitleTakesTheProviderPair(t *testing.T) {
 	}
 	if code := do(t, h, http.MethodPost, "/api/v1/titles",
 		map[string]any{"provider": "anilist", "provider_id": 4321}, &out); code != http.StatusCreated {
-		t.Fatalf("POST /series = %d, want 201", code)
+		t.Fatalf("POST /titles = %d, want 201", code)
 	}
 	if out.Provider != "anilist" || out.ProviderID != 4321 {
 		t.Errorf("response identity = (%q, %d), want (anilist, 4321)", out.Provider, out.ProviderID)
@@ -72,11 +72,11 @@ func TestAddTitleTakesTheProviderPair(t *testing.T) {
 	var ignored struct{}
 	if code := do(t, h, http.MethodPost, "/api/v1/titles",
 		map[string]any{"anilist_id": 99}, &ignored); code != http.StatusUnprocessableEntity {
-		t.Errorf("POST /series in the old shape = %d, want 422", code)
+		t.Errorf("POST /titles in the old shape = %d, want 422", code)
 	}
 	if code := do(t, h, http.MethodPost, "/api/v1/titles",
 		map[string]any{"provider": "mal", "provider_id": 99}, &ignored); code != http.StatusUnprocessableEntity {
-		t.Errorf("POST /series naming an unconfigured provider = %d, want 422", code)
+		t.Errorf("POST /titles naming an unconfigured provider = %d, want 422", code)
 	}
 }
 
@@ -100,13 +100,13 @@ func TestAddTitleTakesTheQualityProfile(t *testing.T) {
 	if code := do(t, h, http.MethodPost, "/api/v1/titles", map[string]any{
 		"provider": "anilist", "provider_id": 4321, "quality_profile_id": created.ID,
 	}, &added); code != http.StatusCreated {
-		t.Fatalf("POST /series with a profile = %d, want 201", code)
+		t.Fatalf("POST /titles with a profile = %d, want 201", code)
 	}
 	var detail struct {
 		QualityProfileID int64 `json:"quality_profile_id"`
 	}
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", added.ID), &detail); code != http.StatusOK {
-		t.Fatalf("GET series detail = %d, want 200", code)
+		t.Fatalf("GET title detail = %d, want 200", code)
 	}
 	if detail.QualityProfileID != created.ID {
 		t.Errorf("quality_profile_id = %d, want the requested %d", detail.QualityProfileID, created.ID)
@@ -116,7 +116,7 @@ func TestAddTitleTakesTheQualityProfile(t *testing.T) {
 	if code := do(t, h, http.MethodPost, "/api/v1/titles", map[string]any{
 		"provider": "anilist", "provider_id": 4322, "quality_profile_id": 9999,
 	}, &ignored); code != http.StatusUnprocessableEntity {
-		t.Errorf("POST /series naming an unknown profile = %d, want 422", code)
+		t.Errorf("POST /titles naming an unknown profile = %d, want 422", code)
 	}
 }
 

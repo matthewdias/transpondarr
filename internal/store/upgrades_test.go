@@ -54,7 +54,7 @@ func feedTitles(t *testing.T, st *Store, now time.Time) []string {
 	rows, err := st.Q.ListTitlesWithWantedItems(context.Background(),
 		sql.NullString{String: FormatTimestamp(now), Valid: true})
 	if err != nil {
-		t.Fatalf("list series with wanted items: %v", err)
+		t.Fatalf("list titles with wanted items: %v", err)
 	}
 	out := make([]string, 0, len(rows))
 	for _, r := range rows {
@@ -128,13 +128,13 @@ func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 		}
 	}
 	if len(got) != 3 {
-		t.Errorf("feed set = %v, want exactly the wanted series plus the two upgradable ones", got)
+		t.Errorf("feed set = %v, want exactly the wanted title plus the two upgradable ones", got)
 	}
 
 	// The sweep costs a search per title, so upgrades go on the flat-cost feed
 	// alone: its predicate must be unchanged.
 	if due := dueTitles(t, st, now, 100); len(due) != 1 || due[0] != "wanted" {
-		t.Errorf("due set = %v, want only the series with something still wanted", due)
+		t.Errorf("due set = %v, want only the title with something still wanted", due)
 	}
 }
 

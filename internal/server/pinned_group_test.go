@@ -22,7 +22,7 @@ func TestPinnedGroupAssignmentRoundTrip(t *testing.T) {
 		t.Fatalf("pin status = %d, want 200", code)
 	}
 	if set.TitleID != titleID || set.PinnedGroup != "ShinyRip" {
-		t.Errorf("echo = %+v, want the series id and pinned group back", set)
+		t.Errorf("echo = %+v, want the title id and pinned group back", set)
 	}
 
 	var detail struct {
@@ -133,6 +133,6 @@ func TestPinUnknownTitleRejected(t *testing.T) {
 	code := do(t, h, "PUT", "/api/v1/titles/999/pinned-group",
 		map[string]any{"group": "ShinyRip"}, nil)
 	if code != http.StatusNotFound {
-		t.Fatalf("pin unknown series status = %d, want 404", code)
+		t.Fatalf("pin unknown title status = %d, want 404", code)
 	}
 }

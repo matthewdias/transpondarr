@@ -27,7 +27,7 @@ func TestTitleDetailSurfacesAirDates(t *testing.T) {
 		} `json:"items"`
 	}
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
-		t.Fatalf("GET series detail = %d, want 200", code)
+		t.Fatalf("GET title detail = %d, want 200", code)
 	}
 	if len(out.Items) != 2 {
 		t.Fatalf("got %d items, want 2", len(out.Items))

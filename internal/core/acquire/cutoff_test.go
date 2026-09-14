@@ -50,7 +50,7 @@ func putOnProfile(t *testing.T, st *store.Store, titleID, profileID int64) {
 		QualityProfileID: profileID, ID: titleID, ID_2: profileID,
 	})
 	if err != nil || rows != 1 {
-		t.Fatalf("set series profile: %v (%d rows)", err, rows)
+		t.Fatalf("set title profile: %v (%d rows)", err, rows)
 	}
 }
 
@@ -108,7 +108,7 @@ func TestCutoffUnmetMembership(t *testing.T) {
 		t.Fatalf("CutoffUnmet: %v", err)
 	}
 	if len(page.Groups) != 1 {
-		t.Fatalf("groups = %+v, want only the upgrading series", page.Groups)
+		t.Fatalf("groups = %+v, want only the upgrading title", page.Groups)
 	}
 	g := page.Groups[0]
 	if g.TitleID != titleID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
@@ -223,11 +223,11 @@ func TestCutoffUnmetPagesGroupsPastMetTitles(t *testing.T) {
 		cursor = page.NextCursor
 	}
 	if len(seen) != 3 {
-		t.Fatalf("saw %v, want exactly the three sub-cutoff series", seen)
+		t.Fatalf("saw %v, want exactly the three sub-cutoff titles", seen)
 	}
 	for title := range wantTitles {
 		if seen[title] != 2 {
-			t.Errorf("series %s items = %d, want its whole 2", title, seen[title])
+			t.Errorf("title %s items = %d, want its whole 2", title, seen[title])
 		}
 	}
 }
@@ -250,7 +250,7 @@ func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 		t.Fatalf("CutoffUnmet: %v", err)
 	}
 	if len(page.Groups) != 0 {
-		t.Fatalf("groups = %+v, want none: the series is unmonitored", page.Groups)
+		t.Fatalf("groups = %+v, want none: the title is unmonitored", page.Groups)
 	}
 	page, err = svc.CutoffUnmet(ctx, acquire.CutoffUnmetParams{Limit: 20, IncludeUnmonitored: true})
 	if err != nil {

@@ -95,10 +95,10 @@ func TestDeleteTitleRemovesEverythingAndLeavesTheClientAlone(t *testing.T) {
 		listed[s.ID] = true
 	}
 	if listed[id] {
-		t.Errorf("deleted series %d still in the list", id)
+		t.Errorf("deleted title %d still in the list", id)
 	}
 	if !listed[survivor] {
-		t.Errorf("series %d went missing from the list; the delete took more than it was asked for", survivor)
+		t.Errorf("title %d went missing from the list; the delete took more than it was asked for", survivor)
 	}
 }
 

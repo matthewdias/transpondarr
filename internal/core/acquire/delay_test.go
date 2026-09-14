@@ -125,7 +125,7 @@ func TestSweepPerTitleDelayOverridesTheGlobalDefault(t *testing.T) {
 			t.Fatalf("SweepOnce: %v", err)
 		}
 		if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
-			t.Errorf("grabbed %v, want nothing — the series overrides the global 0", got)
+			t.Errorf("grabbed %v, want nothing — the title overrides the global 0", got)
 		}
 	})
 
@@ -138,7 +138,7 @@ func TestSweepPerTitleDelayOverridesTheGlobalDefault(t *testing.T) {
 			t.Fatalf("SweepOnce: %v", err)
 		}
 		if got := grabbedItemNumbers(t, h.st, id); len(got) != 1 {
-			t.Errorf("grabbed %v, want the release — the series overrides the global 6h", got)
+			t.Errorf("grabbed %v, want the release — the title overrides the global 6h", got)
 		}
 	})
 }

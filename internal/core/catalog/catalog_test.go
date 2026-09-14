@@ -126,7 +126,7 @@ func TestAddTitlePersistsTitleAndItems(t *testing.T) {
 	}
 
 	if title.ID == 0 {
-		t.Error("expected a persisted series id, got 0")
+		t.Error("expected a persisted title id, got 0")
 	}
 	if title.Name != "Cowboy Bebop" {
 		t.Errorf("name = %q, want Cowboy Bebop", title.Name)
@@ -162,7 +162,7 @@ func TestAddTitlePersistsTitleAndItems(t *testing.T) {
 		t.Fatalf("GetTitleByProviderID: %v", err)
 	}
 	if srow.Title != "Cowboy Bebop" || srow.Monitored != 1 {
-		t.Errorf("stored series = %+v, want title Cowboy Bebop / monitored 1", srow)
+		t.Errorf("stored title = %+v, want title Cowboy Bebop / monitored 1", srow)
 	}
 	if srow.Provider.String != prov.Name() {
 		t.Errorf("stored provider = %q, want %q", srow.Provider.String, prov.Name())
@@ -203,7 +203,7 @@ func TestAddTitleIsIdempotentByProviderID(t *testing.T) {
 		t.Fatalf("ListTitles: %v", err)
 	}
 	if len(all) != 1 {
-		t.Errorf("stored %d series, want 1", len(all))
+		t.Errorf("stored %d titles, want 1", len(all))
 	}
 }
 
@@ -271,6 +271,6 @@ func TestAddTitleProviderErrorPersistsNothing(t *testing.T) {
 		t.Fatalf("ListTitles: %v", err)
 	}
 	if len(all) != 0 {
-		t.Errorf("stored %d series after a failed add, want 0", len(all))
+		t.Errorf("stored %d titles after a failed add, want 0", len(all))
 	}
 }

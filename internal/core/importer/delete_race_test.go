@@ -30,7 +30,7 @@ func TestScanSurvivesTitleDeletedMidImport(t *testing.T) {
 	target := &coretest.FakeLibrary{}
 	target.PlaceHook = func(library.ImportRequest) {
 		if _, err := st.Q.DeleteTitle(ctx, titleID); err != nil {
-			t.Errorf("delete series mid-import: %v", err)
+			t.Errorf("delete title mid-import: %v", err)
 		}
 	}
 	im := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil)

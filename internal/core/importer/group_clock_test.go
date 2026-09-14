@@ -24,7 +24,7 @@ func seedPack(t *testing.T, st *store.Store, hash string, numbers ...int) int64 
 	ctx := context.Background()
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "Placeholder Saga", Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	for _, n := range numbers {
 		item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{

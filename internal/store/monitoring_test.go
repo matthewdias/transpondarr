@@ -26,7 +26,7 @@ func TestMonitorNew(t *testing.T) {
 		{"an item above the cut is monitored", from(50), num(1051), 1},
 		{"an item below the cut is not", from(50), num(49), 0},
 		{"a null cut monitors nothing new", sql.NullInt64{}, num(1), 0},
-		{"a numberless item follows the series", from(50), sql.NullInt64{}, 1},
+		{"a numberless item follows the title", from(50), sql.NullInt64{}, 1},
 		{"a numberless item under a null cut is not monitored", sql.NullInt64{}, sql.NullInt64{}, 0},
 	} {
 		if got := MonitorNew(tc.from, tc.number); got != tc.want {
@@ -58,7 +58,7 @@ func TestMonitoredColumnDefaultsToOn(t *testing.T) {
 		t.Fatalf("read monitor_new_from: %v", err)
 	}
 	if !cut.Valid || cut.Int64 != 1 {
-		t.Errorf("monitor_new_from = %+v, want a cut of 1 so an existing series keeps monitoring everything", cut)
+		t.Errorf("monitor_new_from = %+v, want a cut of 1 so an existing title keeps monitoring everything", cut)
 	}
 }
 
@@ -158,19 +158,19 @@ func TestListTitleIDsForUnmonitoredItems(t *testing.T) {
 	// Two unmonitored items on one title collapse to a single reset.
 	ids, err := st.Q.ListTitleIDsForUnmonitoredItems(ctx, []int64{off, alsoOff, on, 9999})
 	if err != nil {
-		t.Fatalf("list series ids: %v", err)
+		t.Fatalf("list title ids: %v", err)
 	}
 	if len(ids) != 1 || ids[0] != titleID {
-		t.Errorf("series ids = %v, want exactly [%d] -- one reset per distinct series", ids, titleID)
+		t.Errorf("title ids = %v, want exactly [%d] -- one reset per distinct title", ids, titleID)
 	}
 
 	// Nothing to change means nothing to reset.
 	ids, err = st.Q.ListTitleIDsForUnmonitoredItems(ctx, []int64{on})
 	if err != nil {
-		t.Fatalf("list series ids: %v", err)
+		t.Fatalf("list title ids: %v", err)
 	}
 	if len(ids) != 0 {
-		t.Errorf("series ids = %v, want none for an already-monitored selection", ids)
+		t.Errorf("title ids = %v, want none for an already-monitored selection", ids)
 	}
 }
 

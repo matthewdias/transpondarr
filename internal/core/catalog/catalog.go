@@ -109,7 +109,7 @@ func (s *Service) AddTitle(ctx context.Context, provider string, providerID int6
 	if _, err := s.store.Q.GetTitleByProviderID(ctx, identity); err == nil {
 		return domain.Title{}, ErrAlreadyExists
 	} else if !errors.Is(err, sql.ErrNoRows) {
-		return domain.Title{}, fmt.Errorf("check existing series: %w", err)
+		return domain.Title{}, fmt.Errorf("check existing title: %w", err)
 	}
 
 	meta, items, err := s.provider.GetTitle(ctx, providerID)
@@ -141,7 +141,7 @@ func (s *Service) AddTitle(ctx context.Context, provider string, providerID int6
 		Year:       int64(meta.Year),
 	})
 	if err != nil {
-		return domain.Title{}, fmt.Errorf("create series: %w", err)
+		return domain.Title{}, fmt.Errorf("create title: %w", err)
 	}
 
 	if err := q.SetTitleMonitorNewFrom(ctx, db.SetTitleMonitorNewFromParams{

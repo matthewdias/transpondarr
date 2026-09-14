@@ -37,7 +37,7 @@ func passOutcome(t *testing.T, st *store.Store, titleID int64, number int) (db.P
 		}
 		return row, true
 	}
-	t.Fatalf("no item %d on series %d", number, titleID)
+	t.Fatalf("no item %d on title %d", number, titleID)
 	return db.PassOutcome{}, false
 }
 
@@ -181,7 +181,7 @@ func TestFeedPollNeverRecordsNoMatch(t *testing.T) {
 		t.Fatalf("PollFeedOnce: %v", err)
 	}
 	if row, ok := passOutcome(t, h.st, id, 3); ok {
-		t.Errorf("the feed poll recorded %+v for a series its page said nothing about", row)
+		t.Errorf("the feed poll recorded %+v for a title its page said nothing about", row)
 	}
 }
 

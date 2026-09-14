@@ -23,7 +23,7 @@ func TestSweepSurvivesTitleDeletedMidSearch(t *testing.T) {
 	h.idx.SearchHook = func(indexer.Query) {
 		once.Do(func() {
 			if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
-				t.Errorf("delete series mid-search: %v", err)
+				t.Errorf("delete title mid-search: %v", err)
 			}
 		})
 	}
@@ -46,7 +46,7 @@ func TestSweepReportsButRecoversFromTitleDeletedMidGrab(t *testing.T) {
 	h.dl.AddHook = func(download.AddOptions) {
 		once.Do(func() {
 			if _, err := h.st.Q.DeleteTitle(ctx, id); err != nil {
-				t.Errorf("delete series mid-grab: %v", err)
+				t.Errorf("delete title mid-grab: %v", err)
 			}
 		})
 	}
@@ -59,7 +59,7 @@ func TestSweepReportsButRecoversFromTitleDeletedMidGrab(t *testing.T) {
 		t.Fatalf("count grabs: %v", err)
 	}
 	if count != 0 {
-		t.Errorf("%d grab rows recorded against a deleted series, want 0", count)
+		t.Errorf("%d grab rows recorded against a deleted title, want 0", count)
 	}
 	if err := h.svc.SweepOnce(ctx); err != nil {
 		t.Fatalf("second SweepOnce: %v — one lost race must not wedge the sweep", err)

@@ -366,7 +366,7 @@ func trackTitle(t *testing.T, st *store.Store, anilistID int64, synced bool) int
 		Monitored:  1,
 	})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	if synced {
 		if _, err := st.DB.Exec(`UPDATE series SET airing_synced_at = datetime('now') WHERE id = ?`, s.ID); err != nil {
@@ -413,7 +413,7 @@ func TestChartMarksTrackedAndOverlaysLocalAiring(t *testing.T) {
 
 	tracked := got[0]
 	if !tracked.Tracked || tracked.TitleID != id {
-		t.Errorf("entry 101 tracked=%t series=%d, want tracked with series %d", tracked.Tracked, tracked.TitleID, id)
+		t.Errorf("entry 101 tracked=%t title=%d, want tracked with title %d", tracked.Tracked, tracked.TitleID, id)
 	}
 	if tracked.NextAiring == nil || tracked.NextAiring.Number != 6 || !tracked.NextAiring.AirsAt.Equal(localNext) {
 		t.Errorf("entry 101 next airing = %+v, want local ep 6 at %s to beat the stale snapshot", tracked.NextAiring, localNext)

@@ -186,11 +186,11 @@ func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passIte
 		return db.Series{}, nil, ErrTitleNotFound
 	}
 	if err != nil {
-		return db.Series{}, nil, fmt.Errorf("load series %d: %w", id, err)
+		return db.Series{}, nil, fmt.Errorf("load title %d: %w", id, err)
 	}
 	rows, err := s.store.Q.ListWantedItems(ctx, title.ID)
 	if err != nil {
-		return db.Series{}, nil, fmt.Errorf("load wanted items for series %d: %w", id, err)
+		return db.Series{}, nil, fmt.Errorf("load wanted items for title %d: %w", id, err)
 	}
 	items := make([]passItem, 0, len(rows))
 	for _, r := range rows {
@@ -323,7 +323,7 @@ func (s *Service) blocked(ctx context.Context, titleID int64) (decide.BlockedSet
 		BlockedUntil: sql.NullString{String: store.FormatTimestamp(time.Now()), Valid: true},
 	})
 	if err != nil {
-		return decide.BlockedSet{}, fmt.Errorf("load blocklist for series %d: %w", titleID, err)
+		return decide.BlockedSet{}, fmt.Errorf("load blocklist for title %d: %w", titleID, err)
 	}
 	if len(rows) == 0 {
 		return decide.BlockedSet{}, nil

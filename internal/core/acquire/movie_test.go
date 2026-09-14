@@ -27,7 +27,7 @@ func seedMovie(t *testing.T, st *store.Store, title string, year int64) int64 {
 		Title: title, Format: "MOVIE", Monitored: 1, Year: year,
 	})
 	if err != nil {
-		t.Fatalf("create movie series: %v", err)
+		t.Fatalf("create movie title: %v", err)
 	}
 	if _, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 		SeriesID: s.ID, Kind: "movie",

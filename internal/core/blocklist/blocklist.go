@@ -79,7 +79,7 @@ func New(st *store.Store, log *slog.Logger) *Service {
 func (s *Service) Record(ctx context.Context, titleID int64, itemIDs []int64, infoHash, releaseTitle, reason string) (bool, error) {
 	normalized := decide.NormalizeReleaseTitle(releaseTitle)
 	if normalized == "" {
-		return false, fmt.Errorf("blocklist: refusing to record an empty release title for series %d", titleID)
+		return false, fmt.Errorf("blocklist: refusing to record an empty release name for title %d", titleID)
 	}
 	now := s.now()
 	ref := releaseRef{titleID: titleID, normalized: normalized}
@@ -99,7 +99,7 @@ func (s *Service) Record(ctx context.Context, titleID int64, itemIDs []int64, in
 		BlockedUntil:    expiry(blockDuration(1), now),
 	})
 	if err != nil {
-		return false, fmt.Errorf("record blocklist entry for series %d: %w", titleID, err)
+		return false, fmt.Errorf("record blocklist entry for title %d: %w", titleID, err)
 	}
 	// The upsert reports the resulting count only after writing, so a repeat
 	// failure needs a second write to escalate its expiry; a first one is already
@@ -154,7 +154,7 @@ func (s *Service) Clear(ctx context.Context, titleID, entryID int64) error {
 func (s *Service) ClearTitle(ctx context.Context, titleID int64) (int64, error) {
 	rows, err := s.store.Q.DeleteBlocklistByTitle(ctx, titleID)
 	if err != nil {
-		return 0, fmt.Errorf("clear blocklist for series %d: %w", titleID, err)
+		return 0, fmt.Errorf("clear blocklist for title %d: %w", titleID, err)
 	}
 	return rows, nil
 }
@@ -189,7 +189,7 @@ func (s *Service) ClearExpired(ctx context.Context, titleID int64) (int64, error
 		BlockedUntil: sql.NullString{String: store.FormatTimestamp(s.now()), Valid: true},
 	})
 	if err != nil {
-		return 0, fmt.Errorf("clear expired blocklist for series %d: %w", titleID, err)
+		return 0, fmt.Errorf("clear expired blocklist for title %d: %w", titleID, err)
 	}
 	return rows, nil
 }

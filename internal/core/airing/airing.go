@@ -51,7 +51,7 @@ func (s *Service) SyncOnce(ctx context.Context) error {
 
 	due, err := s.due(ctx)
 	if err != nil {
-		return fmt.Errorf("list series due an airing sync: %w", err)
+		return fmt.Errorf("list titles due an airing sync: %w", err)
 	}
 
 	// A provider outage fails every due title with one cause, so causes are
@@ -91,9 +91,9 @@ type syncFailure struct {
 
 func (f *syncFailure) summary() error {
 	if f.titles == 1 {
-		return fmt.Errorf("series %d: %w", f.first, f.err)
+		return fmt.Errorf("title %d: %w", f.first, f.err)
 	}
-	return fmt.Errorf("%d series including %d: %w", f.titles, f.first, f.err)
+	return fmt.Errorf("%d titles including %d: %w", f.titles, f.first, f.err)
 }
 
 // due lists the title whose schedule has never been synced or has gone stale,

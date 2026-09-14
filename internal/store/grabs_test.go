@@ -25,7 +25,7 @@ func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 
 	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{
 		SeriesID:  title.ID,
@@ -67,10 +67,10 @@ func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 
 	byTitle, err := st.Q.ListGrabsByTitle(ctx, title.ID)
 	if err != nil {
-		t.Fatalf("list by series: %v", err)
+		t.Fatalf("list by title: %v", err)
 	}
 	if len(byTitle) != 1 {
-		t.Errorf("expected 1 grab for the series, got %d", len(byTitle))
+		t.Errorf("expected 1 grab for the title, got %d", len(byTitle))
 	}
 
 	// A grab must not mark the item as had — that is import's job.
@@ -90,7 +90,7 @@ func TestUpsertGrabBatchSharesInfoHash(t *testing.T) {
 
 	title, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: "X", Format: "TV", Monitored: 1})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	for n := 1; n <= 3; n++ {
 		item, err := st.Q.CreateWantedItem(ctx, db.CreateWantedItemParams{

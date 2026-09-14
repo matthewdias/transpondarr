@@ -136,7 +136,7 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
 	if len(out.Groups) != 1 {
-		t.Fatalf("groups = %+v, want one for the series", out.Groups)
+		t.Fatalf("groups = %+v, want one for the title", out.Groups)
 	}
 	g := out.Groups[0]
 	if g.TitleID != titleID || g.Title != "Placeholder Saga" || !g.Monitored || g.Missing != 2 {
@@ -153,7 +153,7 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 		t.Errorf("episode 3 = %+v, want grab_failed with the grab's last error", got[3])
 	}
 	if got[4].Reason != "" {
-		t.Errorf("episode 4 reason = %q, want none: the group carries the series' story", got[4].Reason)
+		t.Errorf("episode 4 reason = %q, want none: the group carries the title's story", got[4].Reason)
 	}
 	if out.GlobalReason != "" {
 		t.Errorf("global_reason = %q, want none: automation is on and an indexer is set", out.GlobalReason)
@@ -333,7 +333,7 @@ func TestMissingUnmonitoredToggle(t *testing.T) {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
 	if len(out.Groups) != 0 {
-		t.Fatalf("groups = %+v, want none: the series is unmonitored", out.Groups)
+		t.Fatalf("groups = %+v, want none: the title is unmonitored", out.Groups)
 	}
 	if code := h.get(t, "/api/v1/wanted/missing?unmonitored=true", &out); code != http.StatusOK {
 		t.Fatalf("GET missing?unmonitored = %d, want 200", code)
@@ -382,7 +382,7 @@ func TestMissingReasonReadsStoredState(t *testing.T) {
 		{blocked, "blocklisted"},
 	} {
 		if byTitle[tc.id].Reason != tc.want {
-			t.Errorf("series %d reason = %q, want %q", tc.id, byTitle[tc.id].Reason, tc.want)
+			t.Errorf("title %d reason = %q, want %q", tc.id, byTitle[tc.id].Reason, tc.want)
 		}
 	}
 	if byTitle[blocked].BlockedReleases != 1 {
@@ -411,10 +411,10 @@ func TestMissingOrdersRecentGroupsFirstAndEpisodesForwards(t *testing.T) {
 		t.Fatalf("GET missing = %d, want 200", code)
 	}
 	if len(out.Groups) != 3 {
-		t.Fatalf("groups = %+v, want three series", out.Groups)
+		t.Fatalf("groups = %+v, want three titles", out.Groups)
 	}
 	if out.Groups[0].TitleID != current || out.Groups[1].TitleID != older || out.Groups[2].TitleID != undated {
-		t.Fatalf("group order = %v %v %v, want newest broadcast first and the undated series last",
+		t.Fatalf("group order = %v %v %v, want newest broadcast first and the undated title last",
 			out.Groups[0].Title, out.Groups[1].Title, out.Groups[2].Title)
 	}
 	var numbers []int
@@ -473,7 +473,7 @@ func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
 		shown := 0
 		for _, g := range out.Groups {
 			if seen[g.TitleID] {
-				t.Fatalf("series %d returned on two pages", g.TitleID)
+				t.Fatalf("title %d returned on two pages", g.TitleID)
 			}
 			seen[g.TitleID] = true
 			shown += len(g.Items)
@@ -558,7 +558,7 @@ func TestMissingPaginatesByGroup(t *testing.T) {
 		}
 		for _, g := range out.Groups {
 			if seen[g.TitleID] {
-				t.Fatalf("series %d returned on two pages", g.TitleID)
+				t.Fatalf("title %d returned on two pages", g.TitleID)
 			}
 			seen[g.TitleID] = true
 			if len(g.Items) != 2 {
@@ -607,7 +607,7 @@ func TestCutoffUnmetRoute(t *testing.T) {
 	if _, err := h.store.Q.SetTitleProfile(ctx, db.SetTitleProfileParams{
 		QualityProfileID: profile.ID, ID: titleID, ID_2: profile.ID,
 	}); err != nil {
-		t.Fatalf("set series profile: %v", err)
+		t.Fatalf("set title profile: %v", err)
 	}
 	holdItem(t, h.store, titleID, 1, "[MidSubs] Placeholder Saga - 01 [720p]")  // below 2300
 	holdItem(t, h.store, titleID, 2, "[TopSubs] Placeholder Saga - 02 [1080p]") // above
@@ -617,7 +617,7 @@ func TestCutoffUnmetRoute(t *testing.T) {
 		t.Fatalf("GET cutoff-unmet = %d, want 200", code)
 	}
 	if len(out.Groups) != 1 {
-		t.Fatalf("groups = %+v, want one for the series", out.Groups)
+		t.Fatalf("groups = %+v, want one for the title", out.Groups)
 	}
 	g := out.Groups[0]
 	if g.TitleID != titleID || g.ProfileName != "Upgrading" || g.CutoffScore != 2300 || g.Below != 1 {
@@ -676,13 +676,13 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 		t.Fatalf("POST wanted/search = %d, want 202", code)
 	}
 	if out.TitlesQueued != 1 || out.Automation != "on" || !out.RunTriggered {
-		t.Fatalf("response = %+v, want 1 series queued, automation on, run triggered", out)
+		t.Fatalf("response = %+v, want 1 title queued, automation on, run triggered", out)
 	}
 	if got := nextSearchAt(t, h.store, one); got != "" {
-		t.Errorf("series one next_search_at = %q, want cleared", got)
+		t.Errorf("title one next_search_at = %q, want cleared", got)
 	}
 	if got := nextSearchAt(t, h.store, two); got == "" {
-		t.Error("series two was not selected and must keep its backoff")
+		t.Error("title two was not selected and must keep its backoff")
 	}
 	if len(h.idx.Queries) != 0 {
 		t.Errorf("the endpoint issued %d indexer searches; it must only queue", len(h.idx.Queries))
@@ -703,10 +703,10 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 		t.Errorf("titles_queued = %d, want -1 for a library-wide reset", out.TitlesQueued)
 	}
 	if got := nextSearchAt(t, h.store, two); got != "" {
-		t.Errorf("series two next_search_at = %q, want cleared by the library-wide reset", got)
+		t.Errorf("title two next_search_at = %q, want cleared by the library-wide reset", got)
 	}
 	if _, err := h.store.Q.GetTitle(ctx, one); err != nil {
-		t.Fatalf("series one vanished: %v", err)
+		t.Fatalf("title one vanished: %v", err)
 	}
 
 	// An unknown id in the selection rejects the whole request, and the reset is
@@ -716,10 +716,10 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	if code := h.postJSON(t, "/api/v1/wanted/search", struct {
 		TitleIDs []int64 `json:"title_ids"`
 	}{TitleIDs: []int64{one, 9999}}, &missing); code != http.StatusNotFound {
-		t.Errorf("POST wanted/search with an unknown series = %d, want 404", code)
+		t.Errorf("POST wanted/search with an unknown title = %d, want 404", code)
 	}
 	if got := nextSearchAt(t, h.store, one); got == "" {
-		t.Error("the known series in a rejected selection must keep its backoff")
+		t.Error("the known title in a rejected selection must keep its backoff")
 	}
 }
 

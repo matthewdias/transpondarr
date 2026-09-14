@@ -66,7 +66,7 @@ func TestListAndClearTitleBlocklist(t *testing.T) {
 		t.Fatalf("list blocklist status = %d, want 200", code)
 	}
 	if got.Title != "Placeholder Saga" {
-		t.Errorf("series = %q", got.Title)
+		t.Errorf("title = %q", got.Title)
 	}
 	if len(got.Entries) != 3 {
 		t.Fatalf("entries = %d, want 3 (expired ones are history, not deleted)", len(got.Entries))
@@ -82,7 +82,7 @@ func TestListAndClearTitleBlocklist(t *testing.T) {
 		t.Errorf("permanent entry = %+v, want active with no expiry", e)
 	}
 	if _, ok := byID[elsewhere.ID]; ok {
-		t.Error("another series' entry leaked into this series' blocklist")
+		t.Error("another title's entry leaked into this title's blocklist")
 	}
 	if byID[live.ID].Reason == "" {
 		t.Error("reason not reported")
@@ -91,7 +91,7 @@ func TestListAndClearTitleBlocklist(t *testing.T) {
 	// Unblocking is scoped to the title.
 	if code := do(t, h, http.MethodDelete,
 		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", titleID, elsewhere.ID), nil, nil); code != http.StatusNotFound {
-		t.Errorf("delete of another series' entry = %d, want 404", code)
+		t.Errorf("delete of another title's entry = %d, want 404", code)
 	}
 	if code := do(t, h, http.MethodDelete,
 		fmt.Sprintf("/api/v1/titles/%d/blocklist/%d", titleID, live.ID), nil, nil); code != http.StatusNoContent {
@@ -212,16 +212,16 @@ func TestClearTitleBlocklistInBulk(t *testing.T) {
 		t.Fatalf("re-list status = %d, want 200", code)
 	}
 	if len(after.Entries) != 0 {
-		t.Errorf("entries after clearing the series = %d, want none", len(after.Entries))
+		t.Errorf("entries after clearing the title = %d, want none", len(after.Entries))
 	}
 
 	// A bulk clear stops at its title, like the single-entry one.
 	var elsewhere blocklistJSON
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d/blocklist", other), &elsewhere); code != http.StatusOK {
-		t.Fatalf("list other series status = %d, want 200", code)
+		t.Fatalf("list other title status = %d, want 200", code)
 	}
 	if len(elsewhere.Entries) != 1 {
-		t.Errorf("other series has %d entries, want its own 1 untouched", len(elsewhere.Entries))
+		t.Errorf("other title has %d entries, want its own 1 untouched", len(elsewhere.Entries))
 	}
 }
 
@@ -252,7 +252,7 @@ func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {
 		t.Fatalf("summary status = %d, want 200", code)
 	}
 	if summary.Blocked != 2 || summary.Titles != 2 {
-		t.Errorf("summary = %+v, want the 2 still-blocking entries across 2 series", summary)
+		t.Errorf("summary = %+v, want the 2 still-blocking entries across 2 titles", summary)
 	}
 	if summary.Breaker.Open || summary.Breaker.Threshold == 0 {
 		t.Errorf("breaker = %+v, want closed with its threshold reported", summary.Breaker)
@@ -273,7 +273,7 @@ func TestFailureMemorySummaryAndLibraryWideClear(t *testing.T) {
 			t.Fatalf("re-list status = %d, want 200", code)
 		}
 		if len(after.Entries) != 0 {
-			t.Errorf("series %d still has %d entries after a library-wide clear", id, len(after.Entries))
+			t.Errorf("title %d still has %d entries after a library-wide clear", id, len(after.Entries))
 		}
 	}
 }

@@ -40,7 +40,7 @@ func seedSweep(t *testing.T, st *store.Store, title string, monitored bool, item
 	}
 	s, err := st.Q.CreateTitle(ctx, db.CreateTitleParams{Title: title, Format: "TV", Monitored: mon})
 	if err != nil {
-		t.Fatalf("create series: %v", err)
+		t.Fatalf("create title: %v", err)
 	}
 	for _, it := range items {
 		var inLibrary int64
@@ -303,7 +303,7 @@ func TestSweepSkipsUnmonitoredTitles(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if got := grabbedItemNumbers(t, h.st, id); len(got) != 0 {
-		t.Errorf("grabbed %v for an unmonitored series, want nothing", got)
+		t.Errorf("grabbed %v for an unmonitored title, want nothing", got)
 	}
 }
 
@@ -396,7 +396,7 @@ func TestSweepGrabsMultipleReleasesInOnePass(t *testing.T) {
 		t.Errorf("grabbed items = %v, want all three", got)
 	}
 	if len(h.idx.Queries) != 1 {
-		t.Errorf("indexer queried %d times for one series, want 1", len(h.idx.Queries))
+		t.Errorf("indexer queried %d times for one title, want 1", len(h.idx.Queries))
 	}
 }
 
@@ -538,7 +538,7 @@ func TestSweepFailingTitlesDoNotStarveHealthyOnes(t *testing.T) {
 		_ = h.svc.SweepOnce(context.Background())
 	}
 	if got := grabbedItemNumbers(t, h.st, healthyID); len(got) != 1 || got[0] != 1 {
-		t.Fatalf("healthy series grabs = %v, want [1] — it was starved by the failing ones", got)
+		t.Fatalf("healthy title grabs = %v, want [1] — it was starved by the failing ones", got)
 	}
 }
 
@@ -633,6 +633,6 @@ func TestSweepStopsAtTheTitlesPerPassCap(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.idx.Queries) != 5 {
-		t.Errorf("searched %d series in one pass, want the 5-series cap", len(h.idx.Queries))
+		t.Errorf("searched %d titles in one pass, want the 5-title cap", len(h.idx.Queries))
 	}
 }

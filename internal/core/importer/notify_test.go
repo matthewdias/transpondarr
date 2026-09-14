@@ -67,7 +67,7 @@ func TestImportDispatchesImportedEvent(t *testing.T) {
 		t.Fatalf("kind = %s, want imported", ev.Kind)
 	}
 	if ev.Title != "Placeholder Saga" || ev.ItemNumber != 5 || ev.ReleaseTitle != "rel" {
-		t.Errorf("event = %+v, want series/item/release from the grab", ev)
+		t.Errorf("event = %+v, want title/item/release from the grab", ev)
 	}
 	if ev.Path != "/library/placed.mkv" {
 		t.Errorf("path = %q, want the library destination", ev.Path)
@@ -154,7 +154,7 @@ func TestStuckImportNotifiesOncePerIncident(t *testing.T) {
 		t.Fatalf("kind = %s, want import_stuck", ev.Kind)
 	}
 	if ev.Title != "Placeholder Saga" || ev.Error == "" {
-		t.Errorf("event = %+v, want the series and a reason", ev)
+		t.Errorf("event = %+v, want the title and a reason", ev)
 	}
 
 	// Same failure next tick: the unchanged-message guard must also apply to the event.
@@ -197,7 +197,7 @@ func TestFailedDownloadNotifiesOncePerRelease(t *testing.T) {
 		t.Fatalf("kind = %s, want grab_failed", ev.Kind)
 	}
 	if ev.Title != "Placeholder Saga" || ev.ReleaseTitle != "[SynthSubs] Placeholder Saga - 01-03 [Batch]" || ev.Error == "" {
-		t.Errorf("event = %+v, want series, release, and a reason", ev)
+		t.Errorf("event = %+v, want title, release, and a reason", ev)
 	}
 	if ev.ItemNumber != 0 {
 		t.Errorf("item = %d, want 0 for a multi-item release", ev.ItemNumber)

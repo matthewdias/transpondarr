@@ -279,7 +279,7 @@ func TestFeedPollGrabsNothingForIneligibleEntries(t *testing.T) {
 		name  string
 		setup func(t *testing.T, h *feedHarness) int64
 	}{
-		{"unmonitored series", func(t *testing.T, h *feedHarness) int64 {
+		{"unmonitored title", func(t *testing.T, h *feedHarness) int64 {
 			return seedSweep(t, h.st, "Placeholder Saga", false, sweepItem{number: 3, airsAt: &past})
 		}},
 		{"unaired item", func(t *testing.T, h *feedHarness) int64 {
@@ -292,7 +292,7 @@ func TestFeedPollGrabsNothingForIneligibleEntries(t *testing.T) {
 			return seedSweep(t, h.st, "Placeholder Saga", true,
 				sweepItem{number: 3, airsAt: &past, grab: "grabbed"})
 		}},
-		{"another series", func(t *testing.T, h *feedHarness) int64 {
+		{"another title", func(t *testing.T, h *feedHarness) int64 {
 			return seedSweep(t, h.st, "Unrelated Show", true, sweepItem{number: 3, airsAt: &past})
 		}},
 	} {
@@ -388,7 +388,7 @@ func TestFeedPollDoesNotReprocessASeenEntry(t *testing.T) {
 		t.Fatalf("SweepOnce: %v", err)
 	}
 	if len(h.dl.Adds) != 1 {
-		t.Errorf("sweep added %d, want 1 — it must still cover a series the feed passed", len(h.dl.Adds))
+		t.Errorf("sweep added %d, want 1 — it must still cover a title the feed passed", len(h.dl.Adds))
 	}
 }
 
@@ -605,11 +605,11 @@ func TestFeedPollGapResetsATitleThatAiredInsideIt(t *testing.T) {
 		t.Fatalf("second PollFeedOnce: %v", err)
 	}
 	if !h.log.logged("front of the sweep") {
-		t.Error("no gap warning naming the recovery when a series was reset")
+		t.Error("no gap warning naming the recovery when a title was reset")
 	}
 	state := readSearchState(t, h.st, id)
 	if state.backoff != 0 || state.nextSearchAt.Valid {
-		t.Errorf("backoff = %d, next_search_at = %+v; want 0 and NULL — the gap must put the series back in the sweep's queue",
+		t.Errorf("backoff = %d, next_search_at = %+v; want 0 and NULL — the gap must put the title back in the sweep's queue",
 			state.backoff, state.nextSearchAt)
 	}
 }
@@ -631,7 +631,7 @@ func TestFeedPollGapLeavesTitlesOutsideTheWindowAlone(t *testing.T) {
 	}
 	state := readSearchState(t, h.st, id)
 	if state.backoff != 6 {
-		t.Errorf("backoff = %d, want 6 — a back-catalogue series never fell through this gap", state.backoff)
+		t.Errorf("backoff = %d, want 6 — a back-catalogue title never fell through this gap", state.backoff)
 	}
 	wantNextSearchNear(t, state.nextSearchAt, now.Add(20*time.Hour))
 }
@@ -685,11 +685,11 @@ func TestFeedPollGapResetIsBoundedToOnePass(t *testing.T) {
 		}
 		// The two nearest-due titles are the ones with the shortest backoff.
 		if i > 1 {
-			t.Errorf("series %d was left postponed; the furthest-postponed series come first", i)
+			t.Errorf("title %d was left postponed; the furthest-postponed titles come first", i)
 		}
 	}
 	if reset != 5 {
-		t.Errorf("reset %d series, want 5 — one gap event may not outrun one sweep pass", reset)
+		t.Errorf("reset %d titles, want 5 — one gap event may not outrun one sweep pass", reset)
 	}
 }
 

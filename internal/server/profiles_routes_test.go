@@ -171,7 +171,7 @@ func TestProfileCRUDAndTitleAssignment(t *testing.T) {
 		t.Fatalf("detail status = %d, want 200", code)
 	}
 	if detail.QualityProfileID != created.ID {
-		t.Errorf("series quality_profile_id = %d, want %d", detail.QualityProfileID, created.ID)
+		t.Errorf("title quality_profile_id = %d, want %d", detail.QualityProfileID, created.ID)
 	}
 
 	// --- delete while in use: rejected with the conflict explained ------------
@@ -191,10 +191,10 @@ func TestProfileCRUDAndTitleAssignment(t *testing.T) {
 	}
 	title, err := h.store.Q.GetTitle(context.Background(), titleID)
 	if err != nil {
-		t.Fatalf("get series: %v", err)
+		t.Fatalf("get title: %v", err)
 	}
 	if title.QualityProfileID != 1 {
-		t.Errorf("series profile after delete = %d, want default 1", title.QualityProfileID)
+		t.Errorf("title profile after delete = %d, want default 1", title.QualityProfileID)
 	}
 	if code := do(t, h, "GET", "/api/v1/profiles", nil, &list); code != http.StatusOK || len(list.Profiles) != 1 {
 		t.Fatalf("profiles after delete = %d (status %d), want just Default", len(list.Profiles), code)
@@ -225,7 +225,7 @@ func TestListProfilesGroupsAndCountsPerProfile(t *testing.T) {
 	for _, id := range []int64{first, second} {
 		if code := do(t, h, "PUT", fmt.Sprintf("/api/v1/titles/%d/profile", id),
 			map[string]any{"profile_id": alphaOut.ID}, nil); code != http.StatusOK {
-			t.Fatalf("assign series %d status = %d, want 200", id, code)
+			t.Fatalf("assign title %d status = %d, want 200", id, code)
 		}
 	}
 

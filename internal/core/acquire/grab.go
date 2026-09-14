@@ -82,7 +82,7 @@ func (s *Service) AutoGrab(ctx context.Context, titleID int64, cand decide.Candi
 func (s *Service) anySettled(ctx context.Context, titleID int64, ids []int64, upgrades map[int64]bool) (bool, error) {
 	grabs, err := s.store.Q.ListGrabsByTitle(ctx, titleID)
 	if err != nil {
-		return false, fmt.Errorf("re-read grab state for series %d: %w", titleID, err)
+		return false, fmt.Errorf("re-read grab state for title %d: %w", titleID, err)
 	}
 	wanted := make(map[int64]bool, len(ids))
 	for _, id := range ids {

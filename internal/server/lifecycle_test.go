@@ -277,7 +277,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 
 	var out titleDetailDTO
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
-		t.Fatalf("GET series detail = %d, want 200", code)
+		t.Fatalf("GET title detail = %d, want 200", code)
 	}
 	found := false
 	for _, it := range out.Items {
@@ -293,7 +293,7 @@ func TestStuckImportShowsReason(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("episode 4 not in series detail")
+		t.Fatal("episode 4 not in title detail")
 	}
 
 	// History records lifecycle moments, not live trouble: an import failure
@@ -367,7 +367,7 @@ func TestImportErrorOnlyReportedWhileStuck(t *testing.T) {
 
 	var out titleDetailDTO
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
-		t.Fatalf("GET series detail = %d, want 200", code)
+		t.Fatalf("GET title detail = %d, want 200", code)
 	}
 	for _, it := range out.Items {
 		if it.Number != 4 {
@@ -387,13 +387,13 @@ func itemStatus(t *testing.T, h *harness, titleID int64, number int) string {
 	t.Helper()
 	var out titleDetailDTO
 	if code := h.get(t, fmt.Sprintf("/api/v1/titles/%d", titleID), &out); code != http.StatusOK {
-		t.Fatalf("GET series detail = %d, want 200", code)
+		t.Fatalf("GET title detail = %d, want 200", code)
 	}
 	for _, it := range out.Items {
 		if it.Number == number {
 			return it.Status
 		}
 	}
-	t.Fatalf("episode %d not in series detail", number)
+	t.Fatalf("episode %d not in title detail", number)
 	return ""
 }
