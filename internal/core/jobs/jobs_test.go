@@ -285,7 +285,7 @@ func TestStatusReportsLastRunDurationAndError(t *testing.T) {
 	})
 }
 
-// A settled state must never have a stale error (issue #37's invariant, which
+// A settled job state must never have a stale error (issue #37's invariant, which
 // the importer got wrong once).
 func TestASuccessfulRunClearsThePreviousError(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
@@ -469,7 +469,7 @@ func TestTriggerDoesNotRunAJobConcurrentlyWithItself(t *testing.T) {
 	})
 }
 
-// The sweep is the only thing bounding some tables, so a silent failure would
+// The session sweep is the only thing bounding some tables, so a silent failure would
 // reproduce issue #4.
 func TestRunLogsAFailingJob(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {

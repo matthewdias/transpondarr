@@ -1,5 +1,5 @@
 -- +goose Up
--- Broadcast times, so the scheduled sweep can search for items that have
+-- Broadcast times, so the scheduled search sweep can search for items that have
 -- actually aired instead of blind-polling every wanted item. Nullable because
 -- AniList's schedule coverage thins out badly before ~2015: every consumer must
 -- treat "no air date" as normal rather than as an error.
@@ -9,8 +9,8 @@ ALTER TABLE wanted_items ADD COLUMN airs_at TEXT;
 ALTER TABLE series ADD COLUMN airing_synced_at TEXT;
 
 -- Duplicates should not exist (AddSeries expands 1..N exactly once), but a live
--- upgrade must not fail on one. The item row kept is the one with state — had
--- first, then grabbed, then oldest — since deleting it would cascade its grab away.
+-- upgrade must not fail on one. The item row kept is the one with item state — had
+-- first, then grabbed, then oldest — since deleting it would cascade its grab row away.
 DELETE FROM wanted_items WHERE id IN (
     SELECT id FROM (
         SELECT w.id,

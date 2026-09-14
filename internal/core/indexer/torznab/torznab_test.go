@@ -304,7 +304,7 @@ func TestRecentHTTPUsesAnEmptyTerm(t *testing.T) {
 	}
 }
 
-// The recent feed is #142's strongest case — a 100-entry page diluted by other
+// The recent feed is #142's strongest case — a 100-entry feed page diluted by other
 // categories is a smaller window — so the filter is pinned at the HTTP level.
 func TestRecentHTTPCarriesCategories(t *testing.T) {
 	var gotCat string

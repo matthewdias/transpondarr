@@ -368,7 +368,7 @@ type SetWantedItemsMonitoredParams struct {
 	Ids       []int64 `json:"ids"`
 }
 
-// The bulk state-setter behind both monitoring UIs. Unknown ids are simply not
+// The bulk monitored-state setter behind both monitoring UIs. Unknown ids are simply not
 // matched, which is what lets a concurrent title delete cost only those ids.
 func (q *Queries) SetWantedItemsMonitored(ctx context.Context, arg SetWantedItemsMonitoredParams) (int64, error) {
 	query := setWantedItemsMonitored

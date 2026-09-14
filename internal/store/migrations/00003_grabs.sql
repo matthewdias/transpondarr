@@ -2,9 +2,9 @@
 -- Records that a release was grabbed (handed to the download client) for a wanted
 -- item. A batch release inserts one grab row per covered item, all sharing the
 -- torrent's info hash — the client-agnostic identifier the pipeline keys on.
--- wanted_items.have is deliberately NOT flipped here: a grab means "downloading",
+-- wanted_items.have is deliberately NOT flipped here: a grab row means "downloading",
 -- and only a successful library import marks an item as had. One active grab per
--- item (UNIQUE), so re-grabbing an item replaces its grab.
+-- item (UNIQUE), so re-grabbing an item replaces its grab row.
 CREATE TABLE grabs (
     id             INTEGER PRIMARY KEY,
     wanted_item_id INTEGER NOT NULL UNIQUE REFERENCES wanted_items (id) ON DELETE CASCADE,

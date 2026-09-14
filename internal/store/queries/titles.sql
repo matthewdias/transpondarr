@@ -30,7 +30,7 @@ GROUP BY s.id
 ORDER BY s.title;
 
 -- name: ListMovieItemStates :many
--- A film's item state, which reads the item's grab and so cannot come from the
+-- A film's item state, which reads the item's grab row and so cannot come from the
 -- aggregate above. One grab per item (UNIQUE) keeps the join 1:1. Format
 -- guarantees one item only for a film added since #208 -- 00022 re-keys a
 -- legacy movie's episodes to kind 'movie' without collapsing them -- so the
@@ -81,7 +81,7 @@ UPDATE series SET year = ? WHERE id = ? AND ? > 0;
 
 -- name: SetTitleMonitorNewFrom :exec
 -- The cut every later create site reads: an item numbered at or above it is
--- created monitored. NULL monitors nothing new, and no mode writes one -- with
+-- created monitored. NULL monitors nothing new, and no monitor mode writes one -- with
 -- nothing able to edit the cut afterwards, a null would be permanent.
 UPDATE series SET monitor_new_from = ? WHERE id = ?;
 
@@ -93,7 +93,7 @@ DELETE FROM series WHERE id = ?;
 
 -- name: SetTitlePinnedGroup :execrows
 -- NULL clears the pin; execrows lets the handler 404 an unknown title. The
--- delay is set alongside because it means nothing without a group to wait for,
+-- delay is set alongside because it means nothing without a release group to wait for,
 -- so PUT-replacing one must replace the other.
 UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?;
 

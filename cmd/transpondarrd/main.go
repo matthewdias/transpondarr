@@ -77,7 +77,7 @@ const seasonRefreshInterval = 15 * time.Minute
 // an idle tick rather than an indexer stampede after a restart loop.
 const wantedSearchInterval = 15 * time.Minute
 
-// feedPollInterval matches the sweep's tick but does far more with it: one
+// feedPollInterval matches the search sweep's tick but does far more with it: one
 // request covers every title at once, where a sweep pass searches five and then
 // backs each off for an hour or more. 15 minutes is also the minimum indexers ask
 // for — Sonarr's RSS sync defaults here and will not go below 10.
@@ -197,7 +197,7 @@ func run(logger *slog.Logger) error {
 		RunAtStart: true,
 		Run:        browse.New(st, provider, logger).RefreshOnce,
 	})
-	// One blocklist for the whole daemon: the sweep and the importer are the two
+	// One blocklist for the whole daemon: the search sweep and the importer are the two
 	// paths that record a failed release, and neither may have one of its own.
 	blocklistSvc := blocklist.New(st, logger)
 
@@ -209,7 +209,7 @@ func run(logger *slog.Logger) error {
 	// Both are always registered; each no-ops when automation is off or either
 	// client is unconfigured, all read per run — so flipping the Settings toggle or
 	// configuring an integration takes effect without a restart. The feed poll is
-	// the hot path and the sweep is the safety net: the feed finds anything
+	// the hot path and the search sweep is the safety net: the feed finds anything
 	// published between passes for one request, and the sweep covers what scrolled
 	// off it, plus every indexer with no feed at all.
 	runner.Add(jobs.Job{

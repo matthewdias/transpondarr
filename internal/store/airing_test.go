@@ -24,7 +24,7 @@ func TestWantedItemIdentityIsUnique(t *testing.T) {
 }
 
 // A live database that already contains duplicates must still upgrade rather
-// than fail the index creation, keeping the row that has state. Driven by
+// than fail the index creation, keeping the row that has item state. Driven by
 // rolling the airing migration back, dirtying the data, and re-applying it.
 func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 	st := tempStore(t)
@@ -37,7 +37,7 @@ func TestAiringMigrationDedupesWantedItems(t *testing.T) {
 		t.Fatalf("roll back to the pre-airing schema: %v", err)
 	}
 
-	// The held row is inserted last, so "keep the survivor with state" and "keep
+	// The held row is inserted last, so "keep the survivor with item state" and "keep
 	// the lowest id" differ — only the former passes. The column is still named
 	// have at this schema version; 00019 renames it.
 	for _, have := range []int{0, 1} {

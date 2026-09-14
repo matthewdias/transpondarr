@@ -36,7 +36,7 @@ func TestMonitorNew(t *testing.T) {
 }
 
 // Every row that existed before per-item monitoring must be monitored, or
-// the migration silently stops the sweep for the whole library.
+// the migration silently stops the search sweep for the whole library.
 func TestMonitoredColumnDefaultsToOn(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()

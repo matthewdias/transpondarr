@@ -65,7 +65,7 @@ func feedTitles(t *testing.T, st *Store, now time.Time) []string {
 
 // The feed's due predicate is the only one that widens for upgrades (#97): a
 // complete title re-enters it when its profile enables them and it has a release
-// worth beating. The sweep's predicate deliberately does not move.
+// worth beating. The search sweep's predicate deliberately does not move.
 func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 	st := tempStore(t)
 	now := time.Now()
@@ -149,7 +149,7 @@ func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 		t.Fatalf("roll back to the pre-upgrades schema: %v", err)
 	}
 
-	// Two held items: one whose grab still records the release that landed it, one
+	// Two held items: one whose grab row still records the release that landed it, one
 	// whose row was overwritten by a later failed grab.
 	imported := seedPreUpgradeItem(t, st, titleID, 1, 1, "[ExampleSubs] Some Show - 01 (1080p)", "imported")
 	overwritten := seedPreUpgradeItem(t, st, titleID, 2, 1, "[OtherSubs] Some Show - 02 (1080p)", "failed")
@@ -180,7 +180,7 @@ func TestQualityUpgradesMigrationBackfillsHeldTitle(t *testing.T) {
 	}
 }
 
-// seedPreUpgradeItem inserts an item and its grab with raw SQL, so it works on
+// seedPreUpgradeItem inserts an item and its grab row with raw SQL, so it works on
 // the rolled-back schema the migration test drives — where the library flag is
 // still named have, as 00019 renames it only later.
 func seedPreUpgradeItem(t *testing.T, st *Store, titleID int64, number int, have int, releaseTitle, status string) int64 {
