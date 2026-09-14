@@ -11,8 +11,8 @@ never touches the client, the library or the store.
   descending, between Pinned and Score — because lifting the refusal alone would
   make the winner between a pack and a single score- and seeder-arbitrary; a
   pack covering six wanted items is one grab instead of N. Weekly singles tie at
-  1 and fall through to score unchanged, and the pin stays *above* coverage
-  deliberately: a pin is per-title knowledge ("this group is definitive"), so
+  1 and fall through to score unchanged, and the pin stays *above* coverage:
+  a pin is per-title knowledge ("this group is definitive"), so
   coverage only breaks ties among equally pinned candidates. And `batchItems` gained
   the guard it never had: an explicit range past `maxItem` is now **unmatched**
   with the single-episode path's absolute/season-mismatch reason, so a `01-48`
@@ -29,7 +29,7 @@ never touches the client, the library or the store.
   `MatchOpts.Parses` contains the feed page's parses, built once in `pageParses`; it is
   **read-only inside `decide`**, which is what makes one map shareable across
   titles without a lock, and a miss is parsed normally so it is a cache and never
-  a filter. The search sweep deliberately passes nil — it searches per title, so its
+  a filter. The search sweep passes nil — it searches per title, so its
   releases differ and there is nothing to share. And `Match` stores a held item's
   **membership without its parse** when `profile.UpgradesEnabled` is false (the
   schema default), because every read of the parsed value is guarded by that flag
@@ -40,7 +40,7 @@ never touches the client, the library or the store.
   marked `UpgradeBlocked`, stay in `TakeItems()`, and the search sweep grabs an upgrade on
   a profile that has upgrades switched off — deleting that one line is the
   mutation that proves it. And the `UpgradesEnabled` check is **hoisted into
-  `applyUpgradePolicy` on purpose**, so the only path reading a `heldRelease`'s
+  `applyUpgradePolicy`**, so the only path reading a `heldRelease`'s
   parse and score is the one that computed them; pushing it back down into
   `upgradeRefusal` is behaviour-preserving today and makes the zero value
   reachable by the next edit. The cost of the feed half is untestable by
@@ -57,7 +57,7 @@ never touches the client, the library or the store.
   withholds in-flight and unaired items that plainly aren't in the library — so nothing may
   derive one from the other outside `acquire.passItem`, which is where each entry
   point states its own. #97's upgrade path is a held item that is grabbable
-  anyway, which is exactly the case the old single field could not express.
+  anyway, which is the case the old single field could not express.
   **Item monitoring (#188) is one more input to `Grabbable`, which is why it
   costs `decide` and the importer nothing**: `wanted_items.monitored` is
   conjoined into `loadSweepItems`' single grabbability line, so it applies to sweep
@@ -66,7 +66,7 @@ never touches the client, the library or the store.
   Two things sit deliberately outside that condition. **Monitoring never
   restricts a manual path** — search, grab, and later file adoption (#157) — which
   generalises PR #57 rather than enumerating the paths that exist today; and the
-  importer doesn't check monitoring at all, so a pack grabbed for its monitored neighbours
+  importer doesn't check monitoring, so a pack grabbed for its monitored neighbours
   still places every file it contains. The bytes are already spent, a hardlink
   costs no disk, and the hole is transitional: `unclaimedItem` already excludes a
   had item, so adoption closes it with no importer change.
@@ -80,7 +80,7 @@ never touches the client, the library or the store.
   The check is in `ineligibleReason` rather than `movieCandidate` because a
   genuine multi-part film release is indistinguishable from a parent series'
   pack — unmatched would 422 the manual grab and make it ungrabbable without
-  renaming, so the precision risk goes on the supervised path alone, exactly as
+  renaming, so the precision risk goes on the supervised path alone, as
   the null-year rule splits it. It ranks **above** the null-year reason (per
   release, so it discriminates between rows) and **below** the profile rules
   (which the user set deliberately). An explicit range stays a *matching*
@@ -91,7 +91,7 @@ never touches the client, the library or the store.
   grab — the #57 doctrine — but gets an ineligible reason so automation never
   grabs a null-year movie (#209). The precision risk sits on the supervised path,
   the availability cost on the unsupervised one, because a null year correlates
-  with an unreleased title, which is exactly when every candidate a search returns
+  with an unreleased title, which is when every candidate a search returns
   is wrong. The stored year is refresh-maintained rather than an add-time
   snapshot, and `SetTitleYear` guards `? > 0` **in SQL** so no caller can let a
   transient upstream null erase one. **A movie's path is keyed on that

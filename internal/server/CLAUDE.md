@@ -43,7 +43,7 @@ service side is in [`../core/settings/CLAUDE.md`](../core/settings/CLAUDE.md).
   **What we do not do is fail open when a proxy names no host**, which an earlier
   round of this change did, on the reasoning that a proxied install is
   authenticated anyway. `requiresAuth` exempts `/auth/setup`, `/auth/login` and
-  `/auth/logout` in every auth required-mode, so that reasoning was false exactly
+  `/auth/logout` in every auth required-mode, so that reasoning was false
   where it mattered. cloudflared, Tailscale Serve and any nginx setting only `For`
   and `Proto` send a forwarding header and no `X-Forwarded-Host`, and a hostile
   page got the admin account on a fresh `enabled` install. `Host` is the fallback,

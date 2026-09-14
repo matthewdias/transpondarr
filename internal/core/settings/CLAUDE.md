@@ -31,14 +31,14 @@ was saved for. The HTTP-side encoding rules are in
   a *different field* from its destination (server), so a blank-topic save persisting
   the caller's server would rebind the inherited token to it and the follow-up would
   match — #259 reinstated in two ordinary requests. `UpdateNotify` therefore keeps the
-  stored server on that branch, and only while a stored token is actually being
+  stored server on that branch, and only while a stored token is being
   reused, so staging a server before choosing a topic still saves. Download
   and indexer cannot have this shape: their disable signal *is* the destination, so
   clearing the URL stores an empty one and `sameDestination`'s hostless fallback
   rejects every later host. The **save** paths
   apply the rule too, not just the tests: a save rebuilds the live client against the
   new URL and it authenticates on the next poll, so fixing only the tests would leave
-  the same exfiltration one `PUT` away. Deliberately **not** an access-control fix —
+  the same exfiltration one `PUT` away. **Not** an access-control fix —
   the cross-origin hole that makes it reachable without a credential is #269, and in
   `enabled` auth required-mode the caller is authenticated anyway. What it protects is the secret
   *leaving* the app (an indexer key is a private-tracker account credential, a qBit
