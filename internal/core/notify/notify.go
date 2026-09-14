@@ -30,8 +30,7 @@ const (
 	KindGrabFailed  Kind = "grab_failed"
 	KindTitleAdded  Kind = "title_added"
 	// KindRehearsal is a notify-only pass reporting what automation would have
-	// done (#116): ReleaseTitle set means "would have grabbed"; otherwise Error
-	// states why nothing would have been.
+	// done (#116). Error states the outcome, and ReleaseTitle can be set whatever it is.
 	KindRehearsal Kind = "rehearsal"
 )
 

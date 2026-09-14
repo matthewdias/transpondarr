@@ -82,6 +82,9 @@ func TestSendMarksStuckHighPriority(t *testing.T) {
 	if p := got.headers.Get("Priority"); p != "high" {
 		t.Errorf("priority = %q, want high", p)
 	}
+	if title := got.headers.Get("Title"); title != "Import blocked" {
+		t.Errorf("title = %q, want Import blocked", title)
+	}
 	if tags := got.headers.Get("Tags"); tags != "warning" {
 		t.Errorf("tags = %q, want warning", tags)
 	}
