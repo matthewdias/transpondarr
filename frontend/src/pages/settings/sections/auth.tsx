@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Lock, Loader2 } from "lucide-react";
-import { api, UnauthorizedError, type Settings } from "@/lib/api";
+import { api, type Settings } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionShell } from "../section-shell";
@@ -39,14 +39,7 @@ export function AuthSection({ settings }: { settings: Settings }) {
       setPwError(null);
       toast.success("Password changed");
     },
-    onError: (e) =>
-      setPwError(
-        e instanceof UnauthorizedError
-          ? "Current password is incorrect."
-          : e instanceof Error
-            ? e.message
-            : String(e),
-      ),
+    onError: (e) => setPwError(e instanceof Error ? e.message : String(e)),
   });
 
   const submitPw = (e: React.FormEvent) => {

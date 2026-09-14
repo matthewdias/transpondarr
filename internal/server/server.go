@@ -66,7 +66,7 @@ func New(d Deps) http.Handler {
 	r.Use(authMiddleware(d.Auth, d.Settings.APIKey))
 
 	d.Logger.Info("auth: forms login", "required", d.Auth.Required(), "configured", d.Auth.Configured())
-	registerAuthRoutes(r, d.Auth, d.Settings.APIKey)
+	registerAuthRoutes(r, d.Auth, d.Settings.APIKey, d.Logger)
 
 	cfg := apiConfig()
 	cfg.Transformers = append(cfg.Transformers, logServerErrors(d.Logger))
@@ -138,7 +138,7 @@ func authMiddleware(a *auth.Service, apiKeyFn func() string) func(http.Handler) 
 				next.ServeHTTP(w, req)
 				return
 			}
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			writeProblem(w, http.StatusUnauthorized, "Sign in to continue.")
 		})
 	}
 }

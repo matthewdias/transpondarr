@@ -264,14 +264,18 @@ describe("auth endpoints (rawFetch)", () => {
   it("keeps a failed login quiet so the form can render its own error", async () => {
     const listener = watchAuthExpired();
     server.use(
-      http.post(
-        "/api/v1/auth/login",
-        () => new HttpResponse("invalid credentials", { status: 401 }),
+      http.post("/api/v1/auth/login", () =>
+        HttpResponse.json(
+          { status: 401, detail: "Wrong username or password." },
+          { status: 401 },
+        ),
       ),
     );
-    await expect(api.login("example-user", "wrong")).rejects.toBeInstanceOf(
-      UnauthorizedError,
-    );
+    const err = await api
+      .login("example-user", "wrong")
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnauthorizedError);
+    expect(err).toMatchObject({ message: "Wrong username or password." });
     expect(listener).not.toHaveBeenCalled();
   });
 });

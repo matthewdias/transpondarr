@@ -73,11 +73,13 @@ function problemCause(problem: ProblemBody): string {
 // password: those pass authEvent: false so `AuthGate` doesn't remount and wipe
 // the form before its error can render.
 function throwApiError(status: number, body: unknown, authEvent = true): never {
+  const problem = body as ProblemBody;
   if (status === 401) {
     if (authEvent) window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
-    throw new UnauthorizedError();
+    const detail =
+      typeof problem?.detail === "string" ? problem.detail.trim() : "";
+    throw new UnauthorizedError(detail || undefined);
   }
-  const problem = body as ProblemBody;
   throw new ApiError(status, problemMessage(status, problem));
 }
 
@@ -107,8 +109,8 @@ function unwrap<T>(res: { data?: T; error?: unknown; response: Response }): T {
 
 // The auth endpoints set and read the session cookie directly and aren't in the
 // OpenAPI spec, so they can't go through the typed client. rawFetch mirrors its
-// behavior for those calls. Auth handlers return plain-text errors (not
-// problem+json), so a failed JSON parse falls back to the status line.
+// behavior for those calls. A body that isn't JSON (a proxy's error page) falls
+// back to the status line.
 async function rawFetch<T>(
   path: string,
   init: RequestInit = {},

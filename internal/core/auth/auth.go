@@ -33,6 +33,13 @@ const (
 
 const SessionCookieName = "transpondarr_session"
 const MinPasswordLen = 8
+
+// The credential checks CreateUser makes before storing anything.
+var (
+	ErrCredentialsRequired = errors.New("username and password are required")
+	ErrPasswordTooShort    = fmt.Errorf("password must be at least %d characters", MinPasswordLen)
+)
+
 const SessionTTL = 30 * 24 * time.Hour
 
 // Settings-table keys.
@@ -183,10 +190,10 @@ func (s *Service) Verify(username, password string) bool {
 func (s *Service) CreateUser(ctx context.Context, username, password string) error {
 	username = strings.TrimSpace(username)
 	if username == "" || password == "" {
-		return errors.New("username and password are required")
+		return ErrCredentialsRequired
 	}
 	if len(password) < MinPasswordLen {
-		return fmt.Errorf("password must be at least %d characters", MinPasswordLen)
+		return ErrPasswordTooShort
 	}
 	h, err := hashPassword(password)
 	if err != nil {
