@@ -162,7 +162,7 @@ func (h *titleHandler) grabRelease(ctx context.Context, in *grabTitleInput) (*gr
 		return nil, acquireHTTPError(err)
 	}
 
-	// Re-run the release match and locate the chosen release by URL, so we grab exactly
+	// Re-run the release match and locate the chosen release by URL, so we grab
 	// what the decider reports it covers rather than the client-supplied item
 	// numbers.
 	var chosen *decide.Candidate

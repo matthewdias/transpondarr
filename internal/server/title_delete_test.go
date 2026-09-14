@@ -154,7 +154,7 @@ func TestDeleteTitleRemoveDownloadsCollectsHashes(t *testing.T) {
 }
 
 // The flag with no configured client is a 503 and the title remains — but only
-// when there is actually something to remove; with no in-client grabs the client
+// when there is something to remove; with no in-client grabs the client
 // is never needed.
 func TestDeleteTitleRemoveDownloadsWithoutClient(t *testing.T) {
 	t.Run("grabs in the client", func(t *testing.T) {

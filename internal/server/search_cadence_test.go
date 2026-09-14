@@ -46,7 +46,7 @@ func TestEnableMonitoringResetsSearchCadence(t *testing.T) {
 
 // Changing the pin changes what the search sweep is waiting for, so the wait it is
 // currently applying is stale. Without the reset, dropping a 48h wait to 2h — or
-// pinning an entirely different group — does nothing until the old window
+// pinning a different group — does nothing until the old window
 // closes, which reads as the setting having been ignored.
 func TestRepinningResetsSearchCadence(t *testing.T) {
 	for _, tc := range []struct {

@@ -47,7 +47,7 @@ func seedSeasonCache(t *testing.T, h *harness, season string, year int, raw stri
 
 // The acceptance-critical path: a cached season is served without any provider
 // round trip (the harness provider fails loudly on any call, and cannot browse
-// at all).
+// anything).
 func TestBrowseSeasonServedFromCache(t *testing.T) {
 	h := newHarness(t, nil, nil)
 	// "popularity" is no longer a SeasonEntry field: a blob cached before the drop

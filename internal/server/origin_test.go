@@ -178,7 +178,7 @@ func TestUnstatedPortIsNotCompared(t *testing.T) {
 		t.Error("cross-origin write allowed once the port went unstated")
 	}
 
-	// X-Forwarded-Port is deliberately not consulted: nginx's $server_port and a
+	// X-Forwarded-Port is not consulted: nginx's $server_port and a
 	// Traefik entrypoint both name the port the proxy listens on, which differs
 	// from the published one whenever a container maps ports, so reading it would
 	// 403 the owner's own UI (the review's MEDIUM finding).
@@ -204,7 +204,7 @@ func TestUnparseableForwardedProtoDoesNotDisableTheCheck(t *testing.T) {
 
 // TestIPv6ForwardedHostIsCompared pins the review's other MEDIUM: an IPv6 literal
 // from nginx's $host arrives bracketed, and mishandling it made expectedOrigin
-// unparseable, which switched the check off for that install entirely.
+// unparseable, which switched the check off for that install.
 func TestIPv6ForwardedHostIsCompared(t *testing.T) {
 	// X-Forwarded-Port is set on purpose. It is ignored now, so the case reads the
 	// same either way -- but joining it onto a bracketed host is what produced the
@@ -239,7 +239,7 @@ func TestUnstatedSchemeIsNotCompared(t *testing.T) {
 	}
 
 	// A stated scheme is still compared. The proxy has to name the host too, or
-	// the public origin is unknowable and nothing is compared at all.
+	// the public origin is unknowable and nothing is compared.
 	req = writeReq(http.MethodPost, "127.0.0.1:9797", map[string]string{
 		"Origin":            "http://transpondarr.example",
 		"X-Forwarded-Host":  "transpondarr.example",

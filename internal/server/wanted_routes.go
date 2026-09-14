@@ -449,7 +449,7 @@ func (h *wantedHandler) setItemsMonitored(ctx context.Context, in *setItemsMonit
 	defer func() { _ = tx.Rollback() }()
 	qtx := h.deps.store.Q.WithTx(tx)
 
-	// Only where something will actually move: the update reports a row count,
+	// Only where something will move: the update reports a row count,
 	// not which title it changed.
 	var titleIDs []int64
 	if in.Body.Monitored {
@@ -525,7 +525,7 @@ func (h *wantedHandler) blockedCounts(ctx context.Context, ids []int64, now sql.
 
 // pageCursor decodes a page cursor; an empty one returns the zero cursor, and
 // each listing supplies its own top -- Missing descends from QueueCursorTop,
-// Cutoff Unmet ascends so its top is the zero cursor itself.
+// Cutoff Unmet ascends so its top is the zero cursor.
 func pageCursor(encoded string) (acquire.QueueCursor, error) {
 	if encoded == "" {
 		return acquire.QueueCursor{}, nil

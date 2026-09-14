@@ -134,7 +134,7 @@ func TestActivityQueueReportsWhenAStallWillBeGivenUpOn(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "h1", State: download.StateStalled, Progress: 0},
 		{Hash: "h2", State: download.StateDownloading, Progress: 0.3},
-		// h3 is deliberately not reported: the torrent was removed by hand.
+		// h3 is not reported: the torrent was removed by hand.
 		{Hash: "h4", State: download.StateDownloading, Progress: 0.4},
 	}}
 	h := newHarness(t, nil, dl)

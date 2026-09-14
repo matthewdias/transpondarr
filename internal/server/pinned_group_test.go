@@ -121,7 +121,7 @@ func TestSetPinnedGroupRejectsAnOutOfRangeDelay(t *testing.T) {
 			t.Errorf("delay_hours %d status = %d, want 422", hours, code)
 		}
 	}
-	// The ceiling itself is a legal value.
+	// The ceiling is a legal value.
 	body := map[string]any{"group": "ShinyRip", "delay_hours": domain.MaxPinDelayHours}
 	if code := do(t, h, "PUT", path, body, nil); code != http.StatusOK {
 		t.Errorf("delay_hours at the ceiling status = %d, want 200", code)

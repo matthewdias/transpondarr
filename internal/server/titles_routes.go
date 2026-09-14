@@ -20,7 +20,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// titleDTO reports two denominators deliberately: tracked counts the items
+// titleDTO reports two denominators: tracked counts the items
 // automation will act on (monitored and broadcast), total counts every item on
 // the title. total keeps its old meaning because narrowing it in place would be a
 // silent break for API clients.
@@ -378,7 +378,7 @@ func (h *titleHandler) addTitle(ctx context.Context, in *addTitleInput) (*addTit
 	}
 	// Unreachable while the request enum lists exactly the configured provider --
 	// huma rejects anything else at validation with a 422. It fires once the enum
-	// widens past what is actually wired up.
+	// widens past what is wired up.
 	if errors.Is(err, catalog.ErrUnknownProvider) {
 		return nil, huma.Error400BadRequest("unknown metadata provider", err)
 	}

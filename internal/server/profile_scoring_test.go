@@ -209,7 +209,7 @@ func TestGrabIneligibleReleaseSucceedsWithReason(t *testing.T) {
 // A client that already has this torrent with its data gone rejects the add
 // (#241), so the manual grab reports it rather than returning a 201 whose grab
 // fails moments later. Not what PR #57 forbids: eligibility never blocks a grab, and this is
-// the client rejecting the add, exactly as a dead download URL does.
+// the client rejecting the add, as a dead download URL does.
 func TestGrabReportsARefusalWhenTheClientHasLostTheData(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:eeee"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
@@ -236,7 +236,7 @@ func TestGrabReportsARefusalWhenTheClientHasLostTheData(t *testing.T) {
 	}
 }
 
-// An eligible release grabs exactly as before — no acknowledgement, no reason.
+// An eligible release grabs as before — no acknowledgement, no reason.
 func TestGrabEligibleReleaseUnchanged(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:dddd"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{
