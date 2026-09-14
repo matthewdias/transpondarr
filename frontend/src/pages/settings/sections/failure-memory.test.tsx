@@ -35,7 +35,6 @@ describe("FailureMemorySection", () => {
   it("reports how much is blocked and across how many titles", async () => {
     renderSection(summary());
     expect(await screen.findByText(/4 releases/i)).toBeInTheDocument();
-    // "series" is its own plural; the count line read "2 seriess" until it was.
     expect(screen.getByText(/skipped across 2 titles\./i)).toBeInTheDocument();
   });
 
