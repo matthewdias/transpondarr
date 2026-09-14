@@ -11,7 +11,7 @@ drives a download client, and organizes the results into a media library.
 > Settings, or set it to **notify-only** first to watch what it would grab
 > without grabbing anything. Indexing is via Torznab/Prowlarr for now.
 
-## Why not just use Sonarr?
+## Why not use Sonarr?
 
 Anime breaks Sonarr's assumptions: messy fansub filenames, absolute vs.
 per-season numbering, release-group/dual-audio/sub preferences, and metadata
@@ -114,7 +114,7 @@ docker run -p 9797:9797 -v ./config:/config ghcr.io/matthewdias/transpondarr:lat
 
 > The container starts as root only to fix ownership of the mounted config dir,
 > then drops to `PUID`/`PGID` (default `1000:1000`) before serving. To skip the
-> root phase entirely, run with `--user "$(id -u):$(id -g)"` — the config dir
+> root phase, run with `--user "$(id -u):$(id -g)"` — the config dir
 > must then already exist and be writable by that user.
 
 For a real deployment alongside qBittorrent and a media server, see

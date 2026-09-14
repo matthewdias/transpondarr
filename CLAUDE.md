@@ -43,7 +43,7 @@ reproduce it locally — run what the change touched.
   the handlers reading it), which is what the suite's `-race` exists for.
 - **Scoping is safe because the test cache is content-addressed through the dependency
   graph** — editing `internal/store` does re-run `internal/core/importer`'s tests, it
-  won't return a stale pass. `(cached)` means the compiled inputs really are
+  won't return a stale pass. `(cached)` means the compiled inputs are
   unchanged (a comment-only edit to a dependency legitimately keeps the hit); reach for
   `-count=1` only to force a test whose result depends on state Go can't see.
 - **Lint** — `golangci-lint run ./internal/core/decide/...` for Go,
@@ -202,7 +202,7 @@ What stays here is what applies before you know which package you are in.
   AniList entry cannot create three items. Downstream, `domain.KindFor(Format)` is the one
   helper every create site writes `kind` through (catalog, refresh, airing) — and
   since it derives from the format frozen at add time, **any future
-  `SetTitleFormat` must re-key the existing items**, exactly as `00022`'s
+  `SetTitleFormat` must re-key the existing items**, as `00022`'s
   backfill does: `idx_wanted_items_identity` is `(series_id, kind, number)`, so a
   stale `('episode', 1)` does not collide with `('movie', 1)` and the next refresh
   silently doubles the title instead of failing.
@@ -236,7 +236,7 @@ Code states the *what*; comments state only what the code cannot. Default to
 none, and prefer a better name or a small helper over an explanation.
 
 - **Budget:** one line. Exported declarations get the Go-standard one-line doc
-  comment. Two lines is the ceiling for a genuinely subtle point; three or more
+  comment. Two lines is the ceiling for a subtle point; three or more
   needs a reason you could defend in review. Never a paragraph above a function.
 - **Delete any comment that restates the next line.** `// Enrich the release with
   parsed attributes` above three assignments to `rel.ReleaseGroup/Resolution/

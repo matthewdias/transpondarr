@@ -17,13 +17,13 @@ Progress is the discriminator, strictly `> 0`. A torrent that made any progress
 proves a peer had the data, so those bytes are the user's to discard. A percentage
 threshold would draw a line nothing supports.
 
-This is `blameRelease`, unlike a torrent that has simply vanished (#241). Nobody
+This is `blameRelease`, unlike a torrent that has vanished (#241). Nobody
 seeding a release we can see is a fact about that release, and without the
 blocklist entry the search sweep re-picks the same first-ranked release and loops.
 
 Two things bound how far a VPN drop can fan out. Every such failure runs through
 `blocklist.Record`, so the failure breaker (#120) blames four items and suppresses
-the rest. And only a torrent that never received a byte qualifies at all.
+the rest. And only a torrent that never received a byte qualifies.
 
 ### Why `Progress`, and not a count of bytes received
 
@@ -70,7 +70,7 @@ so neither takes that branch. `queuedDL` is excluded by having its own
 torrent is not an active download. Folding the two together is what made "widen the predicate"
 and "never abandon a queued download" look like opposites.
 
-`Status.StuckAtZero` names the predicate. `stalled_since` deliberately keeps a
+`Status.StuckAtZero` names the predicate. `stalled_since` keeps a
 name it has outgrown, because the clock did not change — it still mirrors
 `missing_since`, and a migration for a column name is cosmetics.
 
@@ -83,12 +83,12 @@ mutation that lives, so `TestKeepsMetadataStallClockAcrossScans` exists to kill 
 ### No fetching-metadata state, on purpose
 
 Queued is near-universal: five of six surveyed clients have it, rTorrent has no
-queue, and a missing download state degrades cleanly because an adapter simply never emits
+queue, and a missing download state degrades cleanly because an adapter never emits
 it.
 
 Fetching-metadata is one client's taxonomy. qBittorrent and Deluge are both
 libtorrent and disagree in both directions, with qBit passing the metadata state
-through while Deluge does not expose it at all. The two are disjoint by
+through while Deluge does not expose it. The two are disjoint by
 construction in qBittorrent, whose `updateState()` tests `isQueued()` first inside
 the `!hasMetadata()` branch.
 
@@ -196,7 +196,7 @@ a wrong delete, and that is the only direction allowed to fail.
 ### Why it is an optional capability and its own job
 
 `library.StagingSweeper` is an optional capability found by type assertion, so
-`library.Target` is still just `Name()` and `Place()`, with no method that
+`library.Target` is still `Name()` and `Place()`, with no method that
 lists what a target currently contains. A target without the capability is a supported
 configuration, not an error. That general read path is #170, and manual file
 adoption (#157) and library drift detection (#171) both need it. The issue has to
