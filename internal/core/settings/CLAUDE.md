@@ -48,11 +48,11 @@ was saved for. The HTTP-side encoding rules are in
 - **The save paths apply the rule too, not only the tests.** A save rebuilds the
   live client against the new URL, and it authenticates on the next poll. Fixing
   only the tests would leave the same exfiltration one `PUT` away.
-- **This is deliberately not an access-control fix.** The cross-origin hole that
+- **The host guard is deliberately not an access-control fix.** The cross-origin hole that
   makes it reachable without a credential is the missing CSRF defence in `local`
   auth mode (#269). In `enabled` auth required-mode the caller is authenticated
   anyway.
-- **What it protects is the secret *leaving* the app** (an indexer key is a
-  private-tracker account credential, a qBit password is often reused). It also
+- **What the host guard protects is the secret *leaving* the app** (an indexer key is a
+  private-tracker account credential, a qBit password is often reused). The guard also
   protects the coherence of the `GET /settings` redaction, which exists so that
   API access does not reveal the secrets.
