@@ -73,7 +73,7 @@ func TestBlocklistedHashIsIneligible(t *testing.T) {
 }
 
 // An empty hash must never match the blocklist, or every hashless release from a
-// feed would be blocked by one hashless entry.
+// feed would be blocked by one hashless blocklist entry.
 func TestEmptyHashDoesNotMatchBlocklist(t *testing.T) {
 	rels := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga - 03 [1080p]", Seeders: 500},

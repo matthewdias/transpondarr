@@ -16,8 +16,8 @@ never touches the client, the library or the store.
   coverage only breaks ties among equally pinned candidates. And `batchItems` gained
   the guard it never had: an explicit range past `maxItem` is now **unmatched**
   with the single-episode path's absolute/season-mismatch reason, so a `01-48`
-  pack no longer claims a 12-item entry's items 1-12. A numberless pack has
-  no range to check and still fills the entry — that is what a season pack is.
+  pack no longer claims a 12-item AniList entry's items 1-12. A numberless pack has
+  no range to check and still fills the AniList entry — that is what a season pack is.
   Both entry points inherit all of it through the one decision layer, rehearsal
   included.
 - **The automation loop parses once per poll, not once per title — and not at all
@@ -25,11 +25,11 @@ never touches the client, the library or the store.
   `held_release_parses` from `decide.Match` was the smallest of three effects in
   the one loop and the only one costing a `decide.Item` change, so the two that
   were taken are both about **not doing the work** rather than caching it. A
-  feed poll matches one ~100-entry page against *every* due title, so
+  feed poll matches one ~100-entry feed page against *every* due title, so
   `MatchOpts.Parses` contains the feed page's parses, built once in `pageParses`; it is
   **read-only inside `decide`**, which is what makes one map shareable across
   titles without a lock, and a miss is parsed normally so it is a cache and never
-  a filter. The sweep deliberately passes nil — it searches per title, so its
+  a filter. The search sweep deliberately passes nil — it searches per title, so its
   releases differ and there is nothing to share. And `Match` stores a held item's
   **membership without its parse** when `profile.UpgradesEnabled` is false (the
   schema default), because every read of the parsed value is guarded by that flag
@@ -37,7 +37,7 @@ never touches the client, the library or the store.
   `_, ok := held[n]`. Two things a reader would otherwise break. **The membership
   write is necessary**: leaving `held` empty instead trips
   `applyUpgradePolicy`'s `len(held) == 0` early return, so covered items are never
-  marked `UpgradeBlocked`, stay in `TakeItems()`, and the sweep grabs an upgrade on
+  marked `UpgradeBlocked`, stay in `TakeItems()`, and the search sweep grabs an upgrade on
   a profile that has upgrades switched off — deleting that one line is the
   mutation that proves it. And the `UpgradesEnabled` check is **hoisted into
   `applyUpgradePolicy` on purpose**, so the only path reading a `heldRelease`'s
@@ -53,7 +53,7 @@ never touches the client, the library or the store.
   tracks the scoped search).
 - **Candidacy and possession are two fields, not one.** `decide.Item.Grabbable`
   is "worth offering a release for"; `domain.WantedItem.InLibrary` is "a
-  file is in the library". They coincide only on the manual path — the sweep
+  file is in the library". They coincide only on the manual path — the search sweep
   withholds in-flight and unaired items that plainly aren't in the library — so nothing may
   derive one from the other outside `acquire.passItem`, which is where each entry
   point states its own. #97's upgrade path is a held item that is grabbable
@@ -74,9 +74,9 @@ never touches the client, the library or the store.
   (#211).** Movie mode's two numeric checks both read what a release *names*, and
   a numberless pack names neither an episode nor a year — so `[Grp] Placeholder
   Saga (Complete Series)` matched the film `Placeholder Saga: The Final`
-  eligibly, the sweep grabbed it, and the importer placed one of the *series'*
+  eligibly, the search sweep grabbed it, and the importer placed one of the *series'*
   episodes into the Movies root under the film's name. This is movie-specific: on the
-  series path a numberless pack filling the entry is what a season pack *is*.
+  series path a numberless pack filling the AniList entry is what a season pack *is*.
   The check is in `ineligibleReason` rather than `movieCandidate` because a
   genuine multi-part film release is indistinguishable from a parent series'
   pack — unmatched would 422 the manual grab and make it ungrabbable without

@@ -23,7 +23,7 @@ func upgradeProfile(cutoff int) domain.QualityProfile {
 	}
 }
 
-// heldItems is a 12-item entry whose item 3 is held, the only shape these cases need.
+// heldItems is a 12-item AniList entry whose item 3 is held, the only shape these cases need.
 func heldItems(heldTitle string) []Item {
 	its := items(12)
 	its[2].HeldTitle = heldTitle

@@ -4,7 +4,7 @@
 // to the ones that plausibly belong to this title, and maps episode numbers to
 // wanted-item numbers — surfacing a human-readable reason for every decision so
 // the matching can be reviewed before it drives an automatic grab. Matched
-// candidates are then ranked by a pure, profile-driven score (group first — see
+// candidates are then ranked by a pure, profile-driven score (release group first — see
 // the weights), except that a title's pinned group outranks every score; an
 // explicit minimum score lets the answer be "nothing yet".
 //
@@ -82,7 +82,7 @@ type MatchOpts struct {
 	// Year is the title's release year; 0 is "no year on record", which movie
 	// matching reports as an ineligible reason rather than a refusal (#209).
 	Year int
-	// Parses lets a caller matching one page against many titles parse it once.
+	// Parses lets a caller matching one feed page against many titles parse it once.
 	Parses ReleaseParses
 }
 
@@ -128,7 +128,7 @@ type ScorePart struct {
 }
 
 // Item is a wanted item as the matcher receives it. Grabbable is candidacy, not
-// library state — the sweep also excludes in-flight and unaired items — so a
+// library state — the search sweep also excludes in-flight and unaired items — so a
 // caller derives it per pass, and #97 can set it for an item already in the
 // library. HeldTitle names what the library has, so a grabbable item is an upgrade.
 type Item struct {
@@ -228,7 +228,7 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 	return out
 }
 
-// Fixed axis weights: group dominates by construction — its lowest weight exceeds the
+// Fixed axis weights: release group dominates by construction — its lowest weight exceeds the
 // 850 max every other axis can sum to, so any listed group beats every unlisted
 // one. Within listed groups, bonuses may flip adjacent ranks by design.
 const (
@@ -480,7 +480,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 	}
 
 	// Season check: a release that explicitly names a different season is not this
-	// entry (releases with no season token pass — that's the common S1/absolute case).
+	// AniList entry (releases with no season token pass — that's the common S1/absolute case).
 	if p.Season != 0 && p.Season != expectedSeason {
 		c.Reason = fmt.Sprintf("season %d does not match this entry (season %d)", p.Season, expectedSeason)
 		return c
@@ -491,7 +491,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 	if p.Batch {
 		if p.EpisodeEnd > maxItem {
 			// Same ambiguity as the single-episode case below: a 01-48 pack against a
-			// 12-item entry is absolute numbering, or another season entirely.
+			// 12-item AniList entry is absolute numbering, or another season entirely.
 			c.Reason = "episode range exceeds this entry's range (possible absolute/season mismatch)"
 			return c
 		}
@@ -543,7 +543,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 
 // batchItems is what a pack covers: its explicit range, or every item still
 // wanted when it names no numbers at all, which is what a season pack contains.
-// A range past this entry is rejected by the caller, so the input here is
+// A range past this AniList entry is rejected by the caller, so the input here is
 // either bounded by maxItem or numberless.
 func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {
 	start, end := p.EpisodeStart, p.EpisodeEnd
@@ -599,7 +599,7 @@ func matchesVariant(got string, variants []string) bool {
 // containment rather than exact equality (see titleBelongs).
 const minFuzzyTitleLen = 5
 
-// expectedSeasonFrom derives the season an entry represents from its own title
+// expectedSeasonFrom derives the season an AniList entry represents from its own title
 // variants (e.g. "Show 2nd Season" -> 2). Defaults to 1 when no variant has
 // a season marker — the ordinary case for a first season or a single-cour show.
 func expectedSeasonFrom(variants []string) int {
