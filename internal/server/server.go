@@ -68,7 +68,9 @@ func New(d Deps) http.Handler {
 	d.Logger.Info("auth: forms login", "required", d.Auth.Required(), "configured", d.Auth.Configured())
 	registerAuthRoutes(r, d.Auth, d.Settings.APIKey)
 
-	api := humachi.New(r, apiConfig())
+	cfg := apiConfig()
+	cfg.Transformers = append(cfg.Transformers, logServerErrors(d.Logger))
+	api := humachi.New(r, cfg)
 	registerRoutes(api, routeDeps{
 		store:     d.Store,
 		catalog:   catalog.NewService(d.Store, d.Provider),

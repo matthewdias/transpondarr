@@ -84,15 +84,15 @@ describe("typed client (openapi-fetch)", () => {
     expect(err).toMatchObject({ status: 500, message: "indexer unreachable" });
   });
 
-  // The 2026-08-15 AniList outage: detail was the handler's own summary and the
-  // provider's explanation was in errors[], where nothing read it.
-  it("prefers the errors[] cause over the handler's detail", async () => {
+  // The 2026-08-15 AniList outage: the provider's explanation was in errors[], and
+  // the handler's summary alone did not say what went wrong.
+  it("leads a 5xx with the handler's detail and keeps the errors[] cause", async () => {
     server.use(
       http.post("/api/v1/titles", () =>
         HttpResponse.json(
           {
             title: "Bad Gateway",
-            detail: "failed to add title",
+            detail: "Couldn't fetch the title from AniList.",
             errors: [
               {
                 message:
@@ -108,8 +108,27 @@ describe("typed client (openapi-fetch)", () => {
     expect(err).toMatchObject({
       status: 502,
       message:
-        "fetch metadata: anilist: status 403: The AniList API has been temporarily disabled due to severe stability issues.",
+        "Couldn't fetch the title from AniList. fetch metadata: anilist: status 403: The AniList API has been temporarily disabled due to severe stability issues.",
     });
+  });
+
+  it("shows the handler's message on a 500 whose errors[] has a cause", async () => {
+    server.use(
+      http.get("/api/v1/titles", () =>
+        HttpResponse.json(
+          {
+            title: "Internal Server Error",
+            detail: "Couldn't load the titles. The server log has the cause",
+            errors: [{ message: "sql: database is closed" }],
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+    const err = (await api.listTitles().catch((e: unknown) => e)) as ApiError;
+    expect(err.message).toBe(
+      "Couldn't load the titles. The server log has the cause. sql: database is closed",
+    );
   });
 
   // Huma reuses errors[] for per-field validation, where one message misleads.
