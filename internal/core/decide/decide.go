@@ -339,7 +339,7 @@ func ineligibleReason(rel indexer.Release, p parser.Parsed, profile domain.Quali
 		return r
 	}
 	if indexFold(profile.BlockedGroups, p.Group) >= 0 {
-		return fmt.Sprintf("group %s is blocked by the profile", p.Group)
+		return fmt.Sprintf("release group %s is blocked by the profile", p.Group)
 	}
 	for _, tok := range profile.HardExcludes {
 		// Every axis Score rewards except group, which BlockedGroups handles.
@@ -412,11 +412,11 @@ func upgradeRefusal(c Candidate, h heldRelease, profile domain.QualityProfile) s
 		return ""
 	}
 	if h.score >= profile.CutoffScore {
-		return fmt.Sprintf("the held release already meets the profile cutoff (score %d >= %d)",
+		return fmt.Sprintf("the release already in the library meets the profile cutoff (score %d >= %d)",
 			h.score, profile.CutoffScore)
 	}
 	if c.Score <= h.score {
-		return fmt.Sprintf("score %d does not beat the held release (score %d)", c.Score, h.score)
+		return fmt.Sprintf("score %d does not beat the release already in the library (score %d)", c.Score, h.score)
 	}
 	return ""
 }
@@ -482,7 +482,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 	// Season check: a release that explicitly names a different season is not this
 	// AniList entry (releases with no season token pass — that's the common S1/absolute case).
 	if p.Season != 0 && p.Season != expectedSeason {
-		c.Reason = fmt.Sprintf("season %d does not match this entry (season %d)", p.Season, expectedSeason)
+		c.Reason = fmt.Sprintf("season %d does not match this title (season %d)", p.Season, expectedSeason)
 		return c
 	}
 
@@ -492,7 +492,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 		if p.EpisodeEnd > maxItem {
 			// Same ambiguity as the single-episode case below: a 01-48 pack against a
 			// 12-item AniList entry is absolute numbering, or another season.
-			c.Reason = "episode range exceeds this entry's range (possible absolute/season mismatch)"
+			c.Reason = "episode range exceeds this title's last episode (possible absolute/season mismatch)"
 			return c
 		}
 		if covered := batchItems(p, itemSet, maxItem); len(covered) > 0 {
@@ -507,9 +507,9 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 			case 0:
 				c.Reason = "batch / season pack covers wanted items"
 			case len(covered):
-				c.Reason = "batch / season pack upgrades held items"
+				c.Reason = "batch / season pack upgrades items already in the library"
 			default:
-				c.Reason = "batch / season pack covers wanted and upgrades held items"
+				c.Reason = "batch / season pack covers wanted items and upgrades ones already in the library"
 			}
 			return c
 		}
@@ -523,14 +523,14 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 			c.Matched, c.Items = true, []int{p.EpisodeStart}
 			c.Reason = "episode matches a wanted item"
 			if _, ok := held[p.EpisodeStart]; ok {
-				c.Reason = "episode upgrades a held item"
+				c.Reason = "episode upgrades an item already in the library"
 			}
 			return c
 		}
 		if p.EpisodeStart > maxItem {
 			// Very likely absolute numbering from a multi-season run, or a
 			// different season — flag rather than pick one.
-			c.Reason = "episode number exceeds this entry's range (possible absolute/season mismatch)"
+			c.Reason = "episode number exceeds this title's last episode (possible absolute/season mismatch)"
 			return c
 		}
 		c.Reason = "episode already in the library / not wanted"

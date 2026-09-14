@@ -57,7 +57,7 @@ func TestMovieRejectsAWrongYear(t *testing.T) {
 	if got[0].Matched {
 		t.Errorf("candidate matched over %v, want the wrong year refused", got[0].Items)
 	}
-	if got[0].Reason != "year 2021 does not match this entry (year 2019)" {
+	if got[0].Reason != "year 2021 does not match this film (year 2019)" {
 		t.Errorf("reason = %q, want the year mismatch", got[0].Reason)
 	}
 }
@@ -97,7 +97,7 @@ func TestMovieRecoversASceneFormYear(t *testing.T) {
 	if got[1].Matched {
 		t.Errorf("second matched, want the 2021 release refused")
 	}
-	if got[1].Reason != "year 2021 does not match this entry (year 2019)" {
+	if got[1].Reason != "year 2021 does not match this film (year 2019)" {
 		t.Errorf("reason = %q, want the year mismatch", got[1].Reason)
 	}
 }
@@ -189,7 +189,7 @@ func TestMovieReadsAYearBehindSceneTags(t *testing.T) {
 			if got[0].Matched {
 				t.Errorf("candidate matched, want the wrong year refused behind %s", tag)
 			}
-			if got[0].Reason != "year 2021 does not match this entry (year 2019)" {
+			if got[0].Reason != "year 2021 does not match this film (year 2019)" {
 				t.Errorf("reason = %q, want the year mismatch", got[0].Reason)
 			}
 		})
@@ -276,7 +276,7 @@ func TestNullYearReasonYieldsToAReleaseSpecificOne(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("candidates = %d, want 1", len(got))
 	}
-	if got[0].IneligibleReason != "group BadSubs is blocked by the profile" {
+	if got[0].IneligibleReason != "release group BadSubs is blocked by the profile" {
 		t.Errorf("ineligibleReason = %q, want the blocked-group reason first", got[0].IneligibleReason)
 	}
 }
@@ -292,7 +292,7 @@ func TestMovieUpgradesAHeldFile(t *testing.T) {
 	if len(got) != 1 || !got[0].Matched {
 		t.Fatalf("candidate = %+v, want matched", got)
 	}
-	if got[0].Reason != "movie upgrades a held item" {
+	if got[0].Reason != "movie upgrades the file already in the library" {
 		t.Errorf("reason = %q, want the upgrade reason", got[0].Reason)
 	}
 }
@@ -475,7 +475,7 @@ func TestPackReasonYieldsToAProfileRule(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("candidates = %d, want 1", len(got))
 	}
-	if got[0].IneligibleReason != "group BadSubs is blocked by the profile" {
+	if got[0].IneligibleReason != "release group BadSubs is blocked by the profile" {
 		t.Errorf("ineligibleReason = %q, want the blocked-group reason first", got[0].IneligibleReason)
 	}
 }

@@ -69,21 +69,21 @@ func TestUpgradePolicy(t *testing.T) {
 			profile: upgradeProfile(2400),
 			held:    held480,
 			release: "[TopSubs] Placeholder Saga - 03 [480p]",
-			reason:  "does not beat the held release",
+			reason:  "does not beat the release already in the library",
 		},
 		{
 			name:    "a worse release is not an upgrade",
 			profile: upgradeProfile(2400),
 			held:    held480,
 			release: "[MidSubs] Placeholder Saga - 03 [480p]",
-			reason:  "does not beat the held release",
+			reason:  "does not beat the release already in the library",
 		},
 		{
 			name:    "a better release above the cutoff is left alone",
 			profile: upgradeProfile(2000),
 			held:    held480,
 			release: "[TopSubs] Placeholder Saga - 03 [1080p]",
-			reason:  "already meets the profile cutoff",
+			reason:  "already in the library meets the profile cutoff",
 		},
 		{
 			name:    "a v2 of what we hold passes the cutoff",
@@ -104,14 +104,14 @@ func TestUpgradePolicy(t *testing.T) {
 			profile: upgradeProfile(2400),
 			held:    held1080,
 			release: "[MidSubs] Placeholder Saga - 03v2 [1080p]",
-			reason:  "already meets the profile cutoff",
+			reason:  "already in the library meets the profile cutoff",
 		},
 		{
 			name:    "a v2 at another resolution is a different release",
 			profile: upgradeProfile(2400),
 			held:    held1080,
 			release: "[TopSubs] Placeholder Saga - 03v2 [720p]",
-			reason:  "already meets the profile cutoff",
+			reason:  "already in the library meets the profile cutoff",
 		},
 		{
 			name: "the carve-out is a per-profile toggle",
@@ -122,7 +122,7 @@ func TestUpgradePolicy(t *testing.T) {
 			}(),
 			held:    held1080,
 			release: "[TopSubs] Placeholder Saga - 03v2 [1080p]",
-			reason:  "already meets the profile cutoff",
+			reason:  "already in the library meets the profile cutoff",
 		},
 		{
 			name: "a profile that never opted in upgrades nothing",
@@ -175,18 +175,18 @@ func TestUpgradeMatchReason(t *testing.T) {
 		want    string
 	}{
 		{"single", func() []Item { return heldItems(held480) },
-			"[TopSubs] Placeholder Saga - 03 [1080p]", "upgrades a held item"},
+			"[TopSubs] Placeholder Saga - 03 [1080p]", "upgrades an item already in the library"},
 		{"batch all held", func() []Item {
 			its := items(2)
 			its[0].HeldTitle = "[TopSubs] Placeholder Saga - 01 [480p]"
 			its[1].HeldTitle = "[TopSubs] Placeholder Saga - 02 [480p]"
 			return its
-		}, "[TopSubs] Placeholder Saga - 01-02 [1080p]", "upgrades held items"},
+		}, "[TopSubs] Placeholder Saga - 01-02 [1080p]", "upgrades items already in the library"},
 		{"batch mixed", func() []Item {
 			its := items(2)
 			its[0].HeldTitle = "[TopSubs] Placeholder Saga - 01 [480p]"
 			return its
-		}, "[TopSubs] Placeholder Saga - 01-02 [1080p]", "upgrades held"},
+		}, "[TopSubs] Placeholder Saga - 01-02 [1080p]", "upgrades ones already in the library"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

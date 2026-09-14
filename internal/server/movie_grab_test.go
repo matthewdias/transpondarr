@@ -150,7 +150,7 @@ func TestMovieWrongYearIsRefusedWithAReason(t *testing.T) {
 	if results[0].Matched {
 		t.Errorf("matched = true over %v, want the wrong year refused", results[0].Items)
 	}
-	if results[0].Reason != "year 2021 does not match this entry (year 2019)" {
+	if results[0].Reason != "year 2021 does not match this film (year 2019)" {
 		t.Errorf("reason = %q, want the year mismatch surfaced", results[0].Reason)
 	}
 
