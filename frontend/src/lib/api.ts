@@ -90,8 +90,8 @@ function throwApiError(status: number, body: unknown, authEvent = true): never {
   throw new ApiError(status, problemMessage(status, problem));
 }
 
-// A 4xx cause is what the user must fix, so it leads. A 5xx detail says what
-// failed and what to do, and the cause (a 502's upstream reply) follows it.
+// A 4xx cause is what the user must fix, so it leads. A 5xx detail names what
+// failed and what to do, and the cause (a 502's upstream reply) comes after it.
 function problemMessage(status: number, problem: ProblemBody): string {
   const cause = problemCause(problem);
   const detail =
