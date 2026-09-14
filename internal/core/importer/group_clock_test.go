@@ -117,7 +117,7 @@ func backdateOpenRows(t *testing.T, st *store.Store, hash string, ago time.Durat
 }
 
 // assertOneRung is the acceptance criterion: one incident, one entry, first rung.
-// The upsert is keyed on (title, normalized title), so a split incident shows up
+// The upsert is keyed on (title, normalized release name), so a split incident shows up
 // as failures = 2 rather than as a second row -- and blockDuration reads that as
 // a repeat and blocks for 7d (#118).
 func assertOneRung(t *testing.T, st *store.Store, titleID int64) {

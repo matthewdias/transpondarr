@@ -85,7 +85,7 @@ func numberNamesTheFilm(p parser.Parsed, variants []string) bool {
 
 // releaseYear is the year a release names, resolving the ambiguity the parser
 // deliberately does not settle: anitogo reports a year only when the name isolates
-// one in brackets, so the scene form glues it onto the title instead. Whichever
+// one in brackets, so the scene form glues it onto the parsed title instead. Whichever
 // source it came from, a year an accepted variant contains names the film rather
 // than the release ("Placeholder Legend 1979") — so the variant check is applied
 // once, after the derivation, and bracket style cannot change the verdict. A
@@ -102,7 +102,7 @@ func releaseYear(p parser.Parsed, variants []string) int {
 	return y
 }
 
-// yearInTitle is the year a scene-form name glued onto the title: the rightmost
+// yearInTitle is the year a scene-form name glued onto the parsed title: the rightmost
 // four-digit token in range, since unrecognized scene tags come after it — but never
 // the first token, which is the film naming itself.
 func yearInTitle(title string) int {

@@ -1,4 +1,4 @@
-// Package parser turns a raw release title into structured fields — title,
+// Package parser turns a raw release name into structured fields — title,
 // season, episode number(s), release group, and the quality axes (resolution,
 // source, subtitle type, codec, version/repack, dual-audio) — using
 // anitogo (a Go port of Anitomy): anime filename conventions are a large
@@ -17,8 +17,8 @@ import (
 	"github.com/nssteinbrenner/anitogo"
 )
 
-// Parsed is the structured view of a release title. Zero values mean "absent"
-// (Season/EpisodeStart/EpisodeEnd == 0 when the title had no such token).
+// Parsed is the structured view of a release name. Zero values mean "absent"
+// (Season/EpisodeStart/EpisodeEnd == 0 when the release name had no such token).
 type Parsed struct {
 	Title      string // AnimeTitle, e.g. "Some Show"
 	Group      string // release group, e.g. "ExampleSubs"
@@ -37,7 +37,7 @@ type Parsed struct {
 	Year int
 
 	// AbsoluteEpisode is anitogo's alternate number — the absolute count when the
-	// title has a season-relative number plus an absolute one (e.g. "S3 - 01 (51)").
+	// release name has a season-relative number plus an absolute one (e.g. "S3 - 01 (51)").
 	// 0 when absent.
 	AbsoluteEpisode int
 
@@ -53,11 +53,11 @@ type Parsed struct {
 }
 
 // Version identifies what Parse's output means. Bump it whenever a change here,
-// to Parsed, or to anitogo can make Parse read the same title differently: a
+// to Parsed, or to anitogo can make Parse read the same release name differently: a
 // stored parse is reusable only while the parser that made it still produces it.
 const Version = 1
 
-// Parse extracts structured fields from a release title.
+// Parse extracts structured fields from a release name.
 func Parse(title string) Parsed {
 	e := anitogo.Parse(title, anitogo.DefaultOptions)
 
@@ -87,7 +87,7 @@ func Parse(title string) Parsed {
 		Version:         firstInt(e.ReleaseVersion),
 	}
 
-	// Post-passes scan the title with the parsed title and episode names
+	// Post-passes scan the release name with the parsed title and episode names
 	// removed, so e.g. "Ghost Web" cannot satisfy a source/codec token.
 	rem := remainderOf(title, e)
 	p.Source = sourceFrom(e, rem)
@@ -151,7 +151,7 @@ func plausibleRecoveredGroup(g string) bool {
 }
 
 // codecDashGroup finds the last plausible codec-dash group (H 264-GRP) in the
-// raw title; "" when none.
+// raw release name; "" when none.
 func codecDashGroup(raw string) string {
 	ms := codecGroupRe.FindAllStringSubmatch(raw, -1)
 	for i := len(ms) - 1; i >= 0; i-- {
@@ -162,7 +162,7 @@ func codecDashGroup(raw string) string {
 	return ""
 }
 
-// sceneGroup recovers a scene-style group from the raw title: the codec-dash
+// sceneGroup recovers a scene-style group from the raw release name: the codec-dash
 // form is the strongest signal, then a trailing -GROUP once any trailing
 // parenthetical is stripped; "" when neither matches.
 func sceneGroup(raw string) string {
@@ -250,7 +250,7 @@ func dimensions(s string) (w, h int, ok bool) {
 	return w, h, w > 0 && h > 0
 }
 
-// looksLikePack reports whether a title with no single episode number still
+// looksLikePack reports whether a release name with no single episode number still
 // denotes a multi-episode release — a season pack or an explicit batch marker.
 func looksLikePack(e *anitogo.Elements, title string) bool {
 	for _, o := range e.Other {
@@ -264,8 +264,8 @@ func looksLikePack(e *anitogo.Elements, title string) bool {
 }
 
 // anitogo's keyword tables omit the bare WEB / WEB-DL tag, REPACK/PROPER, and
-// AV1 entirely, and tokenize scene-style dot names unevenly — hence the raw-title
-// regex fallbacks below.
+// AV1 entirely, and tokenize scene-style dot names unevenly — hence the regex fallbacks
+// below, which scan the raw release name.
 var (
 	webRe      = regexp.MustCompile(`\bweb(?:[-_. ]?dl)?\b`)
 	webDLRe    = regexp.MustCompile(`\bweb[-_. ]?dl\b`)
@@ -278,7 +278,7 @@ var (
 	multiSubRe = regexp.MustCompile(`\bmulti[-_. ]?subs?\b`)
 )
 
-// remainderOf lowercases a raw title and removes the parsed title and episode
+// remainderOf lowercases a raw release name and removes the parsed title and episode
 // names, so token scans cannot match words that belong to the show itself.
 // Scene delimiters are folded to spaces first: anitogo joins parsed names with
 // spaces, so "Ghost Web" would never match a dot-named "Ghost.Web" verbatim.

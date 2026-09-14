@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// Release titles arrive from external Torznab indexers and anitogo is
+// Release names arrive from external Torznab indexers and anitogo is
 // unmaintained, so guard that Parse never panics on arbitrary input.
 func FuzzParseNoPanic(f *testing.F) {
 	seeds := []string{

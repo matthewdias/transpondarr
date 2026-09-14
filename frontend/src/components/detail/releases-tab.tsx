@@ -351,7 +351,7 @@ export function ReleasesTab({
                   {shown.map((r) => (
                     <TableRow
                       // Never the index: the filter changes what row an index
-                      // names, and the title is stable where a URL is missing.
+                      // names, and the release name is stable where a URL is missing.
                       key={r.download_url || r.title}
                       className={cn(
                         !r.matched && "opacity-60",

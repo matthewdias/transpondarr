@@ -328,8 +328,8 @@ func TestCutoffUnmetCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	}
 }
 
-// plantParse writes a stored parse for an item, under the release title it is
-// stored as the parse of. Tests plant one that differs from the held title
+// plantParse writes a stored parse for an item, under the release name it is
+// stored as the parse of. Tests plant one that differs from the held release name
 // because matching it would prove nothing about which one was scored.
 func plantParse(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle string, parsed parser.Parsed) {
 	t.Helper()
@@ -381,10 +381,10 @@ func storedParses(t *testing.T, st *store.Store) map[int64]db.HeldReleaseParse {
 }
 
 // A stored parse is what the request scores, which is the whole point:
-// parsing a title costs ~113x scoring the parse, so a request that re-parsed
+// parsing a release name costs ~113x scoring the parse, so a request that re-parsed
 // would incur the cost this cache exists to remove. Observed by planting a
-// parse that differs from the title it is stored under -- the score follows
-// the stored parse, so nothing re-read the title.
+// parse that differs from the release name it is stored under -- the score follows
+// the stored parse, so nothing re-read the release name.
 func TestCutoffUnmetScoresTheStoredParse(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
@@ -407,7 +407,7 @@ func TestCutoffUnmetScoresTheStoredParse(t *testing.T) {
 }
 
 // A parse stored under a release the item no longer has is not its parse.
-// The join includes the title, so an upgrade replacing an item's release
+// The join includes the release name, so an upgrade replacing an item's release
 // invalidates its stored parse without any writer referencing the table.
 func TestCutoffUnmetIgnoresAParseOfAnotherRelease(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -483,7 +483,7 @@ func TestCutoffUnmetStoresTheParsesItScanned(t *testing.T) {
 }
 
 // A parse made by a parser that has since changed is not this parser's parse.
-// The title alone would match forever, so a held release read differently after
+// The release name alone would match forever, so a held release read differently after
 // an upgrade would be scored on the old reading and never re-examined.
 func TestCutoffUnmetIgnoresAParseFromAnotherParserVersion(t *testing.T) {
 	st := coretest.NewStore(t)

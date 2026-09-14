@@ -84,8 +84,8 @@ func TestParseNonDualAudio(t *testing.T) {
 	}
 }
 
-// anitogo reports whatever form the release name used, so a dimension-form title
-// must fold to the height form the quality profile axes are written in.
+// anitogo reports whatever resolution form the release name used, so a dimension
+// form must fold to the height form the quality profile axes are written in.
 func TestParseResolutionNormalization(t *testing.T) {
 	tests := []struct {
 		title string

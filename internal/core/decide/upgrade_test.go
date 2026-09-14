@@ -30,7 +30,7 @@ func heldItems(heldTitle string) []Item {
 	return its
 }
 
-// candidateFor returns the candidate for a release title, which is what the
+// candidateFor returns the candidate for a release name, which is what the
 // upgrade policy annotates.
 func candidateFor(t *testing.T, got []Candidate, title string) Candidate {
 	t.Helper()

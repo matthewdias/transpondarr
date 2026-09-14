@@ -77,7 +77,7 @@ func TestMovieWithoutAReleaseYearStillMatches(t *testing.T) {
 }
 
 // The scene form glues the year into the parsed title, so the parser reports
-// none; decide recovers it from the title's trailing token and still rejects a
+// none; decide recovers it from the parsed title's trailing token and still rejects a
 // wrong year. Without this the year check would be inert on the form films ship in.
 func TestMovieRecoversASceneFormYear(t *testing.T) {
 	releases := []indexer.Release{
@@ -171,7 +171,7 @@ func TestMovieKeepsAZeroPaddedNumberInItsName(t *testing.T) {
 	}
 }
 
-// anitogo leaves unrecognized scene tags on the title, so the year is not always
+// anitogo leaves unrecognized scene tags on the parsed title, so the year is not always
 // the last token. Reading only the tail let a wrong year through on exactly the
 // form the recovery exists for.
 func TestMovieReadsAYearBehindSceneTags(t *testing.T) {

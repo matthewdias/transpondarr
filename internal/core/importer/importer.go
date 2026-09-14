@@ -301,7 +301,7 @@ func (im *Importer) remember(ctx context.Context, failed []failedGrab) {
 	if len(failed) == 0 {
 		return
 	}
-	// Keyed like the blocklist: the hash we derived at grab time, or the title
+	// Keyed like the blocklist: the hash we derived at grab time, or the release name
 	// when an indexer omitted one.
 	type release struct {
 		titleID int64
@@ -697,7 +697,7 @@ func (im *Importer) place(ctx context.Context, target library.Target, source str
 }
 
 // placeUnclaimed imports payload files for items this release never claimed —
-// the release titled 03 that ships 03 and 04 — and returns what is still loose.
+// the release named for 03 that ships 03 and 04 — and returns what is still loose.
 // A file is only taken when the item exists, is not had, and has no unsettled
 // grab of its own; anything else is left loose rather than assigned.
 func (im *Importer) placeUnclaimed(ctx context.Context, target library.Target, g db.ListGrabsByStatusRow, leftovers []fileClaim, imported map[int]string) []fileClaim {
