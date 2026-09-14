@@ -11,6 +11,7 @@ package parser
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -154,9 +155,9 @@ func plausibleRecoveredGroup(g string) bool {
 // raw release name; "" when none.
 func codecDashGroup(raw string) string {
 	ms := codecGroupRe.FindAllStringSubmatch(raw, -1)
-	for i := len(ms) - 1; i >= 0; i-- {
-		if plausibleRecoveredGroup(ms[i][1]) {
-			return ms[i][1]
+	for _, m := range slices.Backward(ms) {
+		if plausibleRecoveredGroup(m[1]) {
+			return m[1]
 		}
 	}
 	return ""
