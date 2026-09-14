@@ -160,7 +160,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   consequences. **Earliest, not `now`** — the clock belongs to the torrent, and
   taking `now` for the late row would reproduce the split; it also makes
   an install upgrading mid-stall converge rather than stay inconsistent. **The
-  value is written, not just computed**, because the Activity queue renders
+  value is written, not only computed**, because the Activity queue renders
   `abandon_at` from each row's own column, so a divergent stamp would show one
   episode of a pack a countdown it will never be settled on; the write is guarded
   on the value differing, so a steady state costs nothing. And **an unreadable
