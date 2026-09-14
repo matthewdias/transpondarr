@@ -5,14 +5,19 @@ import { Slot } from "radix-ui";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
+// An Item is a listitem only inside a group: a listitem outside a list is itself invalid.
+const InItemGroup = React.createContext(false);
+
 function ItemGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div
-      role="list"
-      data-slot="item-group"
-      className={cn("group/item-group flex flex-col", className)}
-      {...props}
-    />
+    <InItemGroup.Provider value={true}>
+      <div
+        role="list"
+        data-slot="item-group"
+        className={cn("group/item-group flex flex-col", className)}
+        {...props}
+      />
+    </InItemGroup.Provider>
   );
 }
 
@@ -60,8 +65,10 @@ function Item({
 }: React.ComponentProps<"div"> &
   VariantProps<typeof itemVariants> & { asChild?: boolean }) {
   const Comp = asChild ? Slot.Root : "div";
+  const inGroup = React.useContext(InItemGroup);
   return (
     <Comp
+      role={inGroup ? "listitem" : undefined}
       data-slot="item"
       data-variant={variant}
       data-size={size}

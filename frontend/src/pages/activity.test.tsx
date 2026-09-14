@@ -225,6 +225,16 @@ describe("ActivityPage", () => {
       screen.getByText("the download vanished from the client"),
     ).toBeInTheDocument();
 
+    // Queue and history are lists whose rows a screen reader counts.
+    const lists = screen.getAllByRole("list");
+    expect(lists).toHaveLength(2);
+    for (const list of lists) {
+      expect(list.children.length).toBeGreaterThan(0);
+      for (const row of list.children) {
+        expect(row).toHaveAttribute("role", "listitem");
+      }
+    }
+
     // With everything on one results page there is nothing more to load.
     expect(
       screen.queryByRole("button", { name: /load more/i }),
