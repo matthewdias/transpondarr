@@ -157,7 +157,7 @@ function queueTone(item: QueueItem) {
   // and nothing is happening to it (#246).
   if (item.client_state === "queued")
     return { icon: Clock, tone: "bg-panel-2 text-muted-foreground" };
-  // data_missing is alarming because we decline to blame the release for it
+  // data_missing is alarming on purpose: we decline to blame the release for it
   // (#241), which leaves the user as the only one who can act on it.
   if (
     item.client_state === "stalled" ||

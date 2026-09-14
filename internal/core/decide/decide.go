@@ -8,7 +8,7 @@
 // the weights), except that a title's pinned group outranks every score; an
 // explicit minimum score lets the answer be "nothing yet".
 //
-// v1 is transparent rather than clever: reconciling absolute vs
+// v1 is deliberately transparent rather than clever: reconciling absolute vs
 // season-relative numbering is ambiguous without per-episode metadata,
 // so releases it cannot place unambiguously are returned unmatched with the reason,
 // not silently mis-mapped.
@@ -214,7 +214,7 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 		// Wider coverage first is "one grab instead of N" (#126), counted on what
 		// automation may take so a pack whose held coverage is all cutoff-blocked
 		// cannot outrank a single covering a wanted item. Below the pin
-		// because a pin is per-title knowledge, so coverage only decides
+		// deliberately: a pin is per-title knowledge, so coverage only decides
 		// among equally pinned candidates. Weekly singles tie at 1 and fall
 		// through to score.
 		if out[a].takeCount() != out[b].takeCount() {
@@ -285,7 +285,7 @@ func UnmetGoals(p parser.Parsed, profile domain.QualityProfile) []ScorePart {
 	return goals
 }
 
-// Score rates a release against a profile. It is pure — no store
+// Score rates a release against a profile. It is deliberately pure — no store
 // or network — so the ranking that decides what lands in a library can be
 // tested exhaustively.
 func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) (int, []ScorePart) {

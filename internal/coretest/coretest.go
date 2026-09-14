@@ -82,7 +82,7 @@ func (f *FakeIndexer) Search(_ context.Context, q indexer.Query) ([]indexer.Rele
 }
 
 // FakeFeed is a FakeIndexer that also publishes a recent feed. The plain
-// FakeIndexer does not implement indexer.RecentFeed: that is what
+// FakeIndexer deliberately does not implement indexer.RecentFeed: that is what
 // keeps the degrade-to-sweep-only path testable.
 type FakeFeed struct {
 	FakeIndexer

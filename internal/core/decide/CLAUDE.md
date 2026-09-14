@@ -11,8 +11,8 @@ never touches the client, the library or the store.
   descending, between Pinned and Score — because lifting the refusal alone would
   make the winner between a pack and a single score- and seeder-arbitrary; a
   pack covering six wanted items is one grab instead of N. Weekly singles tie at
-  1 and fall through to score unchanged, and the pin stays *above* coverage:
-  a pin is per-title knowledge ("this group is definitive"), so
+  1 and fall through to score unchanged, and the pin stays *above* coverage
+  deliberately: a pin is per-title knowledge ("this group is definitive"), so
   coverage only breaks ties among equally pinned candidates. And `batchItems` gained
   the guard it never had: an explicit range past `maxItem` is now **unmatched**
   with the single-episode path's absolute/season-mismatch reason, so a `01-48`
@@ -29,7 +29,7 @@ never touches the client, the library or the store.
   `MatchOpts.Parses` contains the feed page's parses, built once in `pageParses`; it is
   **read-only inside `decide`**, which is what makes one map shareable across
   titles without a lock, and a miss is parsed normally so it is a cache and never
-  a filter. The search sweep passes nil — it searches per title, so its
+  a filter. The search sweep deliberately passes nil — it searches per title, so its
   releases differ and there is nothing to share. And `Match` stores a held item's
   **membership without its parse** when `profile.UpgradesEnabled` is false (the
   schema default), because every read of the parsed value is guarded by that flag
@@ -40,7 +40,7 @@ never touches the client, the library or the store.
   marked `UpgradeBlocked`, stay in `TakeItems()`, and the search sweep grabs an upgrade on
   a profile that has upgrades switched off — deleting that one line is the
   mutation that proves it. And the `UpgradesEnabled` check is **hoisted into
-  `applyUpgradePolicy`**, so the only path reading a `heldRelease`'s
+  `applyUpgradePolicy` on purpose**, so the only path reading a `heldRelease`'s
   parse and score is the one that computed them; pushing it back down into
   `upgradeRefusal` is behaviour-preserving today and makes the zero value
   reachable by the next edit. The cost of the feed half is untestable by

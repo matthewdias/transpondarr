@@ -625,7 +625,7 @@ func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 	}
 }
 
-// Monitoring is not one of those guards (#188, decision 1): it
+// Monitoring is deliberately not one of those guards (#188, decision 1): it
 // limits search and grab, not import. The bytes are already spent, an anime batch
 // is all-or-nothing, and in hardlink mode the extra file costs no disk -- so the
 // unmonitored episode is placed like any other. This is a recorded non-change,

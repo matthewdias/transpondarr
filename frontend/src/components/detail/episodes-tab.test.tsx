@@ -261,7 +261,7 @@ describe("EpisodesTab monitoring", () => {
 
 describe("EpisodesTab selection range", () => {
   // What makes a 1,000-episode series workable: click the first, shift-click the
-  // last. Whole-row click is not a thing -- it would collide with
+  // last. Whole-row click is deliberately not a thing -- it would collide with
   // the in-row Search button.
   it("selects the inclusive range on shift-click", async () => {
     const onSelectRange = vi.fn();

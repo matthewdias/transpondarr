@@ -131,7 +131,7 @@ access and no real credentials.
 The fixtures are in `internal/devdata`. The seeder and both stubs read the same
 set, so a search for a seeded title returns release names that fit its run; those
 release names are synthetic. Three further titles are served by the stubs and
-not seeded, so the add dialog still has something to add offline.
+deliberately not seeded, so the add dialog still has something to add offline.
 
 ### No fake download client
 

@@ -38,7 +38,7 @@ was saved for. The HTTP-side encoding rules are in
   rejects every later host. The **save** paths
   apply the rule too, not only the tests: a save rebuilds the live client against the
   new URL and it authenticates on the next poll, so fixing only the tests would leave
-  the same exfiltration one `PUT` away. **Not** an access-control fix —
+  the same exfiltration one `PUT` away. Deliberately **not** an access-control fix —
   the cross-origin hole that makes it reachable without a credential is #269, and in
   `enabled` auth required-mode the caller is authenticated anyway. What it protects is the secret
   *leaving* the app (an indexer key is a private-tracker account credential, a qBit

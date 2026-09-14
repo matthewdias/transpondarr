@@ -96,7 +96,7 @@ type itemFacts struct {
 	Pass       passFacts
 }
 
-// Stored outcomes and surfaced reasons differ: acquire records
+// Stored outcomes and surfaced reasons differ deliberately: acquire records
 // seven, a row shows five. grabbed exists only as the tombstone that
 // invalidates an older refusal -- a listed item's grab plainly did not last,
 // and grab_failed is what that row shows. contended is silent too, because its

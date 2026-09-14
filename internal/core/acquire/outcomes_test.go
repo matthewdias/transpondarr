@@ -75,7 +75,7 @@ func refused(title string, score, seeders int, pinned bool, items ...int) decide
 	}
 }
 
-// Blame drops decide's coverage ranking. Coverage exists for grab
+// Blame drops decide's coverage ranking deliberately. Coverage exists for grab
 // efficiency -- one grab instead of N (#126) -- and is no evidence about which
 // release came closest for one episode, so inheriting it would let a wide
 // low-scoring pack outrank a high-scoring single covering exactly the episode

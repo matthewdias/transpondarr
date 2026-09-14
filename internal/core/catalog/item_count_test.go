@@ -134,7 +134,7 @@ func TestSetItemCountRefusesAnUnknownTitle(t *testing.T) {
 
 func TestSetItemCountHonoursTheMonitorCut(t *testing.T) {
 	st := coretest.NewStore(t)
-	// The cut is the literal 3 in both places: reading it back out of
+	// The cut is the literal 3 in both places on purpose: reading it back out of
 	// the row under assertion would move with any mutation and never fail.
 	id := seedItemlessTitle(t, st, 3)
 

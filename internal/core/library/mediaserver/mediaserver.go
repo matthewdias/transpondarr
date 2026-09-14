@@ -58,7 +58,7 @@ const (
 const seasonNumber = 1
 
 // ErrNoMoviesRoot and ErrNoSeriesRoot are why a file cannot be placed when the
-// root its format calls for is unset. An error rather than a
+// root its format calls for is unset. Deliberately an error rather than a
 // fallback into the other root: the grab row stays open and the next scan imports
 // it once the root is set, where a file already hardlinked into the wrong
 // library would not. Either root alone is a supported library, so each format

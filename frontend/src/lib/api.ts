@@ -214,7 +214,7 @@ export interface AuthStatus {
 
 // ── Endpoints ─────────────────────────────────────────────────────────────────
 
-// Mutations take no AbortSignal: a grab or a settings write must
+// Mutations deliberately take no AbortSignal: a grab or a settings write must
 // not be aborted by a stray unmount.
 // Mirrors the endpoint's maxItems; a select-all on a long-runner exceeds it.
 const MONITOR_BATCH = 1000;

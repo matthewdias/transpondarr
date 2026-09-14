@@ -235,7 +235,7 @@ export function AddTitleForm({
               </SelectContent>
             </Select>
           )}
-          {/* Outside the dropdown: the trigger shows the label
+          {/* Outside the dropdown deliberately: the trigger shows the label
               alone, so a consequence only the open menu shows is unread. */}
           <p
             id="monitor-summary"

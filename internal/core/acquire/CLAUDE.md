@@ -8,7 +8,7 @@ a pass records about what it decided.
   on it through `grabPass`, so the profile's minimum score, the blocklist, pinned-group delay and
   the coverage ranking are written once. The feed is only a cheaper *trigger*: it
   inverts the sweep's lookup (a release name needing a title, rather than a
-  title needing releases), which is why it is title × entry —
+  title needing releases), which is why it is title × entry — deliberately
   unoptimised, since a page is ~100 entries and the due query already drops any
   title with nothing wanted. It writes no search cadence: nothing was searched,
   and a grab settles its item, so the sweep's `EXISTS` drops the title anyway.
@@ -45,7 +45,7 @@ a pass records about what it decided.
   `titlesPerPass` and reorders the sweep queue rather than adding searches to it.
   They split the work by when a release was published: the feed handles
   releases published while it is polling, and the sweep handles what already
-  existed, plus everything when no feed is configured. **Cadence follows that division; grab scope does
+  existed, plus everything when no feed is configured. **Cadence follows that division; grab scope deliberately does
   not** — a sweep search that turns up a current release still grabs it, because
   the feed's dedupe is one-shot and an entry seen before the title or item it matches
   existed never comes around again. Concretely, `writeSearchState` drops the

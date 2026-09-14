@@ -178,7 +178,7 @@ func TestUnstatedPortIsNotCompared(t *testing.T) {
 		t.Error("cross-origin write allowed once the port went unstated")
 	}
 
-	// X-Forwarded-Port is not consulted: nginx's $server_port and a
+	// X-Forwarded-Port is deliberately not consulted: nginx's $server_port and a
 	// Traefik entrypoint both name the port the proxy listens on, which differs
 	// from the published one whenever a container maps ports, so reading it would
 	// 403 the owner's own UI (the review's MEDIUM finding).

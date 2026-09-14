@@ -240,7 +240,7 @@ func TestMovieDoesNotReadATitlesOwnYearAsAReleaseYear(t *testing.T) {
 
 // #208 parked movie matching behind a hard stop; #209 lifts it. A film release
 // matches -- and with no year on record the match is ineligible, so automation
-// cannot take it while a manual grab stays free. The fixture
+// cannot take it while a manual grab stays free. The fixture deliberately
 // has no batch token, which would add an ineligible reason of its own.
 func TestMovieWithNoYearOnRecordMatchesButIsIneligible(t *testing.T) {
 	releases := []indexer.Release{
@@ -480,7 +480,7 @@ func TestPackReasonYieldsToAProfileRule(t *testing.T) {
 	}
 }
 
-// A batch token on a series release keeps meaning what it always has:
+// A batch token on a series release keeps meaning exactly what it always has:
 // the pack matches the items it covers and is eligible. The new rule is conditional on
 // Format, and this is what proves it.
 func TestSeriesSeasonPackIsUnaffectedByTheMoviePackRule(t *testing.T) {
@@ -543,7 +543,7 @@ func TestMovieRefusesAnEpisodeWhateverTheNameLengths(t *testing.T) {
 // The accepted cost of comparing exactly: a film whose variant renders its
 // number differently from the release goes unmatched -- and being a matching
 // refusal rather than an eligibility one, that 422s the manual grab too. Named
-// so the strictness is not later read as an oversight and loosened
+// deliberately, so the strictness is not later read as an oversight and loosened
 // back into the false positives it exists to prevent.
 func TestMovieRefusesANumberedFilmWhoseVariantRendersDifferently(t *testing.T) {
 	releases := []indexer.Release{

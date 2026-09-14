@@ -62,7 +62,7 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   uses: set `X-Forwarded-Host`, or leave it unset and pass `Host` through unchanged.
   A part of the address the proxy leaves out is left out of the comparison instead
   of being filled in, so `X-Forwarded-Host` with no port (nginx's `$host`) is
-  compared by hostname alone. `X-Forwarded-Port` is ignored: it contains
+  compared by hostname alone. `X-Forwarded-Port` is deliberately ignored: it contains
   the port the proxy listens on, which differs from the published port whenever a
   container maps ports.
 

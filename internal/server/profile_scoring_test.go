@@ -236,7 +236,7 @@ func TestGrabReportsARefusalWhenTheClientHasLostTheData(t *testing.T) {
 	}
 }
 
-// An eligible release grabs as before — no acknowledgement, no reason.
+// An eligible release grabs exactly as before — no acknowledgement, no reason.
 func TestGrabEligibleReleaseUnchanged(t *testing.T) {
 	const url = "magnet:?xt=urn:btih:dddd"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{

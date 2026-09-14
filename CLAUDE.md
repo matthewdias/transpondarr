@@ -202,7 +202,7 @@ What stays here is what applies before you know which package you are in.
   AniList entry cannot create three items. Downstream, `domain.KindFor(Format)` is the one
   helper every create site writes `kind` through (catalog, refresh, airing) — and
   since it derives from the format frozen at add time, **any future
-  `SetTitleFormat` must re-key the existing items**, as `00022`'s
+  `SetTitleFormat` must re-key the existing items**, exactly as `00022`'s
   backfill does: `idx_wanted_items_identity` is `(series_id, kind, number)`, so a
   stale `('episode', 1)` does not collide with `('movie', 1)` and the next refresh
   silently doubles the title instead of failing.
