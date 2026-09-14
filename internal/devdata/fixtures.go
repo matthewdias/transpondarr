@@ -500,7 +500,7 @@ func deferredImport() title {
 	return t
 }
 
-// addable is served by the stubs and not seeded, so there is a
+// addable is served by the stubs and deliberately not seeded, so there is a
 // title left to add offline; nothing else distinguishes the two sets. The ids
 // are above AniList's own range, so a forgotten TRANSPONDARR_ANILIST_ENDPOINT
 // makes the lookup fail instead of returning someone else's real title.

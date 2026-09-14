@@ -675,7 +675,7 @@ function CutoffRow({
         ) : (
           (item.unmet_goals?.length ?? 0) === 0 && (
             // No stated preference is missing, yet the release is still below
-            // the cutoff. Two facts and no verdict: unmet goals
+            // the cutoff. Deliberately two facts and no verdict: unmet goals
             // exclude the repack/v2 bonus, so an empty list means "tops every
             // preference", not "at the maximum" -- a v2 of this very release
             // scores 25 higher and would be taken.

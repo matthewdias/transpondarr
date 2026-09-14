@@ -84,7 +84,7 @@ function renderPage() {
 }
 
 describe("ActivityPage", () => {
-  // data_missing is alarming because we decline to blame the release for it
+  // data_missing is alarming on purpose: we decline to blame the release for it
   // (#241), leaving the user as the only one who can act. Paused shares the row
   // shape and is not alarming, so it is what makes the tone assertion mean something.
   it("flags a download whose data the client has lost, but not a paused one", async () => {

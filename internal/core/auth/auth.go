@@ -1,6 +1,6 @@
 // Package auth implements forms-based authentication: a single admin
 // account (username + argon2id-hashed password) and opaque server-side login
-// sessions sent in an httpOnly cookie. It is separate from the
+// sessions sent in an httpOnly cookie. It is deliberately separate from the
 // API key — the key authenticates machines (dashboards, scripts), while humans
 // log in and get a session. Credentials and the required-mode live in the
 // settings table; sessions live in their own table.

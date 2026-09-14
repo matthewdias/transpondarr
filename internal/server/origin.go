@@ -10,7 +10,7 @@ import (
 )
 
 // writeMethods are the ones that change something. GET and HEAD are absent
-// because we accept a cross-site read as a residual risk (#269).
+// deliberately: we accept a cross-site read as a residual risk (#269).
 var writeMethods = []string{
 	http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete,
 }

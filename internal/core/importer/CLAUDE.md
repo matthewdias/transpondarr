@@ -26,7 +26,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   one-item info-hash group takes it by the lone-file rule, a multi-item info-hash group leaves it
   over and defers.
 - **Nothing unpacks an archive; the payload walk names one instead (#135).** Declined
-  because there is no Usenet client here (qBittorrent only) and RAR
+  deliberately: there is no Usenet client here (qBittorrent only) and RAR
   packaging is a Usenet/scene convention that anime release groups do not use, so a
   decoder would be the first dependency in the import path and its tests would
   need committed binary fixtures. So `collectPayloadFiles` returns a `payload`
@@ -45,7 +45,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   because deferral is settled either way. A single-file `.rar` payload is an
   archive too: identity by construction stops here, since hardlinking it into
   the library as the episode is worse than deferring.
-- **The mapping rules are narrow, because a wrong answer moves a
+- **The mapping rules are narrow on purpose, because a wrong answer moves a
   file.** A lone file for a lone item is identity by construction (we chose this
   release); a file claims a number only when it names exactly one, with
   season-relative beating absolute when both land inside the release, matching
@@ -108,7 +108,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   environmental reasons that can fail many grabs at once, so permanent-on-first
   would blocklist a whole in-flight set on one qBit incident. Expired entries are
   filtered, never deleted — the row stores the failure count `blockDuration` reads.
-  An *import* failure records nothing: it stays `grabbed` and
+  An *import* failure deliberately records nothing: it stays `grabbed` and
   retries, because its causes are path-mapping gaps rather than bad releases.
 - **An absent torrent is not a verdict (#241).** `failed` settles two different
   things and an inference justifies only one of them: freeing the item is self-healing and
@@ -132,7 +132,7 @@ item. The root `CLAUDE.md` covers everything above this layer.
   supplying by accident: converging on a duplicate (`AddAlreadyExists`) assumes the
   torrent can still finish, and one whose data is gone never will, so the same release
   ranked first and "grabbed" every pass while the item stayed unacquirable. The
-  adapter now returns `download.ErrDataMissing` for that add — not
+  adapter now returns `download.ErrDataMissing` for that add — deliberately not
   `ErrBadRelease`, which is the one `acquire.AutoGrab` blocklists — so the pass
   moves on to the next-best release instead. **Only the branch where the torrent
   demonstrably existed before our add returns that error**, which is the

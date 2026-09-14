@@ -233,7 +233,7 @@ func (c *cached) GetTitle(ctx context.Context, id int64) (TitleMeta, []ItemMeta,
 	return meta, items, nil
 }
 
-// TitleFromCache ignores the TTL: applying it would miss on
+// TitleFromCache deliberately ignores the TTL: applying it would miss on exactly
 // the airing titles this serves, and names change less than the count fresh guards.
 func (c *cached) TitleFromCache(ctx context.Context, id int64) (TitleMeta, []ItemMeta, bool, error) {
 	snap, _, ok, err := c.cache.Get(ctx, c.inner.Name(), id)

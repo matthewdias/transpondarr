@@ -63,7 +63,7 @@ func TestMonitoredColumnDefaultsToOn(t *testing.T) {
 }
 
 // The two upserts are the reason a narrowed title stays narrowed: refresh and
-// the airing sync run every few hours over the items a user unmonitored.
+// the airing sync run every few hours over exactly the items a user unmonitored.
 func TestUpsertsNeverClobberAStoredMonitoredFlag(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()

@@ -338,7 +338,7 @@ func TestStatusReportsANeverRunJob(t *testing.T) {
 	}
 }
 
-// Real clock because a 1ms interval keeps the loop writing job state while
+// Real clock on purpose: a 1ms interval keeps the loop writing job state while
 // Status reads it. Only meaningful under -race.
 func TestStatusIsSafeWhileJobsRun(t *testing.T) {
 	r := New(discardLogger())

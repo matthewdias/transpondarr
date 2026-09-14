@@ -20,7 +20,7 @@ var videoExts = map[string]bool{
 	".flv": true, ".mpg": true, ".mpeg": true, ".rmvb": true, ".divx": true,
 }
 
-// headExts open an archive set. Disc images, .par2 and .sfv are
+// headExts open an archive set. Disc images, .par2 and .sfv are deliberately
 // absent: none of them is something a human extracts an episode out of.
 var headExts = map[string]bool{".rar": true, ".zip": true, ".7z": true}
 

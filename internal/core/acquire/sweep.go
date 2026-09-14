@@ -146,7 +146,7 @@ func (s *Service) sweepTitle(ctx context.Context, idx indexer.Indexer, title db.
 // backOffAfterFailure moves a failed pass to the back of the search queue. The
 // due query is a small LIMIT ordered by next_search_at, so a title that keeps
 // failing without this stays at the head of the queue and blocks every title
-// behind it. last_searched_at does not move: nothing was searched,
+// behind it. last_searched_at deliberately does not move: nothing was searched,
 // and moving it would put an already-aired episode outside airedSince's window.
 func (s *Service) backOffAfterFailure(ctx context.Context, title db.Series, now time.Time) error {
 	if ctx.Err() != nil {
@@ -245,7 +245,7 @@ func (s *Service) walkCandidates(ctx context.Context, title db.Series, m Match, 
 	for _, c := range m.Candidates {
 		// Eligibility is enforcement here, unlike a manual grab (PR #57). The take
 		// set is Items minus the held items the upgrade policy excluded; a blocked
-		// item is left uncovered, so a lower-ranked release that does
+		// item is deliberately left uncovered, so a lower-ranked release that does
 		// qualify -- its own release group's v2 -- is still tried this pass.
 		take := c.TakeItems()
 		if !c.Matched || !c.Eligible || len(take) == 0 {
@@ -375,7 +375,7 @@ func (s *Service) persistOutcomes(ctx context.Context, sweep []sweepItem, set ou
 		// The upgrade pool is grabbable and in the library at once (#97), and those
 		// rows can never be read back by the Missing listing. Number 0 is a NULL:
 		// episode numbering is 1-based, so two numberless items would collapse
-		// onto one row, as they already do in covered.
+		// onto one row, exactly as they already do in covered.
 		if it.number == 0 || !it.grabbable || it.inLibrary {
 			continue
 		}

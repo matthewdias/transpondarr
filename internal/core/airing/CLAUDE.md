@@ -71,7 +71,7 @@ AniList's coverage is partial by design, so absence is a normal state here.
   while `RELEASING` on the 6h TTL permanently, never graduating to 30d. Fixing
   one query and not both would have turned a bounded one-off cost into a
   recurring one. Reaching instead for a per-job TTL override was declined:
-  `TTLFor` is one policy shared by both jobs, which is #151's rule
+  `TTLFor` is deliberately one policy shared by both jobs, which is #151's rule
   about the two halves not disagreeing.
 - **"We asked and got nothing" and "we have not asked" are different absences,
   and the calendar footer states which (#183).** `internal/core/airing` is the

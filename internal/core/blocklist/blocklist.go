@@ -1,7 +1,7 @@
 // Package blocklist is the pipeline's failure memory: which release of a title
 // already failed, so the search sweep stops re-deriving the same doomed ranking (#118).
 //
-// Scope is per-title — a release group whose encodes are broken everywhere
+// Scope is deliberately per-title — a release group whose encodes are broken everywhere
 // is the quality profile's BlockedGroups, not this. The expiry escalates rather
 // than blocking permanently on the first failure because the importer's failure
 // paths fire for environmental reasons (a full disk, a restarted client, a ratio
@@ -13,7 +13,7 @@
 // release, credited with one wanted item, so neither one item churning through
 // its candidates nor one release spanning a season counts as breadth; only
 // different releases failing across different items — a full disk, a client
-// removing torrents — suppresses recording. The threshold is low because a
+// removing torrents — suppresses recording. The threshold is low on purpose: a
 // false trip skips one round and the release is recorded on its next, while
 // a miss blocks a whole candidate pool for a day.
 package blocklist

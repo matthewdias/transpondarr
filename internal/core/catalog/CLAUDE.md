@@ -10,7 +10,7 @@ How a title enters the app, what identifies it, and how many items it gets.
   nothing else can create one. Two rules follow, and each is deliberately not
   the other's fix. **The count is human-set and never inferred**:
   `catalog.SetItemCount` materializes `1..N` one-shot, storing nothing (refresh
-  only ever adds, so there is no override to clobber), and it is
+  only ever adds, so there is no override to clobber), and it is deliberately
   *not* prefilled from a release search — `maxItem` is the very bound `decide`
   uses to reject a release's numbering, so letting release names set it makes
   the absolute-numbering guard inert. That is also why it is **guarded to a
@@ -28,7 +28,7 @@ How a title enters the app, what identifies it, and how many items it gets.
   title whose *schedule* filled items but whose count was null got 30d from
   `fresh()` and 6h from the SQL, so the two halves of one rule disagreed. The
   airing sync passes `countKnown` true always — its own CASE keys on status
-  alone, because aired times are immutable — so the 7d TTL never
+  alone, because aired times are immutable — so the 7d TTL deliberately never
   applies to it.
 - **A title's identity is `(provider, provider_id)`, and the two are never
   separated (#74).** The pair is what the `series` table is keyed on, what `catalog.AddTitle`

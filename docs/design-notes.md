@@ -70,7 +70,7 @@ so neither takes that branch. `queuedDL` is excluded by having its own
 torrent is not an active download. Folding the two together is what made "widen the predicate"
 and "never abandon a queued download" look like opposites.
 
-`Status.StuckAtZero` names the predicate. `stalled_since` keeps a
+`Status.StuckAtZero` names the predicate. `stalled_since` deliberately keeps a
 name it has outgrown, because the clock did not change — it still mirrors
 `missing_since`, and a migration for a column name is cosmetics.
 

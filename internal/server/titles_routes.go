@@ -20,7 +20,7 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// titleDTO reports two denominators: tracked counts the items
+// titleDTO reports two denominators deliberately: tracked counts the items
 // automation will act on (monitored and broadcast), total counts every item on
 // the title. total keeps its old meaning because narrowing it in place would be a
 // silent break for API clients.

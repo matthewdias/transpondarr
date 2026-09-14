@@ -154,7 +154,7 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 
 // pollTitle matches one already-fetched feed page against every title with
 // something wanted. This is the inverse of the sweep's lookup, so it is title ×
-// entry rather than one search per title — unoptimised, because a
+// entry rather than one search per title — deliberately unoptimised, because a
 // page is ~100 entries and the due query already drops any title with nothing
 // left to grab. One title's failure never stops the rest of the pass.
 func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) error {

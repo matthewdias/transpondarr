@@ -172,7 +172,7 @@ it("names the episodes each choice would monitor", async () => {
 //
 // The cut lands past the last item for every one of these, so the warning keys
 // on where it lands and never on the status: a run between cours and one whose
-// schedule extends past its count monitor as much as a finished one
+// schedule extends past its count monitor exactly as much as a finished one
 // does, which is nothing, and used to be shown as monitored.
 it.each([
   ["a finished run", finished],

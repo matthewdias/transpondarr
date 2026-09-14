@@ -332,7 +332,7 @@ func TestRefreshRefetchesFinishedTitlesPastTheLongCutoff(t *testing.T) {
 }
 
 // Replaces TestRefreshUsesShortCutoffWhenTheCountIsUnknown, whose assertion this
-// change inverts: a count AniList will never publish is not worth
+// change deliberately inverts: a count AniList will never publish is not worth
 // re-querying every 6 hours (#151).
 func TestRefreshHoldsAnUnknownCountTitleForTheMiddleCutoff(t *testing.T) {
 	st := coretest.NewStore(t)
