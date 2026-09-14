@@ -46,7 +46,7 @@ never touches the client, the library or the store.
   reachable by the next edit. The cost of the feed half is untestable by
   construction — the memo agrees with a fresh parse, so dropping it changes no
   behaviour and only an allocation assertion could catch it.
-- **`decide.Match`'s `items` is the numbering basis, not just the candidate set.**
+- **`decide.Match`'s `items` is the numbering basis, not only the candidate set.**
   `maxItem` spans every item passed (grabbable or not) and drives absolute-numbering
   detection, so narrowing the slice to scope a search silently misreports every
   release outside that range. Scope with `decide.Item.Grabbable` instead (#105
