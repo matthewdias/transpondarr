@@ -86,7 +86,7 @@ func (s *Service) Record(ctx context.Context, titleID int64, itemIDs []int64, in
 	if !s.breaker.observe(ref, itemIDs, now) {
 		st := s.breaker.state(now)
 		s.log.Warn("blocklist: too many items failing at once to blame the releases; not remembering this one",
-			"series", titleID, "release", releaseTitle, "items_failed", st.Items, "window", st.Window)
+			"title", titleID, "release", releaseTitle, "items_failed", st.Items, "window", st.Window)
 		return false, nil
 	}
 

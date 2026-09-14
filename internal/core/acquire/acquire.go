@@ -255,7 +255,7 @@ func (s *Service) cachedVariants(ctx context.Context, title db.Series) []string 
 		switch {
 		case err != nil:
 			s.log.Debug("cached title variants unreadable; matching on the stored title alone",
-				"series", title.ID, "err", err)
+				"title", title.ID, "err", err)
 		case hit:
 			variants = append(variants, v...)
 		}

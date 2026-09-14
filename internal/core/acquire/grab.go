@@ -69,7 +69,7 @@ func (s *Service) AutoGrab(ctx context.Context, titleID int64, cand decide.Candi
 	if _, rerr := s.blocklist.Record(ctx, titleID, ids,
 		cand.Release.InfoHash, cand.Release.Title, reason); rerr != nil {
 		s.log.Error("acquire: record blocklist entry for a refused add",
-			"series", titleID, "release", cand.Release.Title, "err", rerr)
+			"title", titleID, "release", cand.Release.Title, "err", rerr)
 	}
 	return res, err
 }

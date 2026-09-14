@@ -51,6 +51,7 @@ All notable changes to this project are documented here. The format is based on
   requests.** Saving either wrote to the database with every incoming request
   waiting behind it, so on a busy install one settings save could stall the
   whole app for a moment.
+- **Log lines name a title with a `title` key instead of `series`**, so a log filter on `series` needs updating.
 
 ### Fixed
 
