@@ -101,8 +101,10 @@ AniList's coverage is partial by design, so absence is a normal state here.
   graduating to 30d. Fixing one query and not both would have turned a bounded
   one-off cost into a recurring one.
 - **A per-job TTL override was declined.** `TTLFor` is deliberately one policy
-  shared by both jobs. That is the rule from the missing-episode-count fix (#151)
-  about the two halves not disagreeing.
+  shared by both jobs. That extends the rule from the missing-episode-count fix
+  (#151): there, `fresh()` and `ListTitlesDueMetadataRefresh`'s CASE are two
+  halves of one TTL rule that must not disagree (see the
+  [catalog guide](../catalog/CLAUDE.md)).
 
 ## The calendar footer's two absences
 
