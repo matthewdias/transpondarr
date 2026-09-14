@@ -114,7 +114,7 @@ describe("HistoryTab blocked releases", () => {
     expect(await screen.findByText(/blocked permanently/i)).toBeInTheDocument();
   });
 
-  // Expired entries are history, not enforcement, so they must not pad the list
+  // Expired blocklist entries are history, not enforcement, so they must not pad the list
   // a user reads to see what is currently being skipped.
   it("collapses expired blocks when something is still blocked", async () => {
     renderTab(
@@ -215,7 +215,7 @@ describe("HistoryTab blocked releases", () => {
   });
 
   // The affordance a fan-out needs: an environmental fault can block a whole
-  // title's candidate pool, and clearing it one entry at a time is the problem.
+  // title's candidate pool, and clearing it one blocklist entry at a time is the problem.
   it("unblocks the whole title in one request", async () => {
     let cleared = false;
     renderTab([], [blocklistEntry(), blocklistEntry({ id: 12 })]);

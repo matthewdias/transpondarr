@@ -10,7 +10,7 @@ const batch: Row = {
 };
 const other: Row = { id: "other", items: [8] };
 const unmatched: Row = { id: "unmatched" };
-// Not a shape the server emits (omitempty, and a match covers at least one
+// Not a shape the server emits (omitempty, and a release match covers at least one
 // item) — the predicate is pinned against it anyway rather than assuming.
 const empty: Row = { id: "empty", items: [] };
 

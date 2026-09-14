@@ -205,7 +205,7 @@ describe("ActivityPage", () => {
 
     renderPage();
 
-    // Queue: the paused row shows the live state and progress.
+    // Queue: the paused row shows the live client state and progress.
     expect(await screen.findByText("Paused")).toBeInTheDocument();
     expect(screen.getByText(/42%/)).toBeInTheDocument();
     const links = screen.getAllByRole("link", { name: "Signal Anomaly" });
@@ -225,7 +225,7 @@ describe("ActivityPage", () => {
       screen.getByText("the download vanished from the client"),
     ).toBeInTheDocument();
 
-    // With everything on one page there is nothing more to load.
+    // With everything on one results page there is nothing more to load.
     expect(
       screen.queryByRole("button", { name: /load more/i }),
     ).not.toBeInTheDocument();
@@ -250,7 +250,7 @@ describe("ActivityPage", () => {
 
     await waitFor(() => expect(cursors).toContain("c1"));
     expect(await screen.findByText(/Episode 2/)).toBeInTheDocument();
-    // Both pages stay on screen; the button is gone once the cursor runs out.
+    // Both results pages stay on screen; the button is gone once the cursor runs out.
     expect(screen.getByText(/Episode 3/)).toBeInTheDocument();
     await waitFor(() =>
       expect(
@@ -309,7 +309,7 @@ describe("ActivityPage", () => {
     expect(
       await screen.findByText(/download client unreachable/i),
     ).toBeInTheDocument();
-    // The grab-state row still renders, without live state.
+    // The grab-state row still renders, without live client state.
     expect(screen.getByText(/Episode 4/)).toBeInTheDocument();
     expect(screen.queryByText("Paused")).not.toBeInTheDocument();
   });

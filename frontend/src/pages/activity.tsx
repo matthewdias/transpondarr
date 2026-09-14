@@ -148,7 +148,7 @@ function QueueSection() {
   );
 }
 
-// Live state outranks the derived status for the icon: a paused or stalled
+// Live client state outranks the derived status for the icon: a paused or stalled
 // torrent is the thing worth noticing, whatever the item's pipeline status.
 function queueTone(item: QueueItem) {
   if (item.client_state === "paused")

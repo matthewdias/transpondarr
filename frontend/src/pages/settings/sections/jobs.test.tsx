@@ -265,7 +265,7 @@ describe("JobsSection", () => {
     await waitFor(() => expect(runs).toEqual(["wanted-search"]));
   });
 
-  // Running the sweep with the kill switch off grabs for real, so the one case
+  // Running the search sweep with the kill switch off grabs for real, so the one case
   // where the button bypasses a setting the user chose confirms first.
   it("confirms before running an automation-gated job with automation off", async () => {
     const runs = renderSection([job()], "off");

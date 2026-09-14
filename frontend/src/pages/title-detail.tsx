@@ -74,7 +74,7 @@ export function TitleDetailPage() {
   const linkedItem = Number(search.get("item")) || null;
   const linkedTab = search.get("tab") === "releases" ? "releases" : null;
   // Null means "whatever this format lands on", resolved below: the format is
-  // not known until the detail loads, so it cannot seed the initial state.
+  // not known until the detail loads, so it cannot seed the initial tab state.
   const [tab, setTab] = useState<TabKey | null>(linkedTab);
   // Radix unmounts an inactive panel, so the page stores the focused episode,
   // not the Releases tab.

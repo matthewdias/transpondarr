@@ -24,7 +24,7 @@ export function LibraryProgress({
 }) {
   // Keyed on format alone (#208), which is what guarantees the film one item and
   // so makes the item's own state the row's: a one-episode OVA counts like the
-  // series it is. A film with no state to report falls through to the count.
+  // series it is. A film with no item state to report falls through to the count.
   if (format === "MOVIE" && status) {
     // Substituted, not qualified, as the detail page does it: every other status
     // stays true when unmonitored, and only "Wanted" turns into a false claim.

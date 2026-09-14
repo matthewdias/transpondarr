@@ -25,7 +25,7 @@ export function MovieStatusCard({
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             {/* Substituted, not qualified: every other status stays true when
-                unmonitored, and the toggle already shows the state. */}
+                unmonitored, and the toggle already shows the monitored state. */}
             {unmonitoredWanted ? (
               <UnmonitoredItemBadge />
             ) : (

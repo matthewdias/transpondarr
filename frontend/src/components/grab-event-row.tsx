@@ -19,7 +19,7 @@ export type PresentableGrabEvent = Pick<
 >;
 
 // History is past-tense: a grabbed event is a recorded moment ("Grabbed"), never
-// live progress — the queue and Episodes tab show in-flight state.
+// live progress — the queue and Episodes tab show in-flight download state.
 function presentGrabEvent(event: PresentableGrabEvent) {
   switch (event.status) {
     case "imported":

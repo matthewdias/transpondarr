@@ -19,7 +19,7 @@ const STATUS_LABELS: Record<string, string> = {
   HIATUS: "On hiatus",
 };
 
-// Unknown provider values pass through verbatim rather than hiding the entry.
+// Unknown provider values pass through verbatim rather than hiding the AniList entry.
 export const formatLabel = (f: string) => FORMAT_LABELS[f] ?? f;
 export const statusLabel = (s: string) => STATUS_LABELS[s] ?? s;
 

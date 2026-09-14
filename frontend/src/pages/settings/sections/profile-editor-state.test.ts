@@ -67,7 +67,7 @@ describe("fromProfile / toProfileInput", () => {
     ]);
   });
 
-  it("keeps group array order as the rank", () => {
+  it("keeps profile group array order as the rank", () => {
     const state = fromProfile(profile({}));
     const swapped: EditorState = {
       ...state,

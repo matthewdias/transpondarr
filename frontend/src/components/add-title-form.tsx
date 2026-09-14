@@ -41,7 +41,7 @@ export type AddTitle = Pick<
 
 type AddedTitle = Awaited<ReturnType<typeof api.addTitle>>;
 
-// Before the add, not after: a new title sorts to the front of the sweep queue
+// Before the add, not after: a new title sorts to the front of the search sweep queue
 // and one pass grabs everything eligible.
 const monitorChoices: { value: MonitorItems; label: string; hint: string }[] = [
   { value: "all", label: "All episodes", hint: "Including the back catalogue" },
@@ -70,7 +70,7 @@ function monitorSummary(
     return { text: "The film will be monitored.", warn: false };
   }
   // A title that has not started takes this branch and no other: its control is
-  // hidden, so the mode it is summarising is always "all" (#217).
+  // hidden, so the monitor mode it is summarising is always "all" (#217).
   if (mode === "all") {
     return {
       text:
@@ -188,7 +188,7 @@ export function AddTitleForm({
         )}
 
         {/* Told, not blocked: #198 and PR #57 both rule out blocking a manual add,
-            and the grab stays open until the root is set rather than failing. */}
+            and the grab row stays open until the root is set rather than failing. */}
         {noMoviesRoot && (
           <Link
             to="/settings"
