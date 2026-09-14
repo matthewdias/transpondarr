@@ -14,7 +14,7 @@ import (
 type Config struct {
 	Addr    string // listen address, e.g. ":9797"
 	APIKey  string // required for /api/* (except health)
-	DataDir string // where the DB and other state live
+	DataDir string // where the DB and other persistent state live
 	DBPath  string // SQLite database path
 
 	// Auth (forms-based login). Username/Password bootstrap the initial
@@ -40,7 +40,7 @@ type Config struct {
 	// grabs), so clients without a category concept still work.
 	QbitCategory string
 	// StallTimeoutHours is how long a download the client reports as active may
-	// stay at zero bytes received before its grab is failed. Empty means the
+	// stay at zero bytes received before its grab row is failed. Empty means the
 	// default; "0" disables it. Not a Qbit* value: it is client-agnostic policy.
 	StallTimeoutHours string
 
@@ -71,10 +71,10 @@ type Config struct {
 	// here, because the settings layer overlays persisted overrides on top and
 	// those live in the DB as text; it parses both at startup.
 	// AutomationEnabled ships "false": an install must configure its indexer and
-	// download client before anything grabs on its own. Accepts the mode names
+	// download client before anything grabs on its own. Accepts the automation mode names
 	// "off" / "notify_only" / "on" as well as bool spellings (#116).
 	AutomationEnabled string
-	// PinDelayHours is how long the sweep waits for a title's pinned group before
+	// PinDelayHours is how long the search sweep waits for a title's pinned release group before
 	// it grabs another group's release. "0" means no wait.
 	PinDelayHours string
 }

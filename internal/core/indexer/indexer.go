@@ -52,7 +52,7 @@ type FeedEntry struct {
 //
 // Two rules follow, as for metadata.AiringProvider. A caller treats a missing
 // capability as a supported configuration, not an error — degrade to the
-// scheduled sweep. And any future decorator around an Indexer must forward this
+// scheduled search sweep. And any future decorator around an Indexer must forward this
 // conditionally, so the type assertion never reports a feed the adapter
 // underneath cannot serve.
 type RecentFeed interface {

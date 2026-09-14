@@ -73,7 +73,7 @@ type settingsWriter interface {
 	UpsertSetting(ctx context.Context, arg db.UpsertSettingParams) error
 }
 
-// state is the credentials-and-mode triple, immutable once published: readers
+// state is the credentials-and-required-mode triple, immutable once published: readers
 // load it lock-free, so a write cannot queue the request path behind it (#264).
 type state struct {
 	username string

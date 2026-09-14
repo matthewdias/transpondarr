@@ -1,7 +1,7 @@
 -- +goose Up
 -- Per-title failure memory for a specific release (issue #118). A grab row is
 -- per wanted item and is overwritten by the next attempt, so nothing outlived a
--- failure and the sweep re-derived the same ranking forever. Expired entries are
+-- failure and the search sweep re-derived the same ranking forever. Expired entries are
 -- filtered, never deleted: the blocklist row counts failures, so deleting on expiry would
 -- reset the escalating expiry and no release could ever become permanent.
 CREATE TABLE release_blocklist (

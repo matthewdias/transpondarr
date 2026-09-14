@@ -1,5 +1,5 @@
 // Package notify is the notification seam: one structured Event with typed
-// kinds, fanned out by a Dispatcher to configured adapters (Discord, generic
+// notification kinds, fanned out by a Dispatcher to configured adapters (Discord, generic
 // webhook, ntfy). Delivery is fire-and-forget push — a failing notifier logs and
 // never blocks or fails the pipeline; retry and queueing are out of scope.
 package notify

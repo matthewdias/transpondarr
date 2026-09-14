@@ -44,7 +44,7 @@ func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 		t.Fatalf("first upsert: %v", err)
 	}
 
-	// Re-grabbing the same item replaces its grab rather than adding a second.
+	// Re-grabbing the same item replaces its grab row rather than adding a second.
 	if _, err := st.Q.UpsertGrab(ctx, db.UpsertGrabParams{
 		WantedItemID: item.ID, InfoHash: "hash2", ReleaseTitle: "rel2", Status: "grabbed",
 	}); err != nil {
@@ -83,7 +83,7 @@ func TestUpsertGrabIsOnePerItemAndLeavesInLibraryUntouched(t *testing.T) {
 	}
 }
 
-// A batch inserts one grab per covered item, all sharing the torrent's info hash.
+// A batch inserts one grab row per covered item, all sharing the torrent's info hash.
 func TestUpsertGrabBatchSharesInfoHash(t *testing.T) {
 	st := tempStore(t)
 	ctx := context.Background()

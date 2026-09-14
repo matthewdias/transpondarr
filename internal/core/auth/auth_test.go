@@ -93,7 +93,7 @@ func TestSessionLifecycle(t *testing.T) {
 	}
 }
 
-// The sweep must remove expired rows and leave live sessions alone.
+// The session sweep must remove expired rows and leave live sessions alone.
 func TestCleanupExpiredRemovesOnlyExpiredSessions(t *testing.T) {
 	svc, st := newTestAuth(t)
 	ctx := context.Background()
@@ -129,7 +129,7 @@ func TestCleanupExpiredRemovesOnlyExpiredSessions(t *testing.T) {
 	}
 }
 
-// The sweep must report failure rather than discard it: it is the only thing
+// The session sweep must report failure rather than discard it: it is the only thing
 // bounding the sessions table on a long-lived instance, so a silent failure
 // would reproduce issue #4. The job runner logs what this returns.
 func TestCleanupExpiredReportsStoreFailure(t *testing.T) {
@@ -207,7 +207,7 @@ func assertOneHold(t *testing.T, svc *Service, probe *lockProbe) {
 	}
 }
 
-// The stored mode and the in-memory one must move together: divergence persists
+// The stored required-mode and the in-memory one must move together: divergence persists
 // until the next restart, which resolves to the DB, so a runtime "enabled" over a
 // stored "local" silently stops enforcing auth at the next boot.
 func TestSetRequiredWritesSettingsUnderLock(t *testing.T) {

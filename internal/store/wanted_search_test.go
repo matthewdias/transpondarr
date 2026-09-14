@@ -82,7 +82,7 @@ func contains(list []string, want string) bool {
 	return false
 }
 
-// The due predicate is the whole budget control for the sweep: it must admit
+// The due predicate is the whole budget control for the search sweep: it must admit
 // only monitored titles that actually have something searchable right now.
 func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 	st := tempStore(t)
@@ -145,7 +145,7 @@ func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 	}
 }
 
-// unmonitorItem narrows one item, which is what the sweep and feed predicates
+// unmonitorItem narrows one item, which is what the search sweep and feed predicates
 // have to read.
 func unmonitorItem(t *testing.T, st *Store, itemID int64) int64 {
 	t.Helper()
@@ -189,7 +189,7 @@ func TestListTitlesDueWantedSearchOrdersNeverSearchedFirstAndLimits(t *testing.T
 	}
 }
 
-// setNextSearchAt postpones a title, which is the state a gap recovery undoes.
+// setNextSearchAt postpones a title, which is the search state a gap recovery undoes.
 func setNextSearchAt(t *testing.T, st *Store, id int64, at time.Time) {
 	t.Helper()
 	if _, err := st.DB.ExecContext(context.Background(),
@@ -218,7 +218,7 @@ func gapTitles(t *testing.T, st *Store, now, lo, hi time.Time, limit int64) []st
 	return out
 }
 
-// The gap-recovery set is the sweep's wanted predicate narrowed to a broadcast
+// The gap-recovery set is the search sweep's wanted predicate narrowed to a broadcast
 // window and to titles the backoff is actually postponing: a reset does nothing
 // for a due title, and would use one of the bounded slots.
 func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
@@ -426,7 +426,7 @@ func TestResetTitleSearchState(t *testing.T) {
 	}
 }
 
-// The sweep needs each item's grab status alongside the item, so it can distinguish an
+// The search sweep needs each item's grab status alongside the item, so it can distinguish an
 // in-flight episode from a wanted one without a second query per item.
 func TestListWantedItemsWithGrabState(t *testing.T) {
 	st := tempStore(t)

@@ -173,7 +173,7 @@ type ListMovieItemStatesRow struct {
 	GrabLastError    sql.NullString `json:"grab_last_error"`
 }
 
-// A film's item state, which reads the item's grab and so cannot come from the
+// A film's item state, which reads the item's grab row and so cannot come from the
 // aggregate above. One grab per item (UNIQUE) keeps the join 1:1. Format
 // guarantees one item only for a film added since #208 -- 00022 re-keys a
 // legacy movie's episodes to kind 'movie' without collapsing them -- so the
@@ -619,7 +619,7 @@ type SetTitleMonitorNewFromParams struct {
 }
 
 // The cut every later create site reads: an item numbered at or above it is
-// created monitored. NULL monitors nothing new, and no mode writes one -- with
+// created monitored. NULL monitors nothing new, and no monitor mode writes one -- with
 // nothing able to edit the cut afterwards, a null would be permanent.
 func (q *Queries) SetTitleMonitorNewFrom(ctx context.Context, arg SetTitleMonitorNewFromParams) error {
 	_, err := q.db.ExecContext(ctx, setTitleMonitorNewFrom, arg.MonitorNewFrom, arg.ID)
@@ -651,7 +651,7 @@ type SetTitlePinnedGroupParams struct {
 }
 
 // NULL clears the pin; execrows lets the handler 404 an unknown title. The
-// delay is set alongside because it means nothing without a group to wait for,
+// delay is set alongside because it means nothing without a release group to wait for,
 // so PUT-replacing one must replace the other.
 func (q *Queries) SetTitlePinnedGroup(ctx context.Context, arg SetTitlePinnedGroupParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setTitlePinnedGroup, arg.PinnedGroup, arg.PinDelayHours, arg.ID)

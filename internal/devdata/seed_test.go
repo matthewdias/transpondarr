@@ -112,7 +112,7 @@ func TestSeedProducesEveryStateTheActivityQueueRenders(t *testing.T) {
 }
 
 // SetGrabStatus writes last_error = NULL, and the only SetGrabLastError call
-// site runs on rows that stay grabbed, so any other pairing is a state the
+// site runs on rows that stay grabbed, so any other pairing is a grab row state the
 // seeder invented and no install produces.
 func TestSeedNeverWritesALastErrorAStatusWouldClear(t *testing.T) {
 	st := seeded(t)
@@ -431,9 +431,9 @@ func TestSeedRefusesAFixtureNamingAnUnknownProfile(t *testing.T) {
 	}
 }
 
-// The reason column ranks a stored pass outcome against the grab beside it, so
+// The reason column ranks a stored pass outcome against the grab row beside it, so
 // the rows have to arrive through ListMissingItemsByTitle rather than be counted
-// in pass_outcomes: an outcome on an item the page never lists shows nothing.
+// in pass_outcomes: an outcome on an item the Missing page never lists shows nothing.
 func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 	st := seeded(t)
 	ctx := context.Background()

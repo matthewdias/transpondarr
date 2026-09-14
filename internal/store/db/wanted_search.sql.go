@@ -37,7 +37,7 @@ type ListBackedOffTitlesWantedInWindowParams struct {
 	Limit        int64          `json:"limit"`
 }
 
-// Titles the sweep is postponing that had a broadcast inside a window: what the
+// Titles the search sweep is postponing that had a broadcast inside a window: what the
 // feed poll resets after it detects a gap in its own coverage. Already-due
 // titles are excluded because a reset gains them nothing and would use one of
 // the bounded slots. The wanted predicate is the sweep's, character for
@@ -201,11 +201,11 @@ ORDER BY s.id
 
 // Monitored titles with something worth grabbing right now, ignoring search
 // cadence. The feed poll issues no indexer request per title -- one request
-// serves every title at once -- so the budget the sweep's LIMIT protects
+// serves every title at once -- so the budget the search sweep's LIMIT protects
 // does not apply here. The wanted half is deliberately the sweep's predicate,
 // character for character, so both entry points compute one grabbable set.
 // The upgrade half is the deliberate divergence (#97): a complete title is
-// worth re-examining only against a page that cost nothing, so upgrades use
+// worth re-examining only against a feed page that cost nothing, so upgrades use
 // the feed alone. Item monitoring limits both halves (#188), the upgrade one
 // included, or an unmonitored held item makes its title feed-due every poll.
 // Score versus cutoff is checked in Go, under the one profile snapshot that
@@ -274,7 +274,7 @@ type ListWantedItemsWithGrabStateRow struct {
 	GrabStatus       sql.NullString `json:"grab_status"`
 }
 
-// One grab per item (UNIQUE) keeps the join 1:1, so the sweep can distinguish an
+// One grab per item (UNIQUE) keeps the join 1:1, so the search sweep can distinguish an
 // in-flight episode from a wanted one in a single query per title.
 func (q *Queries) ListWantedItemsWithGrabState(ctx context.Context, seriesID int64) ([]ListWantedItemsWithGrabStateRow, error) {
 	rows, err := q.db.QueryContext(ctx, listWantedItemsWithGrabState, seriesID)
@@ -318,7 +318,7 @@ SET search_backoff = 0, next_search_at = NULL, search_epoch = search_epoch + 1
 // The whole library back at the front of the queue. Notify-only rehearses a pass
 // that settles nothing, so the backoff of every rehearsed title doubles up to
 // its daily cap; switching automation on has to undo that or the first real
-// sweep for a rehearsed title is up to a day away. The due query's LIMIT paces
+// search sweep for a rehearsed title is up to a day away. The due query's LIMIT paces
 // the resulting queue, so this is a reset, not a burst.
 func (q *Queries) ResetAllTitlesSearchState(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, resetAllTitlesSearchState)
@@ -332,7 +332,7 @@ WHERE id = ?
 `
 
 // Puts a title back at the front of the queue: due now, no accumulated backoff.
-// Bumping the epoch is what makes an in-flight sweep's write lose.
+// Bumping the epoch is what makes an in-flight search sweep's write lose.
 func (q *Queries) ResetTitleSearchState(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, resetTitleSearchState, id)
 	return err
@@ -354,7 +354,7 @@ type SetTitleSearchStateParams struct {
 
 // Guarded on the epoch read at selection: a reset that landed mid-sweep (the
 // title grew, was re-monitored, or was repinned) must win over the backoff
-// computed against the stale state. Guarding on next_search_at could not do
+// computed against the stale search state. Guarding on next_search_at could not do
 // that -- a reset writes NULL, which is also a due title's usual value.
 // execrows is what lets the caller detect that its write lost.
 func (q *Queries) SetTitleSearchState(ctx context.Context, arg SetTitleSearchStateParams) (int64, error) {
