@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"testing"
 	"time"
 
@@ -115,7 +116,7 @@ func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 
 	got := feedTitles(t, st, now)
 	for _, want := range []string{"wanted", "held-imported", "held-failed-upgrade"} {
-		if !contains(got, want) {
+		if !slices.Contains(got, want) {
 			t.Errorf("feed set %v is missing %q", got, want)
 		}
 	}
@@ -123,7 +124,7 @@ func TestListTitlesWithWantedItemsIncludesUpgradePool(t *testing.T) {
 		"upgrades-off", "no-held-title", "upgrade-in-flight", "upgrade-deferred",
 		"unmonitored-upgrade", "unmonitored-wanted",
 	} {
-		if contains(got, unwanted) {
+		if slices.Contains(got, unwanted) {
 			t.Errorf("feed set %v wrongly includes %q", got, unwanted)
 		}
 	}

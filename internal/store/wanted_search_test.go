@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"testing"
 	"time"
 
@@ -73,15 +74,6 @@ func dueTitles(t *testing.T, st *Store, now time.Time, limit int64) []string {
 	return out
 }
 
-func contains(list []string, want string) bool {
-	for _, v := range list {
-		if v == want {
-			return true
-		}
-	}
-	return false
-}
-
 // The due predicate is the whole budget control for the search sweep: it must admit
 // only monitored titles that have something searchable right now.
 func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
@@ -129,14 +121,14 @@ func TestListTitlesDueWantedSearchPredicate(t *testing.T) {
 
 	got := dueTitles(t, st, now, 100)
 	for _, want := range []string{"aired", "unscheduled", "failed-grab", "mixed"} {
-		if !contains(got, want) {
+		if !slices.Contains(got, want) {
 			t.Errorf("due set %v is missing %q", got, want)
 		}
 	}
 	for _, unwanted := range []string{
 		"unmonitored", "narrowed-away", "all-had", "in-flight", "deferred", "future-only", "backed-off",
 	} {
-		if contains(got, unwanted) {
+		if slices.Contains(got, unwanted) {
 			t.Errorf("due set %v wrongly includes %q", got, unwanted)
 		}
 	}
@@ -247,11 +239,11 @@ func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 	// Excluded: never searched, so it is at the front of the queue already.
 	mustSeed(t, st, "never-searched", 1, 1, 0, &inside)
 	// Excluded: aired before the window opened -- the feed never covered it.
-	setNextSearchAt(t, st, mustSeed(t, st, "aired-before", 1, 1, 0, ptr(now.Add(-5*time.Hour))), later)
+	setNextSearchAt(t, st, mustSeed(t, st, "aired-before", 1, 1, 0, new(now.Add(-5*time.Hour))), later)
 	// Excluded: the window is half-open, so a broadcast at hi belongs to the next one.
 	setNextSearchAt(t, st, mustSeed(t, st, "aired-at-hi", 1, 1, 0, &hi), later)
 	// Excluded: not broadcast yet.
-	setNextSearchAt(t, st, mustSeed(t, st, "aired-after", 1, 1, 0, ptr(now.Add(time.Hour))), later)
+	setNextSearchAt(t, st, mustSeed(t, st, "aired-after", 1, 1, 0, new(now.Add(time.Hour))), later)
 	// Excluded: no air date -- nothing places it inside the gap.
 	setNextSearchAt(t, st, mustSeed(t, st, "unscheduled", 1, 1, 0, nil), later)
 	// Excluded: already in the library.
@@ -263,7 +255,7 @@ func TestListBackedOffTitlesWantedInWindowPredicate(t *testing.T) {
 
 	got := gapTitles(t, st, now, lo, hi, 100)
 	for _, want := range []string{"in-window", "failed-grab"} {
-		if !contains(got, want) {
+		if !slices.Contains(got, want) {
 			t.Errorf("gap set %v is missing %q", got, want)
 		}
 	}
@@ -316,8 +308,6 @@ func itemOf(t *testing.T, st *Store, titleID int64) int64 {
 	}
 	return id
 }
-
-func ptr(t time.Time) *time.Time { return &t }
 
 // The write is guarded on the value read at selection so a concurrent reset — a
 // title that just grew, or was re-monitored — wins over a stale backoff.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -179,7 +180,7 @@ func TestSweepUpgradesHeldItemsItSearchedForAnyway(t *testing.T) {
 	if release, status := grabFor(t, h.st, id, 3); release != "[ExampleSubs] Placeholder Saga - 03 [1080p]" || status != "grabbed" {
 		t.Errorf("held item's grab = %q/%q, want the upgrade in flight", release, status)
 	}
-	if got := grabbedItemNumbers(t, h.st, id); !containsInt(got, 5) {
+	if got := grabbedItemNumbers(t, h.st, id); !slices.Contains(got, 5) {
 		t.Errorf("grabbed items = %v, want the wanted item too", got)
 	}
 }
@@ -259,15 +260,6 @@ func TestManualMatchOffersReleasesForHeldItems(t *testing.T) {
 	if len(c.TakeItems()) != 0 {
 		t.Errorf("TakeItems() = %v, want automation to take nothing", c.TakeItems())
 	}
-}
-
-func containsInt(list []int, n int) bool {
-	for _, v := range list {
-		if v == n {
-			return true
-		}
-	}
-	return false
 }
 
 // The feature end to end, over a real library layout: a held 480p file, a better

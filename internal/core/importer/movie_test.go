@@ -110,8 +110,8 @@ func wantPlacedFrom(t *testing.T, dest, rel string) {
 
 // firstLine is the name grow stamped, for a legible failure message.
 func firstLine(body []byte) string {
-	if i := bytes.IndexByte(body, 0); i >= 0 {
-		return string(body[:i])
+	if before, _, ok := bytes.Cut(body, []byte{0}); ok {
+		return string(before)
 	}
 	return string(body)
 }

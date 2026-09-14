@@ -190,10 +190,7 @@ func episodeRange(nums []string) (start, end int) {
 		return 0, 0
 	}
 	start = atoi(nums[0])
-	end = atoi(nums[len(nums)-1])
-	if end < start {
-		end = start
-	}
+	end = max(atoi(nums[len(nums)-1]), start)
 	return start, end
 }
 

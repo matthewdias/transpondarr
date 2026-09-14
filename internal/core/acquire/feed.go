@@ -34,7 +34,7 @@ const feedGapAiredSlack = time.Hour
 // processed and never to be processed again, LatestIDs only what was published
 // at Latest — the sole id evidence that a page still shows the mark (#176).
 type feedMark struct {
-	Latest    time.Time `json:"latest,omitempty"`
+	Latest    time.Time `json:"latest"`
 	IDs       []string  `json:"ids,omitempty"`
 	LatestIDs []string  `json:"latest_ids,omitempty"`
 }
