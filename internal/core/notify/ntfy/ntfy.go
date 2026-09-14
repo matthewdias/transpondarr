@@ -49,7 +49,7 @@ func look(k notify.Kind) (title, priority, tags string) {
 	case notify.KindRehearsal:
 		// A rehearsal is a firehose by design (#116); it must never buzz like a
 		// stuck import.
-		return "Rehearsal", "low", "eyes"
+		return "Notify only", "low", "eyes"
 	default:
 		return "Test notification", "default", "information_source"
 	}

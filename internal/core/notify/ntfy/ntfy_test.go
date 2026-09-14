@@ -162,3 +162,18 @@ func TestSendKeepsTheItemLineForAnEpisode(t *testing.T) {
 		}
 	}
 }
+
+func TestSendHeadsARehearsalByItsAutomationMode(t *testing.T) {
+	ts, got := capture(t)
+	if err := New(ts.URL, "topic", "").Send(context.Background(), notify.Event{
+		Kind: notify.KindRehearsal, Title: "Placeholder Saga", Error: "would have grabbed",
+	}); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if title := got.headers.Get("Title"); title != "Notify only" {
+		t.Errorf("title = %q, want Notify only", title)
+	}
+	if p := got.headers.Get("Priority"); p != "low" {
+		t.Errorf("priority = %q, want low", p)
+	}
+}

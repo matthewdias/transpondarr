@@ -65,6 +65,7 @@ func TestSendRendersEachKind(t *testing.T) {
 		{notify.KindImportStuck, "Import blocked", 0xE67E22},
 		{notify.KindGrabFailed, "Grab failed", 0xE74C3C},
 		{notify.KindTitleAdded, "Title added", 0x3498DB},
+		{notify.KindRehearsal, "Notify only", 0x95A5A6},
 		{notify.KindTest, "Test notification", 0x5865F2},
 	}
 	for _, tc := range cases {
