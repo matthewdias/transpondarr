@@ -131,7 +131,7 @@ func TestSetItemsMonitoredDoesNotResetWhenNothingChanged(t *testing.T) {
 }
 
 // A selection covering both monitoring states resets once, on the strength of the item
-// that actually moved.
+// that moved.
 func TestSetItemsMonitoredResetsOnTheItemThatMoved(t *testing.T) {
 	h := wantedHarness(t)
 	titleID := seedTitle(t, h.store, "Placeholder Saga", 3)

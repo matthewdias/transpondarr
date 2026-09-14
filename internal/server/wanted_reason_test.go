@@ -123,7 +123,7 @@ func TestItemReasonRanking(t *testing.T) {
 	}
 }
 
-// The stored set and the surfaced set differ on purpose. grabbed is only the
+// The stored set and the surfaced set differ. grabbed is only the
 // tombstone that invalidates an older refusal -- a listed item's grab plainly
 // did not last, and grab_failed is what that row shows -- and contention's honest
 // message is "the queue is working", which the title group's reason already reports.

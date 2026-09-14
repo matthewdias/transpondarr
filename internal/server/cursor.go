@@ -20,7 +20,7 @@ func decodeKeysetCursor(cursor string) (sortKey string, id int64, err error) {
 	if err != nil {
 		return "", 0, err
 	}
-	// The LAST separator, because the sort key may itself contain one -- the
+	// The LAST separator, because the sort key may contain one -- the
 	// cutoff listing keys on title names -- while the id never does.
 	i := strings.LastIndexByte(string(raw), '|')
 	if i < 0 {

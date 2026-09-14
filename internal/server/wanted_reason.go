@@ -37,7 +37,7 @@ const (
 	reasonAddFailed = "add_failed"
 )
 
-// globalReason is what stops any search running at all, or "" when nothing does.
+// globalReason is what stops any search running, or "" when nothing does.
 func globalReason(indexerReady bool, mode settings.AutomationMode) string {
 	switch {
 	case !indexerReady:
@@ -96,7 +96,7 @@ type itemFacts struct {
 	Pass       passFacts
 }
 
-// Stored outcomes and surfaced reasons differ deliberately: acquire records
+// Stored outcomes and surfaced reasons differ: acquire records
 // seven, a row shows five. grabbed exists only as the tombstone that
 // invalidates an older refusal -- a listed item's grab plainly did not last,
 // and grab_failed is what that row shows. contended is silent too, because its

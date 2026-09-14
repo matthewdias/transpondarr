@@ -140,7 +140,7 @@ func TestGrabOfAHeldOnlyReleaseSucceeds(t *testing.T) {
 
 // An upgrade in flight is a held item with an open grab, a combination the
 // status vocabulary could not previously produce: it reads as downloading, so
-// the queue does not show the episode as simply had.
+// the queue does not show the episode as had.
 func TestHeldItemWithAnOpenGrabReadsAsDownloading(t *testing.T) {
 	const matchURL = "magnet:?xt=urn:btih:0000000000000000000000000000000000000003"
 	idx := &coretest.FakeIndexer{Releases: []indexer.Release{

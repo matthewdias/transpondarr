@@ -161,7 +161,7 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 }
 
 // The Calendar is responsible for the forward-looking view, so an unaired item
-// is withheld until asked for; an item with no schedule at all is not unaired
+// is withheld until asked for; an item with no schedule is not unaired
 // and always shows, matching how the search sweep reads a null air date.
 func TestMissingUnairedToggle(t *testing.T) {
 	h := wantedHarness(t)
@@ -233,7 +233,7 @@ func recordPassOutcome(t *testing.T, st *store.Store, titleID int64, number int,
 }
 
 // #181's pass reason: what the last pass decided appears on the row, dated, with the
-// release it acted on -- and only when that reason actually won, since an
+// release it acted on -- and only when that reason won, since an
 // "as of" stamped on a freshly derived answer would misrepresent it.
 func TestMissingSurfacesTheLastPassOutcome(t *testing.T) {
 	h := wantedHarness(t)
@@ -427,7 +427,7 @@ func TestMissingOrdersRecentGroupsFirstAndEpisodesForwards(t *testing.T) {
 }
 
 // A title group past the cap still reports its full size: the header count is the
-// back-catalog progress display, the listed rows are just the front of the run.
+// back-catalog progress display, the listed rows are only the front of the run.
 func TestMissingCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	h := wantedHarness(t)
 	seedTitle(t, h.store, "Very Long Runner", 60)
@@ -495,7 +495,7 @@ func TestMissingPageClosesOnTheItemBudget(t *testing.T) {
 	}
 }
 
-// The Wanted page-level reason: what stops any search running at all is reported once, not
+// The Wanted page-level reason: what stops any search running is reported once, not
 // stamped on every row.
 func TestMissingReportsTheGlobalReason(t *testing.T) {
 	h := wantedHarness(t) // automation on, indexer set
@@ -521,7 +521,7 @@ func TestMissingReportsTheGlobalReason(t *testing.T) {
 		t.Errorf("global_reason = %q, want notify_only", out.GlobalReason)
 	}
 
-	bare := newHarness(t, nil, nil) // no indexer at all
+	bare := newHarness(t, nil, nil) // no indexer
 	seedTitle(t, bare.store, "Unsearchable", 1)
 	if code := bare.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
 		t.Fatalf("GET missing = %d, want 200", code)
@@ -689,7 +689,7 @@ func TestQueueSearchResetsCadenceAndTriggersTheSweep(t *testing.T) {
 	}
 
 	// An explicit empty array means the whole library, which is what "Search
-	// all" sends. Omitting the field entirely is rejected instead, so a
+	// all" sends. Omitting the field is rejected instead, so a
 	// mis-serialized request cannot discard every title's backoff by accident.
 	if code := h.postJSON(t, "/api/v1/wanted/search", struct{}{}, &out); code != http.StatusUnprocessableEntity {
 		t.Fatalf("POST wanted/search with no series_ids = %d, want 422", code)

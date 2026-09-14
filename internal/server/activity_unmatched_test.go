@@ -30,7 +30,7 @@ type unmatchedJSON struct {
 
 // Every grab status counts as a reference — imported torrents seed legitimately
 // and a failed one is already visible in history — so only a torrent in our
-// category that nothing at all points at is unmatched.
+// category that nothing points at is unmatched.
 func TestUnmatchedDownloadsListsOnlyTorrentsNoGrabReferences(t *testing.T) {
 	dl := &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: "AAAA1111", Name: "grabbed one", Category: "transpondarr", State: download.StateDownloading},
@@ -113,7 +113,7 @@ func TestASupersededGrabsTorrentBecomesUnmatched(t *testing.T) {
 }
 
 // An unmatched torrent has no grab row behind it, so the listing is the only
-// place a human can identify it from — which needs size and age, not just a name
+// place a human can identify it from — which needs size and age, not only a name
 // and a hash (#131).
 func TestUnmatchedDownloadsCarrySizeAndAddedTime(t *testing.T) {
 	added := time.Date(2025, 8, 7, 12, 0, 0, 0, time.UTC)

@@ -185,7 +185,7 @@ func decodeJSON(w http.ResponseWriter, req *http.Request, v any) error {
 }
 
 // passwordAttemptLimiter throttles password verification per client; httprate
-// counts every attempt in the window, not just failures. One call is one bucket.
+// counts every attempt in the window, not only failures. One call is one bucket.
 func passwordAttemptLimiter() func(http.Handler) http.Handler {
 	return httprate.LimitBy(
 		passwordRateLimit, passwordRateWindow, keyByRemoteAddr,

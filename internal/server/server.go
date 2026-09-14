@@ -37,7 +37,7 @@ func init() {
 }
 
 // Deps is everything New wires into the HTTP layer. Instances are shared with
-// the daemon's background jobs on purpose: one Provider is where the rate limiter
+// the daemon's background jobs: one Provider is where the rate limiter
 // lives, one Blocklist where the breaker records every failure path, one Acquire
 // where the in-flight claims cover manual grabs and the jobs alike, and Importer
 // is the very instance the scan job runs on — a manual import fix and the scan
@@ -174,7 +174,7 @@ func hasValidSession(req *http.Request, a *auth.Service) bool {
 }
 
 // providedKey reads the machine API key from the request header only. It is
-// deliberately not accepted as a URL query parameter: a long-lived credential in a
+// not accepted as a URL query parameter: a long-lived credential in a
 // query string leaks into proxy/access logs and browser history.
 func providedKey(req *http.Request) string {
 	return req.Header.Get("X-Api-Key")
@@ -213,7 +213,7 @@ func proxied(req *http.Request) bool {
 
 // isLocalRequest reports whether the request came from a loopback or private
 // address with no proxy-forwarding headers. Note: in "local" auth mode this admits the
-// whole private range, not just the host — see SECURITY.md before exposing it.
+// whole private range, not only the host — see SECURITY.md before exposing it.
 func isLocalRequest(req *http.Request) bool {
 	if proxied(req) {
 		return false

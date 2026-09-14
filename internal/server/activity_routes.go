@@ -403,14 +403,14 @@ func pickUnmatched(statuses []download.Status, referenced map[string]bool, categ
 }
 
 // listUnmatched surfaces the downloads no grab row references. Removal stays the
-// user's: a deferred payload is exactly what a human was about to fix by hand.
+// user's: a deferred payload is what a human was about to fix by hand.
 func (h *activityHandler) listUnmatched(ctx context.Context, _ *struct{}) (*activityUnmatchedOutput, error) {
 	out := &activityUnmatchedOutput{}
 	out.Body.Items = []unmatchedItemDTO{}
 	category := h.downloadCategory()
 	dl := h.deps.clients.Download()
 	// Set before the scoped return: an unscoped listing makes no client request,
-	// so reporting a healthy client as unreachable would simply be false.
+	// so reporting a healthy client as unreachable would be false.
 	out.Body.ClientOk = dl != nil
 	out.Body.Scoped = category != ""
 	if !out.Body.Scoped || dl == nil {
