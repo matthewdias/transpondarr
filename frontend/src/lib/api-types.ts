@@ -1470,7 +1470,7 @@ export interface components {
              */
             readonly $schema?: string;
             /**
-             * @description What stops any search running at all; absent when nothing does
+             * @description What stops every search from running; absent when nothing does
              * @enum {string}
              */
             global_reason?: "no_indexer" | "automation_off" | "notify_only";
@@ -1874,7 +1874,7 @@ export interface components {
             titles_queued: number;
             /**
              * Format: int64
-             * @description Items actually changed; below len(item_ids) when some were deleted
+             * @description Items changed; below len(item_ids) when some were deleted
              */
             updated: number;
         };

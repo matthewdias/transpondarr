@@ -98,7 +98,7 @@ type wantedPageInput struct {
 
 type missingOutput struct {
 	Body struct {
-		GlobalReason string            `json:"global_reason,omitempty" enum:"no_indexer,automation_off,notify_only" doc:"What stops any search running at all; absent when nothing does"`
+		GlobalReason string            `json:"global_reason,omitempty" enum:"no_indexer,automation_off,notify_only" doc:"What stops every search from running; absent when nothing does"`
 		Groups       []missingGroupDTO `json:"groups"`
 		NextCursor   string            `json:"next_cursor,omitempty" doc:"Absent on the last page"`
 	}
@@ -136,7 +136,7 @@ type setItemsMonitoredInput struct {
 
 type setItemsMonitoredOutput struct {
 	Body struct {
-		Updated      int `json:"updated" doc:"Items actually changed; below len(item_ids) when some were deleted"`
+		Updated      int `json:"updated" doc:"Items changed; below len(item_ids) when some were deleted"`
 		TitlesQueued int `json:"titles_queued" doc:"Distinct titles put back at the front of the sweep queue; always 0 when unmonitoring"`
 	}
 }
