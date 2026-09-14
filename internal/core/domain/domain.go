@@ -61,7 +61,7 @@ type WantedItem struct {
 
 // MaxPinDelayHours bounds the wait a pinned group can cause at a year. The
 // bound is not taste: time.Duration tops out near 2.6e6 hours, so an unclamped
-// multiply wraps int64 and a large wait silently becomes no wait at all.
+// multiply wraps int64 and a large wait silently becomes no wait.
 const MaxPinDelayHours = 24 * 365
 
 // ClampPinDelayHours bounds a pinned-group hour count to [0, MaxPinDelayHours].

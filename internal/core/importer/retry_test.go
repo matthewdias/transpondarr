@@ -212,7 +212,7 @@ func TestListPayloadReportsAVanishedPayload(t *testing.T) {
 	}
 }
 
-// The escape hatch itself: naming the file settles the deferred row imported,
+// The escape hatch: naming the file settles the deferred row imported,
 // with the item marked had and the history event appended.
 func TestRetryImportWithAnAssignmentImports(t *testing.T) {
 	st := coretest.NewStore(t)

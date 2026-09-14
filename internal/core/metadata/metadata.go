@@ -65,7 +65,7 @@ type TitleMeta struct {
 
 // NotYetReleased reports a title none of whose items have aired. The provider's
 // own status is the only thing that reports it: the population it matters for
-// (#217) is defined by publishing no schedule at all.
+// (#217) is defined by publishing no schedule.
 func (m TitleMeta) NotYetReleased() bool { return m.Status == statusNotYetReleased }
 
 const statusNotYetReleased = "NOT_YET_RELEASED"
@@ -233,7 +233,7 @@ func (c *cached) GetTitle(ctx context.Context, id int64) (TitleMeta, []ItemMeta,
 	return meta, items, nil
 }
 
-// TitleFromCache deliberately ignores the TTL: applying it would miss on exactly
+// TitleFromCache ignores the TTL: applying it would miss on
 // the airing titles this serves, and names change less than the count fresh guards.
 func (c *cached) TitleFromCache(ctx context.Context, id int64) (TitleMeta, []ItemMeta, bool, error) {
 	snap, _, ok, err := c.cache.Get(ctx, c.inner.Name(), id)

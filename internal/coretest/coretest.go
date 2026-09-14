@@ -82,7 +82,7 @@ func (f *FakeIndexer) Search(_ context.Context, q indexer.Query) ([]indexer.Rele
 }
 
 // FakeFeed is a FakeIndexer that also publishes a recent feed. The plain
-// FakeIndexer deliberately does not implement indexer.RecentFeed: that is what
+// FakeIndexer does not implement indexer.RecentFeed: that is what
 // keeps the degrade-to-sweep-only path testable.
 type FakeFeed struct {
 	FakeIndexer
@@ -113,7 +113,7 @@ type FakeDownload struct {
 	Err     error
 
 	// FailURLs fails only the listed download URLs, so a test can model one dead
-	// release among healthy ones rather than a client that is down entirely.
+	// release among healthy ones rather than a client that is down.
 	FailURLs map[string]error
 
 	// Statuses is what Status returns (importer-facing). It is not filtered by
@@ -193,7 +193,7 @@ func (f *FakeDownload) Status(_ context.Context, _ ...string) ([]download.Status
 // --- fake notifier -----------------------------------------------------------
 
 // FakeNotifier records sends onto a buffered channel. Wrap it in a real
-// notify.Dispatcher: the dispatcher's async-ness is exactly what never-blocks
+// notify.Dispatcher: the dispatcher's async-ness is what never-blocks
 // tests must exercise, so assert by receiving from Events with a timeout.
 type FakeNotifier struct {
 	NameStr string

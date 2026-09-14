@@ -31,7 +31,7 @@ func QueueCursorTop() QueueCursor { return QueueCursor{Key: "~", ID: 0} }
 // all meet their cutoff. Membership is decided in Go, so a results page is filled by
 // scanning; without a cap a library where nearly everything is at cutoff would
 // turn one request into a full-table walk. Reaching the cap returns a short page
-// with a cursor, which is correct, just not full.
+// with a cursor, which is correct but not full.
 //
 // It bounds the response, not the work: a batch scores every held item of the
 // title it read, so one request costs up to scanBatches x Limit titles' worth

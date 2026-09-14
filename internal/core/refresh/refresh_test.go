@@ -332,7 +332,7 @@ func TestRefreshRefetchesFinishedTitlesPastTheLongCutoff(t *testing.T) {
 }
 
 // Replaces TestRefreshUsesShortCutoffWhenTheCountIsUnknown, whose assertion this
-// change deliberately inverts: a count AniList will never publish is not worth
+// change inverts: a count AniList will never publish is not worth
 // re-querying every 6 hours (#151).
 func TestRefreshHoldsAnUnknownCountTitleForTheMiddleCutoff(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -524,9 +524,9 @@ func TestRefreshContinuesPastAFailingTitle(t *testing.T) {
 }
 
 // Refresh growth reads the same cut, with the two consequences of an insert
-// disentangled: the air-date sync ignores monitoring entirely, so the stamp
+// disentangled: the air-date sync ignores monitoring, so the stamp
 // still clears, while the search cadence is only worth resetting for something
-// the sweep will actually search for.
+// the sweep will search for.
 func TestRefreshHonoursTheTitleMonitorCut(t *testing.T) {
 	st := coretest.NewStore(t)
 	prov := newFakeProvider()

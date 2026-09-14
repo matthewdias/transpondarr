@@ -8,8 +8,8 @@
 // the weights), except that a title's pinned group outranks every score; an
 // explicit minimum score lets the answer be "nothing yet".
 //
-// v1 is deliberately transparent rather than clever: reconciling absolute vs
-// season-relative numbering is genuinely ambiguous without per-episode metadata,
+// v1 is transparent rather than clever: reconciling absolute vs
+// season-relative numbering is ambiguous without per-episode metadata,
 // so releases it cannot place unambiguously are returned unmatched with the reason,
 // not silently mis-mapped.
 package decide
@@ -213,8 +213,8 @@ func Match(items []Item, titleVariants []string, releases []indexer.Release, pro
 		}
 		// Wider coverage first is "one grab instead of N" (#126), counted on what
 		// automation may take so a pack whose held coverage is all cutoff-blocked
-		// cannot outrank a single covering a genuinely wanted item. Below the pin
-		// deliberately: a pin is per-title knowledge, so coverage only decides
+		// cannot outrank a single covering a wanted item. Below the pin
+		// because a pin is per-title knowledge, so coverage only decides
 		// among equally pinned candidates. Weekly singles tie at 1 and fall
 		// through to score.
 		if out[a].takeCount() != out[b].takeCount() {
@@ -285,7 +285,7 @@ func UnmetGoals(p parser.Parsed, profile domain.QualityProfile) []ScorePart {
 	return goals
 }
 
-// Score rates a release against a profile. It is deliberately pure — no store
+// Score rates a release against a profile. It is pure — no store
 // or network — so the ranking that decides what lands in a library can be
 // tested exhaustively.
 func Score(p parser.Parsed, rel indexer.Release, profile domain.QualityProfile) (int, []ScorePart) {
@@ -491,7 +491,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 	if p.Batch {
 		if p.EpisodeEnd > maxItem {
 			// Same ambiguity as the single-episode case below: a 01-48 pack against a
-			// 12-item AniList entry is absolute numbering, or another season entirely.
+			// 12-item AniList entry is absolute numbering, or another season.
 			c.Reason = "episode range exceeds this entry's range (possible absolute/season mismatch)"
 			return c
 		}
@@ -529,7 +529,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 		}
 		if p.EpisodeStart > maxItem {
 			// Very likely absolute numbering from a multi-season run, or a
-			// different season entirely — flag rather than pick one.
+			// different season — flag rather than pick one.
 			c.Reason = "episode number exceeds this entry's range (possible absolute/season mismatch)"
 			return c
 		}
@@ -542,7 +542,7 @@ func evaluate(rel indexer.Release, variants []string, expectedSeason int, itemSe
 }
 
 // batchItems is what a pack covers: its explicit range, or every item still
-// wanted when it names no numbers at all, which is what a season pack contains.
+// wanted when it names no numbers, which is what a season pack contains.
 // A range past this AniList entry is rejected by the caller, so the input here is
 // either bounded by maxItem or numberless.
 func batchItems(p parser.Parsed, itemSet map[int]bool, maxItem int) []int {

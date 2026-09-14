@@ -105,7 +105,7 @@ func TestGetScheduleNotYetAiredOnlyFetchesTail(t *testing.T) {
 	}
 }
 
-// A full-history fetch omits the filter entirely: nothing depends on the resolver
+// A full-history fetch omits the filter: nothing depends on the resolver
 // treating an explicit false as "no filter" rather than as a filter.
 func TestGetScheduleFullHistoryOmitsTheFilter(t *testing.T) {
 	var got map[string]any

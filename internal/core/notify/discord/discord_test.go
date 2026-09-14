@@ -153,7 +153,7 @@ func TestSendOmitsUnsetFields(t *testing.T) {
 }
 
 // Discord rejects an embed field value over 1024 chars with a 400, which would
-// lose the notification exactly when the error detail is longest.
+// lose the notification when the error detail is longest.
 func TestSendCapsFieldValues(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
 	long := strings.Repeat("e", 3000)
@@ -210,7 +210,7 @@ func TestSendRendersMultipleEpisodesAsOneField(t *testing.T) {
 }
 
 // A movie has one item, so its number would describe nothing the title has not: the
-// Episode field comes out entirely rather than being relabelled.
+// Episode field is dropped rather than relabelled.
 func TestSendOmitsTheEpisodeFieldForAMovie(t *testing.T) {
 	ts, got := capture(t, http.StatusNoContent)
 	if err := New(ts.URL).Send(context.Background(), notify.Event{

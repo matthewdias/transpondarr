@@ -153,7 +153,7 @@ func TestAddTitlePersistsTitleAndItems(t *testing.T) {
 		t.Errorf("identity = (%q, %d), want (%q, 42)", title.Provider, title.ProviderID, prov.Name())
 	}
 
-	// Verify the rows were actually written to the DB, not just the returned struct.
+	// Verify the rows were written to the DB, not only the returned struct.
 	srow, err := st.Q.GetTitleByProviderID(context.Background(), db.GetTitleByProviderIDParams{
 		Provider:   sql.NullString{String: prov.Name(), Valid: true},
 		ProviderID: sql.NullInt64{Int64: 42, Valid: true},

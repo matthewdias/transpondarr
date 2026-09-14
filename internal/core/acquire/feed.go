@@ -51,7 +51,7 @@ func feedMarkKey(indexerName string) string { return "feed.seen." + indexerName 
 // run, which passes the kill switch as explicit intent (#122).
 //
 // An indexer with no recent feed is a supported configuration, not a failure:
-// the scheduled sweep already covers those titles, just less promptly.
+// the scheduled sweep already covers those titles, though less promptly.
 func (s *Service) PollFeedOnce(ctx context.Context) error {
 	// Gated jobs are mirrored in the UI's AUTOMATION_GATED list (jobs.tsx).
 	if !s.cfg.AutomationEnabled() && !jobs.ManualRun(ctx) {
@@ -154,7 +154,7 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 
 // pollTitle matches one already-fetched feed page against every title with
 // something wanted. This is the inverse of the sweep's lookup, so it is title ×
-// entry rather than one search per title — deliberately unoptimised, because a
+// entry rather than one search per title — unoptimised, because a
 // page is ~100 entries and the due query already drops any title with nothing
 // left to grab. One title's failure never stops the rest of the pass.
 func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) error {
@@ -166,7 +166,7 @@ func (s *Service) pollTitle(ctx context.Context, releases []indexer.Release) err
 	}
 
 	// Nothing due means nothing to parse for: a library with nothing wanted must
-	// not start parsing a page it previously skipped entirely.
+	// not start parsing a page it previously skipped.
 	if len(due) == 0 {
 		return nil
 	}
@@ -333,7 +333,7 @@ func (s *Service) loadFeedMark(ctx context.Context, indexerName string) (feedMar
 	var mark feedMark
 	if err := json.Unmarshal([]byte(v), &mark); err != nil {
 		// One re-processed page, not a feed that stops working — Sonarr's equivalent
-		// field stops RSS sync entirely when its JSON cannot be parsed.
+		// field stops RSS sync when its JSON cannot be parsed.
 		s.log.Warn("feed mark unreadable; treating the next page as new",
 			"indexer", indexerName, "err", err)
 		return feedMark{}, nil

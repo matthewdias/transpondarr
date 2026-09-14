@@ -67,7 +67,7 @@ func (s outcomeSet) tentative(numbers []int, o outcome) {
 }
 
 // passIndex records per item number the two things finalizeOutcomes needs: which
-// refused release came closest, and whether an eligible one covers it at all.
+// refused release came closest, and whether an eligible one covers it.
 // Built in one walk of the candidates, because computing it per item would be
 // O(items x candidates x pack size) -- and a back-catalogue pass against
 // absolute-numbered packs makes all three large at once.

@@ -28,7 +28,7 @@ func statusByName(t *testing.T, r *Runner, name string) JobStatus {
 }
 
 // advance moves the bubble's clock on and then settles it. The sleep is what
-// lets virtual time pass at all: a pending Wait takes priority over advancing
+// lets virtual time pass: a pending Wait takes priority over advancing
 // it, so Wait alone would return with a job still mid-run inside its own sleep.
 func advance(d time.Duration) {
 	time.Sleep(d)
@@ -338,7 +338,7 @@ func TestStatusReportsANeverRunJob(t *testing.T) {
 	}
 }
 
-// Real clock on purpose: a 1ms interval keeps the loop writing job state while
+// Real clock because a 1ms interval keeps the loop writing job state while
 // Status reads it. Only meaningful under -race.
 func TestStatusIsSafeWhileJobsRun(t *testing.T) {
 	r := New(discardLogger())

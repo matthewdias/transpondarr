@@ -210,8 +210,8 @@ func TestAddConvergesOnADataMissingDuplicateFoundByTheRecheck(t *testing.T) {
 	}
 }
 
-// A genuine add failure must still surface: the recheck only converges when the
-// hash actually turned up, never by discarding the error.
+// An add failure must still surface: the recheck only converges when the
+// hash turned up, never by discarding the error.
 func TestAddSurfacesAFailureThatWasNotADuplicate(t *testing.T) {
 	const hash = "c9e15763f722f23e98a29decdfae341b98d53056"
 	srv := qbitStub(t, http.StatusInternalServerError)
@@ -293,7 +293,7 @@ func TestAddClassifiesReleaseFaultsSeparatelyFromClientFaults(t *testing.T) {
 	}
 }
 
-// The filter has to be applied at qBittorrent, not just to the result: listing unmatched
+// The filter has to be applied at qBittorrent, not only to the result: listing unmatched
 // downloads otherwise pulls the user's entire client every poll (#131).
 func TestStatusByCategoryFiltersAtTheClient(t *testing.T) {
 	var gotCategory, gotFilter string
@@ -334,7 +334,7 @@ func TestStatusByCategoryFiltersAtTheClient(t *testing.T) {
 // mapping every field the import pipeline relies on — most importantly
 // content_path and the normalized download state — and forwards the requested hashes
 // (lowercased) as the filter. TestMapState covers the client state vocabulary in
-// isolation; this covers the full response parse the importer actually runs.
+// isolation; this covers the full response parse the importer runs.
 func TestStatusParsesTorrentsInfo(t *testing.T) {
 	var gotHashesFilter string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -63,7 +63,7 @@ func TestMovieRejectsAWrongYear(t *testing.T) {
 }
 
 // A release naming no year is not refused: the year check fires only on a mismatch,
-// exactly as the season check lets a season-less release through.
+// as the season check lets a season-less release through.
 func TestMovieWithoutAReleaseYearStillMatches(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Sample Film [BD 1080p][Dual Audio]", Seeders: 40},
@@ -172,7 +172,7 @@ func TestMovieKeepsAZeroPaddedNumberInItsName(t *testing.T) {
 }
 
 // anitogo leaves unrecognized scene tags on the parsed title, so the year is not always
-// the last token. Reading only the tail let a wrong year through on exactly the
+// the last token. Reading only the tail let a wrong year through on the
 // form the recovery exists for.
 func TestMovieReadsAYearBehindSceneTags(t *testing.T) {
 	for _, tag := range []string{"REPACK", "LIMITED", "JAPANESE"} {
@@ -240,7 +240,7 @@ func TestMovieDoesNotReadATitlesOwnYearAsAReleaseYear(t *testing.T) {
 
 // #208 parked movie matching behind a hard stop; #209 lifts it. A film release
 // matches -- and with no year on record the match is ineligible, so automation
-// cannot take it while a manual grab stays free. The fixture deliberately
+// cannot take it while a manual grab stays free. The fixture
 // has no batch token, which would add an ineligible reason of its own.
 func TestMovieWithNoYearOnRecordMatchesButIsIneligible(t *testing.T) {
 	releases := []indexer.Release{
@@ -281,7 +281,7 @@ func TestNullYearReasonYieldsToAReleaseSpecificOne(t *testing.T) {
 	}
 }
 
-// A held film is an upgrade candidate, exactly as a held episode is.
+// A held film is an upgrade candidate, as a held episode is.
 func TestMovieUpgradesAHeldFile(t *testing.T) {
 	its := []Item{{Number: 1, Grabbable: true, HeldTitle: "[OldSubs] Sample Film (2019) [720p]"}}
 	releases := []indexer.Release{
@@ -367,7 +367,7 @@ func TestNumberlessPackStillCoversASeries(t *testing.T) {
 }
 
 // The zero-value Format must be non-movie, so a caller that passes no
-// MatchOpts at all is unaffected.
+// MatchOpts is unaffected.
 func TestZeroFormatDoesNotRefuse(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Sample Show - 01 [1080p]", Seeders: 40},
@@ -401,7 +401,7 @@ func TestMovieKeepsTheTitleMismatchReason(t *testing.T) {
 // the film's parent title names no episode and has no year, so nothing above
 // rejects it, and the importer would then place the title's episode 1 as the
 // film. It is an eligibility rule rather than a matching one -- the pack may
-// genuinely be a multi-part film, so only automation is blocked (PR #57).
+// be a multi-part film, so only automation is blocked (PR #57).
 func TestMovieWithholdsASeasonPackFromAutomation(t *testing.T) {
 	releases := []indexer.Release{
 		{Title: "[ExampleSubs] Placeholder Saga (Complete Series) [1080p]", Seeders: 900},
@@ -480,7 +480,7 @@ func TestPackReasonYieldsToAProfileRule(t *testing.T) {
 	}
 }
 
-// A batch token on a series release keeps meaning exactly what it always has:
+// A batch token on a series release keeps meaning what it always has:
 // the pack matches the items it covers and is eligible. The new rule is conditional on
 // Format, and this is what proves it.
 func TestSeriesSeasonPackIsUnaffectedByTheMoviePackRule(t *testing.T) {
@@ -543,7 +543,7 @@ func TestMovieRefusesAnEpisodeWhateverTheNameLengths(t *testing.T) {
 // The accepted cost of comparing exactly: a film whose variant renders its
 // number differently from the release goes unmatched -- and being a matching
 // refusal rather than an eligibility one, that 422s the manual grab too. Named
-// deliberately, so the strictness is not later read as an oversight and loosened
+// so the strictness is not later read as an oversight and loosened
 // back into the false positives it exists to prevent.
 func TestMovieRefusesANumberedFilmWhoseVariantRendersDifferently(t *testing.T) {
 	releases := []indexer.Release{

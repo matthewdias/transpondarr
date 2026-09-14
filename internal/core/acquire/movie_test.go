@@ -59,7 +59,7 @@ func movieFeedEntry(group, title string, year int, published time.Time) indexer.
 }
 
 // The headline of #211: a monitored film is acquired unattended by the sweep,
-// for one search, and its cadence resets exactly as an episode's does.
+// for one search, and its cadence resets as an episode's does.
 func TestSweepGrabsAWantedMovie(t *testing.T) {
 	h := newSweep(t, []indexer.Release{movieRelease("ExampleSubs", "Sample Film", 2019)}, fakeConfig{})
 	id := seedMovie(t, h.st, "Sample Film", 2019)
@@ -261,7 +261,7 @@ func TestSweepWithholdsAFilmsOwnBatchTokenedRelease(t *testing.T) {
 }
 
 // The blocklist is format-neutral: a recorded film release degrades the sweep
-// to the next-best one, exactly as it does for an episode (#118).
+// to the next-best one, as it does for an episode (#118).
 func TestSweepMovieSkipsABlocklistedRelease(t *testing.T) {
 	top := movieRelease("TopSubs", "Sample Film", 2019)
 	top.Seeders = 500
@@ -282,7 +282,7 @@ func TestSweepMovieSkipsABlocklistedRelease(t *testing.T) {
 }
 
 // The feed is the other entry point onto the one decision layer: a film on the
-// page is grabbed with no search at all.
+// page is grabbed with no search.
 func TestFeedPollGrabsAWantedMovie(t *testing.T) {
 	h := newFeedPoll(t, []indexer.FeedEntry{
 		movieFeedEntry("ExampleSubs", "Sample Film", 2019, time.Now().Add(-5*time.Minute)),

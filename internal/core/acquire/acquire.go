@@ -12,7 +12,7 @@
 //
 // Cadence follows that division: with a feed configured the sweep drops the
 // airing-window reset and its next search is due on the backoff interval. Grab
-// scope deliberately does not. A sweep search that turns up a current release
+// scope does not. A sweep search that turns up a current release
 // still grabs it, because the feed's dedupe is one-shot — an entry seen before
 // its title or item existed never comes around again, and the sweep is the only
 // thing that can still find it.
@@ -23,10 +23,10 @@
 // loaded before the other had finished — the gap the claim alone leaves, since a
 // pass reads its items, makes network requests for seconds, and grabs after.
 //
-// A manual grab is outside both, deliberately: it acquires its claim
+// A manual grab is outside both: it acquires its claim
 // unconditionally and never re-checks, because a manual grab always succeeds
 // (PR #57). So a manual grab racing automation, or another manual grab,
-// still duplicates exactly as double-clicking Grab always has — and converges on
+// still duplicates as double-clicking Grab always has — and converges on
 // the download client's info-hash dedupe.
 package acquire
 
@@ -114,7 +114,7 @@ type Match struct {
 // passItem is where an entry point sets candidacy for itself: the stored item,
 // whose InLibrary comes from the library, beside the pass's own grabbable. This
 // is the one place the two may appear together — deriving either from the other
-// anywhere else is exactly the conflation this type exists to end (#97).
+// anywhere else is the conflation this type exists to end (#97).
 type passItem struct {
 	domain.WantedItem
 	grabbable bool
@@ -152,7 +152,7 @@ type Service struct {
 
 // New builds the service. A nil logger is tolerated so a caller that only needs
 // the service to exist (the OpenAPI spec dump builds its routes with empty deps)
-// cannot turn a missing logger into a panic inside a sweep; a nil recorder just
+// cannot turn a missing logger into a panic inside a sweep; a nil recorder
 // means nothing is recorded.
 func New(st *store.Store, clients ClientSource, titles TitleSource, cfg Config, log *slog.Logger, blocklist Recorder) *Service {
 	if log == nil {

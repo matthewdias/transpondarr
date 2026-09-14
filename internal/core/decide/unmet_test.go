@@ -53,7 +53,7 @@ func TestUnmetGoalsEmptyAtTheTop(t *testing.T) {
 }
 
 // An axis the release scores nothing on leaves the whole axis available, and a
-// preference axis the profile never stated is not a goal at all.
+// preference axis the profile never stated is not a goal.
 func TestUnmetGoalsUnrankedAndPreferenceAxes(t *testing.T) {
 	profile := unmetProfile()
 	profile.PreferredSource = "bd"

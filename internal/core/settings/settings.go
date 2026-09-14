@@ -576,7 +576,7 @@ func (s *Service) UpdateLibrary(ctx context.Context, in LibraryConfig) error {
 // (#116). A notify-only pass settles nothing, so the backoff escalates to its
 // daily cap, and the feed's one-shot dedupe will not re-offer whatever it
 // rehearsed — without the reset, "flip to on and it grabs" would wait out a
-// backoff the rehearsal itself accrued.
+// backoff the rehearsal accrued.
 func (s *Service) UpdateAutomation(ctx context.Context, in AutomationConfig) error {
 	switch in.Mode {
 	case AutomationOff, AutomationNotifyOnly, AutomationOn:
@@ -623,7 +623,7 @@ func (s *Service) UpdateNotify(ctx context.Context, in NotifyConfig) error {
 	// Defaulted before the comparison, so a blank server and the literal ntfy.sh
 	// are one destination rather than a move.
 	in.applyDefaults()
-	// A blank topic builds no route, so turning ntfy off is no destination at all
+	// A blank topic builds no route, so turning ntfy off is no destination
 	// rather than a move to the default server.
 	dest := in.NtfyServer
 	if strings.TrimSpace(in.NtfyTopic) == "" {

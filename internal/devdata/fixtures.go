@@ -63,7 +63,7 @@ type item struct {
 	// unmonitored rather than monitored, so the zero value is the common case.
 	unmonitored bool
 	// airsIn is the offset from the seed clock; dated records whether there is a
-	// date at all, since a null air date is normal operation rather than an error.
+	// date, since a null air date is normal operation rather than an error.
 	airsIn time.Duration
 	dated  bool
 	held   string
@@ -300,8 +300,8 @@ func nothingYet() title {
 	return t
 }
 
-// undatedRun is the pre-2015 case: AniList was queried and published no schedule
-// at all, which the calendar footer must be able to show.
+// undatedRun is the pre-2015 case: AniList was queried and published no schedule,
+// which the calendar footer must be able to show.
 func undatedRun() title {
 	t := title{
 		providerID: 990104, name: "Placeholder Drift",
@@ -500,7 +500,7 @@ func deferredImport() title {
 	return t
 }
 
-// addable is served by the stubs and deliberately not seeded, so there is a
+// addable is served by the stubs and not seeded, so there is a
 // title left to add offline; nothing else distinguishes the two sets. The ids
 // are above AniList's own range, so a forgotten TRANSPONDARR_ANILIST_ENDPOINT
 // makes the lookup fail instead of returning someone else's real title.

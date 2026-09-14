@@ -33,7 +33,7 @@ func placeEpisode(t *testing.T, target library.Target, name string, number int) 
 }
 
 // The upgrade guarantee: an install that predates the setting has no row for it
-// and no env var, and must keep placing exactly where its files already are.
+// and no env var, and must keep placing where its files already are.
 func TestExistingInstallKeepsSeasonFoldersWithNoLayoutStored(t *testing.T) {
 	svc, reg, st := newTestService(t)
 	ctx := context.Background()

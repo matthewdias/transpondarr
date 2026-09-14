@@ -51,7 +51,7 @@ func (r *Registry) Library() library.Target {
 }
 
 // Notify returns the current notification dispatcher, or nil when no adapter is
-// configured. Concrete rather than an interface, so nil is just nil (see
+// configured. Concrete rather than an interface, so nil is nil (see
 // buildLibrary for the typed-nil gotcha this avoids).
 func (r *Registry) Notify() *notify.Dispatcher {
 	r.mu.RLock()

@@ -86,7 +86,7 @@ func TestConcurrentCallersShareOneBackoffWindow(t *testing.T) {
 	// Barrier: block both first attempts until each caller has arrived, so the two
 	// 429s always land in one window. Without it a late-scheduled caller lets the
 	// other absorb both 429s serially, retrying into the second one — which times
-	// at ~2s and never exercises sharing at all.
+	// at ~2s and never exercises sharing.
 	bothArrived := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		mu.Lock()

@@ -72,7 +72,7 @@ func searchState(t *testing.T, st *store.Store, titleID int64) (epoch, backoff i
 	return epoch, backoff, nextSearch, airingSynced
 }
 
-// settledDeadEnd is the DB state a dead-end title is actually found in: its
+// settledDeadEnd is the DB state a dead-end title is found in: its
 // schedule already requested, and a backoff accrued by passes that found nothing.
 func settledDeadEnd(t *testing.T, st *store.Store, titleID int64) {
 	t.Helper()
@@ -134,7 +134,7 @@ func TestSetItemCountRefusesAnUnknownTitle(t *testing.T) {
 
 func TestSetItemCountHonoursTheMonitorCut(t *testing.T) {
 	st := coretest.NewStore(t)
-	// The cut is the literal 3 in both places on purpose: reading it back out of
+	// The cut is the literal 3 in both places: reading it back out of
 	// the row under assertion would move with any mutation and never fail.
 	id := seedItemlessTitle(t, st, 3)
 

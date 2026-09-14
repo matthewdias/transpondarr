@@ -308,7 +308,7 @@ func TestUpgradeLifecycleReplacesTheHeldFile(t *testing.T) {
 		t.Fatalf("download Add called %d times, want the upgrade", len(dl.Adds))
 	}
 
-	// The upgrade completes: a smaller file, which is exactly what the size check
+	// The upgrade completes: a smaller file, which is what the size check
 	// would otherwise reject.
 	src := filepath.Join(t.TempDir(), "upgrade.mkv")
 	if err := os.WriteFile(src, make([]byte, 128), 0o644); err != nil {

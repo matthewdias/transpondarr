@@ -23,7 +23,7 @@ import (
 // --- fakes ------------------------------------------------------------------
 
 // fakeSource supplies fixed clients to the importer (stands in for the registry).
-// The download/library fakes themselves come from coretest.
+// The download/library fakes come from coretest.
 type fakeSource struct {
 	dl  download.Client
 	lib library.Target
@@ -340,7 +340,7 @@ func TestScanOnceReturnsStatusError(t *testing.T) {
 }
 
 // TestScanOnceReturnsListGrabsError: the store-side failure path must surface
-// in the return value too, not just the download-client one.
+// in the return value too, not only the download-client one.
 func TestScanOnceReturnsListGrabsError(t *testing.T) {
 	st := coretest.NewStore(t)
 	if err := st.DB.Close(); err != nil {
@@ -625,7 +625,7 @@ func TestImportsAFileForAnItemTheReleaseNeverClaimed(t *testing.T) {
 	}
 }
 
-// Monitoring is deliberately not one of those guards (#188, decision 1): it
+// Monitoring is not one of those guards (#188, decision 1): it
 // limits search and grab, not import. The bytes are already spent, an anime batch
 // is all-or-nothing, and in hardlink mode the extra file costs no disk -- so the
 // unmonitored episode is placed like any other. This is a recorded non-change,
@@ -852,7 +852,7 @@ func TestConvergesAfterAMidGroupPlaceFailure(t *testing.T) {
 	}
 }
 
-// A group whose rows are all settled is skipped entirely: deferred bytes never
+// A group whose rows are all settled is skipped: deferred bytes never
 // re-resolve on their own.
 func TestSkipsAGroupWithNothingStillGrabbed(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -916,7 +916,7 @@ func TestFailsDeferredGrabWhenAbsenceOutlivesGracePeriod(t *testing.T) {
 	setGrabStatus(t, st, "abc", "import_deferred")
 	backdateMissingSince(t, st, "abc", time.Hour)
 
-	dl := &coretest.FakeDownload{} // client reports nothing at all
+	dl := &coretest.FakeDownload{} // client reports nothing
 	target := &coretest.FakeLibrary{}
 	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -969,7 +969,7 @@ func TestFailsErroredGrab(t *testing.T) {
 }
 
 // TestWatchesGrabOnFirstAbsenceFromClient: one absent scan only records the
-// absence, since the client may just be reloading its torrent list.
+// absence, since the client may be reloading its torrent list.
 func TestWatchesGrabOnFirstAbsenceFromClient(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")
@@ -1001,7 +1001,7 @@ func TestKeepsGrabWhileAbsenceIsWithinGracePeriod(t *testing.T) {
 	seedGrab(t, st, "abc")
 	firstAbsence := backdateMissingSince(t, st, "abc", time.Minute)
 
-	dl := &coretest.FakeDownload{} // client reports nothing at all
+	dl := &coretest.FakeDownload{} // client reports nothing
 	target := &coretest.FakeLibrary{}
 	if err := New(st, fakeSource{dl: dl, lib: target}, discardLogger(), noRecorder{}, nil).ScanOnce(context.Background()); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -1072,7 +1072,7 @@ func TestReappearingHashClearsMissingSince(t *testing.T) {
 
 // TestLeavesGrabWhenSourceNotAccessible: an unreachable ContentPath (a path-mapping
 // gap when the client runs elsewhere) must stay grabbed for a later scan — and
-// the reason must be recorded on the grab row, not just logged (#37).
+// the reason must be recorded on the grab row, not only logged (#37).
 func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")

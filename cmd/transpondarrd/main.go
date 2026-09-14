@@ -58,22 +58,22 @@ const shutdownTimeout = 10 * time.Second
 const sessionCleanupInterval = 24 * time.Hour
 
 // airingSyncInterval ticks often so a newly added title gets its air dates
-// within minutes. What each pass actually fetches is throttled by the per-title
+// within minutes. What each pass fetches is throttled by the per-title
 // staleness cutoffs, so a tick with nothing due costs one query and no requests.
 const airingSyncInterval = 15 * time.Minute
 
 // metadataRefreshInterval ticks on the same rhythm as the airing sync and for
-// the same reason: per-title TTL cutoffs select what actually gets fetched, so
+// the same reason: per-title TTL cutoffs select what gets fetched, so
 // an idle tick costs one query and no requests.
 const metadataRefreshInterval = 15 * time.Minute
 
 // seasonRefreshInterval ticks on the same rhythm again: per-season TTL cutoffs
-// select what actually gets fetched, so an idle tick costs one query and no
+// select what gets fetched, so an idle tick costs one query and no
 // requests.
 const seasonRefreshInterval = 15 * time.Minute
 
 // wantedSearchInterval ticks on the same rhythm: the per-title backoff selects
-// what a pass actually searches, and it is persisted, so running at start costs
+// what a pass searches, and it is persisted, so running at start costs
 // an idle tick rather than an indexer stampede after a restart loop.
 const wantedSearchInterval = 15 * time.Minute
 
@@ -211,7 +211,7 @@ func run(logger *slog.Logger) error {
 	// configuring an integration takes effect without a restart. The feed poll is
 	// the hot path and the search sweep is the safety net: the feed finds anything
 	// published between passes for one request, and the sweep covers what scrolled
-	// off it, plus every indexer with no feed at all.
+	// off it, plus every indexer with no feed.
 	runner.Add(jobs.Job{
 		Name:       "wanted-search",
 		Interval:   wantedSearchInterval,
@@ -238,7 +238,7 @@ func run(logger *slog.Logger) error {
 		Run:        importSvc.ScanOnce,
 	})
 	// Sweeping the library's staging orphans is an optional target capability, so a
-	// target without one is a supported configuration and this tick simply passes.
+	// target without one is a supported configuration and this tick does nothing.
 	runner.Add(jobs.Job{
 		Name:       "library-tidy",
 		Interval:   libraryTidyInterval,
@@ -337,7 +337,7 @@ func ensureWritable(dir string) error {
 
 // healthcheck GETs /api/v1/health on the configured listen address and returns
 // a process exit code. It reads the same env as the server, so it probes
-// whatever port this container's server actually listens on.
+// whatever port this container's server listens on.
 func healthcheck() int {
 	cfg, err := config.Load()
 	if err != nil {

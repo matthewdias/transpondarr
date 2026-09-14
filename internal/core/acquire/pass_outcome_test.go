@@ -16,7 +16,7 @@ import (
 )
 
 // passOutcome reads what the last pass recorded about one item, reporting
-// whether anything was recorded at all -- an absent row is a real answer.
+// whether anything was recorded -- an absent row is a real answer.
 func passOutcome(t *testing.T, st *store.Store, titleID int64, number int) (db.PassOutcome, bool) {
 	t.Helper()
 	ctx := context.Background()
@@ -362,7 +362,7 @@ func TestTheRehearsalBlamesTheReleaseTheRowStores(t *testing.T) {
 		t.Errorf("the rehearsal blamed %q and the row stores %q; they must not disagree",
 			ev.ReleaseTitle, row.ReleaseTitle)
 	}
-	// Episode 2 is covered by nothing at all, so it is the searched pass' own
+	// Episode 2 is covered by nothing, so it is the searched pass' own
 	// "nothing matched" rather than a blame reused from another item.
 	wantOutcome(t, h.st, id, 2, acquire.OutcomeNoMatch)
 }

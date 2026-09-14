@@ -43,7 +43,7 @@ func upgradingProfile(t *testing.T, st *store.Store, name string, cutoff int64) 
 }
 
 // putOnProfile moves a seeded title onto a profile, which is what decides
-// whether its held items (already in the library) are candidates at all.
+// whether its held items (already in the library) are candidates.
 func putOnProfile(t *testing.T, st *store.Store, titleID, profileID int64) {
 	t.Helper()
 	rows, err := st.Q.SetTitleProfile(context.Background(), db.SetTitleProfileParams{
@@ -82,7 +82,7 @@ func cutoffService(t *testing.T, st *store.Store) *acquire.Service {
 
 // Membership is exact: a held release scoring below its profile's cutoff is in,
 // one at or above it is out, and a title on a non-upgrading profile never
-// appears at all. The cutoff and profile name live on the title group, being the
+// appears. The cutoff and profile name live on the title group, being the
 // profile's rather than any one item's.
 func TestCutoffUnmetMembership(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -127,7 +127,7 @@ func TestCutoffUnmetMembership(t *testing.T) {
 }
 
 // holdWithStatus is hold with the grab row left in a chosen grab status, which is what
-// decides whether the upgrade pool can act on the item at all.
+// decides whether the upgrade pool can act on the item.
 func holdWithStatus(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle, status string) {
 	t.Helper()
 	hold(t, st, titleID, number, releaseTitle)
@@ -427,8 +427,8 @@ func TestCutoffUnmetIgnoresAParseOfAnotherRelease(t *testing.T) {
 	}
 }
 
-// The scan stores a parse for every held item it examined, not just the ones it listed.
-// The healthy library the cost curve is about lists nothing at all, so a cache
+// The scan stores a parse for every held item it examined, not only the ones it listed.
+// The healthy library the cost curve is about lists nothing, so a cache
 // filled only from listed items would never make that case cheaper.
 func TestCutoffUnmetStoresTheParsesItScanned(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -551,7 +551,7 @@ func page1ItemID(t *testing.T, st *store.Store, titleID int64, number int) int64
 }
 
 // The write-back is chunked, so it must not lose a row at a chunk boundary: a
-// first traversal of a large library is exactly where the cache has to be
+// first traversal of a large library is where the cache has to be
 // written whole, and it is the only pass that runs the parser.
 func TestCutoffUnmetStoresEveryParseAcrossChunks(t *testing.T) {
 	const items = 600 // more than one parseFillBatch, so a chunk boundary falls inside

@@ -195,7 +195,7 @@ func (s *Service) syncTitle(ctx context.Context, airing metadata.AiringProvider,
 		}
 		filled += rows * monitored
 	}
-	// A filled item has no air date, so it is exactly what airedSince cannot match.
+	// A filled item has no air date, so it is what airedSince cannot match.
 	if filled > 0 {
 		if err := q.ResetTitleSearchState(ctx, title.ID); err != nil {
 			return fmt.Errorf("reset search cadence: %w", err)
