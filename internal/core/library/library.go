@@ -1,6 +1,6 @@
 // Package library defines the final stage of the import pipeline: the
-// LibraryTarget interface. The universal pipeline (parse -> map -> hardlink) passes
-// a placed file to a Target.
+// Target interface. The universal pipeline (parse -> map -> hardlink) passes a
+// placed file to a Target.
 package library
 
 import (
