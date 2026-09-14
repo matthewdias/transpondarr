@@ -197,7 +197,7 @@ func TestProfileCRUDAndTitleAssignment(t *testing.T) {
 		t.Errorf("title profile after delete = %d, want default 1", title.QualityProfileID)
 	}
 	if code := do(t, h, "GET", "/api/v1/profiles", nil, &list); code != http.StatusOK || len(list.Profiles) != 1 {
-		t.Fatalf("profiles after delete = %d (status %d), want just Default", len(list.Profiles), code)
+		t.Fatalf("profiles after delete = %d (status %d), want only Default", len(list.Profiles), code)
 	}
 }
 
