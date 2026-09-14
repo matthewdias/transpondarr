@@ -219,8 +219,9 @@ What stays here is what applies before you know which package you are in.
 ### Format is the discriminator everywhere; item count never is (#208)
 
 - **Movie treatment keys on `domain.FormatMovie` alone, never on `len(items) == 1`.**
-  That treatment covers title+year matching (#209), movie naming (#198), and a movie
-  detail with no episodes table (#212).
+  That treatment covers title+year matching (#209), movie naming and the
+  per-format library root (#198), and a movie detail with no episodes table
+  (#212).
 - **A single-episode OVA/ONA/special stays series-shaped.** Plex and Jellyfin expect
   the same shape (OVAs file under Shows).
 - **The format rule is enforced at the top of the funnel, in `highestItem`.**
