@@ -242,7 +242,7 @@ func TestNotifyOnlyFeedStaysSilentWhenNothingWouldBeTaken(t *testing.T) {
 	}
 }
 
-// A rehearsed entry is consumed like any other: the mark advances, so a quiet
+// A rehearsed feed entry is consumed like any other: the mark advances, so a quiet
 // feed stays one request and the 15-minute poll is not a repeating firehose.
 // What that costs — the entry never comes around again — is why switching on
 // resets the search cadence, which the sweep then re-finds by searching.
@@ -273,7 +273,7 @@ func TestNotifyOnlyFeedAdvancesItsMark(t *testing.T) {
 	}
 }
 
-// A hold covers only its own items. Episodes nothing matched at all must still
+// A hold covers only its own items. Episodes no release matched at all must still
 // be reported, or an unrelated pin delay suppresses exactly the gap being rehearsed.
 func TestNotifyOnlySweepReportsUncoveredItemsBesideAHold(t *testing.T) {
 	aired := time.Now().Add(-time.Hour)

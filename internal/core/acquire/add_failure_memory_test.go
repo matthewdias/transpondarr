@@ -91,12 +91,12 @@ func TestSweepRemembersAnUnsupportedTorrentUnderItsOwnReason(t *testing.T) {
 // The loop breaker for a torrent the client has with its data gone (#241):
 // converging on it would report a grab that can never complete, so the same
 // release would rank first and "grab" every pass forever. Rejecting the add makes
-// it an add failure, after which the walk tries the next-best release in the
+// it an add failure, after which the candidate walk tries the next-best release in the
 // same pass -- and records nothing, because the client's disk is not the
 // release's fault.
 func TestSweepTakesTheNextReleaseWhenADuplicatesDataIsMissing(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
-	// Distinct group names, or the two releases share a release name and "the next-best
+	// Distinct release group names, or the two releases share a release name and "the next-best
 	// was grabbed" passes for either candidate.
 	held := episodeRelease("Placeholder Saga", 3)
 	held.Title = "[TopSubs] Placeholder Saga - 03 [1080p]"
@@ -157,7 +157,7 @@ func TestSweepDoesNotRememberAClientSideRefusal(t *testing.T) {
 }
 
 // Failure memory is automation's policy, like eligibility (PR #57): a manual
-// grab must not write a blocklist entry the sweep then applies.
+// grab must not write a blocklist entry the search sweep then applies.
 func TestManualGrabRemembersNothing(t *testing.T) {
 	rel := episodeRelease("Placeholder Saga", 3)
 	h := newSweep(t, []indexer.Release{rel}, fakeConfig{})

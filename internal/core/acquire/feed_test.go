@@ -489,7 +489,7 @@ func TestFeedPollRunsWithAutomationDisabledWhenTriggeredByHand(t *testing.T) {
 	}
 }
 
-// An unconfigured integration is a supported state: the poll does nothing until
+// An unconfigured integration is a supported configuration: the poll does nothing until
 // Settings supplies both clients rather than erroring every tick.
 func TestFeedPollNoOpsWithoutADownloadClient(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -819,7 +819,7 @@ func TestFeedPollUndatedEntryDedupesButIsNotCoverage(t *testing.T) {
 	aired := now.Add(-time.Hour)
 	id := seedSweep(t, h.st, "Placeholder Saga", true, sweepItem{number: 3, airsAt: &aired})
 	seedGapCadence(t, h.st, id, 6, now.Add(20*time.Hour))
-	// Seeded only now, so a re-processed sticky would be visible as a grab.
+	// Seeded only now, so a re-processed sticky would be visible as a grab row.
 	sticky4 := seedSweep(t, h.st, "Undated Show", true, sweepItem{number: 4, airsAt: &aired})
 
 	if err := h.svc.PollFeedOnce(context.Background()); err != nil {

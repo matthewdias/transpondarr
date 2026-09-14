@@ -15,9 +15,9 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// All fixtures use invented title/group names; only the naming structure under
+// All fixtures use invented title/release group names; only the naming structure under
 // test is real. The profile ranks TopSubs above MidSubs at 1080p/720p, so a held
-// release scores predictably: group 2000/1900, resolution 400/300.
+// release scores predictably: release group 2000/1900, resolution 400/300.
 func upgradingProfile(t *testing.T, st *store.Store, name string, cutoff int64) int64 {
 	t.Helper()
 	ctx := context.Background()
@@ -43,7 +43,7 @@ func upgradingProfile(t *testing.T, st *store.Store, name string, cutoff int64) 
 }
 
 // putOnProfile moves a seeded title onto a profile, which is what decides
-// whether its held items are candidates at all.
+// whether its held items (already in the library) are candidates at all.
 func putOnProfile(t *testing.T, st *store.Store, titleID, profileID int64) {
 	t.Helper()
 	rows, err := st.Q.SetTitleProfile(context.Background(), db.SetTitleProfileParams{
@@ -82,7 +82,7 @@ func cutoffService(t *testing.T, st *store.Store) *acquire.Service {
 
 // Membership is exact: a held release scoring below its profile's cutoff is in,
 // one at or above it is out, and a title on a non-upgrading profile never
-// appears at all. The cutoff and profile name live on the group, being the
+// appears at all. The cutoff and profile name live on the title group, being the
 // profile's rather than any one item's.
 func TestCutoffUnmetMembership(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -126,7 +126,7 @@ func TestCutoffUnmetMembership(t *testing.T) {
 	}
 }
 
-// holdWithStatus is hold with the grab left in a chosen state, which is what
+// holdWithStatus is hold with the grab row left in a chosen grab status, which is what
 // decides whether the upgrade pool can act on the item at all.
 func holdWithStatus(t *testing.T, st *store.Store, titleID int64, number int, releaseTitle, status string) {
 	t.Helper()
@@ -139,8 +139,8 @@ func holdWithStatus(t *testing.T, st *store.Store, titleID int64, number int, re
 	}
 }
 
-// Membership is the sweep's upgrade pool plus what it is already acting on.
-// import_deferred is the one held state left out: its fix belongs to the
+// Membership is the search sweep's upgrade pool plus what it is already acting on.
+// import_deferred is the one held grab state left out: its fix belongs to the
 // Activity queue, and a grab from here would overwrite the deferred row and
 // orphan the payload that contains the episode.
 func TestCutoffUnmetMembershipMatchesTheUpgradePool(t *testing.T) {
@@ -176,14 +176,14 @@ func TestCutoffUnmetMembershipMatchesTheUpgradePool(t *testing.T) {
 	}
 }
 
-// A page of groups is filled by scanning past title whose held releases all
-// meet their cutoff, and a title never splits across pages.
+// A results page of title groups is filled by scanning past title whose held releases all
+// meet their cutoff, and a title never splits across results pages.
 func TestCutoffUnmetPagesGroupsPastMetTitles(t *testing.T) {
 	st := coretest.NewStore(t)
 	ctx := context.Background()
 	profileID := upgradingProfile(t, st, "Upgrading", 2300)
 	// Titles sort A..F; the even ones hold sub-cutoff releases, the odd ones are
-	// fully met and must be scanned over without becoming groups.
+	// fully met and must be scanned over without becoming title groups.
 	titles := []string{"Alpha Saga", "Bravo Saga", "Charlie Saga", "Delta Saga", "Echo Saga", "Foxtrot Saga"}
 	wantTitles := map[string]bool{"Bravo Saga": true, "Delta Saga": true, "Foxtrot Saga": true}
 	for i, title := range titles {
@@ -261,7 +261,7 @@ func TestCutoffUnmetUnmonitoredToggle(t *testing.T) {
 	}
 }
 
-// A page also closes on the item budget: groups of capped size stop accumulating
+// A results page also closes on the item budget: title groups of capped size stop accumulating
 // at about 200 items, and the cursor resumes at the excluded title rather
 // than after it, so nothing is skipped.
 func TestCutoffUnmetPageClosesOnTheItemBudget(t *testing.T) {
@@ -302,7 +302,7 @@ func TestCutoffUnmetPageClosesOnTheItemBudget(t *testing.T) {
 	}
 }
 
-// A group past the cap still reports its full size: Below is the truth, Items
+// A title group past the cap still reports its full size: Below is the truth, Items
 // is the front of the run.
 func TestCutoffUnmetCapsItemsPerGroupButNotTheCount(t *testing.T) {
 	st := coretest.NewStore(t)

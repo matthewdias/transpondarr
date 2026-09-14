@@ -15,11 +15,11 @@ import (
 	"github.com/matthewdias/transpondarr/internal/store/db"
 )
 
-// All fixtures use invented film, title and group names; only the naming
+// All fixtures use invented film, title and release group names; only the naming
 // structure under test is real.
 
 // seedMovie inserts a monitored movie with its single wanted item. year 0 is
-// "no year on record", the state automation must never grab in (#208).
+// "no year on record", the metadata state automation must never grab in (#208).
 func seedMovie(t *testing.T, st *store.Store, title string, year int64) int64 {
 	t.Helper()
 	ctx := context.Background()
@@ -211,7 +211,7 @@ func TestSweepMovieIgnoresThePinDelayWithNoAirDate(t *testing.T) {
 	}
 }
 
-// The wrong grab both of movie mode's numeric checks allow through: a numberless
+// The wrong grab both of movie matching mode's numeric checks allow through: a numberless
 // season pack of the film's parent title names no episode and has no year,
 // so nothing excludes it and the importer then hardlinks the title's episode 1
 // into the Movies root under the film's name. Automation must not grab it; the
@@ -346,7 +346,7 @@ func TestFeedPollDoesNotGrabALongRunnersEpisodeForAFilm(t *testing.T) {
 		t.Fatalf("grabbed %v for the film, want nothing — that is a long-runner's episode", got)
 	}
 	// The long-runner excludes it too, on its own maxItem: the point is that no
-	// entry in the library grabbed it, so nothing on the page was grabbed.
+	// title in the library grabbed it, so nothing on the page was grabbed.
 	if got := grabbedItemNumbers(t, h.st, saga); len(got) != 0 {
 		t.Errorf("grabbed %v for the long-runner, want nothing past its range", got)
 	}

@@ -152,7 +152,7 @@ func (s *Service) recoverFeedGap(ctx context.Context, indexerName string, since 
 	return errors.Join(errs...)
 }
 
-// pollTitle matches one already-fetched page against every title with
+// pollTitle matches one already-fetched feed page against every title with
 // something wanted. This is the inverse of the sweep's lookup, so it is title ×
 // entry rather than one search per title — deliberately unoptimised, because a
 // page is ~100 entries and the due query already drops any title with nothing

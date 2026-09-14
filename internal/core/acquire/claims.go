@@ -3,7 +3,7 @@ package acquire
 import "sync"
 
 // claims is the set of wanted items with a grab in flight. It is process-local
-// by design and that is sufficient: Transpondarr is one binary, so the sweep,
+// by design and that is sufficient: Transpondarr is one binary, so the search sweep,
 // the feed poll and every manual grab all run here.
 //
 // Claims are counted rather than flagged because the automation path nests —

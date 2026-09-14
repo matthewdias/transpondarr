@@ -18,7 +18,7 @@ import (
 )
 
 // sweepItem describes one wanted item to seed: its number, whether it is in the library,
-// its air time (nil = the provider published none), and any grab against it.
+// its air time (nil = the provider published none), and any grab row against it.
 // The monitoring field is negative (#188) so the Go zero value stays "monitored",
 // which is what every existing seed here already means.
 type sweepItem struct {
@@ -252,7 +252,7 @@ func TestSweepRunsWithAutomationDisabledWhenTriggeredByHand(t *testing.T) {
 	}
 }
 
-// An unconfigured integration is a supported state, not an error: the sweep
+// An unconfigured integration is a supported configuration, not an error: the sweep
 // no-ops until Settings supplies both clients.
 func TestSweepNoOpsWithoutIndexerOrDownloadClient(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)

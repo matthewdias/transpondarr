@@ -185,7 +185,7 @@ func TestFeedPollNeverRecordsNoMatch(t *testing.T) {
 	}
 }
 
-// What the feed does decide is real, and is stored under its own source so the
+// What the feed does decide is real, and is stored under its own entry point (`sourceFeed`) so the
 // reader can distinguish the two.
 func TestFeedPollRecordsItsOwnRefusalAsFeedSourced(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
@@ -237,7 +237,7 @@ func TestAGrabOverwritesAnEarlierRefusal(t *testing.T) {
 
 // The bug the eligible-first ranking allows: rehearseNoAction requires
 // !c.Eligible, so it skips a candidate lost to claim contention and blames
-// the profile for what was contention. Running the walk on every pass is what
+// the profile for what was contention. Running the candidate walk on every pass is what
 // exposes it, so contention has its own outcome.
 func TestContentionIsRecordedAsContendedNotDeclined(t *testing.T) {
 	past := time.Now().Add(-2 * time.Hour)
