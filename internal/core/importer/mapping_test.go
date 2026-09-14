@@ -56,7 +56,7 @@ func TestMapsLoneFileToLoneItem(t *testing.T) {
 	}
 }
 
-// The other half of #135's relaxation: a video the walk kept only because it was
+// The other half of #135's relaxation: a video the payload walk kept only because it was
 // the sole one still has to be placed in the library, not left over.
 func TestMapsSoleVideoCarryingAnExtrasToken(t *testing.T) {
 	name := "[ExampleSubs] Preview Of A Placeholder - 05 [1080p].mkv"
@@ -99,7 +99,7 @@ func TestMapsEachFileOfAPackToItsItem(t *testing.T) {
 	}
 }
 
-// An absolute-numbered file still lands when the entry's own numbering does not
+// An absolute-numbered file still lands when the AniList entry's own numbering does not
 // extend that far -- the degrade-to-absolute rule the parser exists for.
 func TestMapsByAbsoluteNumberWhenSeasonRelativeMisses(t *testing.T) {
 	res := mapFiles(files("[SynthSubs] Placeholder Saga S3 - 01 (51) [1080p].mkv"), coverage(50, 51), nil, domain.FormatTV)

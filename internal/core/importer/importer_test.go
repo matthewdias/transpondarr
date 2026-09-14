@@ -47,7 +47,7 @@ func (c *cancelOnPlace) Place(ctx context.Context, r library.ImportRequest) (str
 }
 
 // failOnItem fails one item's Place, standing in for a per-file fault (a
-// permission error on one destination) inside an otherwise healthy group.
+// permission error on one destination) inside an otherwise healthy info-hash group.
 type failOnItem struct {
 	coretest.FakeLibrary
 	fail int
@@ -776,7 +776,7 @@ func TestLeavesAnUnclaimedFileAloneWhenItsItemIsGrabbedUnderTheClaim(t *testing.
 }
 
 // One torrent can back grabs for two titles (a manual grab bypasses eligibility),
-// and a group is the unit of both mapping and attribution — so it is per title,
+// and an info-hash group is the unit of both mapping and attribution — so it is per title,
 // not per hash, or one title's rows use the other's numbering and title.
 func TestKeepsTwoTitlesSharingAnInfoHashApart(t *testing.T) {
 	st := coretest.NewStore(t)
@@ -1072,7 +1072,7 @@ func TestReappearingHashClearsMissingSince(t *testing.T) {
 
 // TestLeavesGrabWhenSourceNotAccessible: an unreachable ContentPath (a path-mapping
 // gap when the client runs elsewhere) must stay grabbed for a later scan — and
-// the reason must be recorded on the grab, not just logged (#37).
+// the reason must be recorded on the grab row, not just logged (#37).
 func TestLeavesGrabWhenSourceNotAccessible(t *testing.T) {
 	st := coretest.NewStore(t)
 	seedGrab(t, st, "abc")

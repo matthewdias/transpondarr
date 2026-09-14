@@ -28,7 +28,7 @@ func seedMovieGrab(t *testing.T, st *store.Store, title, hash string, year int64
 }
 
 // seedOneItemGrab creates a one-item title of any format with its item grabbed.
-// The kind is derived, never chosen, so a test cannot seed a shape the catalog
+// The item kind is derived, never chosen, so a test cannot seed a shape the catalog
 // could not produce.
 func seedOneItemGrab(t *testing.T, st *store.Store, title, hash string, format domain.Format, year int64) int64 {
 	t.Helper()
@@ -63,7 +63,7 @@ func movieLibrary(t *testing.T) (target *mediaserver.Target, series, movies stri
 }
 
 // completedPayload is a finished download whose content is the given path — a
-// directory for the walk, or a bare file for the plain-file branch.
+// directory for the payload walk, or a bare file for the plain-file branch.
 func completedPayload(hash, path string) *coretest.FakeDownload {
 	return &coretest.FakeDownload{Statuses: []download.Status{
 		{Hash: hash, State: download.StateComplete, ContentPath: path},
@@ -230,7 +230,7 @@ func TestMovieWithoutAMoviesRootHoldsAndThenSelfHeals(t *testing.T) {
 		t.Errorf("wrote %d history event(s); the grab has not settled, so it has no step to record", len(events))
 	}
 
-	// A second pass with the root still missing must cost nothing: no state
+	// A second pass with the root still missing must cost nothing: no grab row state
 	// churn, and no second stuck notification for one incident.
 	if err := New(st, unconfigured, discardLogger(), noRecorder{}, nil).ScanOnce(ctx); err != nil {
 		t.Fatalf("second scan: %v", err)
@@ -551,7 +551,7 @@ func TestMovieSizeTieDefersAndIsFixableByNamingTheFile(t *testing.T) {
 }
 
 // A failed movie grab settles the same way an episode's does: the item reverts
-// to wanted and the release is recorded, so the sweep does not re-derive it.
+// to wanted and the release is recorded, so the search sweep does not re-derive it.
 func TestMovieGrabFailureRevertsTheItemAndRemembersTheRelease(t *testing.T) {
 	st := coretest.NewStore(t)
 	titleID := seedMovieGrab(t, st, "Placeholder Film", "abc", 2019)

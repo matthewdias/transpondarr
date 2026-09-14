@@ -72,7 +72,7 @@ func (b *breaker) observe(ref releaseRef, itemIDs []int64, now time.Time) bool {
 	return false
 }
 
-// state reports the breaker as of now, so a caller polling it gets the drained
+// state reports the breaker state as of now, so a caller polling it gets the drained
 // window without a failure having to arrive first.
 func (b *breaker) state(now time.Time) BreakerState {
 	b.mu.Lock()

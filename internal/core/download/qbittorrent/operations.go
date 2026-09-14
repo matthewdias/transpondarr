@@ -179,7 +179,7 @@ func (c *Client) fetchTorrent(ctx context.Context, rawURL string) (content []byt
 	return data, "", nil
 }
 
-// Status returns the state of the requested hashes (all torrents if none given).
+// Status returns the download state of the requested hashes (all torrents if none given).
 func (c *Client) Status(ctx context.Context, hashes ...string) ([]download.Status, error) {
 	lower := make([]string, len(hashes))
 	for i, h := range hashes {
@@ -238,7 +238,7 @@ func (c *Client) Remove(ctx context.Context, hashes []string, deleteData bool) e
 	return nil
 }
 
-// mapState normalizes qBittorrent's state vocabulary to download.State.
+// mapState normalizes qBittorrent's client state vocabulary to download.State.
 // See https://github.com/qbittorrent/qBittorrent/wiki/WebUI-API-(qBittorrent-4.1)
 func mapState(s string) download.State {
 	switch s {
