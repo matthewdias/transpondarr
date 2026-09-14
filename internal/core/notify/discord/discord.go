@@ -61,7 +61,7 @@ func look(k notify.Kind) (string, int) {
 	case notify.KindImported:
 		return "Import succeeded", 0x2ECC71
 	case notify.KindImportStuck:
-		return "Import stuck", 0xE67E22
+		return "Import blocked", 0xE67E22
 	case notify.KindGrabFailed:
 		return "Grab failed", 0xE74C3C
 	case notify.KindTitleAdded:

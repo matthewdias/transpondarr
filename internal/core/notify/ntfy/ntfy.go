@@ -41,7 +41,7 @@ func look(k notify.Kind) (title, priority, tags string) {
 	case notify.KindImported:
 		return "Import succeeded", "default", "white_check_mark"
 	case notify.KindImportStuck:
-		return "Import stuck", "high", "warning"
+		return "Import blocked", "high", "warning"
 	case notify.KindGrabFailed:
 		return "Grab failed", "high", "x"
 	case notify.KindTitleAdded:

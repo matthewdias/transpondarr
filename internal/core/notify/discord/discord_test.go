@@ -62,7 +62,7 @@ func TestSendRendersEachKind(t *testing.T) {
 	}{
 		{notify.KindGrabbed, "Release grabbed", 0x3498DB},
 		{notify.KindImported, "Import succeeded", 0x2ECC71},
-		{notify.KindImportStuck, "Import stuck", 0xE67E22},
+		{notify.KindImportStuck, "Import blocked", 0xE67E22},
 		{notify.KindGrabFailed, "Grab failed", 0xE74C3C},
 		{notify.KindTitleAdded, "Title added", 0x3498DB},
 		{notify.KindTest, "Test notification", 0x5865F2},
