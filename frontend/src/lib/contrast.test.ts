@@ -93,11 +93,27 @@ const filledPairs: [Surface, Surface][] = [
   [{ token: "foreground", alpha: 0.9, over: "card" }, "card"],
 ];
 
-// Non-text boundaries at WCAG 1.4.11's 3:1: the focus ring, and the input border,
+// Non-text boundaries at WCAG 1.4.11's 3:1: the focus rings, and the input border,
 // whose token is also the unchecked Switch track's fill.
-const nonTextPairs: [Surface, Surface][] = ["ring", "input"].flatMap((t) =>
-  plainSurfaces.map((s): [Surface, Surface] => [t, s]),
-);
+const nonTextPairs: [Surface, Surface][] = [
+  "ring",
+  "destructive",
+  "input",
+].flatMap((t) => plainSurfaces.map((s): [Surface, Surface] => [t, s]));
+
+// A focus ring beside a fill of its own colour stays translucent, so it reads as a
+// halo apart from that fill; each theme's opacity is measured below.
+type Halo = { token: string; alpha: number; fill: number };
+const halos: Record<keyof typeof themes, Halo[]> = {
+  light: [
+    { token: "ring", alpha: 0.75, fill: 1 },
+    { token: "destructive", alpha: 0.6, fill: 1 },
+  ],
+  dark: [
+    { token: "ring", alpha: 0.5, fill: 1 },
+    { token: "destructive", alpha: 0.85, fill: 0.6 },
+  ],
+};
 
 const pairs: [Surface, Surface][] = [
   ...copyTokens.flatMap((t) =>
@@ -163,17 +179,67 @@ describe("contrast", () => {
     expect([...used].filter((u) => !listed.has(u))).toEqual([]);
   });
 
-  it("draws the focus ring and the unchecked Switch track at full strength", () => {
-    const translucent = sources(
+  it("holds focus halos at 3:1 on every surface, apart from their own fill", () => {
+    const failing = Object.entries(halos).flatMap(([theme, list]) =>
+      list.flatMap(({ token, alpha, fill }) =>
+        plainSurfaces.flatMap((over) => {
+          const tokens = themes[theme as keyof typeof themes];
+          const halo = resolve(tokens, { token, alpha, over });
+          const surface = contrast(halo, resolve(tokens, over));
+          const apart = contrast(
+            halo,
+            resolve(tokens, { token, alpha: fill, over }),
+          );
+          const at = `${theme}: ${token}/${Math.round(alpha * 100)} over ${over}`;
+          return [
+            ...(surface < 3 ? [`${at} (${surface.toFixed(2)})`] : []),
+            // 1.5 is about --border-strong on card: the faintest edge the palette draws.
+            ...(apart < 1.5 ? [`${at} vs fill (${apart.toFixed(2)})`] : []),
+          ];
+        }),
+      ),
+    );
+    expect(failing).toEqual([]);
+  });
+
+  it("measures every translucent focus ring colour the components use", () => {
+    const listed = new Set(
+      Object.entries(halos).flatMap(([theme, list]) =>
+        list.map((h) => `${theme}:${h.token}/${Math.round(h.alpha * 100)}`),
+      ),
+    );
+    const unlisted = sources(
       (f) =>
         (f.endsWith(".tsx") && !f.endsWith(".test.tsx")) || f.endsWith(".css"),
+    )
+      .flatMap((text) => [
+        ...text.matchAll(/([\w:[\]=&-]*)(?:ring|outline)-([a-z-]+)\/(\d+)/g),
+      ])
+      // No page sets aria-invalid yet, so its ring is unreachable; tracked separately.
+      .filter((m) => !m[1].includes("aria-invalid:"))
+      .map(
+        (m) => `${m[1].includes("dark:") ? "dark" : "light"}:${m[2]}/${m[3]}`,
+      )
+      .filter((ring) => !listed.has(ring));
+    expect(unlisted).toEqual([]);
+  });
+
+  it("draws no ui focus ring flush at full strength", () => {
+    const flush = sources(
+      (f) => f.startsWith("components/ui/") && !f.endsWith(".test.tsx"),
     ).flatMap((text) =>
       [
-        ...text.matchAll(
-          /\b(?:ring-ring|outline-ring|data-\[state=unchecked\]:bg-input)\/\d+/g,
-        ),
+        ...text.matchAll(/focus-visible:ring-(?:ring|destructive)(?![\w/-])/g),
       ].map((m) => m[0]),
     );
-    expect(translucent).toEqual([]);
+    expect(flush).toEqual([]);
+  });
+
+  it("fills the unchecked Switch track at full strength", () => {
+    expect(
+      sources((f) => f.endsWith(".tsx")).flatMap((text) => [
+        ...text.matchAll(/data-\[state=unchecked\]:bg-input\/\d+/g),
+      ]),
+    ).toEqual([]);
   });
 });

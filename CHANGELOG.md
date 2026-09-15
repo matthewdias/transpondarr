@@ -52,8 +52,8 @@ All notable changes to this project are documented here. The format is based on
   standard for text their size. The colours keep their look, a shade darker in
   light mode, and the faintest grey is a shade lighter in dark mode.
 - **Keyboard focus, text fields and switches that are off are easier to see.**
-  The outline around whatever has keyboard focus was half-transparent, and in
-  light mode it nearly vanished. Text field borders, checkboxes and a switch
+  The glow around whatever has keyboard focus nearly vanished in light mode, and
+  on a delete button in both themes. Text field borders, checkboxes and a switch
   that is off barely stood out from the card behind them, in both themes.
   All of them now meet WCAG's contrast minimum for controls, and card edges and
   table lines are unchanged.
