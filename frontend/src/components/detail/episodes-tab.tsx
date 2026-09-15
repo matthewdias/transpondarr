@@ -149,8 +149,9 @@ export function EpisodesTab({
       <div className="mb-4 flex flex-col gap-3 rounded-lg border bg-card px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex min-w-0 flex-1 items-center gap-3.5">
           <div
+            role="img"
             className="flex h-2.5 w-[120px] flex-none overflow-hidden rounded-md bg-foreground/10 ring-1 ring-inset ring-foreground/[0.07] sm:w-[200px]"
-            title={`${inLibrary} in library · ${downloading} downloading · ${stuck} import blocked · ${deferred} batch downloaded · ${wanted} wanted · ${unaired} not yet aired · ${unmonitored} not monitored`}
+            aria-label={`${inLibrary} in library · ${downloading} downloading · ${stuck} import blocked · ${deferred} batch downloaded · ${wanted} wanted · ${unaired} not yet aired · ${unmonitored} not monitored`}
           >
             {inLibrary > 0 && (
               <span
@@ -162,6 +163,19 @@ export function EpisodesTab({
               <span
                 className="h-full min-w-1.5 flex-none bg-dl"
                 style={{ width: `${pct(downloading)}%` }}
+              />
+            )}
+            {/* Hatched where downloading is solid, as their badges are outlined where its is filled. */}
+            {deferred > 0 && (
+              <span
+                className="h-full min-w-1.5 flex-none bg-[repeating-linear-gradient(135deg,var(--color-dl)_0_2px,transparent_2px_4px)]"
+                style={{ width: `${pct(deferred)}%` }}
+              />
+            )}
+            {stuck > 0 && (
+              <span
+                className="h-full min-w-1.5 flex-none bg-[repeating-linear-gradient(135deg,var(--color-destructive)_0_2px,transparent_2px_4px)]"
+                style={{ width: `${pct(stuck)}%` }}
               />
             )}
           </div>
@@ -229,7 +243,7 @@ export function EpisodesTab({
           onClick={onSearchAll}
           disabled={wanted + deferred === 0}
         >
-          <Search className="size-4" /> Search all wanted
+          <Search className="size-4" /> Search all
         </Button>
       </div>
 

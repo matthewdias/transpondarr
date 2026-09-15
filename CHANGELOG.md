@@ -60,6 +60,15 @@ All notable changes to this project are documented here. The format is based on
   hint, was a slightly different size on each page. Each
   kind of text now has one size everywhere, and badges and the paragraphs above
   lists are a touch larger.
+- **Why a download didn't import can now be read on a phone or with a keyboard.**
+  Tapping, clicking, hovering or pressing Enter on an *Import blocked*, *Batch
+  downloaded* or a film's *Downloaded, not imported* badge opens its
+  explanation, including the error that blocked the import. Before, the
+  explanation showed only on mouse hover.
+- **A title's progress bar now shows batch-downloaded and import-blocked
+  episodes** as striped segments, where before they looked the same as
+  wanted. The button beside it is now *Search all*, since the search it opens
+  was never limited to wanted episodes.
 - **The add dialog now says which episodes it will monitor**, in both choices and
   before you pick one — *All 12 episodes will be monitored*, or *6 of 12
   episodes will be monitored, from episode 7*. When a choice would monitor

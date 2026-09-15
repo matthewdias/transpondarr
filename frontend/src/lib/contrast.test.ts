@@ -85,6 +85,8 @@ const filledPairs: [Surface, Surface][] = [
   ["primary-foreground", "primary"],
   ["destructive-foreground", "destructive"],
   ["sidebar-foreground", "sidebar"],
+  // Popover content: the badge explanations and the release score breakdown.
+  ["popover-foreground", "popover"],
   ["sidebar-accent-foreground", "sidebar-accent"],
   // The inactive tab trigger and the Wanted item name.
   [{ token: "foreground", alpha: 0.6, over: "muted" }, "muted"],

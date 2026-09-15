@@ -495,9 +495,7 @@ describe("TitleDetailPage episode search", () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: /episodes/i }));
-    await user.click(
-      screen.getByRole("button", { name: /search all wanted/i }),
-    );
+    await user.click(screen.getByRole("button", { name: "Search all" }));
 
     expect(
       await screen.findByText("[GroupA] Placeholder Saga - 05 (1080p)"),

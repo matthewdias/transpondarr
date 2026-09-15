@@ -84,14 +84,13 @@ describe("EpisodesTab search buttons", () => {
     expect(onSearchItem).toHaveBeenCalledWith(6);
   });
 
+  // Batch-downloaded episodes enable the button too, so "Search all wanted" undersold it (#163).
   it("keeps the header button title-wide", async () => {
     const { onSearchAll, onSearchItem, user } = renderTab([
       item({ number: 7, status: "wanted" }),
     ]);
 
-    await user.click(
-      screen.getByRole("button", { name: /search all wanted/i }),
-    );
+    await user.click(screen.getByRole("button", { name: "Search all" }));
     expect(onSearchAll).toHaveBeenCalledTimes(1);
     expect(onSearchItem).not.toHaveBeenCalled();
   });
@@ -245,6 +244,39 @@ describe("EpisodesTab monitoring", () => {
     expect(screen.getByText("Nothing monitored")).toBeInTheDocument();
     expect(screen.queryByText("Nothing aired yet")).not.toBeInTheDocument();
     expect(screen.getByText(/2 not monitored/i)).toBeInTheDocument();
+  });
+
+  // Batch-downloaded and import-blocked episodes aren't wanted, but the bar drew
+  // them unfilled like wanted ones (#163).
+  it("draws a bar segment for every acquired status, in order", () => {
+    renderStrip([
+      item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+      item({ id: 2, number: 2, status: "downloading" }),
+      item({ id: 3, number: 3, status: "deferred" }),
+      item({ id: 4, number: 4, status: "deferred" }),
+      item({ id: 5, number: 5, status: "stuck" }),
+      item({ id: 6, number: 6, status: "stuck" }),
+      item({ id: 7, number: 7, status: "stuck" }),
+      item({ id: 8, number: 8 }),
+    ]);
+
+    const bar = screen.getByRole("img", { name: /in library/ });
+    const widths = [...bar.children].map((c) => (c as HTMLElement).style.width);
+    expect(widths).toEqual(["12.5%", "12.5%", "25%", "37.5%"]);
+  });
+
+  it("names the bar's breakdown accessibly rather than in a title", () => {
+    renderStrip([
+      item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+      item({ id: 2, number: 2, status: "deferred" }),
+      item({ id: 3, number: 3, status: "stuck" }),
+      item({ id: 4, number: 4 }),
+    ]);
+
+    const bar = screen.getByRole("img", {
+      name: /1 in library.*1 import blocked.*1 batch downloaded.*1 wanted/,
+    });
+    expect(bar).not.toHaveAttribute("title");
   });
 
   // The raw count is redundant once it is already the denominator.
