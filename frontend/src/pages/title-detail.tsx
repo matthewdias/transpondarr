@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pin, TriangleAlert } from "lucide-react";
+import { Pin, RefreshCw, TriangleAlert } from "lucide-react";
 import {
   api,
   ApiError,
@@ -22,6 +22,7 @@ import {
 } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { AniListLink } from "@/components/anilist-link";
+import { Toggletip } from "@/components/toggletip";
 import { Topbar } from "@/components/topbar";
 import { Poster } from "@/components/poster";
 import { Button } from "@/components/ui/button";
@@ -371,22 +372,29 @@ export function ProfilePicker({ detail }: { detail: TitleDetail }) {
     return <Skeleton className="h-[26px] w-24 rounded-md" />;
   if (!profiles.data?.length)
     return profiles.isError ? (
-      <button
-        type="button"
-        // The visible text is the label's prefix, so the retry stays announced.
-        aria-label="Profile unavailable — retry"
-        title={
-          profiles.error instanceof ApiError
-            ? profiles.error.message
-            : String(profiles.error)
-        }
-        onClick={() => void profiles.refetch()}
-        className={cn(chipClass, "hover:text-accent-foreground")}
-      >
-        {/* Icon only: the amber token is under 4.5:1 as text at this size. */}
-        <TriangleAlert className="size-3 flex-none text-dl" aria-hidden />
-        Profile unavailable
-      </button>
+      // One button can’t both open an explanation and refetch, so these are two.
+      <span className="inline-flex items-center gap-1">
+        <Toggletip
+          explanation={
+            profiles.error instanceof ApiError
+              ? profiles.error.message
+              : String(profiles.error)
+          }
+          className={cn(chipClass, "hover:text-accent-foreground")}
+        >
+          {/* Icon only: the amber token is under 4.5:1 as text at this size. */}
+          <TriangleAlert className="size-3 flex-none text-dl" aria-hidden />
+          Profile unavailable
+        </Toggletip>
+        <button
+          type="button"
+          aria-label="Retry loading profiles"
+          onClick={() => void profiles.refetch()}
+          className={cn(chipClass, "px-1.5 hover:text-accent-foreground")}
+        >
+          <RefreshCw className="size-3.5" aria-hidden />
+        </button>
+      </span>
     ) : (
       <Link
         to="/settings"

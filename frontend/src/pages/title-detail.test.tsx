@@ -285,16 +285,28 @@ describe("ProfilePicker", () => {
   // control, and nothing let you ask again.
   it("reports the failure and retries when the profiles cannot be read", async () => {
     server.use(
-      http.get(
-        "/api/v1/profiles",
-        () => new HttpResponse(null, { status: 500 }),
+      http.get("/api/v1/profiles", () =>
+        HttpResponse.json(
+          { status: 500, detail: "database is locked" },
+          { status: 500 },
+        ),
       ),
     );
     const user = userEvent.setup();
     renderPicker(detail({}));
 
-    const retry = await screen.findByRole("button", {
-      name: /profile unavailable/i,
+    // The cause opens by tap or keyboard; a title attribute opened on neither.
+    const why = await screen.findByRole("button", {
+      name: "Profile unavailable",
+    });
+    expect(why).not.toHaveAttribute("title");
+    await user.click(why);
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "database is locked",
+    );
+
+    const retry = screen.getByRole("button", {
+      name: "Retry loading profiles",
     });
     server.use(
       http.get("/api/v1/profiles", () =>

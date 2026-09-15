@@ -93,7 +93,7 @@ describe("CalendarPage", () => {
     expect(entry).toHaveAttribute("href", "/titles/7");
     expect(entry).toHaveAttribute(
       "title",
-      "Signal Anomaly — episode 4 (wanted)",
+      "Signal Anomaly — episode 4 (Wanted)",
     );
 
     // A title with no schedule data is surfaced, not silently omitted.
@@ -156,9 +156,54 @@ describe("CalendarPage", () => {
 
     expect(await screen.findByText(/· today/i)).toBeInTheDocument();
     expect(screen.getByText("Wanted")).toBeInTheDocument();
-    // The stuck badge shows the import error as its tooltip.
-    expect(screen.getByText("Import blocked")).toHaveAccessibleDescription();
-    expect(screen.getByTitle("library offline")).toBeInTheDocument();
+    // A badge inside a link can't be a button, so the error is shown as text.
+    const stuck = screen.getByRole("link", { name: /backlog kaiju/i });
+    expect(stuck).toHaveTextContent("Import blocked");
+    expect(stuck).toHaveTextContent("library offline");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Week" }));
+    const week = await screen.findByRole("link", { name: /backlog kaiju/i });
+    expect(week).toHaveTextContent("library offline");
+    expect(screen.queryByTitle("library offline")).toBeNull();
+  });
+
+  // Colour alone can't convey status (WCAG 1.4.1): each month entry names it in
+  // words for a screen reader and marks it with a glyph whose shape differs.
+  it("marks a month entry's status by shape and in words, not by colour alone", async () => {
+    server.use(
+      calendarHandler([
+        item({ id: 1, number: 1, status: "in_library" }),
+        item({ id: 2, number: 2, status: "downloading" }),
+        item({ id: 3, number: 3, status: "deferred" }),
+        item({ id: 4, number: 4, status: "stuck" }),
+        item({ id: 5, number: 5, status: "wanted" }),
+      ]),
+    );
+
+    renderPage();
+
+    const words = [
+      "In library",
+      "Downloading",
+      "Batch downloaded",
+      "Import blocked",
+      "Wanted",
+    ];
+    const shapes = new Set<string>();
+    for (const [i, word] of words.entries()) {
+      const entry = await screen.findByRole("link", {
+        name: new RegExp(`0${i + 1} signal anomaly\\W+${word}$`, "i"),
+      });
+      const marker = entry.querySelector("[data-status-marker]");
+      expect(marker, word).not.toBeNull();
+      expect(marker).toHaveAttribute("aria-hidden", "true");
+      shapes.add(
+        marker!.tagName === "svg"
+          ? [...marker!.classList].filter((c) => c.startsWith("lucide-")).join()
+          : "dot",
+      );
+    }
+    expect(shapes.size).toBe(words.length);
   });
 
   it("renders a film as a premiere, not as episode 1, in every view", async () => {
@@ -172,9 +217,9 @@ describe("CalendarPage", () => {
     expect(entry).toHaveAttribute("href", "/titles/12");
     expect(entry).toHaveAttribute(
       "title",
-      "Placeholder Legend — premiere (wanted)",
+      "Placeholder Legend — premiere (Wanted)",
     );
-    expect(entry).toHaveTextContent(/^Placeholder Legend$/);
+    expect(entry).toHaveTextContent(/^Placeholder Legend, Wanted$/);
 
     await userEvent.click(screen.getByRole("tab", { name: "Week" }));
     const week = await screen.findByRole("link", {
@@ -250,7 +295,7 @@ describe("CalendarPage", () => {
     });
     expect(entry).toHaveAttribute(
       "title",
-      "Quiet Interlude — episode 1 (wanted)",
+      "Quiet Interlude — episode 1 (Wanted)",
     );
   });
 
