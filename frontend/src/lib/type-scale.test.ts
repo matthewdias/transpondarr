@@ -7,7 +7,12 @@ const src = new URL("../", import.meta.url);
 // "file: class" -> why that size stays off the scale.
 const allowed: Record<string, string> = {};
 
-const arbitrarySize = /\btext-\[(?:length:)?\d*\.?\d+(?:px|rem|em)\]/g;
+// Any arbitrary text utility, bracket or parenthesis form, whatever its variants.
+const arbitraryText = /(?<![\w-])text-(\[[^\]\s"'`]*\]|\([^)\s"'`]*\))/g;
+
+// Tailwind reads only these as a colour; every other value may set a font size.
+const colour =
+  /^(#[0-9a-f]{3,8}|color:.+|var\(--[\w-]+\)|--[\w-]+|(rgba?|hsla?|oklch|oklab|color-mix)\(.*)$/i;
 
 function sources(): string[] {
   return readdirSync(src, { recursive: true, encoding: "utf8" }).filter(
@@ -20,10 +25,12 @@ function arbitrarySizes(): { site: string; key: string }[] {
     readFileSync(new URL(file, src), "utf8")
       .split("\n")
       .flatMap((line, i) =>
-        [...line.matchAll(arbitrarySize)].map((m) => ({
-          site: `${file}:${i + 1} ${m[0]}`,
-          key: `${file}: ${m[0]}`,
-        })),
+        [...line.matchAll(arbitraryText)]
+          .filter((m) => !colour.test(m[1].slice(1, -1)))
+          .map((m) => ({
+            site: `${file}:${i + 1} ${m[0]}`,
+            key: `${file}: ${m[0]}`,
+          })),
       ),
   );
 }
@@ -44,6 +51,6 @@ describe("type scale", () => {
   it("defines the 2xs step the annotations use", () => {
     const css = readFileSync(new URL("index.css", src), "utf8");
     expect(css).toMatch(/--text-2xs:\s*0\.6875rem;/);
-    expect(css).toMatch(/--text-2xs--line-height:/);
+    expect(css).toMatch(/--text-2xs--line-height:\s*calc\(1 \/ 0\.6875\);/);
   });
 });
