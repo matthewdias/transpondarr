@@ -226,10 +226,12 @@ function MissingTab({
           </p>
         </div>
       )}
-      <SearchActions
-        selectedTitles={[...selected]}
-        onDone={() => setSelected(new Set())}
-      />
+      {groups.length > 0 && (
+        <SearchActions
+          selectedTitles={[...selected]}
+          onDone={() => setSelected(new Set())}
+        />
+      )}
       {groups.length === 0 ? (
         <EmptyState
           icon={ListChecks}
@@ -261,11 +263,8 @@ function MissingTab({
   );
 }
 
-// GroupSection is the collapsible card both tabs' groups share. No
-// overflow-hidden on the section -- it would become the sticky containing
-// block and pin the header to the card instead of the viewport -- so the
-// rounding is applied to the header and last row themselves. The header's
-// background is the opaque panel token: rows scroll under it while stuck.
+// overflow-clip, not -hidden: a scroll container would pin the sticky header to the card.
+// The header's background is opaque because item rows scroll under it while it is stuck.
 function GroupSection({
   title,
   header,
@@ -279,11 +278,10 @@ function GroupSection({
 }) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <section className="rounded-lg border bg-card shadow-sm [&>*:last-child]:rounded-b-lg">
+    <section className="overflow-clip rounded-lg border bg-card shadow-sm">
       <header
         className={cn(
-          // 49px is the sticky Topbar's height; group headers stack under it.
-          "sticky top-[49px] z-[5] rounded-t-[7px] bg-panel-2 px-3.5 py-2.5",
+          "sticky top-topbar z-[5] bg-panel-2 px-3.5 py-2.5",
           !collapsed && "border-b",
           // A toggletip's popover paints in this header's layer, so lift it over the next sticky header.
           "has-[[data-state=open]]:z-[6]",
@@ -609,7 +607,7 @@ function CutoffTab({ unmonitored }: { unmonitored: boolean }) {
           blurb={
             hasNextPage
               ? "Nothing below cutoff in the titles checked so far. Keep looking to check the rest of the library."
-              : "Anything you have on a profile with upgrades enabled appears here while its release scores below that profile's cutoff."
+              : "Anything you have on a profile with upgrades enabled appears here while its release scores below that profile’s cutoff."
           }
         />
       ) : (

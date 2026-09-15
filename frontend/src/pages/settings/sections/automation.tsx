@@ -92,7 +92,7 @@ export function AutomationSection({ settings }: { settings: Settings }) {
             ))}
           </SelectContent>
         </Select>
-        <p className="text-2xs text-faint">{current.hint}</p>
+        <p className="max-w-prose text-2xs text-faint">{current.hint}</p>
       </div>
       <Field
         label="Pinned group delay (hours)"
@@ -101,7 +101,7 @@ export function AutomationSection({ settings }: { settings: Settings }) {
         max={24 * 365}
         value={pinDelay}
         onChange={(e) => setPinDelay(e.target.value)}
-        hint="How long a title with a pinned group waits for that group before taking another's release. 0 takes the best release immediately; a title can override this."
+        hint="How long a title with a pinned group waits for that group before taking another’s release. 0 takes the best release immediately; a title can override this."
       />
     </SectionShell>
   );

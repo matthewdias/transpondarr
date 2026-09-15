@@ -77,7 +77,7 @@ export function AuthSection({ settings }: { settings: Settings }) {
           <option value="enabled">Always</option>
           <option value="local">Except on local addresses</option>
         </select>
-        <span className="mt-1 block text-2xs text-faint">
+        <span className="mt-1 block max-w-prose text-2xs text-faint">
           “Except on local addresses” skips login for LAN/loopback clients (but
           never for reverse-proxied requests).
         </span>

@@ -201,7 +201,7 @@ function QueueRow({ item }: { item: QueueItem }) {
             {item.title}
           </Link>
         </div>
-        <div className="line-clamp-1 font-mono text-xs text-faint">
+        <div className="line-clamp-2 font-mono text-xs wrap-break-word text-faint">
           {item.release_title}
         </div>
         {item.import_error && (
@@ -210,7 +210,8 @@ function QueueRow({ item }: { item: QueueItem }) {
           </div>
         )}
       </ItemContent>
-      <ItemActions className="flex-col items-end gap-1">
+      <ItemActions className="flex-col items-end gap-1 self-start">
+        <span className="text-xs text-faint">{timeAgo(item.created_at)}</span>
         {item.status === "deferred" && (
           <>
             <Button variant="outline" size="sm" onClick={() => setFixing(true)}>
@@ -238,7 +239,6 @@ function QueueRow({ item }: { item: QueueItem }) {
             )}
           </span>
         )}
-        <span className="text-xs text-faint">{timeAgo(item.created_at)}</span>
       </ItemActions>
     </Item>
   );

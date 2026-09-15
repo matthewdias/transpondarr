@@ -121,7 +121,7 @@ function TitleTableSkeleton() {
           key={i}
           className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0"
         >
-          <Skeleton className="h-12 w-[34px] rounded-[5px]" />
+          <Skeleton className="h-12 w-[34px] rounded-sm" />
           <Skeleton className="h-4 w-48" />
           <Skeleton className="ml-auto h-5 w-16 rounded-full" />
           <Skeleton className="h-1.5 w-[140px]" />
