@@ -29,7 +29,7 @@ const toggleVariants = cva(
         default: "h-9 min-w-9 px-2",
         sm: "h-8 min-w-8 px-1.5",
         lg: "h-10 min-w-10 px-2.5",
-        chip: "h-7 gap-1.5 px-2.5 text-[11.5px] font-semibold [&_svg:not([class*='size-'])]:size-3",
+        chip: "h-7 gap-1.5 px-2.5 text-xs font-semibold [&_svg:not([class*='size-'])]:size-3",
         icon: "size-7 p-0",
       },
     },

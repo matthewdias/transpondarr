@@ -92,7 +92,7 @@ export function AutomationSection({ settings }: { settings: Settings }) {
             ))}
           </SelectContent>
         </Select>
-        <p className="text-[11px] text-faint">{current.hint}</p>
+        <p className="text-2xs text-faint">{current.hint}</p>
       </div>
       <Field
         label="Pinned group delay (hours)"

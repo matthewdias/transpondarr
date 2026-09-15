@@ -91,7 +91,7 @@ export function JobsTable({
               <span className="flex min-w-0 items-baseline gap-2 text-xs font-medium">
                 <span className="truncate">{label}</span>
                 {j.running && (
-                  <span className="flex-none rounded-full bg-have-weak px-1.5 py-0.5 text-[10px] font-medium text-have">
+                  <span className="flex-none rounded-full bg-have-weak px-1.5 py-0.5 text-2xs font-medium text-have">
                     Running
                   </span>
                 )}
@@ -128,9 +128,7 @@ export function JobsTable({
               </span>
             </div>
             {j.last_error && (
-              <p className="mt-1 text-[11px] text-destructive">
-                {j.last_error}
-              </p>
+              <p className="mt-1 text-2xs text-destructive">{j.last_error}</p>
             )}
           </li>
         );

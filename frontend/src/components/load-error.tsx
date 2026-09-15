@@ -14,7 +14,7 @@ export function LoadError({
   return (
     <div className="flex items-center gap-3 rounded-lg border border-dashed bg-card px-3.5 py-3">
       <TriangleAlert className="size-4 shrink-0 text-dl" />
-      <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
+      <p className="min-w-0 flex-1 text-sm text-muted-foreground">
         {"message" in props ? props.message : `Couldn’t load ${props.what}.`}{" "}
         {errorReason(error)}
       </p>

@@ -112,7 +112,7 @@ function QueueSection() {
       ) : (
         <>
           {!data.client_ok && (
-            <p className="mb-2 text-[13px] text-muted-foreground">
+            <p className="mb-2 text-sm text-muted-foreground">
               Can’t reach the download client, so download progress isn’t shown.
               Check its connection in Settings.
             </p>
@@ -201,11 +201,11 @@ function QueueRow({ item }: { item: QueueItem }) {
             {item.title}
           </Link>
         </div>
-        <div className="line-clamp-1 font-mono text-[12px] text-faint">
+        <div className="line-clamp-1 font-mono text-xs text-faint">
           {item.release_title}
         </div>
         {item.import_error && (
-          <div className="line-clamp-2 text-[12px] text-destructive">
+          <div className="line-clamp-2 text-xs text-destructive">
             {item.import_error}
           </div>
         )}
@@ -266,7 +266,7 @@ function UnmatchedSection() {
         <LoadError what="unmatched downloads" error={error} onRetry={refetch} />
       ) : (
         <>
-          <p className="mb-2 text-[13px] text-muted-foreground">
+          <p className="mb-2 text-sm text-muted-foreground">
             In Transpondarr’s category, but no episode is waiting on them —
             downloads a later grab replaced, and downloads kept when their title
             was deleted. Removing one is up to you.
@@ -303,8 +303,8 @@ function UnmatchedRow({
         </span>
       </ItemMedia>
       <ItemContent className="min-w-0 gap-0.5">
-        <div className="line-clamp-1 font-mono text-[13px]">{item.name}</div>
-        <div className="text-[12px] text-faint">
+        <div className="line-clamp-1 font-mono text-sm">{item.name}</div>
+        <div className="text-xs text-faint">
           <span className="font-mono">{item.infohash}</span>
           {item.size > 0 && <> · {formatBytes(item.size)}</>}
           {item.added_at && <> · added {timeAgo(item.added_at)}</>}

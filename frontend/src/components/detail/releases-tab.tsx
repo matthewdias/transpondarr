@@ -79,7 +79,7 @@ export function ScoreBreakdown({ r }: { r: CandidateRelease }) {
           <p className="max-w-56 text-xs font-medium text-dl">
             {r.ineligible_reason}
           </p>
-          <p className="mb-2 max-w-56 text-[11px] text-faint">
+          <p className="mb-2 max-w-56 text-2xs text-faint">
             Based on attributes read from the release name — an unlabeled
             release is not detected.
           </p>
@@ -156,7 +156,7 @@ export function GroupCell({ r }: { r: CandidateRelease }) {
 function MatchCell({ r }: { r: CandidateRelease }) {
   if (r.matched) {
     return (
-      <span className="inline-flex items-center rounded-full border border-transparent bg-have-weak px-2.5 py-0.5 text-[11.5px] font-semibold text-have">
+      <span className="inline-flex items-center rounded-full border border-transparent bg-have-weak px-2.5 py-0.5 text-xs font-semibold text-have">
         {matchLabel(r.items)}
       </span>
     );
@@ -237,7 +237,7 @@ export function ReleasesTab({
   return (
     <div>
       <div className="mb-3 flex items-center gap-3">
-        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-faint">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-faint">
           Search results
         </h2>
         {focus != null && (
@@ -346,7 +346,7 @@ export function ReleasesTab({
                       onClick={isMobile ? () => setSelected(r) : undefined}
                     >
                       <TableCell className="max-w-[280px]">
-                        <span className="line-clamp-2 font-mono text-[12.5px] tracking-tight">
+                        <span className="line-clamp-2 font-mono text-xs tracking-tight">
                           {r.title}
                         </span>
                       </TableCell>
@@ -407,7 +407,7 @@ export function ReleasesTab({
                   Release
                 </DrawerTitle>
               </DrawerHeader>
-              <p className="mb-4 break-all font-mono text-[13.5px]">
+              <p className="mb-4 break-all font-mono text-sm">
                 {selected.title}
               </p>
               <dl className="mb-5 grid grid-cols-2 gap-x-4 gap-y-3.5">
@@ -416,7 +416,7 @@ export function ReleasesTab({
                 <Fact k="Size" v={formatBytes(selected.size)} />
                 <Fact k="Seeders" v={String(selected.seeders)} />
                 <div className="col-span-2">
-                  <dt className="text-[11px] uppercase tracking-wide text-faint">
+                  <dt className="text-2xs uppercase tracking-wide text-faint">
                     Match
                   </dt>
                   <dd className="mt-1.5">
@@ -424,7 +424,7 @@ export function ReleasesTab({
                   </dd>
                 </div>
                 <div className="col-span-2">
-                  <dt className="mb-1.5 text-[11px] uppercase tracking-wide text-faint">
+                  <dt className="mb-1.5 text-2xs uppercase tracking-wide text-faint">
                     Score
                   </dt>
                   <dd className="rounded-md border bg-muted/40 p-3">
@@ -466,7 +466,7 @@ export function ReleasesTab({
 function Fact({ k, v }: { k: string; v: ReactNode }) {
   return (
     <div>
-      <dt className="text-[11px] uppercase tracking-wide text-faint">{k}</dt>
+      <dt className="text-2xs uppercase tracking-wide text-faint">{k}</dt>
       <dd className="mt-0.5 font-semibold tabular-nums">{v}</dd>
     </div>
   );

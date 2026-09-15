@@ -36,7 +36,7 @@ export function MovieStatusCard({
               />
             )}
             {item.airs_at && (
-              <span className="text-[13px] text-muted-foreground">
+              <span className="text-sm text-muted-foreground">
                 {premiereLabel(item.airs_at)}
               </span>
             )}

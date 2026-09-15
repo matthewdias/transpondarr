@@ -55,6 +55,11 @@ All notable changes to this project are documented here. The format is based on
   list shows one kind of card, whether it fills a page or a tab, and a load that
   fails shows a one-line banner with **Try again**. Before, the Calendar, Discovery and a
   title's Releases and History tabs each had their own larger error card.
+- **Text sizes are consistent across pages.** The interface used eight sizes
+  between its standard ones, so the same kind of text, such as a badge, a hint
+  or a paragraph above a list, was a slightly different size on each page. Each
+  kind of text now has one size everywhere, and badges and the paragraphs above
+  lists are a touch larger.
 - **The add dialog now says which episodes it will monitor**, in both choices and
   before you pick one — *All 12 episodes will be monitored*, or *6 of 12
   episodes will be monitored, from episode 7*. When a choice would monitor

@@ -169,7 +169,7 @@ function AddTitleBody({
                 <div className="truncate text-sm font-medium">
                   {candidateTitle(c)}
                 </div>
-                <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[12.5px] text-faint">
+                <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-xs text-faint">
                   {english && <span className="truncate">{english}</span>}
                   {meta.map((m) => (
                     <span key={m}>{m}</span>

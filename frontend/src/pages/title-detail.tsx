@@ -599,7 +599,7 @@ export function MonitoringToggle({
         : null;
   return (
     <div className="flex flex-none flex-col items-end gap-1">
-      <label className="flex cursor-pointer items-center gap-2.5 text-[13.5px] font-medium">
+      <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium">
         <span
           className={monitored ? "text-foreground" : "text-muted-foreground"}
         >
@@ -617,7 +617,7 @@ export function MonitoringToggle({
         // amber is under 4.5:1 as text at this size.
         <Link
           to="/settings"
-          className="group flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground hover:text-foreground"
+          className="group flex items-center gap-1.5 whitespace-nowrap text-2xs text-muted-foreground hover:text-foreground"
           title={note.title}
         >
           <TriangleAlert className="size-3 flex-none text-dl" />
@@ -694,7 +694,7 @@ function DetailHeader({
           {detail.provider === "anilist" && detail.provider_id ? (
             <AniListLink
               id={detail.provider_id}
-              className="inline-flex items-center rounded-md border border-border bg-panel-2 px-2.5 py-1 font-mono text-[11.5px] font-medium text-muted-foreground hover:text-accent-foreground"
+              className="inline-flex items-center rounded-md border border-border bg-panel-2 px-2.5 py-1 font-mono text-2xs font-medium text-muted-foreground hover:text-accent-foreground"
             >
               AniList {detail.provider_id}
             </AniListLink>
@@ -727,7 +727,7 @@ function DetailTab({
       {count != null && (
         <span
           className={cn(
-            "rounded-full border px-1.5 text-[11px] tabular-nums",
+            "rounded-full border px-1.5 text-2xs tabular-nums",
             active
               ? "border-transparent bg-accent text-accent-foreground"
               : "border-border bg-background text-faint",

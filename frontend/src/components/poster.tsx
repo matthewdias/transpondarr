@@ -19,7 +19,7 @@ export function Poster({
   const dims =
     size === "lg"
       ? "w-[82px] h-[116px] text-3xl rounded-lg"
-      : "w-[34px] h-12 text-[15px] rounded-[5px]";
+      : "w-[34px] h-12 text-base rounded-[5px]";
   if (coverUrl) {
     return (
       <img

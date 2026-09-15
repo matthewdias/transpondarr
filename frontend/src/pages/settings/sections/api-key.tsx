@@ -97,7 +97,7 @@ export function ApiKeySection({ settings }: { settings: Settings }) {
           </Button>
         </div>
       </label>
-      <p className="text-[11px] text-faint">
+      <p className="text-2xs text-faint">
         Send it as an <code className="font-mono">X-Api-Key</code> header.
         Regenerating invalidates the old key immediately.
       </p>
