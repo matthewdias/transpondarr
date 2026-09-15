@@ -25,6 +25,37 @@ const title = (over: Partial<Title>): Title => ({
   ...over,
 });
 
+it("invites adding a title to an empty library", async () => {
+  server.use(
+    http.get("/api/v1/titles", () => HttpResponse.json({ titles: [] })),
+  );
+
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <SidebarProvider>
+          <TitleListPage />
+        </SidebarProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  expect(
+    await screen.findByRole("heading", { level: 2, name: "No titles yet" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Add a series or a film from AniList to start tracking and grabbing it.",
+    ),
+  ).toBeInTheDocument();
+  // One in the top bar, one in the empty state.
+  expect(screen.getAllByRole("button", { name: /add title/i })).toHaveLength(2);
+});
+
 // The item state comes from the list endpoint, not from a per-title fetch:
 // one query answers the whole page (#229).
 it("renders a film's item state beside a series' count", async () => {

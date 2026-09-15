@@ -496,12 +496,21 @@ it("offers to keep looking when an empty cutoff results page still has a cursor"
 });
 
 // The last results page with nothing on it is the real empty state.
-it("shows the nothing-below-cutoff state when the scan is exhausted", async () => {
+it("shows each tab's empty state when nothing is missing and the scan is exhausted", async () => {
   useHandlers({
     pages: { "": { groups: [] } },
     cutoffPages: { "": { groups: [] } },
   });
   renderPage();
+
+  expect(
+    await screen.findByRole("heading", { name: "Nothing missing" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "Everything monitored that has aired is either in the library or in flight. Turn on Unaired to see what is still to come.",
+    ),
+  ).toBeInTheDocument();
 
   await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
   expect(await screen.findByText("Nothing below cutoff")).toBeInTheDocument();

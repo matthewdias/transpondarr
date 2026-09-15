@@ -355,7 +355,12 @@ describe("ReleasesTab episode focus", () => {
     const { onClearFocus, user } = renderReleases(20);
 
     expect(
-      await screen.findByText(/no releases cover e20/i),
+      await screen.findByRole("heading", { name: "No releases cover E20" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "This search found releases for the series, but none of them include this episode.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/no releases found for this series/i),
@@ -437,6 +442,39 @@ describe("ReleasesTab empty state", () => {
     renderNoResults("MOVIE");
     expect(
       await screen.findByText("No releases found for this film."),
+    ).toBeInTheDocument();
+  });
+
+  it("reports a search that failed, in its own words", async () => {
+    server.use(
+      http.get("/api/v1/titles/7/search", () =>
+        HttpResponse.json(
+          { status: 502, detail: "indexer timed out" },
+          { status: 502 },
+        ),
+      ),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <ReleasesTab
+          titleId={7}
+          format="TV"
+          active
+          focusItem={null}
+          onClearFocus={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByText(
+        "Couldn’t search for releases. indexer timed out",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /try again/i }),
     ).toBeInTheDocument();
   });
 });

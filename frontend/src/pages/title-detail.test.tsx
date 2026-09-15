@@ -690,3 +690,46 @@ describe("TitleDetailPage movie surface", () => {
     expect(screen.getByText("1 episode")).toBeInTheDocument();
   });
 });
+
+describe("TitleDetailPage missing title", () => {
+  it("says the title is gone and links back to the library", async () => {
+    server.use(
+      http.get("/api/v1/titles/7", () =>
+        HttpResponse.json(
+          { status: 404, detail: "title not found" },
+          { status: 404 },
+        ),
+      ),
+      http.get("/api/v1/settings", () =>
+        HttpResponse.json({ automation: { mode: "on" } }),
+      ),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/titles/7"]}>
+          <SidebarProvider>
+            <Routes>
+              <Route path="/titles/:id" element={<TitleDetailPage />} />
+            </Routes>
+          </SidebarProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Title not found" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/This title is no longer in your library\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Back to titles" }),
+    ).toHaveAttribute("href", "/");
+    expect(
+      screen.queryByText(/Couldn’t load the title/),
+    ).not.toBeInTheDocument();
+  });
+});
