@@ -21,6 +21,7 @@ const unitTests = [
   "src/lib/contrast.test.ts",
   "src/lib/format.test.ts",
   "src/lib/queries.test.ts",
+  "src/lib/radius-scale.test.ts",
   "src/lib/release-focus.test.ts",
   "src/lib/season.test.ts",
   "src/lib/type-scale.test.ts",

@@ -143,15 +143,15 @@ export function CalendarPage() {
               >
                 <ChevronRight className="size-4" />
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setAnchor(new Date())}
+              >
+                Today
+              </Button>
             </div>
-            <h2 className="min-w-40 text-sm font-medium">{label}</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAnchor(new Date())}
-            >
-              Today
-            </Button>
+            <h2 className="text-sm font-medium">{label}</h2>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

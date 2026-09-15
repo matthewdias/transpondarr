@@ -75,11 +75,11 @@ function EventSwitches({
   onChange: (next: EventToggles) => void;
 }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2">
+    <div className="grid sm:grid-cols-2 sm:gap-x-6">
       {EVENT_ROWS.map((row) => (
         <label
           key={row.key}
-          className="flex cursor-pointer items-center justify-between gap-3 rounded-md border px-3 py-2"
+          className="flex cursor-pointer items-center justify-between gap-3 border-t py-2"
         >
           <span className="min-w-0">
             <span className="block text-xs font-medium">{row.label}</span>

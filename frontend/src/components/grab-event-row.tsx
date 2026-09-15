@@ -73,7 +73,7 @@ export function GrabEventRow({
             </>
           )}
         </div>
-        <div className="line-clamp-1 font-mono text-xs text-faint">
+        <div className="line-clamp-2 font-mono text-xs wrap-break-word text-faint">
           {event.release_title}
         </div>
         {event.status === "failed" && event.detail && (
@@ -87,7 +87,7 @@ export function GrabEventRow({
           </div>
         )}
       </ItemContent>
-      <ItemActions>
+      <ItemActions className="self-start">
         <span className="text-xs text-faint">{timeAgo(event.created_at)}</span>
       </ItemActions>
     </Item>

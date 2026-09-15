@@ -273,7 +273,7 @@ export function TitleDetailPage() {
             >
               <TabsList
                 variant="line"
-                className="mb-[18px] h-auto w-full justify-start gap-0.5 rounded-none border-b bg-transparent p-0"
+                className="mb-4 h-auto w-full justify-start gap-0.5 rounded-none border-b bg-transparent p-0"
               >
                 {isMovie ? (
                   <DetailTab
@@ -369,7 +369,7 @@ export function ProfilePicker({ detail }: { detail: TitleDetail }) {
 
   // Data present wins, so a failed background refetch never nukes a working picker.
   if (profiles.isPending || profiles.isPaused)
-    return <Skeleton className="h-[26px] w-24 rounded-md" />;
+    return <Skeleton className="h-6.5 w-24 rounded-md" />;
   if (!profiles.data?.length)
     return profiles.isError ? (
       // One button can't both open an explanation and refetch, so these are two.
@@ -414,7 +414,7 @@ export function ProfilePicker({ detail }: { detail: TitleDetail }) {
         aria-label="Quality profile"
         // The chip look: data-[size=sm]:h and the dark: variants must be
         // re-overridden here or the base trigger's win on specificity.
-        className="h-[26px] gap-1.5 rounded-md border-border bg-panel-2 px-2.5 text-xs font-medium text-muted-foreground shadow-none data-[size=sm]:h-[26px] dark:bg-panel-2 dark:hover:bg-panel-2"
+        className="h-auto gap-1.5 rounded-md border-border bg-panel-2 px-2.5 py-1 text-xs font-medium text-muted-foreground shadow-none data-[size=sm]:h-auto dark:bg-panel-2 dark:hover:bg-panel-2"
       >
         <SelectValue />
       </SelectTrigger>
@@ -751,7 +751,7 @@ function DetailTab({
 function HeaderSkeleton() {
   return (
     <div className="mb-5 flex items-start gap-5">
-      <Skeleton className="hidden h-[116px] w-[82px] rounded-lg sm:block" />
+      <Skeleton className="hidden h-28 w-20 rounded-lg sm:block" />
       <div className="flex-1 space-y-3">
         <Skeleton className="h-7 w-64" />
         <Skeleton className="h-4 w-80" />

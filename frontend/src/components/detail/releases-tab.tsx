@@ -237,7 +237,7 @@ export function ReleasesTab({
   return (
     <div>
       <div className="mb-3 flex items-center gap-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-faint">
+        <h2 className="text-xs font-semibold whitespace-nowrap uppercase tracking-wide text-faint">
           Search results
         </h2>
         {focus != null && (

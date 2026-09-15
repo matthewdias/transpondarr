@@ -615,6 +615,9 @@ it("shows each tab's empty state when nothing is missing and the scan is exhaust
       "Everything monitored that has aired is either in the library or in flight. Turn on Unaired to see what is still to come.",
     ),
   ).toBeInTheDocument();
+  // With nothing listed there is nothing to select and nothing to search for.
+  expect(screen.queryByRole("button", { name: /search selected/i })).toBeNull();
+  expect(screen.queryByRole("button", { name: /search all/i })).toBeNull();
 
   await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
   expect(await screen.findByText("Nothing below cutoff")).toBeInTheDocument();
