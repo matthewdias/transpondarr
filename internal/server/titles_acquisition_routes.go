@@ -22,7 +22,7 @@ type candidateReleaseDTO struct {
 	Resolution   string `json:"resolution,omitempty"`
 	DualAudio    bool   `json:"dual_audio"`
 	Matched      bool   `json:"matched"`
-	Items        []int  `json:"items,omitzero"`
+	Items        []int  `json:"items,omitempty"`
 	Reason       string `json:"reason"`
 
 	Score            int            `json:"score" doc:"Profile score; ranking is by this, seeders only break ties"`
@@ -31,7 +31,7 @@ type candidateReleaseDTO struct {
 	IneligibleReason string         `json:"ineligible_reason,omitempty" doc:"Why the profile refuses this release; empty when eligible"`
 	Pinned           bool           `json:"pinned" doc:"Release group is the title's pinned group; ranks above profile score when eligible"`
 
-	UpgradeItems   []int               `json:"upgrade_items,omitzero" doc:"Covered items already in the library that this release may replace"`
+	UpgradeItems   []int               `json:"upgrade_items,omitempty" doc:"Covered items already in the library that this release may replace"`
 	UpgradeBlocked []upgradeBlockedDTO `json:"upgrade_blocked,omitempty" doc:"Covered items automation would not replace, and why; a manual grab is not blocked by it"`
 }
 
