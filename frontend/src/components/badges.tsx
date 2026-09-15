@@ -145,7 +145,7 @@ function ExplainedBadge({
         }}
         className={cn(
           badgeBase,
-          "relative cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+          "relative cursor-pointer outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
           className,
         )}
       >

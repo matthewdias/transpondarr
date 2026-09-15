@@ -154,7 +154,7 @@ export function CalendarPage() {
 
         <TabsContent
           value={view}
-          className="rounded-lg focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="rounded-lg focus-visible:ring-[3px] focus-visible:ring-ring"
         >
           {cal.isError && (
             <div className="mt-4">
