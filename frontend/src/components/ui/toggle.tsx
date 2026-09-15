@@ -13,7 +13,7 @@ const toggleVariants = cva(
       variant: {
         default: "bg-transparent",
         outline:
-          "border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",
+          "border border-border bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",
         // A view-scope filter: a pill that reads as "this is included in what I
         // am looking at". Distinct from Switch on purpose -- a switch reads as "I am
         // changing a stored preference", which is what Monitored is.
