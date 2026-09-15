@@ -94,7 +94,7 @@ function SortableRow({
       <button
         type="button"
         ref={setActivatorNodeRef}
-        className="cursor-grab touch-none rounded p-0.5 text-faint outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing"
+        className="cursor-grab touch-none rounded p-0.5 text-faint outline-none focus-visible:ring-[3px] focus-visible:ring-ring/75 dark:focus-visible:ring-ring/50 active:cursor-grabbing"
         aria-label="Reorder"
         {...attributes}
         {...listeners}
@@ -768,7 +768,7 @@ export function ProfilesSection() {
           key={p.id}
           type="button"
           onClick={() => setEditing(p)}
-          className="flex w-full items-center gap-3 rounded-md border bg-card px-3 py-2.5 text-left transition-colors hover:bg-panel-2/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="flex w-full items-center gap-3 rounded-md border bg-card px-3 py-2.5 text-left transition-colors hover:bg-panel-2/60 focus-visible:ring-[3px] focus-visible:ring-ring/75 dark:focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-2">

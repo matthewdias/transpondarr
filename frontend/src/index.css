@@ -30,7 +30,7 @@
   --destructive: #c70213;
   --destructive-foreground: #ffffff;
   --border: #e3e7e8;
-  --input: #e3e7e8;
+  --input: #7f9095;
   --ring: #027e74;
 
   /* extra design tokens (not part of shadcn's default set) */
@@ -71,7 +71,7 @@
   --destructive: #f26060;
   --destructive-foreground: #0b0e0f;
   --border: #262d30;
-  --input: #262d30;
+  --input: #5a6b72;
   --ring: #2fd4c1;
 
   --panel-2: #171c1e;
@@ -151,7 +151,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring/75 dark:outline-ring/50;
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;

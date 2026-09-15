@@ -51,6 +51,12 @@ All notable changes to this project are documented here. The format is based on
   were too faint against their backgrounds to meet WCAG AA, the accessibility
   standard for text their size. The colours keep their look, a shade darker in
   light mode, and the faintest grey is a shade lighter in dark mode.
+- **Keyboard focus, text fields and switches that are off are easier to see.**
+  The glow around whatever has keyboard focus nearly vanished in light mode, and
+  on a delete button in both themes. Text field borders, checkboxes and a switch
+  that is off barely stood out from the card behind them, in both themes.
+  All of them now meet WCAG's contrast minimum for controls, and card edges and
+  table lines are unchanged.
 - **Empty lists and failed loads look the same on every page.** An empty
   list shows one kind of card, whether it fills a page or a tab, and a load that
   fails shows a one-line banner with **Try again**. Before, the Calendar, Discovery and a
