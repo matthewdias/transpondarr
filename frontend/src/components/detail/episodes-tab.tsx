@@ -18,6 +18,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+// The narrowest track is 120px, so 5% keeps every segment at least 6px wide.
+const minSegment = 5;
+
+// The floors overflow the track by under 15%, which leaves the largest segment far
+// above its own floor, so it absorbs the overflow alone (in library, on a long series).
+function barSegments<T extends { count: number; width: number }>(segs: T[]) {
+  const shown = segs
+    .filter((s) => s.count > 0)
+    .map((s) => ({ ...s, width: Math.max(s.width, minSegment) }));
+  const excess = shown.reduce((sum, s) => sum + s.width, 0) - 100;
+  if (excess > 0)
+    shown.reduce((a, b) => (b.width > a.width ? b : a)).width -= excess;
+  return shown;
+}
+
 function Sep() {
   return <span className="mx-1 text-faint">·</span>;
 }
@@ -109,6 +124,67 @@ export function EpisodesTab({
   const emptyLabel =
     unmonitored === items.length ? "Nothing monitored" : "Nothing aired yet";
 
+  const lead = empty ? emptyLabel : `${inLibrary} / ${total} in library`;
+  // The bar's label is built from the text line's parts, so the two cannot disagree.
+  const parts = [
+    ...(empty
+      ? []
+      : [
+          downloading > 0 && {
+            key: "downloading",
+            text: `${downloading} downloading`,
+            className: "font-semibold text-dl",
+          },
+          deferred > 0 && {
+            key: "deferred",
+            text: `${deferred} batch downloaded`,
+            className: "font-semibold text-dl",
+          },
+          stuck > 0 && {
+            key: "stuck",
+            text: `${stuck} import blocked`,
+            className: "font-semibold text-destructive",
+          },
+          { key: "wanted", text: `${wanted} wanted` },
+        ]),
+    unaired > 0 && {
+      key: "unaired",
+      text: `${unaired} not yet aired`,
+      className: "text-faint",
+    },
+    unmonitored > 0 && {
+      key: "unmonitored",
+      text: `${unmonitored} not monitored`,
+      className: "text-faint",
+    },
+    total !== items.length && {
+      key: "total",
+      text: `${items.length} total`,
+      className: "text-faint",
+    },
+  ].filter((p): p is { key: string; text: string; className?: string } =>
+    Boolean(p),
+  );
+  const segments = barSegments(
+    [
+      { key: "in_library", count: inLibrary, className: "bg-have" },
+      { key: "downloading", count: downloading, className: "bg-dl" },
+      // Hatched where downloading is solid, as these badges are outlined where its badge is filled.
+      {
+        key: "deferred",
+        count: deferred,
+        className:
+          "bg-[repeating-linear-gradient(135deg,var(--color-dl)_0_2px,transparent_2px_4px)]",
+      },
+      {
+        key: "stuck",
+        count: stuck,
+        className:
+          "bg-[repeating-linear-gradient(135deg,var(--color-destructive)_0_2px,transparent_2px_4px)]",
+      },
+    ].map((seg) => ({ ...seg, width: pct(seg.count) })),
+  );
+
   // An id, not an index: a refetch between two clicks can renumber the rows, and
   // a stale id resolves to -1 and degrades to a plain toggle rather than to the
   // wrong range. Not part of the selection, so moving it re-renders nothing.
@@ -151,33 +227,15 @@ export function EpisodesTab({
           <div
             role="img"
             className="flex h-2.5 w-[120px] flex-none overflow-hidden rounded-md bg-foreground/10 ring-1 ring-inset ring-foreground/[0.07] sm:w-[200px]"
-            aria-label={`${inLibrary} in library · ${downloading} downloading · ${stuck} import blocked · ${deferred} batch downloaded · ${wanted} wanted · ${unaired} not yet aired · ${unmonitored} not monitored`}
+            aria-label={[lead, ...parts.map((p) => p.text)].join(" · ")}
           >
-            {inLibrary > 0 && (
+            {segments.map((seg) => (
               <span
-                className="h-full min-w-1.5 flex-none bg-have"
-                style={{ width: `${pct(inLibrary)}%` }}
+                key={seg.key}
+                className={cn("h-full flex-none", seg.className)}
+                style={{ width: `${seg.width}%` }}
               />
-            )}
-            {downloading > 0 && (
-              <span
-                className="h-full min-w-1.5 flex-none bg-dl"
-                style={{ width: `${pct(downloading)}%` }}
-              />
-            )}
-            {/* Hatched where downloading is solid, as their badges are outlined where its is filled. */}
-            {deferred > 0 && (
-              <span
-                className="h-full min-w-1.5 flex-none bg-[repeating-linear-gradient(135deg,var(--color-dl)_0_2px,transparent_2px_4px)]"
-                style={{ width: `${pct(deferred)}%` }}
-              />
-            )}
-            {stuck > 0 && (
-              <span
-                className="h-full min-w-1.5 flex-none bg-[repeating-linear-gradient(135deg,var(--color-destructive)_0_2px,transparent_2px_4px)]"
-                style={{ width: `${pct(stuck)}%` }}
-              />
-            )}
+            ))}
           </div>
           <div className="min-w-0 text-sm text-muted-foreground">
             {empty ? (
@@ -188,52 +246,14 @@ export function EpisodesTab({
                   {inLibrary} / {total}
                 </b>{" "}
                 in library
-                {downloading > 0 && (
-                  <>
-                    <Sep />
-                    <span className="font-semibold text-dl">
-                      {downloading} downloading
-                    </span>
-                  </>
-                )}
-                {stuck > 0 && (
-                  <>
-                    <Sep />
-                    <span className="font-semibold text-destructive">
-                      {stuck} import blocked
-                    </span>
-                  </>
-                )}
-                {deferred > 0 && (
-                  <>
-                    <Sep />
-                    <span className="font-semibold text-dl">
-                      {deferred} batch downloaded
-                    </span>
-                  </>
-                )}
-                <Sep />
-                {wanted} wanted
               </>
             )}
-            {unaired > 0 && (
-              <>
+            {parts.map((p) => (
+              <span key={p.key}>
                 <Sep />
-                <span className="text-faint">{unaired} not yet aired</span>
-              </>
-            )}
-            {unmonitored > 0 && (
-              <>
-                <Sep />
-                <span className="text-faint">{unmonitored} not monitored</span>
-              </>
-            )}
-            {total !== items.length && (
-              <>
-                <Sep />
-                <span className="text-faint">{items.length} total</span>
-              </>
-            )}
+                <span className={p.className}>{p.text}</span>
+              </span>
+            ))}
           </div>
         </div>
         <Button

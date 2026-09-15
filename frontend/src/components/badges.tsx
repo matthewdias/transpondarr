@@ -63,6 +63,9 @@ export function UnmonitoredItemBadge() {
   );
 }
 
+// Closes whichever explanation is open, so opening another replaces it.
+let closeOpenExplanation: (() => void) | null = null;
+
 // A button instead of a title attribute, so touch and keyboard can open the
 // explanation. A button inside a link is invalid, so `plain` keeps the attribute.
 function ExplainedBadge({
@@ -80,16 +83,36 @@ function ExplainedBadge({
   // Set when a click, tap or key opened it, so the pointer leaving doesn't close it.
   const pinned = useRef(false);
   const timer = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const close = useRef(() => {
+    window.clearTimeout(timer.current);
+    pinned.current = false;
+    setOpen(false);
+  }).current;
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current);
+      if (closeOpenExplanation === close) closeOpenExplanation = null;
+    },
+    [close],
+  );
   if (plain)
     return (
       <span className={cn(badgeBase, className)} title={explanation}>
         {children}
       </span>
     );
+  const show = (next: boolean) => {
+    if (next) {
+      if (closeOpenExplanation !== close) closeOpenExplanation?.();
+      closeOpenExplanation = close;
+    } else if (closeOpenExplanation === close) {
+      closeOpenExplanation = null;
+    }
+    setOpen(next);
+  };
   const schedule = (next: boolean, ms: number) => {
     window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => setOpen(next), ms);
+    timer.current = window.setTimeout(() => show(next), ms);
   };
   // Mouse only: a tap's pointerover comes before its click, which would toggle the popover shut.
   const enter = (e: PointerEvent<HTMLElement>) => {
@@ -104,10 +127,13 @@ function ExplainedBadge({
       onOpenChange={(next) => {
         window.clearTimeout(timer.current);
         pinned.current = next;
-        setOpen(next);
+        show(next);
       }}
     >
+      {/* A toggletip, not a dialog: focus stays on the badge and the status region announces the text. */}
       <PopoverTrigger
+        aria-haspopup={undefined}
+        aria-controls={undefined}
         onPointerEnter={enter}
         onPointerLeave={leave}
         onClick={(e) => {
@@ -125,14 +151,18 @@ function ExplainedBadge({
       >
         {children}
       </PopoverTrigger>
-      <PopoverContent
-        onPointerEnter={enter}
-        onPointerLeave={leave}
-        onOpenAutoFocus={(e) => pinned.current || e.preventDefault()}
-        className="w-auto max-w-72 px-3 py-2 text-xs"
-      >
-        {explanation}
-      </PopoverContent>
+      <span role="status">
+        <PopoverContent
+          portal={false}
+          role={undefined}
+          onPointerEnter={enter}
+          onPointerLeave={leave}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          className="w-auto max-w-72 px-3 py-2 text-xs"
+        >
+          {explanation}
+        </PopoverContent>
+      </span>
     </Popover>
   );
 }

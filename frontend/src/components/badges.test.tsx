@@ -1,7 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { ItemStatusBadge, MonitoredBadge } from "@/components/badges";
+
+const sleep = (ms: number) => act(() => new Promise((r) => setTimeout(r, ms)));
 
 describe("ItemStatusBadge", () => {
   it("labels each status", () => {
@@ -109,6 +117,100 @@ describe("ItemStatusBadge explanations", () => {
     fireEvent.pointerOver(badge, { pointerType: "touch" });
     await new Promise((r) => setTimeout(r, 400));
     expect(screen.queryByText(error)).not.toBeInTheDocument();
+  });
+
+  // A toggletip: focus stays on the badge and a live region announces the text,
+  // where a dialog took focus and left Tab with nowhere to go (#319 review).
+  it("announces the explanation without taking focus from the badge", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ItemStatusBadge status="stuck" error={error} />
+        <button>next</button>
+      </div>,
+    );
+    const badge = screen.getByRole("button", { name: "Import blocked" });
+    expect(badge).not.toHaveAttribute("aria-haspopup");
+
+    badge.focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("status")).toHaveTextContent(error);
+    expect(badge).toHaveFocus();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toBeEmptyDOMElement(),
+    );
+
+    await user.keyboard("{Enter}");
+    await screen.findByText(error);
+    await user.tab();
+    expect(screen.getByRole("button", { name: "next" })).toHaveFocus();
+  });
+
+  it("keeps a click-opened explanation open after the pointer leaves", async () => {
+    const user = userEvent.setup();
+    render(<ItemStatusBadge status="stuck" error={error} />);
+    const badge = screen.getByRole("button", { name: "Import blocked" });
+
+    await user.click(badge);
+    await screen.findByText(error);
+    await user.unhover(badge);
+    await sleep(400);
+    expect(screen.getByText(error)).toBeInTheDocument();
+  });
+
+  it("stays open while the pointer moves from the badge onto the explanation", async () => {
+    const user = userEvent.setup();
+    render(<ItemStatusBadge status="stuck" error={error} />);
+    const badge = screen.getByRole("button", { name: "Import blocked" });
+
+    await user.hover(badge);
+    const explanation = await screen.findByText(error);
+    fireEvent.pointerLeave(badge, { pointerType: "mouse" });
+    // The pointer crosses the gap between badge and explanation before it enters.
+    await sleep(50);
+    fireEvent.pointerEnter(explanation, { pointerType: "mouse" });
+    await sleep(400);
+    expect(screen.getByText(error)).toBeInTheDocument();
+
+    fireEvent.pointerLeave(explanation, { pointerType: "mouse" });
+    await waitFor(() =>
+      expect(screen.queryByText(error)).not.toBeInTheDocument(),
+    );
+  });
+
+  // Entering the explanation schedules an open, which Escape must cancel.
+  it("does not reopen after Escape while a hover-open is pending", async () => {
+    const user = userEvent.setup();
+    render(<ItemStatusBadge status="stuck" error={error} />);
+    const badge = screen.getByRole("button", { name: "Import blocked" });
+
+    await user.hover(badge);
+    const explanation = await screen.findByText(error);
+    fireEvent.pointerLeave(badge, { pointerType: "mouse" });
+    fireEvent.pointerEnter(explanation, { pointerType: "mouse" });
+    await sleep(50);
+    await user.keyboard("{Escape}");
+    await sleep(500);
+    expect(screen.queryByText(error)).not.toBeInTheDocument();
+  });
+
+  it("shows one explanation at a time", async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <ItemStatusBadge status="stuck" error="first error" />
+        <ItemStatusBadge status="deferred" />
+      </div>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Import blocked" }));
+    await screen.findByText("first error");
+    await user.hover(screen.getByRole("button", { name: "Batch downloaded" }));
+    expect(await screen.findByText(/single-episode/)).toBeInTheDocument();
+    expect(screen.queryByText("first error")).not.toBeInTheDocument();
   });
 
   // A button inside a link is invalid markup, so the calendar agenda keeps the title attribute.

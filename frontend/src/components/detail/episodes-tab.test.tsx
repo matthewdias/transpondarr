@@ -97,6 +97,13 @@ describe("EpisodesTab search buttons", () => {
 });
 
 const past = new Date(Date.now() - 86_400_000).toISOString();
+
+const segmentWidths = () =>
+  [...screen.getByRole("img").children].map((c) =>
+    parseFloat((c as HTMLElement).style.width),
+  );
+const textLine = (bar: HTMLElement) =>
+  bar.nextElementSibling?.textContent?.replace(/\s*·\s*/g, " · ") ?? "";
 const future = new Date(Date.now() + 86_400_000).toISOString();
 
 // The summary strip is what these assert; the callbacks are noise here.
@@ -265,7 +272,70 @@ describe("EpisodesTab monitoring", () => {
     expect(widths).toEqual(["12.5%", "12.5%", "25%", "37.5%"]);
   });
 
-  it("names the bar's breakdown accessibly rather than in a title", () => {
+  // A long series once shrank a single status below its minimum width, so the
+  // track clipped the last segment (#319 review).
+  it("keeps every status visible inside the track on a long series", () => {
+    renderStrip([
+      ...Array.from({ length: 197 }, (_, i) =>
+        item({
+          id: i + 1,
+          number: i + 1,
+          in_library: true,
+          status: "in_library",
+        }),
+      ),
+      item({ id: 198, number: 198, status: "downloading" }),
+      item({ id: 199, number: 199, status: "deferred" }),
+      item({ id: 200, number: 200, status: "stuck" }),
+    ]);
+
+    const widths = segmentWidths();
+    expect(widths).toHaveLength(4);
+    const [library, ...rest] = widths;
+    for (const w of rest) expect(w).toBeGreaterThanOrEqual(5);
+    expect(library).toBeGreaterThan(Math.max(...rest));
+    expect(widths.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(100);
+  });
+
+  // Only the in-library segment gives up width, so downloading keeps its true share.
+  it("takes the overflow from the in-library segment alone", () => {
+    renderStrip([
+      ...Array.from({ length: 120 }, (_, i) =>
+        item({
+          id: i + 1,
+          number: i + 1,
+          in_library: true,
+          status: "in_library",
+        }),
+      ),
+      ...Array.from({ length: 70 }, (_, i) =>
+        item({ id: i + 121, number: i + 121, status: "downloading" }),
+      ),
+      item({ id: 191, number: 191, status: "stuck" }),
+    ]);
+
+    const [library, downloading, stuck] = segmentWidths();
+    expect(downloading).toBeCloseTo((70 / 191) * 100, 5);
+    expect(stuck).toBeGreaterThanOrEqual(5);
+    expect(library + downloading + stuck).toBeCloseTo(100, 5);
+  });
+
+  it("gives one blocked import in a thousand episodes its minimum width", () => {
+    renderStrip([
+      item({ id: 1, number: 1, status: "stuck" }),
+      ...Array.from({ length: 999 }, (_, i) =>
+        item({ id: i + 2, number: i + 2 }),
+      ),
+    ]);
+
+    const widths = segmentWidths();
+    expect(widths).toHaveLength(1);
+    expect(widths[0]).toBeGreaterThanOrEqual(5);
+  });
+
+  // The bar, its label and the text beside it once listed the statuses in three
+  // different orders, and the label announced zero counts the line leaves out.
+  it("names the bar's breakdown in the text line's order and words", () => {
     renderStrip([
       item({ id: 1, number: 1, in_library: true, status: "in_library" }),
       item({ id: 2, number: 2, status: "deferred" }),
@@ -274,9 +344,21 @@ describe("EpisodesTab monitoring", () => {
     ]);
 
     const bar = screen.getByRole("img", {
-      name: /1 in library.*1 import blocked.*1 batch downloaded.*1 wanted/,
+      name: "1 / 4 in library · 1 batch downloaded · 1 import blocked · 1 wanted",
     });
     expect(bar).not.toHaveAttribute("title");
+    expect(textLine(bar)).toBe(bar.getAttribute("aria-label"));
+  });
+
+  it("announces no zero counts beside an empty denominator", () => {
+    renderStrip([
+      item({ id: 1, number: 1, airs_at: future }),
+      item({ id: 2, number: 2, airs_at: future }),
+    ]);
+
+    const bar = screen.getByRole("img", { name: /Nothing aired yet/ });
+    expect(bar.getAttribute("aria-label")).not.toMatch(/\b0 /);
+    expect(textLine(bar)).toBe(bar.getAttribute("aria-label"));
   });
 
   // The raw count is redundant once it is already the denominator.
