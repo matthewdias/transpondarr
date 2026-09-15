@@ -278,6 +278,86 @@ describe("DiscoveryPage", () => {
     expect(screen.queryByText(/\bin \d+[mhd]\b/)).not.toBeInTheDocument();
   });
 
+  it("says the season is empty, and offers to retry a chart that failed", async () => {
+    let fail = true;
+    server.use(
+      http.get("/api/v1/browse/season", ({ request }) => {
+        if (fail) {
+          return HttpResponse.json(
+            { status: 502, detail: "AniList timed out" },
+            { status: 502 },
+          );
+        }
+        const url = new URL(request.url);
+        return HttpResponse.json({
+          season: url.searchParams.get("season"),
+          year: Number(url.searchParams.get("year")),
+          entries: [],
+        });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderPage();
+
+    expect(
+      await screen.findByText(
+        "Couldn’t load the season chart. AniList timed out",
+      ),
+    ).toBeInTheDocument();
+
+    fail = false;
+    await user.click(screen.getByRole("button", { name: /try again/i }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Nothing charted" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `AniList lists no titles for ${seasonLabel(currentSeason())}.`,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offers to clear filters that leave nothing to show", async () => {
+    server.use(
+      chartHandler([
+        entry({
+          provider_id: 101,
+          romaji: "Alpha Adventure",
+          format: "TV",
+          genres: ["Action"],
+        }),
+        entry({
+          provider_id: 102,
+          romaji: "Beta Ballad",
+          format: "MOVIE",
+          genres: ["Drama"],
+        }),
+      ]),
+    );
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await screen.findByText("Alpha Adventure");
+    await user.click(screen.getByRole("combobox", { name: "Format" }));
+    await user.click(await screen.findByRole("option", { name: "TV" }));
+    await user.click(screen.getByRole("combobox", { name: "Genre" }));
+    await user.click(await screen.findByRole("option", { name: "Drama" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "No titles match" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Every title this season is filtered out."),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear filters" }));
+    expect(await screen.findByText("Beta Ballad")).toBeInTheDocument();
+    expect(screen.getByText("Alpha Adventure")).toBeInTheDocument();
+  });
+
   it("opens the add form for a movie", async () => {
     server.use(
       chartHandler([

@@ -366,6 +366,9 @@ describe("unmatched downloads", () => {
     renderPage();
 
     expect(await screen.findByText(/Nothing downloading/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText("No grab or import history yet."),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Unmatched downloads/i)).not.toBeInTheDocument();
   });
 

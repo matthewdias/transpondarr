@@ -263,6 +263,29 @@ describe("CalendarPage", () => {
     expect(
       await screen.findByText("Nothing monitored is scheduled this week."),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Nothing scheduled" }),
+    ).toBeInTheDocument();
+  });
+
+  it("reports a calendar that could not be loaded, with a retry", async () => {
+    server.use(
+      http.get("/api/v1/calendar", () =>
+        HttpResponse.json(
+          { status: 500, detail: "database is locked" },
+          { status: 500 },
+        ),
+      ),
+    );
+
+    renderPage();
+
+    expect(
+      await screen.findByText("Couldn’t load the calendar. database is locked"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /try again/i }),
+    ).toBeInTheDocument();
   });
 
   it("points each selected view tab at the panel it shows", async () => {

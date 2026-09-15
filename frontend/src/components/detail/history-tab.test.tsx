@@ -106,7 +106,33 @@ describe("HistoryTab blocked releases", () => {
     expect(
       screen.getByText("[FakeGroup] Example Show - 03 (1080p) [ABCD1234].mkv"),
     ).toBeInTheDocument();
-    expect(screen.getByText(/No grab or import history/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "No grab or import history yet. Grab a release from the Releases tab.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("reports grab history that could not be loaded", async () => {
+    server.use(
+      http.get("/api/v1/titles/7/grabs", () =>
+        HttpResponse.json(
+          { status: 500, detail: "database is locked" },
+          { status: 500 },
+        ),
+      ),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <HistoryTab titleId={7} active />
+      </QueryClientProvider>,
+    );
+    expect(
+      await screen.findByText("Couldn’t load history. database is locked"),
+    ).toBeInTheDocument();
   });
 
   it("shows when a release is blocked permanently", async () => {
