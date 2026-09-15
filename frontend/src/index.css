@@ -151,7 +151,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring;
+    @apply border-border outline-ring/75 dark:outline-ring/50;
   }
   body {
     @apply bg-background text-foreground font-sans antialiased;

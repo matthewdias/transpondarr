@@ -117,7 +117,7 @@ export function ScoreCell({ r }: { r: CandidateRelease }) {
         <span
           tabIndex={0}
           className={cn(
-            "inline-flex cursor-default items-center gap-1 rounded-sm font-semibold tabular-nums outline-none focus-visible:ring-[3px] focus-visible:ring-ring",
+            "inline-flex cursor-default items-center gap-1 rounded-sm font-semibold tabular-nums outline-none focus-visible:ring-[3px] focus-visible:ring-ring/75 dark:focus-visible:ring-ring/50",
             !r.eligible && "text-dl",
           )}
         >
