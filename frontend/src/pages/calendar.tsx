@@ -457,6 +457,7 @@ function Agenda({
                     status={item.status}
                     error={item.import_error}
                     movie={isPremiere(item)}
+                    plain
                   />
                 </Link>
               ))}

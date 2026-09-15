@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { LibraryProgress } from "@/components/library-progress";
@@ -127,7 +128,7 @@ it("distinguishes a downloading film from a wanted one", () => {
   expect(screen.queryByText("Wanted")).not.toBeInTheDocument();
 });
 
-it("hangs the import reason off the blocked film", () => {
+it("hangs the import reason off the blocked film", async () => {
   render(
     <LibraryProgress
       format="MOVIE"
@@ -140,10 +141,10 @@ it("hangs the import reason off the blocked film", () => {
     />,
   );
 
-  expect(screen.getByText("Import blocked")).toHaveAttribute(
-    "title",
-    "no movies root configured",
-  );
+  await userEvent.click(screen.getByRole("button", { name: "Import blocked" }));
+  expect(
+    await screen.findByText("no movies root configured"),
+  ).toBeInTheDocument();
 });
 
 // Substituted, not qualified, as the detail page does it: every other
