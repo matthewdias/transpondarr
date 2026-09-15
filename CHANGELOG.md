@@ -56,8 +56,8 @@ All notable changes to this project are documented here. The format is based on
   fails shows a one-line banner with **Try again**. Before, the Calendar, Discovery and a
   title's Releases and History tabs each had their own larger error card.
 - **Text sizes are consistent across pages.** The interface used eight sizes
-  between its standard ones, so the same kind of text, such as a badge, a hint
-  or a paragraph above a list, was a slightly different size on each page. Each
+  between its standard ones, so the same kind of text, such as a badge or a
+  hint, was a slightly different size on each page. Each
   kind of text now has one size everywhere, and badges and the paragraphs above
   lists are a touch larger.
 - **The add dialog now says which episodes it will monitor**, in both choices and
