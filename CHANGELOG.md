@@ -67,8 +67,9 @@ All notable changes to this project are documented here. The format is based on
   explanation showed only on mouse hover.
 - **A title's progress bar now shows batch-downloaded and import-blocked
   episodes** as striped segments, where before they looked the same as
-  wanted. The button beside it is now *Search all*, since the search it opens
-  was never limited to wanted episodes.
+  wanted. Each one stays visible however long the series is.
+- **The episodes tab's *Search all wanted* button is now *Search all*,** since
+  the search it opens was never limited to wanted episodes.
 - **The add dialog now says which episodes it will monitor**, in both choices and
   before you pick one — *All 12 episodes will be monitored*, or *6 of 12
   episodes will be monitored, from episode 7*. When a choice would monitor
