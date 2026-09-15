@@ -473,8 +473,15 @@ describe("ReleasesTab empty state", () => {
         "Couldn’t search for releases. indexer timed out",
       ),
     ).toBeInTheDocument();
+
+    server.use(
+      http.get("/api/v1/titles/7/search", () =>
+        HttpResponse.json({ title: "Example Show", results: focusResults }),
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(
-      screen.getByRole("button", { name: /try again/i }),
+      await screen.findByText("[GroupA] Example Show - 03 (1080p)"),
     ).toBeInTheDocument();
   });
 });

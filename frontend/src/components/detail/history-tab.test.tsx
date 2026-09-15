@@ -133,6 +133,17 @@ describe("HistoryTab blocked releases", () => {
     expect(
       await screen.findByText("Couldn’t load history. database is locked"),
     ).toBeInTheDocument();
+
+    server.use(
+      http.get("/api/v1/titles/7/grabs", () =>
+        HttpResponse.json({ title: "Example Show", events: [event({})] }),
+      ),
+      http.get("/api/v1/titles/7/blocklist", () =>
+        HttpResponse.json({ title: "Example Show", entries: [] }),
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(await screen.findByText(/Grabbed/)).toBeInTheDocument();
   });
 
   it("shows when a release is blocked permanently", async () => {
@@ -209,6 +220,27 @@ describe("HistoryTab blocked releases", () => {
       await screen.findByText(/load blocked releases/i),
     ).toBeInTheDocument();
     expect(screen.getByText(/Grabbed/)).toBeInTheDocument();
+
+    server.use(
+      http.get("/api/v1/titles/7/blocklist", () =>
+        HttpResponse.json({
+          title: "Example Show",
+          entries: [blocklistEntry()],
+        }),
+      ),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
+    // The grab row and the recovered block share this release name.
+    await waitFor(() =>
+      expect(
+        screen.getAllByText(
+          "[FakeGroup] Example Show - 03 (1080p) [ABCD1234].mkv",
+        ),
+      ).toHaveLength(2),
+    );
+    expect(
+      screen.queryByText(/load blocked releases/i),
+    ).not.toBeInTheDocument();
   });
 
   it("omits the section when nothing is blocked", async () => {

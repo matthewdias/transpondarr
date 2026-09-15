@@ -254,7 +254,7 @@ describe("ActivityPage", () => {
 
     renderPage();
 
-    expect(await screen.findByText(/Nothing downloading/i)).toBeInTheDocument();
+    expect(await screen.findByText("Nothing downloading.")).toBeInTheDocument();
     const more = await screen.findByRole("button", { name: /load more/i });
     await userEvent.setup().click(more);
 
@@ -304,7 +304,7 @@ describe("ActivityPage", () => {
     // The item settles out of the queue; history refetches.
     queuePayload = { client_ok: true, items: [] };
     await act(() => client.refetchQueries({ queryKey: ["activity-queue"] }));
-    expect(await screen.findByText(/Nothing downloading/i)).toBeInTheDocument();
+    expect(await screen.findByText("Nothing downloading.")).toBeInTheDocument();
     await waitFor(() => expect(historyCalls).toBe(2));
   });
 
@@ -365,7 +365,7 @@ describe("unmatched downloads", () => {
 
     renderPage();
 
-    expect(await screen.findByText(/Nothing downloading/i)).toBeInTheDocument();
+    expect(await screen.findByText("Nothing downloading.")).toBeInTheDocument();
     expect(
       await screen.findByText("No grab or import history yet."),
     ).toBeInTheDocument();
