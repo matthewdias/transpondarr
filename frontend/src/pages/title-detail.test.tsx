@@ -723,7 +723,12 @@ describe("TitleDetailPage missing title", () => {
       await screen.findByRole("heading", { level: 2, name: "Title not found" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/This title is no longer in your library\./),
+      screen.getByText(
+        (_, el) =>
+          el?.tagName === "P" &&
+          el.textContent ===
+            "This title is no longer in your library. Back to titles.",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Back to titles" }),

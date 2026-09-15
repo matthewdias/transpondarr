@@ -283,9 +283,13 @@ describe("CalendarPage", () => {
     expect(
       await screen.findByText("Couldn’t load the calendar. database is locked"),
     ).toBeInTheDocument();
+
+    server.use(calendarHandler([item({})]));
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(await screen.findByText("Signal Anomaly")).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /try again/i }),
-    ).toBeInTheDocument();
+      screen.queryByText(/Couldn’t load the calendar/),
+    ).not.toBeInTheDocument();
   });
 
   it("points each selected view tab at the panel it shows", async () => {

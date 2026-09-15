@@ -515,7 +515,9 @@ describe("EpisodesTab with no items at all", () => {
 
     expect(screen.getByText("Episode count unknown")).toBeInTheDocument();
     expect(
-      screen.getByText(/neither an episode count nor a broadcast schedule/i),
+      screen.getByText(
+        "AniList publishes neither an episode count nor a broadcast schedule for this title, so episodes cannot be searched automatically. Set the count and Transpondarr will start searching for them.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText("0 / 0")).not.toBeInTheDocument();
   });
