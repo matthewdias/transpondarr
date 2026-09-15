@@ -93,12 +93,37 @@ const filledPairs: [Surface, Surface][] = [
   [{ token: "foreground", alpha: 0.9, over: "card" }, "card"],
 ];
 
+// Non-text boundaries at WCAG 1.4.11's 3:1: the focus ring, and the input border,
+// whose token is also the unchecked Switch track's fill.
+const nonTextPairs: [Surface, Surface][] = ["ring", "input"].flatMap((t) =>
+  plainSurfaces.map((s): [Surface, Surface] => [t, s]),
+);
+
 const pairs: [Surface, Surface][] = [
   ...copyTokens.flatMap((t) =>
     plainSurfaces.map((s): [Surface, Surface] => [t, s]),
   ),
   ...filledPairs,
 ];
+
+function below(list: [Surface, Surface][], min: number): string[] {
+  return Object.entries(themes).flatMap(([theme, tokens]) =>
+    list
+      .map(([fg, bg]) => ({
+        pair: `${theme}: ${label(fg)} on ${label(bg)}`,
+        ratio: contrast(resolve(tokens, fg), resolve(tokens, bg)),
+      }))
+      .filter(({ ratio }) => ratio < min)
+      .map(({ pair, ratio }) => `${pair} (${ratio.toFixed(2)})`),
+  );
+}
+
+function sources(filter: (f: string) => boolean): string[] {
+  const src = new URL("..", import.meta.url);
+  return readdirSync(src, { recursive: true, encoding: "utf8" })
+    .filter(filter)
+    .map((f) => readFileSync(new URL(f, src), "utf8"));
+}
 
 describe("contrast", () => {
   it("matches WCAG reference ratios", () => {
@@ -114,28 +139,17 @@ describe("contrast", () => {
   });
 
   it("holds small copy at AA (4.5:1) in both themes", () => {
-    const below = Object.entries(themes).flatMap(([theme, tokens]) =>
-      pairs
-        .map(([fg, bg]) => ({
-          pair: `${theme}: ${label(fg)} on ${label(bg)}`,
-          ratio: contrast(resolve(tokens, fg), resolve(tokens, bg)),
-        }))
-        .filter(({ ratio }) => ratio < 4.5)
-        .map(({ pair, ratio }) => `${pair} (${ratio.toFixed(2)})`),
-    );
-    expect(below).toEqual([]);
+    expect(below(pairs, 4.5)).toEqual([]);
+  });
+
+  it("holds non-text boundaries at 3:1 in both themes", () => {
+    expect(below(nonTextPairs, 3)).toEqual([]);
   });
 
   it("lists every opacity-modified text colour the components use", () => {
-    const src = new URL("..", import.meta.url);
     const used = new Set(
-      readdirSync(src, { recursive: true, encoding: "utf8" })
-        .filter((f) => f.endsWith(".tsx") && !f.endsWith(".test.tsx"))
-        .flatMap((f) => [
-          ...readFileSync(new URL(f, src), "utf8").matchAll(
-            /\btext-([a-z-]+)\/(\d+)\b/g,
-          ),
-        ])
+      sources((f) => f.endsWith(".tsx") && !f.endsWith(".test.tsx"))
+        .flatMap((text) => [...text.matchAll(/\btext-([a-z-]+)\/(\d+)\b/g)])
         .filter((m) => m[1] in themes.light)
         .map((m) => `${m[1]}/${m[2]}`),
     );
@@ -147,5 +161,19 @@ describe("contrast", () => {
       ),
     );
     expect([...used].filter((u) => !listed.has(u))).toEqual([]);
+  });
+
+  it("draws the focus ring and the unchecked Switch track at full strength", () => {
+    const translucent = sources(
+      (f) =>
+        (f.endsWith(".tsx") && !f.endsWith(".test.tsx")) || f.endsWith(".css"),
+    ).flatMap((text) =>
+      [
+        ...text.matchAll(
+          /\b(?:ring-ring|outline-ring|data-\[state=unchecked\]:bg-input)\/\d+/g,
+        ),
+      ].map((m) => m[0]),
+    );
+    expect(translucent).toEqual([]);
   });
 });
