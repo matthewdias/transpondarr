@@ -220,7 +220,7 @@ function MissingTab({
       {globalReason && (
         <div className="mb-3 flex items-center gap-2.5 rounded-lg border border-dl/30 bg-dl-weak/40 px-3.5 py-2.5">
           <TriangleAlert className="size-4 shrink-0 text-dl" />
-          <p className="text-[13px] text-foreground/90">
+          <p className="text-sm text-foreground/90">
             {globalReasonText[globalReason]}
           </p>
         </div>
@@ -485,7 +485,7 @@ function TitleReasonBadge({ group }: { group: MissingGroup }) {
     <span
       title={detail || undefined}
       className={cn(
-        "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap md:inline-flex",
+        "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap md:inline-flex",
         titleReasonTone[group.reason],
       )}
     >
@@ -532,7 +532,7 @@ function ItemReasonBadge({ item, film }: { item: MissingItem; film: boolean }) {
     <span
       title={itemReasonTitle(item)}
       className={cn(
-        "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap md:inline-flex",
+        "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap md:inline-flex",
         itemReasonTone[item.reason],
       )}
     >
@@ -613,7 +613,7 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
               : `${plural(group.below, "episode")} below cutoff`}
           </span>
           <span
-            className="hidden shrink-0 items-center rounded-full border border-border bg-panel-2 px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap text-muted-foreground md:inline-flex"
+            className="hidden shrink-0 items-center rounded-full border border-border bg-panel-2 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-muted-foreground md:inline-flex"
             title={`The ${group.profile_name} profile's cutoff`}
           >
             {group.profile_name} · cutoff {group.cutoff_score}
@@ -622,7 +622,7 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
       }
       subheader={
         shared.length > 0 && (
-          <div className="mt-1 truncate pl-8 text-[11px] text-dl">
+          <div className="mt-1 truncate pl-8 text-2xs text-dl">
             Wanted: {goalLine(shared)}
           </div>
         )
@@ -668,11 +668,11 @@ function CutoffRow({
         {pad2(item.number)}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate font-mono text-[12px] text-faint">
+        <div className="truncate font-mono text-xs text-faint">
           {item.held_release}
         </div>
         {own.length > 0 ? (
-          <div className="truncate text-[11px] text-dl">
+          <div className="truncate text-2xs text-dl">
             Also wanted: {goalLine(own)}
           </div>
         ) : (
@@ -683,7 +683,7 @@ function CutoffRow({
             // preference", not "at the maximum" -- a v2 of this very release
             // scores 25 higher and would be taken.
             <div
-              className="truncate text-[11px] text-faint"
+              className="truncate text-2xs text-faint"
               title={`This release meets every preference this profile states. It stays listed because its score (${item.score}) is below the cutoff (${cutoff}).`}
             >
               Nothing left to improve

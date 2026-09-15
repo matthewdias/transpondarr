@@ -202,7 +202,7 @@ function ToggleRow({
         <span className="block text-xs font-medium text-muted-foreground">
           {label}
         </span>
-        {hint && <span className="block text-[11px] text-faint">{hint}</span>}
+        {hint && <span className="block text-2xs text-faint">{hint}</span>}
       </span>
       <Switch checked={checked} onCheckedChange={onChange} />
     </label>
@@ -273,7 +273,7 @@ export function UpgradePolicyFields({
                 ))}
               </SelectContent>
             </Select>
-            <span className="mt-1 block text-[11px] text-faint">
+            <span className="mt-1 block text-2xs text-faint">
               Once what you have reaches this, it is good enough — nothing
               better is grabbed.
             </span>
@@ -322,7 +322,7 @@ export function ExcludePicker({
       <span className="mb-1 block text-xs font-medium text-muted-foreground">
         Never take
       </span>
-      <span className="mb-2 block text-[11px] text-faint">
+      <span className="mb-2 block text-2xs text-faint">
         Attributes are read from the release name, so a release that does not
         label one is not detected. Rank trusted release groups and set a minimum
         score for real protection.
@@ -330,7 +330,7 @@ export function ExcludePicker({
       <div className="space-y-2">
         {EXCLUDE_AXES.map((a) => (
           <div key={a.axis} className="flex items-start gap-1.5">
-            <span className="w-16 shrink-0 pt-1 text-[11px] text-faint">
+            <span className="w-16 shrink-0 pt-1 text-2xs text-faint">
               {a.axis}
             </span>
             <div className="flex flex-wrap gap-1.5">
@@ -356,7 +356,7 @@ export function ExcludePicker({
       </div>
       {stale.length > 0 && (
         <div className="mt-2 space-y-1 rounded-md border border-dl/30 px-2.5 py-2">
-          <span className="block text-[11px] text-dl">
+          <span className="block text-2xs text-dl">
             These can never match — no release has them on any axis the parser
             reads.
           </span>
@@ -440,7 +440,7 @@ function ProfileEditor({
           <span className="mb-1 block text-xs font-medium text-muted-foreground">
             Release groups — most preferred first
           </span>
-          <span className="mb-2 block text-[11px] text-faint">
+          <span className="mb-2 block text-2xs text-faint">
             Release group is the dominant signal: any listed group outranks
             every unlisted one. Blocked groups are never taken.
           </span>
@@ -452,7 +452,7 @@ function ProfileEditor({
               <SortableRow key={g.key} id={g.key}>
                 <span
                   className={cn(
-                    "w-5 text-right text-[11px] tabular-nums text-faint",
+                    "w-5 text-right text-2xs tabular-nums text-faint",
                     g.blocked && "invisible",
                   )}
                 >
@@ -466,7 +466,7 @@ function ProfileEditor({
                 >
                   {g.name}
                 </span>
-                <label className="flex items-center gap-1.5 text-[11px] text-faint">
+                <label className="flex items-center gap-1.5 text-2xs text-faint">
                   Block
                   <Switch
                     size="sm"
@@ -514,7 +514,7 @@ function ProfileEditor({
           <span className="mb-1 block text-xs font-medium text-muted-foreground">
             Resolutions — best first
           </span>
-          <span className="mb-2 block text-[11px] text-faint">
+          <span className="mb-2 block text-2xs text-faint">
             Excluded resolutions score zero but stay grabbable.
           </span>
           <SortableList
@@ -774,7 +774,7 @@ export function ProfilesSection() {
             <span className="flex items-center gap-2">
               <span className="text-sm font-medium">{p.name}</span>
               {p.is_default && (
-                <span className="rounded-full border border-transparent bg-panel-2 px-2 py-0.5 text-[11px] font-medium text-faint">
+                <span className="rounded-full border border-transparent bg-panel-2 px-2 py-0.5 text-2xs font-medium text-faint">
                   Default
                 </span>
               )}

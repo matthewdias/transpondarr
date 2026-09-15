@@ -141,7 +141,7 @@ export function BlockedReleases({
       </div>
       {blocking.length > 0 && (
         <>
-          <p className="mb-3 text-[13px] text-muted-foreground">
+          <p className="mb-3 text-sm text-muted-foreground">
             Releases that failed and are skipped when ranking. Each repeat
             failure blocks for longer; the third blocks permanently.
           </p>
@@ -169,7 +169,7 @@ export function BlockedReleases({
           </Button>
           {expandExpired && (
             <div className="mt-2">
-              <p className="mb-3 text-[13px] text-muted-foreground">
+              <p className="mb-3 text-sm text-muted-foreground">
                 No longer skipped when ranking. Kept as history — a re-grab
                 overwrites the failed grab row, and the failure count still
                 escalates if the release fails again.
@@ -271,14 +271,14 @@ function BlockedRow({
         </span>
       </ItemMedia>
       <ItemContent className="min-w-0 gap-0.5">
-        <div className="line-clamp-1 font-mono text-[12px]">
+        <div className="line-clamp-1 font-mono text-xs">
           {entry.release_title}
         </div>
-        <div className="text-[12px] text-muted-foreground">
+        <div className="text-xs text-muted-foreground">
           {entry.reason}
           {entry.failures > 1 && ` · ${entry.failures} failures`}
         </div>
-        <div className="text-[12px] text-faint">{blockWindow(entry)}</div>
+        <div className="text-xs text-faint">{blockWindow(entry)}</div>
       </ItemContent>
       <ItemActions>
         <Button

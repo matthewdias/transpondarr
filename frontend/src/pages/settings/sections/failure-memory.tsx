@@ -22,7 +22,7 @@ function BreakerNotice({ breaker }: { breaker: BlocklistSummary["breaker"] }) {
       className="flex items-start gap-2.5 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5"
     >
       <TriangleAlert className="mt-0.5 size-4 flex-none text-destructive" />
-      <div className="min-w-0 text-[11px]">
+      <div className="min-w-0 text-xs">
         <p className="font-medium text-destructive">
           Not remembering failed releases right now
         </p>

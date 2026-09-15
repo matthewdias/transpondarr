@@ -190,7 +190,7 @@ export function AddTitleForm({
     >
       <div className="space-y-3">
         {meta.length > 0 && (
-          <p className="text-[12.5px] text-faint">{meta.join(" · ")}</p>
+          <p className="text-xs text-faint">{meta.join(" · ")}</p>
         )}
 
         {/* Told, not blocked: #198 and PR #57 both rule out blocking a manual add,
@@ -198,7 +198,7 @@ export function AddTitleForm({
         {noMoviesRoot && (
           <Link
             to="/settings"
-            className="group flex items-start gap-2 rounded-md border border-dashed bg-panel-2/40 px-3 py-2 text-[12.5px] text-muted-foreground hover:text-foreground"
+            className="group flex items-start gap-2 rounded-md border border-dashed bg-panel-2/40 px-3 py-2 text-xs text-muted-foreground hover:text-foreground"
           >
             <TriangleAlert className="mt-0.5 size-3.5 flex-none text-dl" />
             <span>
@@ -245,7 +245,7 @@ export function AddTitleForm({
               alone, so a consequence only the open menu shows is unread. */}
           <p
             id="monitor-summary"
-            className="flex items-start gap-1.5 text-[12.5px] text-muted-foreground"
+            className="flex items-start gap-1.5 text-xs text-muted-foreground"
           >
             {summary.warn && (
               <TriangleAlert className="mt-0.5 size-3.5 flex-none text-dl" />

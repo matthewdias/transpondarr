@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import type { ItemStatus } from "@/lib/api";
 
 const badgeBase =
-  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold whitespace-nowrap";
+  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap";
 
 export function FormatBadge({ format }: { format: string }) {
   return (

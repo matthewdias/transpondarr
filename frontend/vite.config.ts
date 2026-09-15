@@ -23,6 +23,7 @@ const unitTests = [
   "src/lib/queries.test.ts",
   "src/lib/release-focus.test.ts",
   "src/lib/season.test.ts",
+  "src/lib/type-scale.test.ts",
   "src/lib/unmet-goals.test.ts",
   "src/pages/settings/sections/profile-editor-state.test.ts",
   "vite.proxy.test.ts",

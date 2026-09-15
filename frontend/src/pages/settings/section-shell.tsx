@@ -32,7 +32,7 @@ export function SectionShell({
             {configured != null && (
               <span
                 className={cn(
-                  "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                  "rounded-full border px-2 py-0.5 text-2xs font-medium",
                   configured
                     ? "border-transparent bg-have-weak text-have"
                     : "border-border bg-panel-2 text-faint",
@@ -66,9 +66,7 @@ export function Field({
         {label}
       </span>
       <Input {...props} />
-      {hint && (
-        <span className="mt-1 block text-[11px] text-faint">{hint}</span>
-      )}
+      {hint && <span className="mt-1 block text-2xs text-faint">{hint}</span>}
     </label>
   );
 }

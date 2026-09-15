@@ -83,9 +83,7 @@ function EventSwitches({
         >
           <span className="min-w-0">
             <span className="block text-xs font-medium">{row.label}</span>
-            <span className="mt-0.5 block text-[11px] text-faint">
-              {row.hint}
-            </span>
+            <span className="mt-0.5 block text-2xs text-faint">{row.hint}</span>
           </span>
           <Switch
             checked={value[row.key]}

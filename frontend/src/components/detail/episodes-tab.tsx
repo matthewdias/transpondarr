@@ -165,7 +165,7 @@ export function EpisodesTab({
               />
             )}
           </div>
-          <div className="min-w-0 text-[13px] text-muted-foreground">
+          <div className="min-w-0 text-sm text-muted-foreground">
             {empty ? (
               <b className="font-semibold text-foreground">{emptyLabel}</b>
             ) : (
@@ -276,9 +276,7 @@ export function EpisodesTab({
           the cursor and scrolled out of reach a few hundred rows in. */}
       {selected.size > 0 && (
         <div className="sticky bottom-4 z-20 mt-3 flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3.5 py-2.5 shadow-lg">
-          <span className="text-[13px] font-medium">
-            {selected.size} selected
-          </span>
+          <span className="text-sm font-medium">{selected.size} selected</span>
           <div className="ml-auto flex gap-2">
             <Button
               variant="outline"

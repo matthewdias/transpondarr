@@ -97,7 +97,7 @@ export function AppSidebar() {
           <div className="grid size-7 place-items-center rounded-md bg-gradient-to-br from-primary to-primary/60 text-primary-foreground">
             <Snail className="size-4" />
           </div>
-          <div className="text-[15px] font-semibold tracking-tight">
+          <div className="text-base font-semibold tracking-tight">
             Transpondarr
           </div>
         </div>

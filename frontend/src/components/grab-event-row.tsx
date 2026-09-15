@@ -73,16 +73,16 @@ export function GrabEventRow({
             </>
           )}
         </div>
-        <div className="line-clamp-1 font-mono text-[12px] text-faint">
+        <div className="line-clamp-1 font-mono text-xs text-faint">
           {event.release_title}
         </div>
         {event.status === "failed" && event.detail && (
-          <div className="line-clamp-2 text-[12px] text-destructive">
+          <div className="line-clamp-2 text-xs text-destructive">
             {event.detail}
           </div>
         )}
         {event.status === "import_deferred" && event.detail && (
-          <div className="line-clamp-2 text-[12px] text-muted-foreground">
+          <div className="line-clamp-2 text-xs text-muted-foreground">
             {event.detail}
           </div>
         )}
