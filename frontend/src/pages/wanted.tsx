@@ -40,7 +40,8 @@ import {
 import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 import { cn } from "@/lib/utils";
-import { ItemStatusBadge } from "@/components/badges";
+import { badgeBase, ItemStatusBadge } from "@/components/badges";
+import { Toggletip } from "@/components/toggletip";
 import { MonitorToggle } from "@/components/monitor-toggle";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Topbar } from "@/components/topbar";
@@ -284,9 +285,11 @@ function GroupSection({
           // 49px is the sticky Topbar's height; group headers stack under it.
           "sticky top-[49px] z-[5] rounded-t-[7px] bg-panel-2 px-3.5 py-2.5",
           !collapsed && "border-b",
+          // A toggletip's popover paints in this header's layer, so lift it over the next sticky header.
+          "has-[[data-state=open]]:z-[6]",
         )}
       >
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
           <button
             type="button"
             aria-expanded={!collapsed}
@@ -431,7 +434,7 @@ function MissingRow({
 }) {
   const film = isFilm(format);
   return (
-    <div className="flex items-center gap-3 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40 md:flex-nowrap">
       <span className="w-8 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
         {pad2(item.number)}
       </span>
@@ -482,14 +485,50 @@ function TitleReasonBadge({ group }: { group: MissingGroup }) {
         ? `Next search ${countdownOrDate(group.next_search_at)}`
         : undefined;
   return (
-    <span
-      title={detail || undefined}
-      className={cn(
-        "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap md:inline-flex",
-        titleReasonTone[group.reason],
-      )}
+    <ReasonBadge
+      detail={detail}
+      tone={titleReasonTone[group.reason]}
+      // Aligns under the title's name, past the chevron and checkbox.
+      mobileIndent="max-md:pl-15"
     >
       {titleReasonLabel[group.reason]}
+    </ReasonBadge>
+  );
+}
+
+// Below md a reason wraps onto its own line instead of being hidden, and only a
+// reason with detail is a button, so a long list doesn't gain a tab stop per row.
+function ReasonBadge({
+  detail,
+  tone,
+  mobileIndent,
+  children,
+}: {
+  detail?: string;
+  tone: string;
+  mobileIndent: string;
+  children: React.ReactNode;
+}) {
+  // A long reason wraps on a phone instead of running past the card.
+  const className = cn(
+    badgeBase,
+    "shrink-0 max-md:shrink max-md:whitespace-normal",
+    tone,
+  );
+  return (
+    <span
+      className={cn(
+        "flex min-w-0 shrink-0 max-md:order-last max-md:basis-full",
+        mobileIndent,
+      )}
+    >
+      {detail ? (
+        <Toggletip explanation={detail} className={className}>
+          {children}
+        </Toggletip>
+      ) : (
+        <span className={className}>{children}</span>
+      )}
     </span>
   );
 }
@@ -529,15 +568,14 @@ function ItemReasonBadge({ item, film }: { item: MissingItem; film: boolean }) {
       ? "Not released yet"
       : itemReasonLabel[item.reason];
   return (
-    <span
-      title={itemReasonTitle(item)}
-      className={cn(
-        "hidden shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap md:inline-flex",
-        itemReasonTone[item.reason],
-      )}
+    <ReasonBadge
+      detail={itemReasonTitle(item)}
+      tone={itemReasonTone[item.reason]}
+      // Aligns under the episode name, past the number column.
+      mobileIndent="max-md:pl-11"
     >
       {item.last_pass ? `${label} · ${timeAgo(item.last_pass.at)}` : label}
-    </span>
+    </ReasonBadge>
   );
 }
 
@@ -682,11 +720,13 @@ function CutoffRow({
             // exclude the repack/v2 bonus, so an empty list means "tops every
             // preference", not "at the maximum" -- a v2 of this very release
             // scores 25 higher and would be taken.
-            <div
-              className="truncate text-2xs text-faint"
-              title={`This release meets every preference this profile states. It stays listed because its score (${item.score}) is below the cutoff (${cutoff}).`}
-            >
-              Nothing left to improve
+            <div className="flex">
+              <Toggletip
+                className="truncate rounded-sm text-2xs text-faint underline decoration-dotted underline-offset-2"
+                explanation={`This release meets every preference this profile states. It stays listed because its score (${item.score}) is below the cutoff (${cutoff}).`}
+              >
+                Nothing left to improve
+              </Toggletip>
             </div>
           )
         )}

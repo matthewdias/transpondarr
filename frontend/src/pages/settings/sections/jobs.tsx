@@ -97,15 +97,7 @@ export function JobsTable({
                 )}
               </span>
               <span className="flex flex-none items-baseline gap-2 font-mono text-xs text-muted-foreground">
-                <span
-                  title={
-                    j.last_run
-                      ? `Last run took ${jobDuration(j.last_duration_ms)}`
-                      : undefined
-                  }
-                >
-                  {j.last_run ? timeAgo(j.last_run) : "Never"}
-                </span>
+                <span>{j.last_run ? timeAgo(j.last_run) : "Never"}</span>
                 <span
                   className={next.overdue ? "text-destructive" : "text-faint"}
                 >
@@ -127,6 +119,11 @@ export function JobsTable({
                 )}
               </span>
             </div>
+            {j.last_run && (
+              <p className="mt-0.5 font-mono text-2xs text-faint">
+                Last run took {jobDuration(j.last_duration_ms)}
+              </p>
+            )}
             {j.last_error && (
               <p className="mt-1 text-2xs text-destructive">{j.last_error}</p>
             )}

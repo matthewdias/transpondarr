@@ -120,6 +120,19 @@ function useHandlers(opts: {
   );
 }
 
+// Every toggletip renders its own status region, so read the one with text in it.
+const announced = () => {
+  const region = screen.getAllByRole("status").find((s) => s.textContent);
+  if (!region) throw new Error("no explanation announced");
+  return region;
+};
+
+const hiddenOnPhones = (el: HTMLElement) => {
+  for (let n: HTMLElement | null = el; n; n = n.parentElement)
+    if (n.classList.contains("hidden")) return true;
+  return false;
+};
+
 function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -159,12 +172,23 @@ it("renders group and item reasons at their own levels", async () => {
   });
   renderPage();
 
-  expect(await screen.findByText("Releases blocklisted")).toBeInTheDocument();
-  expect(screen.getByTitle("2 releases")).toBeInTheDocument();
-  expect(screen.getByText("Last grab failed")).toBeInTheDocument();
-  expect(
-    screen.getByTitle("torrent vanished from the client"),
-  ).toBeInTheDocument();
+  // Each reason's detail opens by tap or keyboard instead of sitting in a title attribute.
+  const blocklisted = await screen.findByRole("button", {
+    name: "Releases blocklisted",
+  });
+  expect(blocklisted).not.toHaveAttribute("title");
+  await userEvent.click(blocklisted);
+  await waitFor(() => expect(announced()).toHaveTextContent("2 releases"));
+  const failed = screen.getByRole("button", { name: "Last grab failed" });
+  failed.focus();
+  await userEvent.keyboard("{Enter}");
+  await waitFor(() =>
+    expect(announced()).toHaveTextContent("torrent vanished from the client"),
+  );
+  // Phones see the reasons too: nothing between either badge and the page is
+  // display:none below md.
+  expect(hiddenOnPhones(blocklisted)).toBe(false);
+  expect(hiddenOnPhones(failed)).toBe(false);
   expect(screen.getByText("2 episodes missing")).toBeInTheDocument();
   // An absent broadcast time is named, not left as a dash that could mean
   // anything from "loading" to "unknown column".
@@ -220,14 +244,16 @@ it("dates what the last pass decided and names the release", async () => {
 
   expect(await screen.findByText("Releases declined · 2h ago")).toBeVisible();
   expect(screen.getByText("Nothing matched · 2h ago")).toBeVisible();
-  const declined = screen.getByText("Releases declined · 2h ago");
-  expect(declined.getAttribute("title")).toContain(
-    "[SynthSubs] Signal Anomaly - 05 [720p]",
-  );
-  expect(declined.getAttribute("title")).toContain("below the profile minimum");
-  expect(declined.getAttribute("title")).toContain("search");
+  const declined = screen.getByRole("button", {
+    name: "Releases declined · 2h ago",
+  });
+  await userEvent.click(declined);
+  const status = await waitFor(announced);
+  expect(status).toHaveTextContent("[SynthSubs] Signal Anomaly - 05 [720p]");
+  expect(status).toHaveTextContent("below the profile minimum");
+  expect(status).toHaveTextContent("search");
   // Episode 4 has no story of its own; its group shows it.
-  expect(screen.queryByText(/Releases declined · 2h ago/)).toBe(declined);
+  expect(screen.queryAllByText(/Releases declined · 2h ago/)).toHaveLength(1);
   expect(screen.getByText("Episode 4")).toBeInTheDocument();
 });
 
@@ -279,14 +305,46 @@ it("names a pinned-group wait and tones a refused add as a failure", async () =>
   });
   renderPage();
 
-  const held = await screen.findByText(/Waiting for the pinned group/);
-  expect(held.getAttribute("title")).toContain("PinnedSubs");
-  expect(held.getAttribute("title")).toMatch(/Grabbable in \d+h/);
-  expect(held.getAttribute("title")).toContain("feed");
+  const held = await screen.findByRole("button", {
+    name: /Waiting for the pinned group/,
+  });
+  await userEvent.click(held);
+  const status = await waitFor(announced);
+  expect(status).toHaveTextContent("PinnedSubs");
+  expect(status).toHaveTextContent(/Grabbable in \d+h/);
+  expect(status).toHaveTextContent("feed");
 
-  const refused = screen.getByText(/Download client refused it/);
+  const refused = screen.getByRole("button", {
+    name: /Download client refused it/,
+  });
   expect(refused.className).toContain("destructive");
-  expect(refused.getAttribute("title")).toContain("404 fetching .torrent");
+  await userEvent.click(refused);
+  await waitFor(() =>
+    expect(announced()).toHaveTextContent("404 fetching .torrent"),
+  );
+});
+
+// Only a reason with something to explain becomes a button, so a long list
+// doesn't gain a tab stop per row.
+it("leaves a reason with nothing to explain as text", async () => {
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({ reason: "never_searched" }, [
+            missing({ id: 1, number: 1, reason: "unaired" }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  expect(await screen.findByText("Not searched yet")).toBeInTheDocument();
+  expect(screen.getByText("Not aired yet")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /Not searched yet|Not aired yet/ }),
+  ).toBeNull();
 });
 
 // The page-level reason is one banner, not a badge stamped on every row.
@@ -534,12 +592,16 @@ it("shows when a sub-cutoff row has nothing left to improve", async () => {
   renderPage();
 
   await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
-  const note = await screen.findByText("Nothing left to improve");
-  expect(note).toHaveAttribute(
-    "title",
+  const note = await screen.findByRole("button", {
+    name: "Nothing left to improve",
+  });
+  expect(note).not.toHaveAttribute("title");
+  await userEvent.click(note);
+  const status = await waitFor(announced);
+  expect(status).toHaveTextContent(
     "This release meets every preference this profile states. It stays listed because its score (2400) is below the cutoff (2500).",
   );
-  expect(note.getAttribute("title")).not.toMatch(/best possible|nothing can/i);
+  expect(status).not.toHaveTextContent(/best possible|nothing can/i);
   // The header stays quiet: an item below the ceiling on the same profile is
   // healthy, so the group is not the place to show this.
   expect(screen.queryByText(/^Wanted:/)).toBeNull();

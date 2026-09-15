@@ -85,6 +85,17 @@ describe("ScoreCell", () => {
     expect(screen.getByText(/group TrustedCorp/)).toBeInTheDocument();
   });
 
+  // A pointer passing over a dense table shouldn't flash tooltips, so hover
+  // waits as the toggletips do; focus is still instant (above).
+  it("opens the breakdown on hover only after a delay", async () => {
+    const user = userEvent.setup();
+    renderCell(release({}));
+    await user.hover(screen.getByText("1400"));
+    await new Promise((r) => setTimeout(r, 150));
+    expect(screen.queryByText(/group TrustedCorp/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/group TrustedCorp/)).toBeInTheDocument();
+  });
+
   // The default tooltip surface is inverted, where the palette's semantic
   // tokens fail contrast — text-dl drops to 1.84:1 in dark mode. The breakdown
   // needs the same upright surface the drawer gives it.

@@ -71,6 +71,13 @@ All notable changes to this project are documented here. The format is based on
   downloaded* or a film's *Downloaded, not imported* badge opens its
   explanation, including the error that blocked the import. Before, the
   explanation showed only on mouse hover.
+- **The rest of the app's explanations work on a phone and with a keyboard too.**
+  A reason on the Wanted page opens its details, such as which release was found
+  and why it wasn't grabbed, and phones show the reason under the episode instead
+  of hiding it. The calendar shows an import error under its entry, and the month
+  view marks each status with an icon as well as a colour. How long a job's last
+  run took and why quality profiles couldn't load are no longer mouse-only, and
+  tooltips now wait a moment before opening on hover.
 - **A title's progress bar now shows batch-downloaded and import-blocked
   episodes** as striped segments, where before they looked the same as
   wanted. Each one stays visible however long the series is.

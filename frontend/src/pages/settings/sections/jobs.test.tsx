@@ -126,17 +126,16 @@ describe("JobsTable", () => {
   });
 
   // Duration is a developer's metric with no baseline on this card, so it keeps
-  // its precision but loses the column to next run.
-  it("keeps the last duration available without using a column for it", () => {
+  // its precision on a line of its own rather than taking a column.
+  it("shows the last duration under the job, not in a title", () => {
     render(
       <JobsTable
         jobs={[job({ last_run: minutesFromNow(-1), last_duration_ms: 0.5 })]}
       />,
     );
-    expect(within(rowFor("Wanted search")).getByText("1m ago")).toHaveAttribute(
-      "title",
-      "Last run took 0.5 ms",
-    );
+    const row = within(rowFor("Wanted search"));
+    expect(row.getByText("1m ago")).not.toHaveAttribute("title");
+    expect(row.getByText("Last run took 0.5 ms")).toBeInTheDocument();
   });
 
   it("surfaces a job's last error, styled as an error", () => {

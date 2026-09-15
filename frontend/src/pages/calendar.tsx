@@ -5,10 +5,14 @@ import {
   CalendarDays,
   CalendarClock,
   CalendarOff,
+  Check,
+  Download,
   EyeOff,
   ChevronLeft,
   ChevronRight,
   Film,
+  FolderClock,
+  TriangleAlert,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -44,6 +48,23 @@ const statusDot: Record<ItemStatus, string> = {
   stuck: "bg-destructive",
   deferred: "bg-dl/50",
   wanted: "bg-faint",
+};
+
+// The badges' glyphs, so a month entry's status doesn't depend on colour alone;
+// wanted keeps the plain dot, which is a shape of its own.
+const statusGlyph: Partial<Record<ItemStatus, LucideIcon>> = {
+  in_library: Check,
+  downloading: Download,
+  stuck: TriangleAlert,
+  deferred: FolderClock,
+};
+
+const statusTone: Record<ItemStatus, string> = {
+  in_library: "text-have",
+  downloading: "text-dl",
+  stuck: "text-destructive",
+  deferred: "text-dl",
+  wanted: "text-faint",
 };
 
 // Compact form for grid cells, where the full ItemStatusBadge cannot fit a
@@ -243,20 +264,34 @@ function UnscheduledNote({
 
 function EntryLine({ item }: { item: CalendarItem }) {
   const premiere = isPremiere(item);
+  const Glyph = statusGlyph[item.status];
   return (
     <Link
       to={`/titles/${item.title_id}`}
       className="block truncate rounded px-1 py-0.5 text-xs leading-5 hover:bg-panel-2"
-      title={`${item.title} — ${premiere ? "premiere" : `episode ${item.number}`} (${item.status})`}
+      title={`${item.title} — ${premiere ? "premiere" : `episode ${item.number}`} (${statusText(item)})`}
     >
-      <span
-        className={cn(
-          "mr-1.5 inline-block size-1.5 rounded-full align-middle",
-          statusDot[item.status],
-        )}
-      />
+      {Glyph ? (
+        <Glyph
+          data-status-marker
+          aria-hidden
+          className={cn(
+            "mr-1 inline-block size-3 align-middle",
+            statusTone[item.status],
+          )}
+        />
+      ) : (
+        <span
+          data-status-marker
+          aria-hidden
+          className={cn(
+            "mr-1.5 ml-[3px] inline-block size-1.5 rounded-full align-middle",
+            statusDot[item.status],
+          )}
+        />
+      )}
       {/* A month cell is a seventh of the grid, so the marker is an icon where
-          an episode gets its number; the title attribute contains the words. */}
+          an episode gets its number; the title and sr-only text contain the words. */}
       {premiere ? (
         <Film
           aria-hidden
@@ -266,6 +301,7 @@ function EntryLine({ item }: { item: CalendarItem }) {
         <span className="tabular-nums text-faint">{pad2(item.number)} </span>
       )}
       {item.title}
+      <span className="sr-only">, {statusText(item)}</span>
     </Link>
   );
 }
@@ -372,10 +408,7 @@ function WeekGrid({
                       ? "Premiere"
                       : `Ep ${item.number} · ${timeLabel(item.airs_at)}`}
                   </div>
-                  <div
-                    className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground"
-                    title={item.import_error || undefined}
-                  >
+                  <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                     <span
                       className={cn(
                         "size-1.5 flex-none rounded-full",
@@ -384,6 +417,7 @@ function WeekGrid({
                     />
                     <span className="truncate">{statusText(item)}</span>
                   </div>
+                  <ImportError error={item.import_error} className="mt-1" />
                 </Link>
               ))}
             </div>
@@ -437,7 +471,7 @@ function Agenda({
                 <Link
                   key={item.id}
                   to={`/titles/${item.title_id}`}
-                  className="flex items-center gap-3 px-3 py-2.5 hover:bg-panel-2/50"
+                  className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 hover:bg-panel-2/50"
                 >
                   <span className="w-16 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
                     {isPremiere(item) ? "" : timeLabel(item.airs_at)}
@@ -459,12 +493,33 @@ function Agenda({
                     movie={isPremiere(item)}
                     plain
                   />
+                  <ImportError
+                    error={item.import_error}
+                    className="basis-full pl-19"
+                  />
                 </Link>
               ))}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// A button inside a link is invalid, so a link-wrapped row shows the error as
+// text instead of behind a toggletip.
+function ImportError({
+  error,
+  className,
+}: {
+  error?: string;
+  className?: string;
+}) {
+  if (!error) return null;
+  return (
+    <div className={cn("text-xs break-words text-destructive", className)}>
+      {error}
     </div>
   );
 }
