@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, useRef } from "react";
 import { Eye, EyeOff, Search } from "lucide-react";
 import type { TitleDetail, WantedItem } from "@/lib/api";
 import { airDate, pad2, parseTimestamp } from "@/lib/format";
+import { barSegments } from "@/lib/bar-segments";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -17,21 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-// The narrowest track is 120px, so 5% keeps every segment at least 6px wide.
-const minSegment = 5;
-
-// The floors overflow the track by under 15%, which leaves the largest segment far
-// above its own floor, so it absorbs the overflow alone (in library, on a long series).
-function barSegments<T extends { count: number; width: number }>(segs: T[]) {
-  const shown = segs
-    .filter((s) => s.count > 0)
-    .map((s) => ({ ...s, width: Math.max(s.width, minSegment) }));
-  const excess = shown.reduce((sum, s) => sum + s.width, 0) - 100;
-  if (excess > 0)
-    shown.reduce((a, b) => (b.width > a.width ? b : a)).width -= excess;
-  return shown;
-}
 
 function Sep() {
   return <span className="mx-1 text-faint">·</span>;
@@ -116,7 +102,6 @@ export function EpisodesTab({
     deferred,
     wanted,
   } = counts;
-  const pct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
   // A zero denominator has two causes, and naming the wrong one is a plain false
   // statement on a series whose episodes have all aired and all been switched off.
   // A third cause -- no items at all -- returns early, above.
@@ -182,7 +167,8 @@ export function EpisodesTab({
         className:
           "bg-[repeating-linear-gradient(135deg,var(--color-destructive)_0_2px,transparent_2px_4px)]",
       },
-    ].map((seg) => ({ ...seg, width: pct(seg.count) })),
+    ],
+    total,
   );
 
   // An id, not an index: a refetch between two clicks can renumber the rows, and

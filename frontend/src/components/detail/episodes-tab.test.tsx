@@ -320,19 +320,6 @@ describe("EpisodesTab monitoring", () => {
     expect(library + downloading + stuck).toBeCloseTo(100, 5);
   });
 
-  it("gives one blocked import in a thousand episodes its minimum width", () => {
-    renderStrip([
-      item({ id: 1, number: 1, status: "stuck" }),
-      ...Array.from({ length: 999 }, (_, i) =>
-        item({ id: i + 2, number: i + 2 }),
-      ),
-    ]);
-
-    const widths = segmentWidths();
-    expect(widths).toHaveLength(1);
-    expect(widths[0]).toBeGreaterThanOrEqual(5);
-  });
-
   // The bar, its label and the text beside it once listed the statuses in three
   // different orders, and the label announced zero counts the line leaves out.
   it("names the bar's breakdown in the text line's order and words", () => {

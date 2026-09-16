@@ -16,6 +16,7 @@ if (process.env.VITEST) process.env.TZ = "America/New_York";
 // Pure-logic suites run without a DOM or the jest-dom setup, worth ~350ms of
 // environment per file. Anything that renders — or drives fetch — stays off it.
 const unitTests = [
+  "src/lib/bar-segments.test.ts",
   "src/lib/calendar.test.ts",
   "src/lib/chart.test.ts",
   "src/lib/contrast.test.ts",
