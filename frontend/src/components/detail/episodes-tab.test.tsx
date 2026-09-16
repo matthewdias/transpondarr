@@ -268,22 +268,25 @@ describe("EpisodesTab monitoring", () => {
   });
 
   // Batch-downloaded and import-blocked episodes aren't wanted, but the bar drew
-  // them unfilled like wanted ones (#163).
+  // them unfilled like wanted ones (#163). No two statuses share a count, so the
+  // expectation can tell a swapped pair from a correct one.
   it("draws a bar segment for every acquired status, in order", () => {
     renderStrip([
       item({ id: 1, number: 1, in_library: true, status: "in_library" }),
-      item({ id: 2, number: 2, status: "downloading" }),
-      item({ id: 3, number: 3, status: "deferred" }),
+      item({ id: 2, number: 2, in_library: true, status: "in_library" }),
+      item({ id: 3, number: 3, status: "downloading" }),
       item({ id: 4, number: 4, status: "deferred" }),
-      item({ id: 5, number: 5, status: "stuck" }),
-      item({ id: 6, number: 6, status: "stuck" }),
+      item({ id: 5, number: 5, status: "deferred" }),
+      item({ id: 6, number: 6, status: "deferred" }),
       item({ id: 7, number: 7, status: "stuck" }),
-      item({ id: 8, number: 8 }),
+      item({ id: 8, number: 8, status: "stuck" }),
+      item({ id: 9, number: 9, status: "stuck" }),
+      item({ id: 10, number: 10, status: "stuck" }),
     ]);
 
     const bar = screen.getByRole("img", { name: /in library/ });
     const widths = [...bar.children].map((c) => (c as HTMLElement).style.width);
-    expect(widths).toEqual(["12.5%", "12.5%", "25%", "37.5%"]);
+    expect(widths).toEqual(["20%", "10%", "30%", "40%"]);
   });
 
   // The bar, its label and the text beside it once listed the statuses in three

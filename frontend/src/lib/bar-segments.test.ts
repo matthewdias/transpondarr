@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { barSegments } from "@/lib/bar-segments";
 
-// Asserted against the helper the episodes tab imports, not through the tab: each
-// case needs 191-1,000 item rows, which cost 2.9s of vitest's 5s timeout (#319).
+// Asserted against the helper the episodes tab imports, not through the tab: the
+// three need 191-1,000 item rows each, and together cost 2.7s to render (#319).
 const widthsFor = (
   counts: Partial<
     Record<"inLibrary" | "downloading" | "deferred" | "stuck", number>
