@@ -89,6 +89,9 @@ All notable changes to this project are documented here. The format is based on
   wanted. Each one stays visible however long the series is.
 - **The episodes tab's *Search all wanted* button is now *Search all*,** since
   the search it opens was never limited to wanted episodes.
+- **The episodes tab's *Search all* button is no longer greyed out when the only
+  episodes left are *Import blocked*,** so you can pick a different release for an
+  import that keeps failing.
 - **The add dialog now says which episodes it will monitor**, in both choices and
   before you pick one — *All 12 episodes will be monitored*, or *6 of 12
   episodes will be monitored, from episode 7*. When a choice would monitor
@@ -105,6 +108,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **A lost connection is now worded the same way on every screen.** The *Fix import*
+  dialog, the add dialog's AniList search and a title's *Profile unavailable*
+  explanation showed the browser's own message, such as *Failed to fetch*. They
+  now show that Transpondarr didn't respond, like every other failed load, and
+  *Fix import* has a **Try again** button.
 - **On a phone, the Titles list and Cutoff Unmet show the names again.** At 320px
   every title read `Placehol…` beside a Monitored column that said the same thing on
   every row, and a held release name shrank to `[S…`. Titles now drops that column on
