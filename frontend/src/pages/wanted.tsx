@@ -288,7 +288,7 @@ function GroupSection({
           "has-[[data-state=open]]:z-[6]",
         )}
       >
-        <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
+        <div className="flex flex-wrap items-center gap-3 @min-[48rem]/inset:flex-nowrap">
           <button
             type="button"
             aria-expanded={!collapsed}
@@ -434,14 +434,14 @@ function MissingRow({
 }) {
   const film = isFilm(format);
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40 md:flex-nowrap">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40 @min-[48rem]/inset:flex-nowrap">
       <span className="w-8 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
         {pad2(item.number)}
       </span>
       <span className="min-w-0 flex-1 truncate text-sm text-foreground/90">
         {item.name || (film ? "Film" : `Episode ${item.number}`)}
       </span>
-      <span className="hidden w-28 shrink-0 text-right text-xs text-faint sm:block">
+      <span className="hidden w-28 shrink-0 text-right text-xs text-faint @min-[40rem]/inset:block">
         {item.airs_at ? (
           film ? (
             premiereDate(item.airs_at)
@@ -489,37 +489,40 @@ function TitleReasonBadge({ group }: { group: MissingGroup }) {
       detail={detail}
       tone={titleReasonTone[group.reason]}
       // Aligns under the title's name, past the chevron and checkbox.
-      mobileIndent="max-md:pl-15"
+      narrowIndent="@max-[48rem]/inset:pl-15"
     >
       {titleReasonLabel[group.reason]}
     </ReasonBadge>
   );
 }
 
-// Below md a reason takes its own line instead of being hidden, in the place the
-// DOM puts it, so the tab sequence follows the reading order (WCAG 2.4.3); the
-// row's controls wrap to a line of their own under it. Only a reason with detail
-// is a button, so a long list doesn't gain a tab stop per row.
+// In a narrow column a reason takes its own line instead of being hidden, in the
+// place the DOM puts it, so the tab sequence follows the reading order (WCAG
+// 2.4.3); the row's controls wrap to a line of their own under it. Only a reason
+// with detail is a button, so a long list doesn't gain a tab stop per row.
 function ReasonBadge({
   detail,
   tone,
-  mobileIndent,
+  narrowIndent,
   children,
 }: {
   detail?: string;
   tone: string;
-  mobileIndent: string;
+  narrowIndent: string;
   children: React.ReactNode;
 }) {
-  // A long reason wraps on a phone instead of running past the card.
+  // A long reason wraps instead of running past the card.
   const className = cn(
     badgeBase,
-    "shrink-0 max-md:shrink max-md:whitespace-normal",
+    "shrink-0 @max-[48rem]/inset:shrink @max-[48rem]/inset:whitespace-normal",
     tone,
   );
   return (
     <span
-      className={cn("flex min-w-0 shrink-0 max-md:basis-full", mobileIndent)}
+      className={cn(
+        "flex min-w-0 shrink-0 @max-[48rem]/inset:basis-full",
+        narrowIndent,
+      )}
     >
       {detail ? (
         <Toggletip explanation={detail} className={className}>
@@ -571,7 +574,7 @@ function ItemReasonBadge({ item, film }: { item: MissingItem; film: boolean }) {
       detail={itemReasonTitle(item)}
       tone={itemReasonTone[item.reason]}
       // Aligns under the episode name, past the number column.
-      mobileIndent="max-md:pl-11"
+      narrowIndent="@max-[48rem]/inset:pl-11"
     >
       {item.last_pass ? `${label} · ${timeAgo(item.last_pass.at)}` : label}
     </ReasonBadge>
@@ -649,11 +652,11 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
               ? "Below cutoff"
               : `${plural(group.below, "episode")} below cutoff`}
           </span>
-          <span className="flex min-w-0 shrink-0 max-md:basis-full max-md:pl-8">
+          <span className="flex min-w-0 shrink-0 @max-[48rem]/inset:basis-full @max-[48rem]/inset:pl-8">
             <span
               className={cn(
                 badgeBase,
-                "shrink-0 border-border bg-panel-2 text-muted-foreground max-md:shrink max-md:whitespace-normal",
+                "shrink-0 border-border bg-panel-2 text-muted-foreground @max-[48rem]/inset:shrink @max-[48rem]/inset:whitespace-normal",
               )}
             >
               {group.profile_name} · cutoff {group.cutoff_score}
@@ -734,7 +737,7 @@ function CutoffRow({
           )
         )}
       </div>
-      <span className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground tabular-nums sm:block">
+      <span className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground tabular-nums @min-[40rem]/inset:block">
         {item.score} / {cutoff}
       </span>
       {/* Below md the badge and controls take a second line, as in MissingRow. */}
