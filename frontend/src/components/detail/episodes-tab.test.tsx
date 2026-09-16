@@ -249,6 +249,24 @@ describe("EpisodesTab monitoring", () => {
     expect(screen.getByText(/2 not monitored/i)).toBeInTheDocument();
   });
 
+  // The unit cases cover the arithmetic; this covers the render, at 21 items --
+  // the smallest count that puts a status under the minimum (20 is exactly 5%).
+  it("renders a segment below the minimum at its minimum width", () => {
+    renderStrip([
+      item({ id: 1, number: 1, status: "stuck" }),
+      ...Array.from({ length: 20 }, (_, i) =>
+        item({ id: i + 2, number: i + 2 }),
+      ),
+    ]);
+
+    const bar = screen.getByRole("img", { name: /in library/ });
+    const widths = [...bar.children].map((c) =>
+      parseFloat((c as HTMLElement).style.width),
+    );
+    expect(widths).toHaveLength(1);
+    expect(widths[0]).toBeGreaterThanOrEqual(5);
+  });
+
   // Batch-downloaded and import-blocked episodes aren't wanted, but the bar drew
   // them unfilled like wanted ones (#163).
   it("draws a bar segment for every acquired status, in order", () => {
