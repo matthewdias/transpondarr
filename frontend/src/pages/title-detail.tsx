@@ -372,7 +372,7 @@ export function ProfilePicker({ detail }: { detail: TitleDetail }) {
     return <Skeleton className="h-[26px] w-24 rounded-md" />;
   if (!profiles.data?.length)
     return profiles.isError ? (
-      // One button can’t both open an explanation and refetch, so these are two.
+      // One button can't both open an explanation and refetch, so these are two.
       <span className="inline-flex items-center gap-1">
         <Toggletip
           explanation={

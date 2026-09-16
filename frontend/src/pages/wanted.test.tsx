@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -127,11 +127,22 @@ const announced = () => {
   return region;
 };
 
-const hiddenOnPhones = (el: HTMLElement) => {
+// A responsive prefix is the idiom this file uses, so "max-md:hidden" has to
+// count as hiding just as bare "hidden" does.
+const classesOnAndAbove = (el: HTMLElement) => {
+  const classes: string[] = [];
   for (let n: HTMLElement | null = el; n; n = n.parentElement)
-    if (n.classList.contains("hidden")) return true;
-  return false;
+    classes.push(...n.classList);
+  return classes;
 };
+
+const hiddenOnPhones = (el: HTMLElement) =>
+  classesOnAndAbove(el).some((c) => /(^|:)hidden$/.test(c));
+
+// order-* below md is what let the tab sequence disagree with the reading order
+// (WCAG 2.4.3): the reason drew under the controls but was focused before them.
+const reorderedOnPhones = (el: HTMLElement) =>
+  classesOnAndAbove(el).some((c) => /(^|:)order-/.test(c));
 
 function renderPage() {
   const client = new QueryClient({
@@ -186,9 +197,17 @@ it("renders group and item reasons at their own levels", async () => {
     expect(announced()).toHaveTextContent("torrent vanished from the client"),
   );
   // Phones see the reasons too: nothing between either badge and the page is
-  // display:none below md.
+  // display:none below md, and nothing reorders them away from where they read.
   expect(hiddenOnPhones(blocklisted)).toBe(false);
   expect(hiddenOnPhones(failed)).toBe(false);
+  expect(reorderedOnPhones(failed)).toBe(false);
+  // A row's reason is focused before the controls, and on phones it draws above
+  // them, so DOM order is the reading order at every width.
+  const row = failed.closest("div")!;
+  const search = within(row).getByRole("link", { name: /search/i });
+  expect(
+    failed.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
   expect(screen.getByText("2 episodes missing")).toBeInTheDocument();
   // An absent broadcast time is named, not left as a dash that could mean
   // anything from "loading" to "unknown column".
@@ -345,6 +364,30 @@ it("leaves a reason with nothing to explain as text", async () => {
   expect(
     screen.queryByRole("button", { name: /Not searched yet|Not aired yet/ }),
   ).toBeNull();
+});
+
+// #328 rewrites this header's className, and the popover renders inside the
+// header's stacking context, so losing the lift puts the next sticky header over
+// an open explanation with every other test still green.
+it("lifts a group header over the next one while its explanation is open", async () => {
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group({ reason: "blocklisted", blocked_releases: 2 }, [
+            missing({ id: 1, number: 1 }),
+          ]),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  const badge = await screen.findByRole("button", {
+    name: "Releases blocklisted",
+  });
+  const header = badge.closest("header")!;
+  expect(header.className).toContain("has-[[data-state=open]]:z-[6]");
 });
 
 // The page-level reason is one banner, not a badge stamped on every row.
@@ -517,7 +560,10 @@ it("hoists shared goals to the cutoff group header", async () => {
     await screen.findByText("[FakeGroup] Signal Anomaly - 02 [720p]"),
   ).toBeInTheDocument();
   expect(screen.getByText("2 episodes below cutoff")).toBeInTheDocument();
-  expect(screen.getByText("Anime HD · cutoff 2300")).toBeInTheDocument();
+  // The profile and its cutoff appear nowhere else, so phones keep them too.
+  const profile = screen.getByText("Anime HD · cutoff 2300");
+  expect(hiddenOnPhones(profile)).toBe(false);
+  expect(profile).not.toHaveAttribute("title");
   // The resolution gap is everyone's, so it is shown once on the header...
   expect(
     screen.getByText("Wanted: resolution 1080p (+100)"),

@@ -496,8 +496,10 @@ function TitleReasonBadge({ group }: { group: MissingGroup }) {
   );
 }
 
-// Below md a reason wraps onto its own line instead of being hidden, and only a
-// reason with detail is a button, so a long list doesn't gain a tab stop per row.
+// Below md a reason takes its own line instead of being hidden, in the place the
+// DOM puts it, so the tab sequence follows the reading order (WCAG 2.4.3); the
+// row's controls wrap to a line of their own under it. Only a reason with detail
+// is a button, so a long list doesn't gain a tab stop per row.
 function ReasonBadge({
   detail,
   tone,
@@ -517,10 +519,7 @@ function ReasonBadge({
   );
   return (
     <span
-      className={cn(
-        "flex min-w-0 shrink-0 max-md:order-last max-md:basis-full",
-        mobileIndent,
-      )}
+      className={cn("flex min-w-0 shrink-0 max-md:basis-full", mobileIndent)}
     >
       {detail ? (
         <Toggletip explanation={detail} className={className}>
@@ -650,11 +649,15 @@ function CutoffGroupCard({ group }: { group: CutoffGroup }) {
               ? "Below cutoff"
               : `${plural(group.below, "episode")} below cutoff`}
           </span>
-          <span
-            className="hidden shrink-0 items-center rounded-full border border-border bg-panel-2 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-muted-foreground md:inline-flex"
-            title={`The ${group.profile_name} profile's cutoff`}
-          >
-            {group.profile_name} · cutoff {group.cutoff_score}
+          <span className="flex min-w-0 shrink-0 max-md:basis-full max-md:pl-8">
+            <span
+              className={cn(
+                badgeBase,
+                "shrink-0 border-border bg-panel-2 text-muted-foreground max-md:shrink max-md:whitespace-normal",
+              )}
+            >
+              {group.profile_name} · cutoff {group.cutoff_score}
+            </span>
           </span>
         </>
       }
