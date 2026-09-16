@@ -247,7 +247,7 @@ export function EpisodesTab({
           size="sm"
           className="w-full sm:ml-auto sm:w-auto"
           onClick={onSearchAll}
-          disabled={wanted + deferred === 0}
+          disabled={wanted + deferred + stuck === 0}
         >
           <Search className="size-4" /> Search all
         </Button>

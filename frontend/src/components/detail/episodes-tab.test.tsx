@@ -84,6 +84,25 @@ describe("EpisodesTab search buttons", () => {
     expect(onSearchItem).toHaveBeenCalledWith(6);
   });
 
+  // Import-blocked episodes are downloaded but not imported, as batch-downloaded ones are.
+  it("enables Search all while only import-blocked episodes remain", () => {
+    renderTab([
+      item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+      item({ id: 2, number: 2, status: "stuck" }),
+    ]);
+
+    expect(screen.getByRole("button", { name: "Search all" })).toBeEnabled();
+  });
+
+  it("disables Search all when nothing is left to search", () => {
+    renderTab([
+      item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+      item({ id: 2, number: 2, status: "downloading" }),
+    ]);
+
+    expect(screen.getByRole("button", { name: "Search all" })).toBeDisabled();
+  });
+
   // Batch-downloaded episodes enable the button too, so "Search all wanted" undersold it (#163).
   it("keeps the header button title-wide", async () => {
     const { onSearchAll, onSearchItem, user } = renderTab([
@@ -282,11 +301,23 @@ describe("EpisodesTab monitoring", () => {
       item({ id: 8, number: 8, status: "stuck" }),
       item({ id: 9, number: 9, status: "stuck" }),
       item({ id: 10, number: 10, status: "stuck" }),
+      // Untracked, so dividing by every item instead of the tracked total changes the widths.
+      item({ id: 11, number: 11, monitored: false }),
+      item({ id: 12, number: 12, airs_at: future }),
     ]);
 
     const bar = screen.getByRole("img", { name: /in library/ });
-    const widths = [...bar.children].map((c) => (c as HTMLElement).style.width);
-    expect(widths).toEqual(["20%", "10%", "30%", "40%"]);
+    const segments = [...bar.children] as HTMLElement[];
+    expect(segments.map((s) => s.style.width)).toEqual([
+      "20%",
+      "10%",
+      "30%",
+      "40%",
+    ]);
+    expect(segments[0]).toHaveClass("bg-have");
+    expect(segments[1]).toHaveClass("bg-dl");
+    expect(segments[2].className).toContain("var(--color-dl)");
+    expect(segments[3].className).toContain("var(--color-destructive)");
   });
 
   // The bar, its label and the text beside it once listed the statuses in three
