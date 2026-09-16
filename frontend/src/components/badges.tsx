@@ -45,9 +45,15 @@ export function MonitoredBadge({ monitored }: { monitored: boolean }) {
 
 // Replaces "wanted" alone, at the render site: the other statuses stay true
 // when unmonitored, and deriveItemState has no monitoring input.
-export function UnmonitoredItemBadge() {
+export function UnmonitoredItemBadge({ className }: { className?: string }) {
   return (
-    <span className={cn(badgeBase, "border-border bg-panel-2 text-faint")}>
+    <span
+      className={cn(
+        badgeBase,
+        "border-border bg-panel-2 text-faint",
+        className,
+      )}
+    >
       <EyeOff className="size-3" /> Not monitored
     </span>
   );
@@ -83,18 +89,24 @@ export function ItemStatusBadge({
   error,
   movie,
   plain,
+  className,
 }: {
   status: ItemStatus;
   error?: string;
   movie?: boolean;
   plain?: boolean;
+  // Goes through cn, so a responsive override beats badgeBase instead of tying.
+  className?: string;
 }) {
   switch (status) {
     case "stuck":
       return (
         <ExplainedBadge
           plain={plain}
-          className="border-destructive/40 bg-transparent text-destructive"
+          className={cn(
+            "border-destructive/40 bg-transparent text-destructive",
+            className,
+          )}
           explanation={
             error ||
             "The download finished but couldn’t be imported. The server log has the cause."
@@ -106,7 +118,11 @@ export function ItemStatusBadge({
     case "in_library":
       return (
         <span
-          className={cn(badgeBase, "border-transparent bg-have-weak text-have")}
+          className={cn(
+            badgeBase,
+            "border-transparent bg-have-weak text-have",
+            className,
+          )}
         >
           <Check className="size-3" /> In library
         </span>
@@ -114,7 +130,11 @@ export function ItemStatusBadge({
     case "downloading":
       return (
         <span
-          className={cn(badgeBase, "border-transparent bg-dl-weak text-dl")}
+          className={cn(
+            badgeBase,
+            "border-transparent bg-dl-weak text-dl",
+            className,
+          )}
         >
           <Download className="size-3" /> Downloading
         </span>
@@ -125,7 +145,7 @@ export function ItemStatusBadge({
       return movie ? (
         <ExplainedBadge
           plain={plain}
-          className="border-dl/40 bg-transparent text-dl"
+          className={cn("border-dl/40 bg-transparent text-dl", className)}
           explanation="The download finished but the film could not be picked out of it. The Activity queue shows what it needs."
         >
           <FolderClock className="size-3" /> Downloaded, not imported
@@ -133,7 +153,7 @@ export function ItemStatusBadge({
       ) : (
         <ExplainedBadge
           plain={plain}
-          className="border-dl/40 bg-transparent text-dl"
+          className={cn("border-dl/40 bg-transparent text-dl", className)}
           explanation="A batch was downloaded but no single episode file could be imported. Grab a single-episode release to replace it."
         >
           <FolderClock className="size-3" /> Batch downloaded
@@ -142,7 +162,11 @@ export function ItemStatusBadge({
     default:
       return (
         <span
-          className={cn(badgeBase, "border-border bg-transparent text-faint")}
+          className={cn(
+            badgeBase,
+            "border-border bg-transparent text-faint",
+            className,
+          )}
         >
           Wanted
         </span>

@@ -105,6 +105,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **On a phone, the Titles list and Cutoff Unmet show the names again.** At 320px
+  every title read `Placehol…` beside a Monitored column that said the same thing on
+  every row, and a held release name shrank to `[S…`. Titles now drops that column on
+  a phone and marks only an unmonitored title, under its name, with Progress on
+  screen. A Cutoff Unmet row gives the release name its own line.
+
 - **A server error now shows what failed, and is written to the server log.**
   Before, the app showed an internal message such as *sql: database is closed*,
   and nothing was logged. The app now shows what couldn't be done, and every

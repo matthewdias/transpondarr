@@ -28,10 +28,17 @@ export function LibraryProgress({
   if (format === "MOVIE" && status) {
     // Substituted, not qualified, as the detail page does it: every other status
     // stays true when unmonitored, and only "Wanted" turns into a false claim.
+    // The widest thing this column holds, so on a phone it wraps rather than clip.
+    const wrap = "max-sm:whitespace-normal";
     return monitored === 0 && status === "wanted" ? (
-      <UnmonitoredItemBadge />
+      <UnmonitoredItemBadge className={wrap} />
     ) : (
-      <ItemStatusBadge status={status} error={importError} movie />
+      <ItemStatusBadge
+        status={status}
+        error={importError}
+        movie
+        className={wrap}
+      />
     );
   }
   // A tracked series with no items at all is the unknown-count dead end (#151),
@@ -39,7 +46,7 @@ export function LibraryProgress({
   // gives it exactly one item), so it keeps the ratio it always had.
   if (format !== "MOVIE" && total === 0) {
     return (
-      <span className="whitespace-nowrap text-xs text-muted-foreground sm:min-w-[140px]">
+      <span className="text-xs text-muted-foreground sm:min-w-[140px] sm:whitespace-nowrap">
         Episode count unknown
       </span>
     );
@@ -66,14 +73,15 @@ export function LibraryProgress({
       )}
       <span className="text-xs tabular-nums text-muted-foreground">
         {empty ? (
-          <span className="whitespace-nowrap">{emptyLabel}</span>
+          <span className="sm:whitespace-nowrap">{emptyLabel}</span>
         ) : (
           <>
             {inLibrary} / {tracked}
           </>
         )}
         {tracked !== total && (
-          <span className="ml-1 whitespace-nowrap text-faint">
+          // Below sm the ratio alone keeps room for the name; the detail page has the total.
+          <span className="ml-1 hidden whitespace-nowrap text-faint sm:inline">
             ({total} total)
           </span>
         )}

@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router";
 import { afterAll, afterEach, beforeAll, expect, it } from "vitest";
 import type { Title } from "@/lib/api";
+import { hiddenOnPhones } from "@/test/responsive";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { TitleListPage } from "@/pages/titles-list";
 
@@ -96,4 +97,51 @@ it("renders a film's item state beside a series' count", async () => {
   expect(await screen.findByText("Downloading")).toBeInTheDocument();
   expect(screen.getByText("3 / 12")).toBeInTheDocument();
   expect(screen.queryByText("0 / 1")).not.toBeInTheDocument();
+});
+
+// #324: the Monitored column held ~94px for a pill that reads the same on almost
+// every row, so the name truncated to "Placehol..." and Progress was pushed past
+// the right edge. Below sm the column goes and only the exception is marked,
+// inline under the name -- in the column's own word, so the two widths agree.
+it("marks only an unmonitored title on phones, where the column is gone", async () => {
+  server.use(
+    http.get("/api/v1/titles", () =>
+      HttpResponse.json({
+        titles: [
+          title({ id: 1, title: "Signal Anomaly", monitored: true }),
+          title({ id: 2, title: "Placeholder Drift", monitored: false }),
+        ],
+      }),
+    ),
+  );
+
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <MemoryRouter>
+        <SidebarProvider>
+          <TitleListPage />
+        </SidebarProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+
+  // The column is desktop-only now, header and cells alike.
+  const header = await screen.findByRole("columnheader", { name: "Monitored" });
+  expect(hiddenOnPhones(header)).toBe(true);
+  const pills = screen.getAllByText(/^(Monitored|Unmonitored)$/);
+  const onPhones = pills.filter((el) => !hiddenOnPhones(el));
+
+  // Exactly one pill survives a phone, and it is the unmonitored title's.
+  expect(onPhones).toHaveLength(1);
+  expect(onPhones[0]).toHaveTextContent("Unmonitored");
+  const drifted = screen.getByRole("row", { name: /Placeholder Drift/ });
+  expect(within(drifted).getAllByText("Unmonitored")).toContain(onPhones[0]);
+
+  // Progress is not the casualty of making that room: it stays at every width.
+  const progress = screen.getAllByText("3 / 12");
+  expect(progress.every((el) => !hiddenOnPhones(el))).toBe(true);
 });
