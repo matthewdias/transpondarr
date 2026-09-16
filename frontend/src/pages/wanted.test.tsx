@@ -12,6 +12,11 @@ import type {
   MissingItem,
 } from "@/lib/api";
 import { searchQueuedToast } from "@/lib/search-queued-toast";
+import {
+  breaksLineOnPhones,
+  hiddenOnPhones,
+  reorderedOnPhones,
+} from "@/test/responsive";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { WantedPage } from "@/pages/wanted";
 
@@ -126,23 +131,6 @@ const announced = () => {
   if (!region) throw new Error("no explanation announced");
   return region;
 };
-
-// A responsive prefix is the idiom this file uses, so "max-md:hidden" has to
-// count as hiding just as bare "hidden" does.
-const classesOnAndAbove = (el: HTMLElement) => {
-  const classes: string[] = [];
-  for (let n: HTMLElement | null = el; n; n = n.parentElement)
-    classes.push(...n.classList);
-  return classes;
-};
-
-const hiddenOnPhones = (el: HTMLElement) =>
-  classesOnAndAbove(el).some((c) => /(^|:)hidden$/.test(c));
-
-// order-* below md is what let the tab sequence disagree with the reading order
-// (WCAG 2.4.3): the reason drew under the controls but was focused before them.
-const reorderedOnPhones = (el: HTMLElement) =>
-  classesOnAndAbove(el).some((c) => /(^|:)order-/.test(c));
 
 function renderPage() {
   const client = new QueryClient({
@@ -973,4 +961,41 @@ it("sets a focused item only where there is a choice of item", async () => {
     "/titles/8?tab=releases&item=1",
     "/titles/9?tab=releases&item=4",
   ]);
+});
+
+// #324: the release name was the only min-w-0 thing in a row of fixed-width
+// siblings, so at 320px it gave all of its width and rendered as "[S...". The
+// row now wraps below md exactly as MissingRow already did: the name keeps the
+// first line and the badge, Search and toggle take the second. Nothing is
+// hidden, so the two statuses this endpoint can return (in_library, downloading)
+// both survive -- which "hide the badge on phones" would not have managed.
+it("gives a sub-cutoff row's release name a line of its own on phones", async () => {
+  useHandlers({
+    pages: { "": { groups: [] } },
+    cutoffGroups: [cutoffGroup({}, [cutoff({ status: "downloading" })])],
+  });
+  renderPage();
+
+  await userEvent.click(screen.getByRole("tab", { name: /cutoff unmet/i }));
+  const name = await screen.findByText(
+    "[FakeGroup] Signal Anomaly - 02 [720p]",
+  );
+  // The name is on the first line with the episode number, and shares it with
+  // nothing else that holds width.
+  expect(hiddenOnPhones(name)).toBe(false);
+  expect(breaksLineOnPhones(name)).toBe(false);
+
+  // An upgrade in flight is the informative status here, so it is still shown.
+  const badge = screen.getByText("Downloading");
+  expect(hiddenOnPhones(badge)).toBe(false);
+  expect(breaksLineOnPhones(badge)).toBe(true);
+
+  // The controls follow the badge onto the second line rather than squeezing
+  // the name, and the reading order still matches the DOM order.
+  const search = screen.getByRole("link", { name: /search/i });
+  expect(hiddenOnPhones(search)).toBe(false);
+  expect(reorderedOnPhones(search)).toBe(false);
+  expect(
+    name.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
 });

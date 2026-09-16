@@ -707,7 +707,7 @@ function CutoffRow({
 }) {
   const own = ownGoals(item, shared);
   return (
-    <div className="flex items-center gap-3 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40 md:flex-nowrap">
       <span className="w-8 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
         {pad2(item.number)}
       </span>
@@ -740,7 +740,10 @@ function CutoffRow({
       <span className="hidden w-24 shrink-0 text-right text-xs text-muted-foreground tabular-nums @min-[40rem]/inset:block">
         {item.score} / {cutoff}
       </span>
-      <ItemStatusBadge status={item.status} />
+      {/* Below md the badge and controls take a second line, as in MissingRow. */}
+      <span className="flex shrink-0 max-md:basis-full max-md:pl-11">
+        <ItemStatusBadge status={item.status} />
+      </span>
       <Button variant="outline" size="sm" asChild>
         <Link to={releasesLink(titleId, format, item.number)}>
           <Search className="size-4" /> Search

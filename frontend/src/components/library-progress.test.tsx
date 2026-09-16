@@ -1,6 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import { expect, it } from "vitest";
+import { hiddenOnPhones } from "@/test/responsive";
 import { LibraryProgress } from "@/components/library-progress";
 
 // The denominator is the series' tracked items (monitored and aired), so it
@@ -18,6 +19,9 @@ it("shows the raw total when the denominator is a subset", () => {
 
   expect(screen.getByText("3 / 3")).toBeInTheDocument();
   expect(screen.getByText("(12 total)")).toBeInTheDocument();
+  // ...but not on a phone (#324), where it is the widest optional thing in the
+  // narrowest column and the ratio beside it already carries the row.
+  expect(hiddenOnPhones(screen.getByText("(12 total)"))).toBe(true);
 });
 
 it("drops the total when the two agree", () => {
@@ -209,4 +213,25 @@ it("keeps the count for a single-episode OVA", () => {
   );
 
   expect(screen.getByText("0 / 1")).toBeInTheDocument();
+});
+
+// #324: badgeBase is nowrap, so on a phone "Downloaded, not imported" was clipped
+// by the card. It wraps below sm, and only there.
+it("lets a film's badge wrap on a phone", () => {
+  render(
+    <LibraryProgress
+      format="MOVIE"
+      inLibrary={0}
+      tracked={1}
+      monitored={1}
+      total={1}
+      status="deferred"
+    />,
+  );
+
+  const badge = screen.getByRole("button", {
+    name: "Downloaded, not imported",
+  });
+  expect(badge).toHaveClass("max-sm:whitespace-normal");
+  expect(badge).not.toHaveClass("whitespace-normal");
 });

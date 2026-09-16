@@ -59,7 +59,9 @@ export function TitleListPage() {
                     <TableHead className="hidden sm:table-cell">
                       Format
                     </TableHead>
-                    <TableHead>Monitored</TableHead>
+                    <TableHead className="hidden sm:table-cell">
+                      Monitored
+                    </TableHead>
                     <TableHead className="sm:w-[200px]">Progress</TableHead>
                     <TableHead className="hidden w-8 sm:table-cell" />
                   </TableRow>
@@ -67,24 +69,33 @@ export function TitleListPage() {
                 <TableBody>
                   {titles.map((s) => (
                     <TableRow key={s.id} className="relative cursor-pointer">
-                      <TableCell className="max-w-[42vw] sm:max-w-none">
+                      {/* w-full takes the slack and max-w-0 lets the name shrink to what Progress leaves. */}
+                      <TableCell className="w-full max-w-0 sm:w-auto sm:max-w-none">
                         <div className="flex items-center gap-3">
                           <Poster title={s.title} />
-                          {/* Stretched link: keyboard-focusable and semantic, but its
-                              hit area (after:inset-0) covers the whole row, and the
-                              focus ring outlines the row. */}
-                          <Link
-                            to={`/titles/${s.id}`}
-                            className="truncate font-medium tracking-tight outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
-                          >
-                            {s.title}
-                          </Link>
+                          <div className="min-w-0">
+                            {/* Stretched link: keyboard-focusable and semantic, but its
+                                hit area (after:inset-0) covers the whole row, and the
+                                focus ring outlines the row. */}
+                            <Link
+                              to={`/titles/${s.id}`}
+                              className="block truncate font-medium tracking-tight outline-none after:absolute after:inset-0 after:rounded-md focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring"
+                            >
+                              {s.title}
+                            </Link>
+                            {/* Phones drop the near-constant column, so only the exception is marked. */}
+                            {!s.monitored && (
+                              <span className="mt-1 flex sm:hidden">
+                                <MonitoredBadge monitored={false} />
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
                         <FormatBadge format={s.format} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="hidden sm:table-cell">
                         <MonitoredBadge monitored={s.monitored} />
                       </TableCell>
                       <TableCell>
