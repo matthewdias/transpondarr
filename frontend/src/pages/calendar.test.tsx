@@ -377,4 +377,25 @@ describe("CalendarPage", () => {
       window.innerWidth = wide;
     }
   });
+
+  // From 768px the sidebar takes 256px in flow, leaving a ~512px column where the
+  // month grid shortened every episode to a bullet and a number (#320).
+  it("defaults to the agenda view when the sidebar narrows a 768px viewport", async () => {
+    const wide = window.innerWidth;
+    window.innerWidth = 768;
+    try {
+      let calls = 0;
+      server.use(calendarHandler([item({})], [], () => calls++));
+
+      renderPage();
+
+      expect(await screen.findByText(/\u00b7 today/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Agenda", selected: true }),
+      ).toBeInTheDocument();
+      expect(calls).toBe(1);
+    } finally {
+      window.innerWidth = wide;
+    }
+  });
 });

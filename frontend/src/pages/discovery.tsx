@@ -256,7 +256,7 @@ export function DiscoveryPage() {
         {filtered.length > 0 && (
           <div
             className={cn(
-              "mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5",
+              "mt-3 grid grid-cols-2 gap-4 @min-[40rem]/inset:grid-cols-3 @min-[64rem]/inset:grid-cols-4 @min-[80rem]/inset:grid-cols-5",
               chart.isPlaceholderData && "opacity-50",
             )}
           >
@@ -329,6 +329,8 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
       : nextEpisodeLabel(entry.next_episode, entry.next_airs_at);
 
   // One definition, rendered on both the card and the detail view.
+  // Button is shrink-0, which pushed the AniList link past a narrow card's edge; the
+  // 6rem basis wraps that link onto its own line instead of squeezing the label.
   const actions = (
     <>
       {entry.tracked ? (
@@ -336,17 +338,18 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
           asChild
           variant="outline"
           size="sm"
-          className="flex-1"
+          className="min-w-0 shrink grow basis-24"
           title="Already in your library"
         >
           <Link to={`/titles/${entry.title_id}`}>
-            <Check className="size-3.5" /> In library
+            <Check className="size-3.5" />
+            <span className="truncate">In library</span>
           </Link>
         </Button>
       ) : (
         <Button
           size="sm"
-          className="flex-1"
+          className="min-w-0 shrink grow basis-24"
           // Sequential, never stacked: the detail switches to the form.
           onClick={() => {
             setDetailOpen(false);
@@ -354,7 +357,7 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
           }}
         >
           <Plus className="size-3.5" />
-          Add
+          <span className="truncate">Add</span>
         </Button>
       )}
       {/* The link is only meaningful in AniList's id space. */}
@@ -416,7 +419,9 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
           </div>
         )}
 
-        <div className="mt-auto flex items-center gap-1.5 pt-2">{actions}</div>
+        <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-2">
+          {actions}
+        </div>
       </div>
 
       <SeasonDetail
@@ -548,7 +553,7 @@ function SeasonDetail({
 
 function ChartSkeleton() {
   return (
-    <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="mt-3 grid grid-cols-2 gap-4 @min-[40rem]/inset:grid-cols-3 @min-[64rem]/inset:grid-cols-4 @min-[80rem]/inset:grid-cols-5">
       {Array.from({ length: 10 }).map((_, i) => (
         <div key={i} className="overflow-hidden rounded-lg border bg-card">
           <Skeleton className="aspect-[2/3] w-full rounded-none" />
