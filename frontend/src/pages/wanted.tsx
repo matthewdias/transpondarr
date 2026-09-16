@@ -263,8 +263,8 @@ function MissingTab({
   );
 }
 
-// overflow-clip, not -hidden: a scroll container would pin the sticky header to the card.
-// The header's background is opaque because item rows scroll under it while it is stuck.
+// The collapsible card both tabs' groups share. overflow-clip, not -hidden: a scroll
+// container would pin the sticky header to the card rather than to the viewport.
 function GroupSection({
   title,
   header,
@@ -281,6 +281,7 @@ function GroupSection({
     <section className="overflow-clip rounded-lg border bg-card shadow-sm">
       <header
         className={cn(
+          // The panel background is opaque because item rows scroll under it while stuck.
           "sticky top-topbar z-[5] bg-panel-2 px-3.5 py-2.5",
           !collapsed && "border-b",
           // A toggletip's popover paints in this header's layer, so lift it over the next sticky header.
@@ -347,12 +348,13 @@ function RowMonitorToggle({
   );
 }
 
-// overflowRow links to the title for what the group cap left out.
+// overflowRow links to the title for what the group cap left out. Its border box is
+// the card's padding box, so the focus outline draws inside or the card clips it away.
 function OverflowRow({ titleId, label }: { titleId: number; label: string }) {
   return (
     <Link
       to={`/titles/${titleId}`}
-      className="flex items-center justify-between px-3.5 py-2 text-xs hover:bg-panel-2/40"
+      className="flex items-center justify-between px-3.5 py-2 text-xs hover:bg-panel-2/40 focus-visible:-outline-offset-2"
     >
       <span className="text-faint">{label}</span>
       <span className="inline-flex items-center gap-1 font-medium text-primary">

@@ -69,8 +69,8 @@ All notable changes to this project are documented here. The format is based on
 - **Page layouts are steadier on every screen size.** The bar at the top of each
   page is one height everywhere, so it no longer jumps when you switch pages, and
   Wanted's title headings stay flush under it while you scroll. The notification
-  switches in Settings are one list instead of 18 boxes. On a phone, a
-  release name in Activity shows two lines instead of one. Calendar's *Today*
+  switches in Settings sit in plain rows instead of 18 bordered boxes. On a phone,
+  a release name in Activity shows two lines instead of one. Calendar's *Today*
   button now sits with the previous and next buttons.
 - **Why a download didn't import can now be read on a phone or with a keyboard.**
   Tapping, clicking, hovering or pressing Enter on an *Import blocked*, *Batch

@@ -12,9 +12,10 @@ const allowed: Record<string, string> = {
     "upstream shadcn primitive: the arrow's corner, not a surface",
 };
 
-// Any arbitrary radius utility, any side or corner, bracket or parenthesis form.
+// Every way to set a radius past the tokens: the utility in bracket or parenthesis form,
+// Tailwind's arbitrary property, and the React style prop.
 const arbitraryRadius =
-  /(?<![\w-])rounded(?:-(?:t|r|b|l|s|e|tl|tr|br|bl|ss|se|es|ee))?-(\[[^\]\s"'`]*\]|\([^)\s"'`]*\))/g;
+  /(?<![\w-])rounded(?:-(?:t|r|b|l|s|e|tl|tr|br|bl|ss|se|es|ee))?-(\[[^\]\s"'`]*\]|\([^)\s"'`]*\))|\[border-(?:[a-z]+-)*radius:[^\]\s"'`]*\]|(?<![\w-])border(?:[A-Z][a-z]+)*Radius/g;
 
 function sources(): string[] {
   return readdirSync(src, { recursive: true, encoding: "utf8" }).filter(
