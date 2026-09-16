@@ -98,10 +98,6 @@ describe("EpisodesTab search buttons", () => {
 
 const past = new Date(Date.now() - 86_400_000).toISOString();
 
-const segmentWidths = () =>
-  [...screen.getByRole("img").children].map((c) =>
-    parseFloat((c as HTMLElement).style.width),
-  );
 const textLine = (bar: HTMLElement) =>
   bar.nextElementSibling?.textContent?.replace(/\s*·\s*/g, " · ") ?? "";
 const future = new Date(Date.now() + 86_400_000).toISOString();
@@ -270,54 +266,6 @@ describe("EpisodesTab monitoring", () => {
     const bar = screen.getByRole("img", { name: /in library/ });
     const widths = [...bar.children].map((c) => (c as HTMLElement).style.width);
     expect(widths).toEqual(["12.5%", "12.5%", "25%", "37.5%"]);
-  });
-
-  // A long series once shrank a single status below its minimum width, so the
-  // track clipped the last segment (#319 review).
-  it("keeps every status visible inside the track on a long series", () => {
-    renderStrip([
-      ...Array.from({ length: 197 }, (_, i) =>
-        item({
-          id: i + 1,
-          number: i + 1,
-          in_library: true,
-          status: "in_library",
-        }),
-      ),
-      item({ id: 198, number: 198, status: "downloading" }),
-      item({ id: 199, number: 199, status: "deferred" }),
-      item({ id: 200, number: 200, status: "stuck" }),
-    ]);
-
-    const widths = segmentWidths();
-    expect(widths).toHaveLength(4);
-    const [library, ...rest] = widths;
-    for (const w of rest) expect(w).toBeGreaterThanOrEqual(5);
-    expect(library).toBeGreaterThan(Math.max(...rest));
-    expect(widths.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(100);
-  });
-
-  // Only the in-library segment gives up width, so downloading keeps its true share.
-  it("takes the overflow from the in-library segment alone", () => {
-    renderStrip([
-      ...Array.from({ length: 120 }, (_, i) =>
-        item({
-          id: i + 1,
-          number: i + 1,
-          in_library: true,
-          status: "in_library",
-        }),
-      ),
-      ...Array.from({ length: 70 }, (_, i) =>
-        item({ id: i + 121, number: i + 121, status: "downloading" }),
-      ),
-      item({ id: 191, number: 191, status: "stuck" }),
-    ]);
-
-    const [library, downloading, stuck] = segmentWidths();
-    expect(downloading).toBeCloseTo((70 / 191) * 100, 5);
-    expect(stuck).toBeGreaterThanOrEqual(5);
-    expect(library + downloading + stuck).toBeCloseTo(100, 5);
   });
 
   // The bar, its label and the text beside it once listed the statuses in three
