@@ -317,6 +317,19 @@ describe("ProfilePicker", () => {
     expect(await picker()).toBeInTheDocument();
   });
 
+  it("words a network failure as the reason the profiles are unavailable", async () => {
+    server.use(http.get("/api/v1/profiles", () => HttpResponse.error()));
+    const user = userEvent.setup();
+    renderPicker(detail({}));
+
+    await user.click(
+      await screen.findByRole("button", { name: "Profile unavailable" }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Transpondarr didn’t respond. Check that it’s running.",
+    );
+  });
+
   it("points at Settings when there are no profiles to pick", async () => {
     server.use(
       http.get("/api/v1/profiles", () => HttpResponse.json({ profiles: [] })),

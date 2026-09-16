@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
+import { RefreshCw } from "lucide-react";
 import {
-  ApiError,
   api,
   type PayloadArchive,
   type PayloadFile,
@@ -138,11 +138,20 @@ export function RetryImportDialog({
             <Skeleton className="h-10 w-full" />
           </div>
         ) : payload.isError ? (
-          <p className="text-sm text-destructive">
-            {payload.error instanceof ApiError
-              ? payload.error.message
-              : String(payload.error)}
-          </p>
+          // Plain text, not LoadError: a card inside a dialog is a box in a box.
+          <div className="flex items-start gap-3">
+            <p className="min-w-0 flex-1 text-sm text-destructive">
+              Couldn’t list the files in this download.{" "}
+              {errorReason(payload.error)}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void payload.refetch()}
+            >
+              <RefreshCw className="size-4" /> Try again
+            </Button>
+          </div>
         ) : (
           <div className="max-h-[50vh] space-y-3 overflow-y-auto">
             {archives.length > 0 ? (

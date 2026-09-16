@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, RefreshCw, Search, Loader2, TriangleAlert } from "lucide-react";
-import { ApiError, type Candidate } from "@/lib/api";
+import { errorReason, type Candidate } from "@/lib/api";
 import { formatLabel } from "@/lib/chart";
 import { metadataSearchQuery } from "@/lib/queries";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -123,9 +123,7 @@ function AddTitleBody({
             <TriangleAlert className="mb-3 size-6 text-dl" />
             <h3 className="text-sm font-semibold">Couldn’t search AniList</h3>
             <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
-              {search.error instanceof ApiError
-                ? search.error.message
-                : String(search.error)}
+              {errorReason(search.error)}
             </p>
             <Button
               variant="outline"
