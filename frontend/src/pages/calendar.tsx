@@ -33,6 +33,7 @@ import { calendarQuery } from "@/lib/queries";
 import { airDate, pad2 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { MOBILE_BREAKPOINT } from "@/hooks/use-mobile";
+import { SIDEBAR_WIDTH_PX } from "@/components/ui/sidebar";
 import { ItemStatusBadge } from "@/components/badges";
 import { EmptyState } from "@/components/empty-state";
 import { LoadError } from "@/components/load-error";
@@ -94,8 +95,11 @@ const statusText = (item: CalendarItem) =>
 export function CalendarPage() {
   // Read the viewport synchronously: deriving this from useIsMobile would
   // render (and fetch) the month view once before the effect flips to agenda.
+  // The sidebar goes in flow at MOBILE_BREAKPOINT, so Month needs that much column plus its width.
   const [view, setView] = useState<CalendarView>(() =>
-    window.innerWidth < MOBILE_BREAKPOINT ? "agenda" : "month",
+    window.innerWidth < MOBILE_BREAKPOINT + SIDEBAR_WIDTH_PX
+      ? "agenda"
+      : "month",
   );
   const [anchor, setAnchor] = useState(() => new Date());
   const [unmonitored, setUnmonitored] = useState(false);

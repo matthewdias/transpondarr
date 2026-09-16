@@ -105,6 +105,16 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **Pages now fit the space the sidebar leaves them.** From 768px wide the
+  sidebar sits beside the page and takes 256px, but each page still chose its
+  layout from the width of the whole window. So a tablet, or a desktop window at
+  half width, got the desktop layout squeezed into a narrow column. Wanted
+  scrolled sideways, Discovery cut off the AniList button on each card, and
+  Calendar opened on the month grid with every episode shortened to a bullet and
+  a number. Pages now lay out for the column beside the sidebar, and Calendar
+  opens on Agenda until that column is wide enough for Month. Discovery's card
+  buttons also fit on a 320px phone.
+
 - **A server error now shows what failed, and is written to the server log.**
   Before, the app showed an internal message such as *sql: database is closed*,
   and nothing was logged. The app now shows what couldn't be done, and every
