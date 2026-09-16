@@ -86,14 +86,16 @@ describe("ScoreCell", () => {
   });
 
   // A pointer passing over a dense table shouldn't flash tooltips, so hover
-  // waits as the toggletips do; focus is still instant (above).
+  // waits as the toggletips do; focus is still instant (above). Measuring the
+  // wait, instead of sampling inside it, cannot race a loaded suite: a slow
+  // machine only ever makes the elapsed time longer.
   it("opens the breakdown on hover only after a delay", async () => {
     const user = userEvent.setup();
     renderCell(release({}));
+    const start = performance.now();
     await user.hover(screen.getByText("1400"));
-    await new Promise((r) => setTimeout(r, 150));
-    expect(screen.queryByText(/group TrustedCorp/)).not.toBeInTheDocument();
-    expect(await screen.findByText(/group TrustedCorp/)).toBeInTheDocument();
+    await screen.findByText(/group TrustedCorp/);
+    expect(performance.now() - start).toBeGreaterThanOrEqual(250);
   });
 
   // The default tooltip surface is inverted, where the palette's semantic
