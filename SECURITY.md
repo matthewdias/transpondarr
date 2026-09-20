@@ -80,18 +80,23 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   the drop clears them before serving. `PUID=0` has no drop, so the server keeps
   all four for as long as it runs: remove `cap_add` if you run as root.
 
-  **Running as root costs you hardlinks under this compose file.** `cap_drop: ALL`
-  removes `CAP_FOWNER`, and `fs.protected_hardlinks` then checks root's ownership
-  like anyone else's, so the server can't hardlink a download qBittorrent owns.
-  Removing `cap_add` doesn't restore it — that leaves no capabilities at all.
-  `auto` import mode copies each file instead, at twice the disk space; in
-  `hardlink` import mode the grab waits in the Activity queue with an "operation
-  not permitted" error. Root also can't write into a library folder another user owns,
-  because `DAC_READ_SEARCH` grants read and search and not write. Adding
-  `cap_add: [FOWNER, DAC_OVERRIDE]` restores both, at the cost of letting the
-  server past every file-ownership and permission check on the mount for as long
-  as it runs. Running as qBittorrent's user needs neither capability, which is why
-  it's the recommendation above.
+  **Running as root costs you hardlinks under this compose file.** The Linux kernel
+  setting `fs.protected_hardlinks`, on by default, refuses a hardlink to a file the
+  caller neither owns nor can both read and write. Holding `CAP_FOWNER` exempts a
+  caller from that check (README explains what it means for imports). `cap_drop: ALL`
+  removes `CAP_FOWNER`, so the kernel checks root's ownership like anyone else's and
+  the server can't hardlink a download qBittorrent owns. Removing `cap_add` doesn't
+  restore it — that leaves no capabilities at all. `auto` import mode copies each
+  file instead, at twice the disk space; in `hardlink` import mode the grab row waits
+  in the Activity queue with an "operation not permitted" error.
+
+  **Running as root also costs you writes into folders another user owns.**
+  `DAC_READ_SEARCH` grants read and search, not write, so an import into a library
+  folder qBittorrent's user created fails with "permission denied". Adding
+  `cap_add: [FOWNER, DAC_OVERRIDE]` restores that and the hardlinks above, at the
+  cost of letting the server past every file-ownership and permission check on the
+  mount for as long as it runs. Running as qBittorrent's user needs neither
+  capability, which is why it's the recommendation above.
 
 ## Known limitations (deferred hardening)
 

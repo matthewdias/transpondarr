@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io/fs"
 	"slices"
+	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -23,6 +25,11 @@ type fileOwner struct {
 type linker struct {
 	euid, egid int
 	groups     []int
+
+	// boundByFileOwner is whether the kernel checks this process's ownership like
+	// anyone else's: false with CAP_FOWNER, and false off Linux, which has no
+	// fs.protected_hardlinks.
+	boundByFileOwner bool
 }
 
 // hardlinkRefusalAttrs are the log fields that explain a refused hardlink. Empty
@@ -42,7 +49,7 @@ func (t *Target) hardlinkRefusalAttrs(src string, linkErr error) []any {
 // which are necessary for that refusal and not sufficient: a mount with no hardlinks
 // returns the same EPERM on the same file, so neither result is proof (#303).
 func protectedHardlinkAttrs(f fileOwner, l linker) []any {
-	if !f.mode.IsRegular() || f.uid == l.euid || canReadWrite(f, l) {
+	if !l.boundByFileOwner || !f.mode.IsRegular() || f.uid == l.euid || canReadWrite(f, l) {
 		return nil
 	}
 	return []any{
@@ -65,4 +72,19 @@ func canReadWrite(f fileOwner, l linker) bool {
 
 func inGroup(gid int, l linker) bool {
 	return gid == l.egid || slices.Contains(l.groups, gid)
+}
+
+// capFowner is CAP_FOWNER's bit in a capability set. Holding it makes the kernel
+// skip the fs.protected_hardlinks check, so a refusal can't be that one.
+const capFowner = 3
+
+// fownerHeld reports whether a CapEff value from /proc/self/status grants
+// CAP_FOWNER. An unparseable value reports held, because naming a cause we can't
+// establish is worse than staying quiet about it.
+func fownerHeld(capEff string) bool {
+	set, err := strconv.ParseUint(strings.TrimSpace(capEff), 16, 64)
+	if err != nil {
+		return true
+	}
+	return set&(1<<capFowner) != 0
 }

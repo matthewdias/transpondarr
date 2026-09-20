@@ -23,5 +23,6 @@ func linkIdentities(src string) (fileOwner, linker, bool) {
 		groups = nil
 	}
 	owner := fileOwner{uid: int(st.Uid), gid: int(st.Gid), mode: info.Mode()}
-	return owner, linker{euid: os.Geteuid(), egid: os.Getegid(), groups: groups}, true
+	self := linker{euid: os.Geteuid(), egid: os.Getegid(), groups: groups, boundByFileOwner: boundByFileOwner()}
+	return owner, self, true
 }

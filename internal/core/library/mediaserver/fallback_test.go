@@ -26,7 +26,7 @@ func refuseLink(target *Target, errno syscall.Errno) {
 // test process can't create one, since only root can give a file away.
 func ownedByAnother(target *Target) {
 	target.identify = func(string) (fileOwner, linker, bool) {
-		return fileOwner{uid: 1000, gid: 1000, mode: 0o644}, linker{euid: 1001, egid: 1001}, true
+		return fileOwner{uid: 1000, gid: 1000, mode: 0o644}, linker{euid: 1001, egid: 1001, boundByFileOwner: true}, true
 	}
 }
 
@@ -69,6 +69,11 @@ func TestAutoModeWarnsWhenAHardlinkFallsBackToACopy(t *testing.T) {
 	}
 	if !strings.Contains(got[0], dest) {
 		t.Errorf("fallback line should name the destination; got %q", got[0])
+	}
+	// This target keeps the real linkIdentities, and the test user owns the source,
+	// so the diagnosis must not fire.
+	if strings.Contains(got[0], "likely=") {
+		t.Errorf("a source we own is not an fs.protected_hardlinks refusal; got %q", got[0])
 	}
 
 	// The copy itself still has to happen, or the line is reporting a fiction.
@@ -230,7 +235,7 @@ func TestProtectedHardlinkAttrs(t *testing.T) {
 		them  = 1000
 		ourGp = 3001
 	)
-	self := linker{euid: us, egid: ourGp, groups: []int{ourGp, 44}}
+	self := linker{euid: us, egid: ourGp, groups: []int{ourGp, 44}, boundByFileOwner: true}
 
 	for _, tc := range []struct {
 		name string
@@ -289,4 +294,114 @@ func renderAttrs(t *testing.T, attrs []any) map[string]string {
 		out[key] = attrs[i+1].(string)
 	}
 	return out
+}
+
+// One target covers both library roots, so a Movies root on a second disk falls
+// back on EXDEV forever. Keying the one-shot on the target would let that
+// permanent, benign case spend the only warning the fixable EPERM had.
+func TestEachKindOfRefusalWarnsOnce(t *testing.T) {
+	var buf bytes.Buffer
+	target := New(Roots{Series: t.TempDir(), Movies: t.TempDir()}, LayoutSeasonFolders, "auto", logTo(&buf))
+
+	refuseLink(target, syscall.EXDEV)
+	if _, err := target.Place(t.Context(), movieReq(writeSource(t, "film.mkv"), "Placeholder Film", 2021)); err != nil {
+		t.Fatalf("movie Place: %v", err)
+	}
+	refuseLink(target, syscall.EPERM)
+	if _, err := target.Place(t.Context(), req(writeSource(t, "raw.mkv"), "Placeholder Saga", 5)); err != nil {
+		t.Fatalf("episode Place: %v", err)
+	}
+
+	got := lines(&buf)
+	if len(got) != 2 {
+		t.Fatalf("want one record per import, got %d: %q", len(got), buf.String())
+	}
+	for i, l := range got {
+		if !strings.Contains(l, "level=WARN") {
+			t.Errorf("record %d is the first of its kind and should warn; got %q", i, l)
+		}
+	}
+}
+
+func TestASecondRefusalOfTheSameKindDoesNotWarn(t *testing.T) {
+	var buf bytes.Buffer
+	target := New(Roots{Series: t.TempDir(), Movies: t.TempDir()}, LayoutSeasonFolders, "auto", logTo(&buf))
+	refuseLink(target, syscall.EXDEV)
+
+	for _, n := range []int{5, 6} {
+		if _, err := target.Place(t.Context(), req(writeSource(t, "raw.mkv"), "Placeholder Saga", n)); err != nil {
+			t.Fatalf("Place %d: %v", n, err)
+		}
+	}
+
+	got := lines(&buf)
+	if len(got) != 2 {
+		t.Fatalf("want one record per import, got %d: %q", len(got), buf.String())
+	}
+	if !strings.Contains(got[1], "level=INFO") {
+		t.Errorf("a repeat of the same refusal should not warn again; got %q", got[1])
+	}
+}
+
+// The CapEff values are the ones #303 traced in Docker, so the bit this reads is
+// checked against a real capability set rather than an assumed one.
+func TestFownerHeld(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		capEff string
+		want   bool
+	}{
+		{"the example compose's cap_add", "\t00000000000000c5", false},
+		{"cap_drop: ALL", "\t0000000000000000", false},
+		{"docker's default set for root", "\t00000000a80425fb", true},
+		{"the compose set plus FOWNER", "\t00000000000000cd", true},
+		{"unparseable, so we can't say", "\tnot-a-number", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := fownerHeld(tc.capEff); got != tc.want {
+				t.Errorf("fownerHeld(%q) = %v, want %v", tc.capEff, got, tc.want)
+			}
+		})
+	}
+}
+
+// Two EPERMs are not the same refusal when only one of them names a cause: the
+// undiagnosed one must not spend the warning the actionable one needs.
+func TestAnUndiagnosedRefusalDoesNotSpendTheDiagnosedOnesWarning(t *testing.T) {
+	var buf bytes.Buffer
+	target := New(Roots{Series: t.TempDir()}, LayoutSeasonFolders, "auto", logTo(&buf))
+	refuseLink(target, syscall.EPERM)
+
+	if _, err := target.Place(t.Context(), req(writeSource(t, "raw.mkv"), "Placeholder Saga", 5)); err != nil {
+		t.Fatalf("undiagnosed Place: %v", err)
+	}
+	ownedByAnother(target)
+	if _, err := target.Place(t.Context(), req(writeSource(t, "raw.mkv"), "Placeholder Saga", 6)); err != nil {
+		t.Fatalf("diagnosed Place: %v", err)
+	}
+
+	got := lines(&buf)
+	if len(got) != 2 {
+		t.Fatalf("want one record per import, got %d: %q", len(got), buf.String())
+	}
+	if strings.Contains(got[0], "likely=") || !strings.Contains(got[1], "likely=") {
+		t.Fatalf("want an undiagnosed record then a diagnosed one; got %q", buf.String())
+	}
+	if !strings.Contains(got[1], "level=WARN") {
+		t.Errorf("the first diagnosed refusal should warn; got %q", got[1])
+	}
+}
+
+// A process holding CAP_FOWNER is never refused by fs.protected_hardlinks, so an
+// EPERM it sees is the mount and the diagnosis would name a cause that cannot apply.
+func TestAPrivilegedProcessIsNotDiagnosed(t *testing.T) {
+	root := fileOwner{uid: 1000, gid: 1000, mode: 0o644}
+	capable := linker{euid: 0, egid: 0, groups: []int{0}}
+	if attrs := protectedHardlinkAttrs(root, capable); attrs != nil {
+		t.Errorf("a process that can override the owner check should not be diagnosed; got %v", attrs)
+	}
+	bound := linker{euid: 0, egid: 0, groups: []int{0}, boundByFileOwner: true}
+	if attrs := protectedHardlinkAttrs(root, bound); attrs == nil {
+		t.Error("root under cap_drop: ALL is bound by file ownership, and is the case #303 documents")
+	}
 }

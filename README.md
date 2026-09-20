@@ -211,9 +211,11 @@ For a real deployment alongside qBittorrent and a media server, use
   qBittorrent normally saves downloads writable only by its own user, so a
   different `PUID` can't hardlink them. In `auto` import mode, Transpondarr copies
   every file instead, using twice the disk space, and logs the link error on each
-  import — as a warning for the first one after a restart. In `hardlink` import
-  mode, the grab waits in the Activity queue with an "operation not permitted"
-  error, and the importer retries it every 15 seconds until the permissions change.
+  import. The first import to hit a given failure logs it as a warning, and a
+  restart or any save under Settings → Library arms that warning again. In
+  `hardlink` import mode, the grab waits in the Activity queue with an "operation
+  not permitted" error, and the importer retries it every 15 seconds until the
+  permissions change.
   `PUID=0` is affected too, under the capabilities
   [`docker-compose.yml`](docker-compose.yml) grants. Without `CAP_FOWNER` the
   kernel checks root's ownership like anyone else's, so root can't hardlink a

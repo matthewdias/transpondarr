@@ -51,26 +51,42 @@ layout (shape within a root) are deliberately different axes.
 
 - **A hardlink auto import mode turned into a copy is logged, because nothing else
   distinguishes the two.** `importer: imported` records the destination and not how
-  the bytes got there, so an install whose `PUID` can't hardlink qBittorrent's
-  downloads copied every episode at twice the disk cost and wrote no line about it.
-- **Only the first fallback on a `Target` warns; the rest are `Info`.** An SMB or
-  FUSE mount that can never hardlink would otherwise warn on every import, and the
-  server builds its handler with no level (`main.go`), so `Debug` is off and can't
-  be turned on. A live settings edit rebuilds the target, so the warning returns
-  when the configuration it describes has changed.
+  the bytes got there. An install whose `PUID` can't hardlink qBittorrent's downloads
+  copied every episode at twice the disk cost and wrote no line about it.
+- **The first fallback of each kind warns; a repeat of that kind is `Info`.** An SMB
+  or FUSE mount that can never hardlink would otherwise warn on every import, and
+  `main.go` builds its handler with no level, so `Debug` is off and can't be turned
+  on. A restart re-arms it, and so does any library settings save, since
+  `settings.UpdateLibrary` rebuilds the target whether or not the values changed.
+- **"Each kind" is the refusal, never the `Target`.** One target covers both library
+  roots, so a Movies root on a second disk falls back on `EXDEV` for every film —
+  permanent, benign, nothing to fix. Keyed on the target, that film would spend the
+  one warning the Series root's fixable `EPERM` needed, and every later `EPERM` would
+  be `Info` for the life of the process. `refusal` is therefore the errno plus
+  whether the diagnosis fired, so two `EPERM`s still differ when only one of them
+  names a cause.
 - **`EPERM` still means "fall back to a copy", and the log line carries the
   diagnosis instead of the code acting on it.** `fs.protected_hardlinks` makes
   `link()` fail with `EPERM` for a file the caller neither owns nor can read and
-  write, which a user fixes by changing `PUID` or qBittorrent's umask. SMB/CIFS and
+  write. A user fixes that by changing `PUID` or qBittorrent's umask. SMB/CIFS and
   some FUSE mounts return the same `EPERM` when the filesystem has no hardlinks at
   all, which no user can fix. The file's owner and mode don't distinguish the two,
   because a FUSE mount can report any owner. So acting on one `EPERM` would stop
   imports for installs that work today, and `TRANSPONDARR_IMPORT_MODE=hardlink` is
   already the setting for anyone who wants a refused link to keep the grab row open.
+- **A process holding `CAP_FOWNER` is never refused by `fs.protected_hardlinks`, so
+  the diagnosis asks about capabilities before ownership.** Bare-metal root under
+  `TRANSPONDARR_PRIVDROP`, and `docker run` as root with Docker's default set, both
+  hold it. There the `EPERM` is the mount, so naming `PUID` would send a user after a
+  fix that changes nothing. Testing `l.euid == 0` instead would be the wrong
+  reading: it would also silence `PUID=0` under the example compose's `cap_drop:
+  ALL`, which is root *without* `CAP_FOWNER` and the case #303 documents. So
+  `boundByFileOwner` reads `CapEff` from `/proc/self/status`, and off Linux it is
+  false outright, since `fs.protected_hardlinks` is the only thing the message names.
 - **Neither result from `protectedHardlinkAttrs` is proof, which is why the field
   is named `likely` and the message starts "if the mount supports hardlinks".** The
   conditions it tests are necessary for an `fs.protected_hardlinks` refusal and not
-  sufficient: an SMB mount holding a download qBittorrent owns satisfies all of them
+  sufficient. An SMB mount holding a download qBittorrent owns satisfies all of them
   and cannot hardlink for an unrelated reason. Returning nothing is weaker still,
   since an unreadable owner produces it too.
 

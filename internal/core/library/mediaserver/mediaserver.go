@@ -31,7 +31,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 
 	"github.com/matthewdias/transpondarr/internal/core/domain"
@@ -132,8 +131,9 @@ type Target struct {
 	// test process can't create a file another user owns.
 	identify func(path string) (fileOwner, linker, bool)
 
-	// fellBack is whether this target has already warned about a copy fallback.
-	fellBack atomic.Bool
+	// warnedMu guards warned, the refusals this target has already warned about.
+	warnedMu sync.Mutex
+	warned   map[refusal]bool
 
 	// staging lists the staging paths this process is writing right now, which is
 	// how the staging sweep distinguishes a live transfer from an orphan (see staged).
@@ -159,6 +159,7 @@ func New(roots Roots, layout Layout, mode string, log *slog.Logger) *Target {
 		log:      log,
 		link:     os.Link,
 		identify: linkIdentities,
+		warned:   make(map[refusal]bool),
 		staging:  make(map[string]bool),
 	}
 }
@@ -382,22 +383,44 @@ func (t *Target) transfer(ctx context.Context, src, dest string) error {
 	}
 }
 
+// refusal is what a fallback line would say, which is what the one-shot warning is
+// keyed on. Two EPERMs differ when only one of them names fs.protected_hardlinks.
+type refusal struct {
+	errno     syscall.Errno
+	diagnosed bool
+}
+
 // copyFallback copies what auto import mode could not hardlink, and reports it only
-// once the copy succeeds: a failed copy takes no disk space and its error surfaces as
-// the grab row's last_error. Only the first on a target warns, so a mount that never
-// hardlinks warns once.
+// once the copy succeeds: a failed copy takes no disk space.
 func (t *Target) copyFallback(ctx context.Context, src, dest string, linkErr error) error {
 	if err := t.copyFile(ctx, src, dest); err != nil {
 		return err
 	}
 	const msg = "mediaserver: a hardlink was refused, so the file was copied and now takes disk space of its own"
-	attrs := append([]any{"src", src, "dest", dest, "err", linkErr}, t.hardlinkRefusalAttrs(src, linkErr)...)
-	if t.fellBack.Swap(true) {
-		t.log.Info(msg, attrs...)
-	} else {
+	diagnosis := t.hardlinkRefusalAttrs(src, linkErr)
+	attrs := append([]any{"src", src, "dest", dest, "err", linkErr}, diagnosis...)
+	if t.firstOfItsKind(linkErr, len(diagnosis) > 0) {
 		t.log.Warn(msg, attrs...)
+	} else {
+		t.log.Info(msg, attrs...)
 	}
 	return nil
+}
+
+// firstOfItsKind reports whether this target has warned about this refusal before,
+// and records it. Keyed on the refusal, never the target, which covers both roots.
+func (t *Target) firstOfItsKind(linkErr error, diagnosed bool) bool {
+	var errno syscall.Errno
+	_ = errors.As(linkErr, &errno)
+	seen := refusal{errno: errno, diagnosed: diagnosed}
+
+	t.warnedMu.Lock()
+	defer t.warnedMu.Unlock()
+	if t.warned[seen] {
+		return false
+	}
+	t.warned[seen] = true
+	return true
 }
 
 // syncLinked flushes a fresh link's data — the download client's writes, possibly
