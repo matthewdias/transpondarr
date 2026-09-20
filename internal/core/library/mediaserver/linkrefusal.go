@@ -13,7 +13,8 @@ import (
 // protectedHardlinksFix is conditional because a mount with no hardlinks at all
 // returns the same EPERM on the same file, and changing PUID would not help there.
 const protectedHardlinksFix = "this user neither owns the download nor can both read and write it, which is what fs.protected_hardlinks refuses. " +
-	"If the mount supports hardlinks, set PUID/PGID to qBittorrent's user, or give both containers the same PGID and set qBittorrent's UMASK to 002."
+	"If the mount supports hardlinks: set PUID/PGID to qBittorrent's user, or share its group and set qBittorrent's UMASK to 002. " +
+	"PGID sets the group unless PUID is 0, which skips the drop that applies it; set it on the container instead."
 
 // fileOwner is the part of a file's identity that fs.protected_hardlinks checks.
 type fileOwner struct {
@@ -27,8 +28,7 @@ type linker struct {
 	groups     []int
 
 	// boundByFileOwner is whether the kernel checks this process's ownership like
-	// anyone else's: false with CAP_FOWNER, and false off Linux, which has no
-	// fs.protected_hardlinks.
+	// anyone else's: false with either capability below, and false off Linux.
 	boundByFileOwner bool
 }
 
@@ -74,17 +74,31 @@ func inGroup(gid int, l linker) bool {
 	return gid == l.egid || slices.Contains(l.groups, gid)
 }
 
-// Either of these bits in a capability set satisfies may_linkat(): CAP_FOWNER
-// passes its ownership check, and CAP_DAC_OVERRIDE makes every source readable and
-// writable, which is the other thing it accepts.
+// Either bit satisfies may_linkat(): CAP_FOWNER passes its ownership check, and
+// CAP_DAC_OVERRIDE satisfies the read-and-write condition it accepts instead.
 const (
 	capDACOverride = 1
 	capFowner      = 3
 )
 
-// canBypassFileOwner reports whether a CapEff value from /proc/self/status lets the
-// process past the ownership check. An unparseable value reports true, because
-// naming a cause we can't establish is worse than staying quiet about it.
+// boundByFileOwnerFrom reports whether a process whose /proc/self/status is what read
+// returns is checked against file ownership like anyone else. Every unreadable case
+// reports false, for canBypassFileOwner's reason.
+func boundByFileOwnerFrom(read func() ([]byte, error)) bool {
+	status, err := read()
+	if err != nil {
+		return false
+	}
+	for line := range strings.SplitSeq(string(status), "\n") {
+		if capEff, ok := strings.CutPrefix(line, "CapEff:"); ok {
+			return !canBypassFileOwner(capEff)
+		}
+	}
+	return false
+}
+
+// canBypassFileOwner reports whether a CapEff value lets the process past the
+// ownership check. Unparseable reports true: silence beats an unfounded cause.
 func canBypassFileOwner(capEff string) bool {
 	set, err := strconv.ParseUint(strings.TrimSpace(capEff), 16, 64)
 	if err != nil {

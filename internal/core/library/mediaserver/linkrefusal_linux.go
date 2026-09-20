@@ -2,22 +2,10 @@
 
 package mediaserver
 
-import (
-	"os"
-	"strings"
-)
+import "os"
 
 // boundByFileOwner reports whether the kernel checks this process's ownership like
-// anyone else's. An unreadable capability set reports false, for canBypassFileOwner's reason.
+// anyone else's, which is what the capability set says.
 func boundByFileOwner() bool {
-	status, err := os.ReadFile("/proc/self/status")
-	if err != nil {
-		return false
-	}
-	for line := range strings.SplitSeq(string(status), "\n") {
-		if capEff, ok := strings.CutPrefix(line, "CapEff:"); ok {
-			return !canBypassFileOwner(capEff)
-		}
-	}
-	return false
+	return boundByFileOwnerFrom(func() ([]byte, error) { return os.ReadFile("/proc/self/status") })
 }

@@ -407,8 +407,8 @@ func (t *Target) copyFallback(ctx context.Context, src, dest string, linkErr err
 	return nil
 }
 
-// firstOfItsKind reports whether this target has warned about this refusal before,
-// and records it. Keyed on the refusal, never the target, which covers both roots.
+// firstOfItsKind records this refusal and reports whether it is new to this target.
+// Keyed on the refusal, never the target, which covers both library roots.
 func (t *Target) firstOfItsKind(linkErr error, diagnosed bool) bool {
 	var errno syscall.Errno
 	_ = errors.As(linkErr, &errno)

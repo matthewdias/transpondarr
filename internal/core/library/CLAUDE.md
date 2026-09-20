@@ -75,14 +75,22 @@ layout (shape within a root) are deliberately different axes.
   imports for installs that work today, and `TRANSPONDARR_IMPORT_MODE=hardlink` is
   already the setting for anyone who wants a refused link to keep the grab row open.
 - **`CAP_FOWNER` and `CAP_DAC_OVERRIDE` each make an `fs.protected_hardlinks`
-  refusal impossible, so the diagnosis asks about capabilities before ownership.**
-  `may_linkat()` accepts either an owner-or-capable caller or a source the caller can
-  read and write, and `CAP_DAC_OVERRIDE` supplies the second on every file. Traced in
-  Docker: `--cap-drop ALL --cap-add DAC_OVERRIDE` hardlinks a download owned by
-  another user, while `--cap-add FOWNER` alone does not, since the directory write
-  then fails first with `EACCES`. Bare-metal root under `TRANSPONDARR_PRIVDROP` and
-  `docker run` as root both hold the pair, so an `EPERM` there is the mount and
-  naming `PUID` would send a user after a fix that changes nothing.
+  refusal impossible, so the diagnosis tests the capability set before comparing
+  owners.** `may_linkat()` accepts either an owner-or-capable caller or a source path
+  the caller can read and write, and `CAP_DAC_OVERRIDE` supplies the second on every
+  file. Traced in Docker: `--cap-drop ALL --cap-add DAC_OVERRIDE` hardlinks a
+  download owned by another user, while `--cap-add FOWNER` alone does not, since the
+  directory write then fails first with `EACCES`. Bare-metal root under
+  `TRANSPONDARR_PRIVDROP` and `docker run` as root both hold the pair, so an `EPERM`
+  there is the mount and naming `PUID` would send a user after a fix that changes
+  nothing.
+- **The capability read is namespace-blind, and that is the tolerable direction.**
+  `may_linkat()` goes through `capable_wrt_inode_uidgid()`, which also wants the
+  file's owner to map into the process's user namespace, so under rootless Podman or
+  `userns-remap` a full `CapEff` can sit alongside a genuine `fs.protected_hardlinks`
+  refusal. `boundByFileOwner` reports false there and the diagnosis stays quiet,
+  which costs a hint on a line that still reports the errno, the source path and the
+  destination. Untraced: no userns remapping was available to check it.
 - **Testing `l.euid == 0` instead would be the wrong reading.** It would also silence
   `PUID=0` under the example compose's `cap_drop: ALL`, which is root holding
   *neither* capability and the case #303 documents. So `boundByFileOwner` reads

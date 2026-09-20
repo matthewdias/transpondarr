@@ -65,7 +65,9 @@ func TestNewWiresTheRealIdentity(t *testing.T) {
 	if gotOK != wantOK || gotOwner != wantOwner {
 		t.Errorf("target.identify = %+v, %v; linkIdentities = %+v, %v", gotOwner, gotOK, wantOwner, wantOK)
 	}
-	if gotSelf.euid != wantSelf.euid || gotSelf.egid != wantSelf.egid || gotSelf.boundByFileOwner != wantSelf.boundByFileOwner {
+	// Only fields a stub would get wrong are compared: boundByFileOwner would be
+	// itself on both sides, so a mutation moves both and the assertion says nothing.
+	if gotSelf.euid != wantSelf.euid || gotSelf.egid != wantSelf.egid {
 		t.Errorf("target.identify process identity = %+v, want %+v", gotSelf, wantSelf)
 	}
 }

@@ -222,7 +222,12 @@ func TestEpermFallbackNamesHardlinkProtection(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("want exactly one log record, got %d: %q", len(got), buf.String())
 	}
-	for _, want := range []string{"fs.protected_hardlinks", "PUID", "source_owner=1000:1000", "process_owner=1001:1001"} {
+	// "PUID is 0" is the qualification: PGID is the advice the line leads with, and
+	// privdrop discards it for PUID=0, so offering it unqualified wastes a user's time.
+	for _, want := range []string{
+		"fs.protected_hardlinks", "PUID", "PUID is 0",
+		"source_owner=1000:1000", "process_owner=1001:1001",
+	} {
 		if !strings.Contains(got[0], want) {
 			t.Errorf("fallback line should contain %q; got %q", want, got[0])
 		}
@@ -354,8 +359,8 @@ func TestCanBypassFileOwner(t *testing.T) {
 		{"the example compose's cap_add, which cannot hardlink", "\t00000000000000c5", false},
 		{"cap_drop: ALL, which cannot hardlink", "\t0000000000000000", false},
 		{"docker's default set for root, which can", "\t00000000a80425fb", true},
-		// DAC_OVERRIDE alone restores the hardlink: it makes the source readable
-		// and writable, which is the other arm of what may_linkat() accepts.
+		// DAC_OVERRIDE alone restores the hardlink: it makes the file readable and
+		// writable, which is the second of the two conditions may_linkat() accepts.
 		{"DAC_OVERRIDE alone, which can", "\t0000000000000002", true},
 		{"FOWNER alone, which satisfies the ownership check", "\t0000000000000008", true},
 		{"unparseable, so we can't say", "\tnot-a-number", true},
@@ -395,8 +400,36 @@ func TestAnUndiagnosedRefusalDoesNotSpendTheDiagnosedOnesWarning(t *testing.T) {
 	}
 }
 
-// A process holding CAP_FOWNER is never refused by fs.protected_hardlinks, so an
-// EPERM it sees is the mount and the diagnosis would name a cause that cannot apply.
+// Whether this process is checked against file ownership decides whether #303's
+// diagnosis appears at all, so every way of reading it wrong is pinned here.
+func TestBoundByFileOwnerFrom(t *testing.T) {
+	const unprivileged = "Name:\tserver\nCapEff:\t0000000000000000\nSeccomp:\t2\n"
+	for _, tc := range []struct {
+		name   string
+		status string
+		err    error
+		want   bool
+	}{
+		{"no capabilities, which is every privdropped install", unprivileged, nil, true},
+		{"the example compose's cap_add", "CapEff:\t00000000000000c5\n", nil, true},
+		{"docker's default set for root", "CapEff:\t00000000a80425fb\n", nil, false},
+		{"DAC_OVERRIDE alone", "CapEff:\t0000000000000002\n", nil, false},
+		{"no CapEff line at all", "Name:\tserver\nSeccomp:\t2\n", nil, false},
+		{"unreadable /proc/self/status", "", errNoProc, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := boundByFileOwnerFrom(func() ([]byte, error) { return []byte(tc.status), tc.err })
+			if got != tc.want {
+				t.Errorf("boundByFileOwnerFrom() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+var errNoProc = errors.New("open /proc/self/status: no such file or directory")
+
+// A process that can bypass the ownership check is never refused by
+// fs.protected_hardlinks, so an EPERM it sees is the mount rather than that setting.
 func TestAPrivilegedProcessIsNotDiagnosed(t *testing.T) {
 	root := fileOwner{uid: 1000, gid: 1000, mode: 0o644}
 	capable := linker{euid: 0, egid: 0, groups: []int{0}}

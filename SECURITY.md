@@ -95,16 +95,24 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   with "permission denied" — `DAC_READ_SEARCH` grants read and search, not write.
   The `PGID` workaround README describes doesn't reach this: `PUID=0` skips the
   privilege drop, and the drop is what would have applied `PGID`, so the server
-  keeps the group Docker started it with. Putting root in the owning group at the
-  Docker level (`user: "0:1000"`, or `group_add`) and making the folders `0775` does
-  restore the writes, though not the hardlinks.
+  keeps the group Docker started it with. Apply it at the Docker level instead —
+  `user: "0:1000"` or `group_add` — and make the library folders `0775`, and the
+  writes work.
 
-  **`cap_add: DAC_OVERRIDE` restores both, and is the whole of what is needed.**
-  It lets the server read and write any file on the mount, which satisfies
-  `fs.protected_hardlinks` as well — `CAP_FOWNER` adds nothing here, and on its own
-  restores neither. The cost is that the server is past every file-permission check
-  on the mount for as long as it runs. Running as qBittorrent's user needs no
-  capability at all, which is why it's the recommendation above.
+  **Do the group fix completely and you need no capability at all, hardlinks
+  included.** Set qBittorrent's `UMASK=002` so new downloads are group-writable:
+  root is then in the owning group and can read and write the download, which is
+  the other condition `fs.protected_hardlinks` accepts. Downloads saved before the
+  umask change are still `0644` and still refused — `chmod g+w` over them fixes
+  that, and is what to reach for first.
+
+  **`cap_add: DAC_OVERRIDE` is the answer only if you skip the umask step.** It
+  lets the server read and write every file on the mount, which satisfies
+  `fs.protected_hardlinks` the same way the group fix does. The difference is scope:
+  every file for as long as the server runs, rather than the ones you chose.
+  `CAP_FOWNER` is not a substitute — on its own the directory write fails first.
+  Running as qBittorrent's user needs none of this, which is why it's the
+  recommendation above.
 
 ## Known limitations (deferred hardening)
 

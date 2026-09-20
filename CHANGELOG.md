@@ -47,7 +47,7 @@ All notable changes to this project are documented here. The format is based on
   `fs.protected_hardlinks`. What gets imported, and where, is unchanged.
 - **The Docker docs now cover `PUID=0`.** A server running as root under the
   example compose file can't hardlink qBittorrent's downloads either, because
-  `cap_drop: ALL` removes the capability the kernel checks for. README and
+  `cap_drop: ALL` removes the capabilities that would exempt it. README and
   SECURITY.md say what that costs and what to do about it, and SECURITY.md now
   recommends qBittorrent's UID:GID, matching README.
 - **Error messages now name what couldn't be done and what to try next.** A
