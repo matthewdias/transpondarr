@@ -248,11 +248,20 @@ func TestMissingGrabFailedDetailIsTheCurrentGrabs(t *testing.T) {
 		}
 	}
 	failGrab("hashOld", "[ExampleSubs] Placeholder Saga - 03 [1080p]", download.StateError)
-	// Both timestamps are SQLite's datetime('now'), which resolves to the second,
-	// so the re-grab has to land in a later one or nothing can tell the attempts
-	// apart. A real install takes minutes to get here.
-	time.Sleep(1100 * time.Millisecond)
 	failGrab("hashNew", "[OtherSubs] Placeholder Saga - 03 [720p]", download.StateDataMissing)
+	// Pin both failures and the live grab row to one second, which is the case
+	// the date check cannot settle and e.id has to. Left to the wall clock the
+	// two attempts usually land in the same second anyway, but "usually" would
+	// make it chance whether this test covers the ordering at all.
+	stamp := "2026-03-15 12:00:00"
+	if _, err := h.store.DB.ExecContext(ctx,
+		`UPDATE grab_events SET created_at = ? WHERE wanted_item_id = ?`, stamp, id); err != nil {
+		t.Fatalf("pin event times: %v", err)
+	}
+	if _, err := h.store.DB.ExecContext(ctx,
+		`UPDATE grabs SET created_at = ? WHERE wanted_item_id = ?`, stamp, id); err != nil {
+		t.Fatalf("pin grab time: %v", err)
+	}
 
 	var out missingResponse
 	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
@@ -271,6 +280,61 @@ func TestMissingGrabFailedDetailIsTheCurrentGrabs(t *testing.T) {
 	}
 	if failed.ReasonDetail != "the download client no longer has the data" {
 		t.Errorf("episode 3 detail = %q, want the second grab's reason, not the first's", failed.ReasonDetail)
+	}
+}
+
+// settle() appends its history event best-effort, so a grab row can settle with
+// no event of its own. The reason then has to be absent rather than the previous
+// attempt's, which is the confusion clearing last_error exists to prevent (#273).
+func TestMissingGrabFailedDetailIgnoresAPreviousAttempts(t *testing.T) {
+	dl := &coretest.FakeDownload{}
+	h := wantedHarnessWithDownload(t, dl)
+	ctx := t.Context()
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 4)
+	id := itemID(t, h.store, titleID, 3)
+
+	if _, err := h.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
+		WantedItemID: id, InfoHash: "hashOld",
+		ReleaseTitle: "[ExampleSubs] Placeholder Saga - 03 [1080p]", Status: "grabbed",
+	}); err != nil {
+		t.Fatalf("record first grab: %v", err)
+	}
+	dl.Statuses = []download.Status{{Hash: "hashOld", State: download.StateError}}
+	if err := h.importer.ScanOnce(ctx); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if _, err := h.store.DB.ExecContext(ctx,
+		`UPDATE grab_events SET created_at = ? WHERE wanted_item_id = ?`,
+		"2026-03-15 10:00:00", id); err != nil {
+		t.Fatalf("age the first failure: %v", err)
+	}
+	// The second attempt settles with no event, which is what a failed
+	// AppendGrabEvent leaves behind. Its own status is written the way settle()
+	// writes one, so the grab row itself is a state an install reaches.
+	if _, err := h.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
+		WantedItemID: id, InfoHash: "hashNew",
+		ReleaseTitle: "[OtherSubs] Placeholder Saga - 03 [720p]", Status: "failed",
+	}); err != nil {
+		t.Fatalf("record second grab: %v", err)
+	}
+
+	var out missingResponse
+	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
+		t.Fatalf("GET missing = %d, want 200", code)
+	}
+	var failed missingItem
+	for _, g := range out.Groups {
+		for _, it := range g.Items {
+			if it.Number == 3 {
+				failed = it
+			}
+		}
+	}
+	if failed.Reason != "grab_failed" {
+		t.Fatalf("episode 3 = %+v, want grab_failed", failed)
+	}
+	if failed.ReasonDetail != "" {
+		t.Errorf("episode 3 detail = %q, want none: that reason is the previous attempt's", failed.ReasonDetail)
 	}
 }
 

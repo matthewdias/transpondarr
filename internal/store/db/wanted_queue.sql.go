@@ -287,6 +287,7 @@ JOIN grabs g ON g.wanted_item_id = e.wanted_item_id
 WHERE e.series_id IN (/*SLICE:title_ids*/?)
   AND e.event = 'failed'
   AND g.status = 'failed'
+  AND e.created_at >= g.created_at
 ORDER BY e.created_at DESC, e.id DESC
 `
 
@@ -297,11 +298,15 @@ type ListFailureDetailsByTitleRow struct {
 
 // Why each listed item's grab row failed, for one results page of title groups.
 // The reason comes from history because SetGrabStatus clears last_error in the
-// statement that settles the row. Newest first, and the caller keeps the first
-// one it sees per item. That ordering is what makes the answer the current
-// attempt's rather than an earlier one's: a re-grab replaces the grab row, and
-// every failure appends its own event. Scoped on series_id because grab_events
-// is indexed on it.
+// statement that settles the row. Two conditions make the answer the current
+// attempt's rather than an earlier one's, and both are needed. The date check
+// drops an event from a previous attempt, because a re-grab resets
+// grabs.created_at; without it, a settle() whose best-effort AppendGrabEvent
+// failed would show the attempt before it. Newest first then decides between
+// what is left, which is what holds when a re-grab lands in the same second as
+// the previous failure. The date check is also what keeps this to about one row
+// per item rather than an item's whole failure history. Scoped on series_id
+// because grab_events is indexed on it.
 func (q *Queries) ListFailureDetailsByTitle(ctx context.Context, titleIds []int64) ([]ListFailureDetailsByTitleRow, error) {
 	query := listFailureDetailsByTitle
 	var queryParams []interface{}

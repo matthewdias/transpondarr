@@ -28,6 +28,12 @@ item. The root `CLAUDE.md` covers everything above this layer.
   and the Missing screen queries it (`ListFailureDetailsByTitle`). Reading
   `grabs.last_error` for a settled row returns the empty string, which is what
   the Missing screen's *Last grab failed* detail showed for a round (#273).
+- **`appendEvent` is best-effort, so a settled grab row can have no event.** It
+  logs and returns, because history must never wedge the pipeline. Any reader
+  scanning history for a settled row's reason therefore has to check the event
+  against `grabs.created_at`: a re-grab resets that column, so the check is what
+  separates this attempt's reason from the one before it, which would otherwise
+  be the newest event there is.
 
 ## The payload walk
 
