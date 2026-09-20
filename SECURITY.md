@@ -82,21 +82,29 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
 
   **Running as root costs you hardlinks under this compose file.** The Linux kernel
   setting `fs.protected_hardlinks`, on by default, refuses a hardlink to a file the
-  caller neither owns nor can both read and write. Holding `CAP_FOWNER` exempts a
-  caller from that check (README explains what it means for imports). `cap_drop: ALL`
-  removes `CAP_FOWNER`, so the kernel checks root's ownership like anyone else's and
-  the server can't hardlink a download qBittorrent owns. Removing `cap_add` doesn't
-  restore it — that leaves no capabilities at all. `auto` import mode copies each
-  file instead, at twice the disk space; in `hardlink` import mode the grab row waits
-  in the Activity queue with an "operation not permitted" error.
+  caller neither owns nor can both read and write (README explains what that means
+  for imports). Under `cap_drop: ALL` the kernel checks root against both of those
+  like anyone else, so the server can't hardlink a download qBittorrent owns.
+  Removing `cap_add` doesn't restore it — that leaves no capabilities at all.
+  `auto` import mode copies each file instead, at twice the disk space; in
+  `hardlink` import mode the grab row waits in the Activity queue with an "operation
+  not permitted" error.
 
-  **Running as root also costs you writes into folders another user owns.**
-  `DAC_READ_SEARCH` grants read and search, not write, so an import into a library
-  folder qBittorrent's user created fails with "permission denied". Adding
-  `cap_add: [FOWNER, DAC_OVERRIDE]` restores that and the hardlinks above, at the
-  cost of letting the server past every file-ownership and permission check on the
-  mount for as long as it runs. Running as qBittorrent's user needs neither
-  capability, which is why it's the recommendation above.
+  **Running as root also costs you writes into folders another user owns.** A
+  library folder qBittorrent's user created is `0755`, so an import into it fails
+  with "permission denied" — `DAC_READ_SEARCH` grants read and search, not write.
+  The `PGID` workaround README describes doesn't reach this: `PUID=0` skips the
+  privilege drop, and the drop is what would have applied `PGID`, so the server
+  keeps the group Docker started it with. Putting root in the owning group at the
+  Docker level (`user: "0:1000"`, or `group_add`) and making the folders `0775` does
+  restore the writes, though not the hardlinks.
+
+  **`cap_add: DAC_OVERRIDE` restores both, and is the whole of what is needed.**
+  It lets the server read and write any file on the mount, which satisfies
+  `fs.protected_hardlinks` as well — `CAP_FOWNER` adds nothing here, and on its own
+  restores neither. The cost is that the server is past every file-permission check
+  on the mount for as long as it runs. Running as qBittorrent's user needs no
+  capability at all, which is why it's the recommendation above.
 
 ## Known limitations (deferred hardening)
 

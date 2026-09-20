@@ -74,15 +74,20 @@ layout (shape within a root) are deliberately different axes.
   because a FUSE mount can report any owner. So acting on one `EPERM` would stop
   imports for installs that work today, and `TRANSPONDARR_IMPORT_MODE=hardlink` is
   already the setting for anyone who wants a refused link to keep the grab row open.
-- **A process holding `CAP_FOWNER` is never refused by `fs.protected_hardlinks`, so
-  the diagnosis asks about capabilities before ownership.** Bare-metal root under
-  `TRANSPONDARR_PRIVDROP`, and `docker run` as root with Docker's default set, both
-  hold it. There the `EPERM` is the mount, so naming `PUID` would send a user after a
-  fix that changes nothing. Testing `l.euid == 0` instead would be the wrong
-  reading: it would also silence `PUID=0` under the example compose's `cap_drop:
-  ALL`, which is root *without* `CAP_FOWNER` and the case #303 documents. So
-  `boundByFileOwner` reads `CapEff` from `/proc/self/status`, and off Linux it is
-  false outright, since `fs.protected_hardlinks` is the only thing the message names.
+- **`CAP_FOWNER` and `CAP_DAC_OVERRIDE` each make an `fs.protected_hardlinks`
+  refusal impossible, so the diagnosis asks about capabilities before ownership.**
+  `may_linkat()` accepts either an owner-or-capable caller or a source the caller can
+  read and write, and `CAP_DAC_OVERRIDE` supplies the second on every file. Traced in
+  Docker: `--cap-drop ALL --cap-add DAC_OVERRIDE` hardlinks a download owned by
+  another user, while `--cap-add FOWNER` alone does not, since the directory write
+  then fails first with `EACCES`. Bare-metal root under `TRANSPONDARR_PRIVDROP` and
+  `docker run` as root both hold the pair, so an `EPERM` there is the mount and
+  naming `PUID` would send a user after a fix that changes nothing.
+- **Testing `l.euid == 0` instead would be the wrong reading.** It would also silence
+  `PUID=0` under the example compose's `cap_drop: ALL`, which is root holding
+  *neither* capability and the case #303 documents. So `boundByFileOwner` reads
+  `CapEff` from `/proc/self/status`, and off Linux it is false outright, since
+  `fs.protected_hardlinks` is the only thing the message names.
 - **Neither result from `protectedHardlinkAttrs` is proof, which is why the field
   is named `likely` and the message starts "if the mount supports hardlinks".** The
   conditions it tests are necessary for an `fs.protected_hardlinks` refusal and not

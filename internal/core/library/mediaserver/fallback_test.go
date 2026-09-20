@@ -343,23 +343,26 @@ func TestASecondRefusalOfTheSameKindDoesNotWarn(t *testing.T) {
 	}
 }
 
-// The CapEff values are the ones #303 traced in Docker, so the bit this reads is
-// checked against a real capability set rather than an assumed one.
-func TestFownerHeld(t *testing.T) {
+// Every CapEff value here was observed in Docker against a real hardlink, so the
+// bits this reads are checked against traced behaviour rather than an assumed rule.
+func TestCanBypassFileOwner(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		capEff string
 		want   bool
 	}{
-		{"the example compose's cap_add", "\t00000000000000c5", false},
-		{"cap_drop: ALL", "\t0000000000000000", false},
-		{"docker's default set for root", "\t00000000a80425fb", true},
-		{"the compose set plus FOWNER", "\t00000000000000cd", true},
+		{"the example compose's cap_add, which cannot hardlink", "\t00000000000000c5", false},
+		{"cap_drop: ALL, which cannot hardlink", "\t0000000000000000", false},
+		{"docker's default set for root, which can", "\t00000000a80425fb", true},
+		// DAC_OVERRIDE alone restores the hardlink: it makes the source readable
+		// and writable, which is the other arm of what may_linkat() accepts.
+		{"DAC_OVERRIDE alone, which can", "\t0000000000000002", true},
+		{"FOWNER alone, which satisfies the ownership check", "\t0000000000000008", true},
 		{"unparseable, so we can't say", "\tnot-a-number", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := fownerHeld(tc.capEff); got != tc.want {
-				t.Errorf("fownerHeld(%q) = %v, want %v", tc.capEff, got, tc.want)
+			if got := canBypassFileOwner(tc.capEff); got != tc.want {
+				t.Errorf("canBypassFileOwner(%q) = %v, want %v", tc.capEff, got, tc.want)
 			}
 		})
 	}

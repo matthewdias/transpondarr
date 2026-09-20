@@ -74,17 +74,21 @@ func inGroup(gid int, l linker) bool {
 	return gid == l.egid || slices.Contains(l.groups, gid)
 }
 
-// capFowner is CAP_FOWNER's bit in a capability set. Holding it makes the kernel
-// skip the fs.protected_hardlinks check, so a refusal can't be that one.
-const capFowner = 3
+// Either of these bits in a capability set satisfies may_linkat(): CAP_FOWNER
+// passes its ownership check, and CAP_DAC_OVERRIDE makes every source readable and
+// writable, which is the other thing it accepts.
+const (
+	capDACOverride = 1
+	capFowner      = 3
+)
 
-// fownerHeld reports whether a CapEff value from /proc/self/status grants
-// CAP_FOWNER. An unparseable value reports held, because naming a cause we can't
-// establish is worse than staying quiet about it.
-func fownerHeld(capEff string) bool {
+// canBypassFileOwner reports whether a CapEff value from /proc/self/status lets the
+// process past the ownership check. An unparseable value reports true, because
+// naming a cause we can't establish is worse than staying quiet about it.
+func canBypassFileOwner(capEff string) bool {
 	set, err := strconv.ParseUint(strings.TrimSpace(capEff), 16, 64)
 	if err != nil {
 		return true
 	}
-	return set&(1<<capFowner) != 0
+	return set&(1<<capFowner|1<<capDACOverride) != 0
 }

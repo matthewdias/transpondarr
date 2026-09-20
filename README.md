@@ -217,9 +217,10 @@ For a real deployment alongside qBittorrent and a media server, use
   not permitted" error, and the importer retries it every 15 seconds until the
   permissions change.
   `PUID=0` is affected too, under the capabilities
-  [`docker-compose.yml`](docker-compose.yml) grants. Without `CAP_FOWNER` the
-  kernel checks root's ownership like anyone else's, so root can't hardlink a
-  download it doesn't own either — see [SECURITY.md](SECURITY.md).
+  [`docker-compose.yml`](docker-compose.yml) grants. `cap_drop: ALL` leaves root
+  subject to the same check as anyone else, so it can't hardlink a download it
+  doesn't own. It can't write into a library folder another user created either —
+  see [SECURITY.md](SECURITY.md).
   If you need a `PUID` other than qBittorrent's, give both containers the same
   `PGID` and make both library roots writable by that group. Then set
   qBittorrent's umask to `002` (eg. `UMASK=002` in the linuxserver image), so new
