@@ -75,15 +75,23 @@ ORDER BY w.series_id, w.number;
 -- name: ListFailureDetailsByTitle :many
 -- Why each listed item's grab row failed, for one results page of title groups.
 -- The reason comes from history because SetGrabStatus clears last_error in the
--- statement that settles the row. Two conditions make the answer the current
--- attempt's rather than an earlier one's, and both are needed. The date check
--- drops an event from a previous attempt, because a re-grab resets
--- grabs.created_at; without it, a settle() whose best-effort AppendGrabEvent
--- failed would show the attempt before it. Newest first then decides between
--- what is left, which is what holds when a re-grab lands in the same second as
--- the previous failure. The date check is also what keeps this to about one row
--- per item rather than an item's whole failure history. Scoped on series_id
--- because grab_events is indexed on it.
+-- statement that settles the row. Scoped on series_id because grab_events is
+-- indexed on it.
+--
+-- Picking the current attempt takes two conditions. The date check drops an
+-- event from a previous attempt, because a re-grab resets grabs.created_at;
+-- without it, a settle() whose best-effort AppendGrabEvent failed would show the
+-- attempt before it. It also keeps this to about one row per item rather than an
+-- item's whole failure history. Newest first then decides between what is left.
+-- That is the re-grab landing in the same second as the previous failure, which
+-- the date check cannot separate.
+--
+-- The two status filters look redundant and are not. Each is unreachable only
+-- because a different file states the same rule: ListMissingItemsByTitle already
+-- narrows the screen to items whose grab row failed, and placeUnclaimedFile
+-- upserts a grab row to imported before appending its events. So a mutation on
+-- either survives, and deleting them on that evidence would tie this query to
+-- two rules it does not state.
 SELECT e.wanted_item_id, e.detail
 FROM grab_events e
 JOIN grabs g ON g.wanted_item_id = e.wanted_item_id

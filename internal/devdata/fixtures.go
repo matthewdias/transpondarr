@@ -287,7 +287,7 @@ func nothingYet() title {
 	// the other four already show the reason column, so a fifth row would be one
 	// more fixture to keep true for nothing a reader has not already seen.
 	t.blocklist = []blockEntry{
-		{release: "[RipCrew] Placeholder Horizon - 01 [1080p]", hash: "aa03000000000000000000000000000000000003", reason: "download client reported an error", failures: 1, expiresIn: day},
+		{release: "[RipCrew] Placeholder Horizon - 01 [1080p]", hash: "aa03000000000000000000000000000000000003", reason: "the download client reported an error", failures: 1, expiresIn: day},
 		{release: "[RipCrew] Placeholder Horizon - 02 [1080p]", reason: "no peers had the data", failures: 2, expiresIn: week},
 		{release: "[LowSeed] Placeholder Horizon - 01-12 [480p][Batch]", reason: "payload did not contain what it claimed", failures: 3, permanent: true},
 		{release: "[OldGrp] Placeholder Horizon - 03 [1080p]", reason: "download client reported an error", failures: 1, expiresIn: -2 * day},

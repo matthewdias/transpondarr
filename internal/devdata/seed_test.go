@@ -459,9 +459,14 @@ func TestSeedProducesTheMissingScreensGrabFailedDetail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListFailureDetailsByTitle: %v", err)
 	}
+	// First wins, as wanted_routes.go's failureDetails does: the rows are newest
+	// first, so keeping the last one would assert a sentence the screen does not
+	// show as soon as an item has two failures.
 	byItem := make(map[int64]string, len(details))
 	for _, r := range details {
-		byItem[r.WantedItemID] = r.Detail
+		if _, seen := byItem[r.WantedItemID]; !seen {
+			byItem[r.WantedItemID] = r.Detail
+		}
 	}
 	var failed int
 	for _, r := range items {

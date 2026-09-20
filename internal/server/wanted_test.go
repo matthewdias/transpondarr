@@ -949,11 +949,8 @@ func holdItem(t *testing.T, st *store.Store, titleID int64, number int, releaseT
 	}
 }
 
-// grabItem records a grab already in the state under test, with reason as why
-// the attempt has gone wrong. Where the reason is stored follows the status,
-// because the two are stored in different places: a grabbed row keeps its import
-// error in last_error, and a settled one cannot, since the statement that settles
-// it clears the column. So a settled reason goes where settle() puts it (#273).
+// grabItem stores reason where the grab row's status stores it: last_error while
+// grabbed, a history event once settled (importer/CLAUDE.md, Grab lifecycle).
 func grabItem(t *testing.T, st *store.Store, titleID int64, number int, status, reason string) {
 	t.Helper()
 	ctx := t.Context()

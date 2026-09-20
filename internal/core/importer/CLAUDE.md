@@ -21,19 +21,24 @@ item. The root `CLAUDE.md` covers everything above this layer.
   property). They stay in the scan for missing-from-client reconciliation, so a
   vanished payload still frees its item. Only an explicit `RetryImport` reopens
   one, optionally naming the file.
-- **A settled grab row's reason survives only in `grab_events`.** `SetGrabStatus`
-  writes `last_error = NULL` in the statement that settles the row, so the
-  sentence `settle()` recorded is readable afterwards from history and nowhere
-  else. There are two readers: `RetryImport` passes it to the toast in memory,
-  and the Missing screen queries it (`ListFailureDetailsByTitle`). Reading
-  `grabs.last_error` for a settled row returns the empty string, which is what
-  the Missing screen's *Last grab failed* detail showed for a round (#273).
+- **A settled grab row's reason is stored only in `grab_events`.**
+  `SetGrabStatus` writes `last_error = NULL` in the statement that settles the
+  row, so reading `grabs.last_error` for a settled row returns the empty string.
+  Three surfaces read the stored sentence, and changing what `settle()` records,
+  or pruning `grab_events`, moves all three: a title's history
+  (`ListTitleGrabEvents`), the Activity history page (`ListGrabEventsPage`), and
+  the Missing screen's *Last grab failed* detail (`ListFailureDetailsByTitle`).
+  Until #273 that third one read `grabs.last_error`, so it was empty on every
+  install.
+- **`RetryImport` is not one of those readers**, though `retry.go`'s comment
+  about the reason being "the only text the toast has" reads as though it were.
+  It takes the sentence from `settleGroup`'s return value in the same call, so it
+  needs no query and is unaffected by what history stores.
 - **`appendEvent` is best-effort, so a settled grab row can have no event.** It
-  logs and returns, because history must never wedge the pipeline. Any reader
-  scanning history for a settled row's reason therefore has to check the event
-  against `grabs.created_at`: a re-grab resets that column, so the check is what
-  separates this attempt's reason from the one before it, which would otherwise
-  be the newest event there is.
+  logs and returns, because history must never wedge the pipeline. So a reader
+  scanning history for a settled row's reason has to check the event against
+  `grabs.created_at`. A re-grab resets that column, and without the check the
+  previous attempt's event is the newest one there is.
 
 ## The payload walk
 
