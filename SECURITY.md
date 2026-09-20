@@ -68,7 +68,9 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
 
 - **Run as the data owner, not root.** The container starts as root only to fix
   ownership of `/config`, then drops to `PUID`/`PGID` (default `1000:1000`) before
-  serving. Set those two variables to the account that owns your media volume.
+  serving. Set those two variables to the UID:GID qBittorrent runs as, which is the
+  user that can hardlink its downloads (README explains why, and what to do when
+  you need a different one).
   `PUID=0` skips the drop and keeps the server running as root. If you set `user:` (or `--user`) instead, the root phase is skipped and
   `PUID`/`PGID` are ignored, so `/config` must already be writable by that user.
   Docker creates a missing bind-mount directory owned by root, and the server then
@@ -77,6 +79,19 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   `DAC_READ_SEARCH` added back, as [`docker-compose.yml`](docker-compose.yml) does;
   the drop clears them before serving. `PUID=0` has no drop, so the server keeps
   all four for as long as it runs: remove `cap_add` if you run as root.
+
+  **Running as root costs you hardlinks under this compose file.** `cap_drop: ALL`
+  removes `CAP_FOWNER`, and `fs.protected_hardlinks` then checks root's ownership
+  like anyone else's, so the server can't hardlink a download qBittorrent owns.
+  Removing `cap_add` doesn't restore it — that leaves no capabilities at all.
+  `auto` import mode copies each file instead, at twice the disk space; in
+  `hardlink` import mode the grab waits in the Activity queue with an "operation
+  not permitted" error. Root also can't write into a library folder another user owns,
+  because `DAC_READ_SEARCH` grants read and search and not write. Adding
+  `cap_add: [FOWNER, DAC_OVERRIDE]` restores both, at the cost of letting the
+  server past every file-ownership and permission check on the mount for as long
+  as it runs. Running as qBittorrent's user needs neither capability, which is why
+  it's the recommendation above.
 
 ## Known limitations (deferred hardening)
 

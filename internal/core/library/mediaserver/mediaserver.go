@@ -31,6 +31,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/matthewdias/transpondarr/internal/core/domain"
@@ -123,6 +124,17 @@ type Target struct {
 	mode   Mode
 	log    *slog.Logger
 
+	// link is os.Link, replaced in tests: a real EXDEV needs a second filesystem and a
+	// real EPERM a second user, so a test process can produce neither errno.
+	link func(oldname, newname string) error
+
+	// identify is linkIdentities, replaced in tests for the same reason as link: a
+	// test process can't create a file another user owns.
+	identify func(path string) (fileOwner, linker, bool)
+
+	// fellBack is whether this target has already warned about a copy fallback.
+	fellBack atomic.Bool
+
 	// staging lists the staging paths this process is writing right now, which is
 	// how the staging sweep distinguishes a live transfer from an orphan (see staged).
 	stagingMu sync.Mutex
@@ -141,11 +153,13 @@ func New(roots Roots, layout Layout, mode string, log *slog.Logger) *Target {
 	roots.Series = strings.TrimSpace(roots.Series)
 	roots.Movies = strings.TrimSpace(roots.Movies)
 	return &Target{
-		roots:   roots,
-		layout:  ParseLayout(string(layout)),
-		mode:    ParseMode(mode),
-		log:     log,
-		staging: make(map[string]bool),
+		roots:    roots,
+		layout:   ParseLayout(string(layout)),
+		mode:     ParseMode(mode),
+		log:      log,
+		link:     os.Link,
+		identify: linkIdentities,
+		staging:  make(map[string]bool),
 	}
 }
 
@@ -305,9 +319,9 @@ func (t *Target) replace(ctx context.Context, src, dest string) error {
 	}
 	return t.staged(dest, upgradeSuffix, func(tmp string) error {
 		_ = os.Remove(tmp) // a previous attempt's staging link
-		if err := os.Link(src, tmp); err != nil {
+		if err := t.link(src, tmp); err != nil {
 			if t.mode == ModeAuto && isUnsupportedLink(err) {
-				return t.copyFile(ctx, src, dest)
+				return t.copyFallback(ctx, src, dest, err)
 			}
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
@@ -346,27 +360,44 @@ func (t *Target) removeStemMates(dir, stem, keep string) {
 }
 
 // transfer moves bytes from src to dest according to the configured import mode. In auto
-// import mode a hardlink is attempted first and falls back to a copy when the filesystem
-// can't hardlink here (a different device, or a mount that doesn't support/permit
-// hardlinks).
+// import mode a hardlink is attempted first and falls back to a copy when the link is
+// refused for a reason another try would not fix (see isUnsupportedLink).
 func (t *Target) transfer(ctx context.Context, src, dest string) error {
 	switch t.mode {
 	case ModeCopy:
 		return t.copyFile(ctx, src, dest)
 	case ModeHardlink:
-		if err := os.Link(src, dest); err != nil {
+		if err := t.link(src, dest); err != nil {
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
 		return syncLinked(dest)
 	default: // ModeAuto
-		if err := os.Link(src, dest); err != nil {
+		if err := t.link(src, dest); err != nil {
 			if isUnsupportedLink(err) {
-				return t.copyFile(ctx, src, dest)
+				return t.copyFallback(ctx, src, dest, err)
 			}
 			return fmt.Errorf("mediaserver: hardlink: %w", err)
 		}
 		return syncLinked(dest)
 	}
+}
+
+// copyFallback copies what auto import mode could not hardlink, and reports it only
+// once the copy succeeds: a failed copy takes no disk space and its error surfaces as
+// the grab row's last_error. Only the first on a target warns, so a mount that never
+// hardlinks warns once.
+func (t *Target) copyFallback(ctx context.Context, src, dest string, linkErr error) error {
+	if err := t.copyFile(ctx, src, dest); err != nil {
+		return err
+	}
+	const msg = "mediaserver: a hardlink was refused, so the file was copied and now takes disk space of its own"
+	attrs := append([]any{"src", src, "dest", dest, "err", linkErr}, t.hardlinkRefusalAttrs(src, linkErr)...)
+	if t.fellBack.Swap(true) {
+		t.log.Info(msg, attrs...)
+	} else {
+		t.log.Warn(msg, attrs...)
+	}
+	return nil
 }
 
 // syncLinked flushes a fresh link's data — the download client's writes, possibly
@@ -389,11 +420,12 @@ func syncLinked(dest string) error {
 	return nil
 }
 
-// isUnsupportedLink reports whether a hardlink failure means the filesystem
-// can't hardlink src to dest, so auto import mode should fall back to a copy: a different
-// device (EXDEV), or a mount that doesn't permit/support hardlinks (EPERM/ENOTSUP/
-// EOPNOTSUPP — common on SMB/CIFS, FUSE, mergerfs/rclone, and some Docker volumes).
-// Other errors (a missing source, a full disk) are real and must surface.
+// isUnsupportedLink reports whether a hardlink failure means trying again would not
+// help, so auto import mode should fall back to a copy: a different device (EXDEV), or
+// a mount that doesn't permit/support hardlinks (EPERM/ENOTSUP/EOPNOTSUPP — common on
+// SMB/CIFS, FUSE, mergerfs/rclone, and some Docker volumes). Other errors (a missing
+// source, a full disk) are real and must surface. EPERM stays even though it can also
+// be a permissions mismatch a user could fix: the two look identical here (#303).
 func isUnsupportedLink(err error) bool {
 	return errors.Is(err, syscall.EXDEV) ||
 		errors.Is(err, syscall.EPERM) ||

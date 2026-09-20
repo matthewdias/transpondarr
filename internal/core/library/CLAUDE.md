@@ -47,6 +47,33 @@ layout (shape within a root) are deliberately different axes.
   stem-mate.** Otherwise an interrupted copy's `.partial` would report a layout
   switch that never happened and suppress the real warning.
 
+## The copy fallback in auto import mode (#303)
+
+- **A hardlink auto import mode turned into a copy is logged, because nothing else
+  distinguishes the two.** `importer: imported` records the destination and not how
+  the bytes got there, so an install whose `PUID` can't hardlink qBittorrent's
+  downloads copied every episode at twice the disk cost and wrote no line about it.
+- **Only the first fallback on a `Target` warns; the rest are `Info`.** An SMB or
+  FUSE mount that can never hardlink would otherwise warn on every import, and the
+  server builds its handler with no level (`main.go`), so `Debug` is off and can't
+  be turned on. A live settings edit rebuilds the target, so the warning returns
+  when the configuration it describes has changed.
+- **`EPERM` still means "fall back to a copy", and the log line carries the
+  diagnosis instead of the code acting on it.** `fs.protected_hardlinks` makes
+  `link()` fail with `EPERM` for a file the caller neither owns nor can read and
+  write, which a user fixes by changing `PUID` or qBittorrent's umask. SMB/CIFS and
+  some FUSE mounts return the same `EPERM` when the filesystem has no hardlinks at
+  all, which no user can fix. The file's owner and mode don't distinguish the two,
+  because a FUSE mount can report any owner. So acting on one `EPERM` would stop
+  imports for installs that work today, and `TRANSPONDARR_IMPORT_MODE=hardlink` is
+  already the setting for anyone who wants a refused link to keep the grab row open.
+- **Neither result from `protectedHardlinkAttrs` is proof, which is why the field
+  is named `likely` and the message starts "if the mount supports hardlinks".** The
+  conditions it tests are necessary for an `fs.protected_hardlinks` refusal and not
+  sufficient: an SMB mount holding a download qBittorrent owns satisfies all of them
+  and cannot hardlink for an unrelated reason. Returning nothing is weaker still,
+  since an unreadable owner produces it too.
+
 ## Other placement rules
 
 - **`removeStemMates`' trailing dot is necessary and only a two- against

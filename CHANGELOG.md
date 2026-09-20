@@ -39,6 +39,17 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- **An import that copies instead of hardlinking now says so in the log.** In
+  `auto` import mode, a hardlink Linux won't permit falls back to a copy that uses
+  twice the disk space, and the only line written afterwards reported the file as
+  imported. The fallback now warns, naming the error the hardlink failed with, and
+  names the file's owner, yours and the fix when the cause looks like
+  `fs.protected_hardlinks`. What gets imported, and where, is unchanged.
+- **The Docker docs now cover `PUID=0`.** A server running as root under the
+  example compose file can't hardlink qBittorrent's downloads either, because
+  `cap_drop: ALL` removes the capability the kernel checks for. README and
+  SECURITY.md say what that costs and what to do about it, and SECURITY.md now
+  recommends qBittorrent's UID:GID, matching README.
 - **Error messages now name what couldn't be done and what to try next.** A
   failed save, grab or load reads "Couldn't save the quality profile" with the
   reason beneath it instead of "Save failed", and every failed load offers

@@ -1,0 +1,68 @@
+package mediaserver
+
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+	"slices"
+	"syscall"
+)
+
+// protectedHardlinksFix is conditional because a mount with no hardlinks at all
+// returns the same EPERM on the same file, and changing PUID would not help there.
+const protectedHardlinksFix = "this user neither owns the download nor can both read and write it, which is what fs.protected_hardlinks refuses. " +
+	"If the mount supports hardlinks, set PUID/PGID to qBittorrent's user, or give both containers the same PGID and set qBittorrent's UMASK to 002."
+
+// fileOwner is the part of a file's identity that fs.protected_hardlinks checks.
+type fileOwner struct {
+	uid, gid int
+	mode     fs.FileMode
+}
+
+// linker is the identity of the process that attempts the link.
+type linker struct {
+	euid, egid int
+	groups     []int
+}
+
+// hardlinkRefusalAttrs are the log fields that explain a refused hardlink. Empty
+// unless the errno is EPERM and the file's owner can be read.
+func (t *Target) hardlinkRefusalAttrs(src string, linkErr error) []any {
+	if !errors.Is(linkErr, syscall.EPERM) {
+		return nil
+	}
+	f, l, ok := t.identify(src)
+	if !ok {
+		return nil
+	}
+	return protectedHardlinkAttrs(f, l)
+}
+
+// protectedHardlinkAttrs reports the conditions fs.protected_hardlinks refuses on,
+// which are necessary for that refusal and not sufficient: a mount with no hardlinks
+// returns the same EPERM on the same file, so neither result is proof (#303).
+func protectedHardlinkAttrs(f fileOwner, l linker) []any {
+	if !f.mode.IsRegular() || f.uid == l.euid || canReadWrite(f, l) {
+		return nil
+	}
+	return []any{
+		"source_owner", fmt.Sprintf("%d:%d", f.uid, f.gid),
+		"source_mode", f.mode.String(),
+		"process_owner", fmt.Sprintf("%d:%d", l.euid, l.egid),
+		"likely", protectedHardlinksFix,
+	}
+}
+
+// canReadWrite is the ordinary Unix check for a caller that doesn't own the file and
+// has no capabilities: the group bits if it's in the group, else the other bits.
+func canReadWrite(f fileOwner, l linker) bool {
+	const rw = 0o6
+	if inGroup(f.gid, l) {
+		return f.mode.Perm()>>3&rw == rw
+	}
+	return f.mode.Perm()&rw == rw
+}
+
+func inGroup(gid int, l linker) bool {
+	return gid == l.egid || slices.Contains(l.groups, gid)
+}
