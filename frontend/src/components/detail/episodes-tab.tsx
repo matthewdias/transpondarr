@@ -242,12 +242,13 @@ export function EpisodesTab({
             ))}
           </div>
         </div>
+        {/* Never disabled: monitoring and air dates gate automation, not a manual
+            search, and a title with no items returns the empty state above. */}
         <Button
           variant="outline"
           size="sm"
           className="w-full sm:ml-auto sm:w-auto"
           onClick={onSearchAll}
-          disabled={wanted + deferred === 0}
         >
           <Search className="size-4" /> Search all
         </Button>

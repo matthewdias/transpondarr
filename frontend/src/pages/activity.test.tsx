@@ -561,6 +561,43 @@ describe("fixing a deferred import", () => {
     );
   });
 
+  it("words a failed file listing and lets it be tried again", async () => {
+    let calls = 0;
+    useHandlers(
+      { client_ok: true, items: [queueItem({ id: 3, status: "deferred" })] },
+      { "": { events: [] } },
+    );
+    server.use(
+      http.get("/api/v1/activity/queue/3/payload", () =>
+        calls++ === 0 ? HttpResponse.error() : HttpResponse.json(payload),
+      ),
+    );
+
+    renderPage();
+    await userEvent.click(
+      (await screen.findAllByRole("button", { name: /Fix import/ }))[0],
+    );
+
+    expect(
+      await screen.findByText(
+        "Couldn’t list the files in this download. Transpondarr didn’t respond. Check that it’s running.",
+      ),
+    ).toBeInTheDocument();
+    // The instructions and the "no files in the payload" label both describe a
+    // payload that loaded, so neither may survive a load that failed.
+    expect(
+      screen.getByText("Nothing can be assigned until the files load."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/which file is which episode/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry import" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: /Try again/ }));
+    expect(
+      await screen.findByText("b1946ac92492d2347c6235b4d2611184.mkv"),
+    ).toBeInTheDocument();
+  });
+
   // Nothing unpacks archives, so the dialog has to name the archive and what to
   // do — an empty file list was the dead end this whole path exists to end.
   it("names the archive it cannot unpack and still lets the retry run", async () => {

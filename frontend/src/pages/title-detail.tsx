@@ -375,11 +375,7 @@ export function ProfilePicker({ detail }: { detail: TitleDetail }) {
       // One button can't both open an explanation and refetch, so these are two.
       <span className="inline-flex items-center gap-1">
         <Toggletip
-          explanation={
-            profiles.error instanceof ApiError
-              ? profiles.error.message
-              : String(profiles.error)
-          }
+          explanation={errorReason(profiles.error)}
           className={cn(chipClass, "hover:text-accent-foreground")}
         >
           {/* Icon only: the amber token is under 4.5:1 as text at this size. */}

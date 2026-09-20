@@ -84,6 +84,55 @@ describe("EpisodesTab search buttons", () => {
     expect(onSearchItem).toHaveBeenCalledWith(6);
   });
 
+  // Import-blocked episodes are downloaded but not imported, as batch-downloaded ones are.
+  it("enables Search all while only import-blocked episodes remain", () => {
+    renderTab([
+      item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+      item({ id: 2, number: 2, status: "stuck" }),
+    ]);
+
+    expect(screen.getByRole("button", { name: "Search all" })).toBeEnabled();
+  });
+
+  // Monitoring and air dates gate automation, never a manual search, and the row
+  // button beside it carries no condition either. #334 review.
+  const searchAllStates: Array<[string, WantedItem[]]> = [
+    [
+      "the only unfilled episode is unmonitored",
+      [
+        item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+        item({ id: 2, number: 2, status: "stuck", monitored: false }),
+      ],
+    ],
+    [
+      "every episode is already in the library",
+      [
+        item({ id: 1, number: 1, in_library: true, status: "in_library" }),
+        item({ id: 2, number: 2, in_library: true, status: "in_library" }),
+      ],
+    ],
+    [
+      "nothing has aired yet",
+      [
+        item({ id: 1, number: 1, airs_at: future }),
+        item({ id: 2, number: 2, airs_at: future }),
+      ],
+    ],
+    [
+      "no episode is monitored",
+      [
+        item({ id: 1, number: 1, monitored: false }),
+        item({ id: 2, number: 2, monitored: false }),
+      ],
+    ],
+  ];
+
+  it.each(searchAllStates)("offers Search all when %s", (_state, items) => {
+    renderTab(items);
+
+    expect(screen.getByRole("button", { name: "Search all" })).toBeEnabled();
+  });
+
   // Batch-downloaded episodes enable the button too, so "Search all wanted" undersold it (#163).
   it("keeps the header button title-wide", async () => {
     const { onSearchAll, onSearchItem, user } = renderTab([
@@ -282,11 +331,29 @@ describe("EpisodesTab monitoring", () => {
       item({ id: 8, number: 8, status: "stuck" }),
       item({ id: 9, number: 9, status: "stuck" }),
       item({ id: 10, number: 10, status: "stuck" }),
+      // Untracked, so dividing by every item instead of the tracked total changes the widths.
+      item({ id: 11, number: 11, monitored: false }),
+      item({ id: 12, number: 12, airs_at: future }),
     ]);
 
     const bar = screen.getByRole("img", { name: /in library/ });
-    const widths = [...bar.children].map((c) => (c as HTMLElement).style.width);
-    expect(widths).toEqual(["20%", "10%", "30%", "40%"]);
+    const segments = [...bar.children] as HTMLElement[];
+    expect(segments.map((s) => s.style.width)).toEqual([
+      "20%",
+      "10%",
+      "30%",
+      "40%",
+    ]);
+    expect(segments[0]).toHaveClass("bg-have");
+    expect(segments[1]).toHaveClass("bg-dl");
+    // The full class, not a substring: a solid bg-[var(--color-dl)] contains the
+    // same token and renders the hatched segment identically to downloading.
+    expect(segments[2]).toHaveClass(
+      "bg-[repeating-linear-gradient(135deg,var(--color-dl)_0_2px,transparent_2px_4px)]",
+    );
+    expect(segments[3]).toHaveClass(
+      "bg-[repeating-linear-gradient(135deg,var(--color-destructive)_0_2px,transparent_2px_4px)]",
+    );
   });
 
   // The bar, its label and the text beside it once listed the statuses in three
@@ -584,6 +651,8 @@ describe("EpisodesTab with no items at all", () => {
     renderEmptyTab();
 
     expect(screen.getByText("Episode count unknown")).toBeInTheDocument();
+    // The one state with nothing to search: the strip, and its button, are gone.
+    expect(screen.queryByRole("button", { name: "Search all" })).toBeNull();
     expect(
       screen.getByText(
         "AniList publishes neither an episode count nor a broadcast schedule for this title, so episodes cannot be searched automatically. Set the count and Transpondarr will start searching for them.",

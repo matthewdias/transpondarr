@@ -67,7 +67,7 @@ function captureAdd() {
   return bodies;
 }
 
-async function openWithResults() {
+async function openAndSearch() {
   const user = userEvent.setup();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -84,6 +84,11 @@ async function openWithResults() {
     screen.getByPlaceholderText(/search anilist/i),
     "placeholder",
   );
+  return user;
+}
+
+async function openWithResults() {
+  const user = await openAndSearch();
   // The search box debounces by 350ms before the query fires.
   await screen.findByText("Placeholder Saga", undefined, { timeout: 3000 });
   return user;
@@ -196,6 +201,20 @@ it("adds when the profiles cannot be fetched", async () => {
 
   await waitFor(() => expect(bodies).toHaveLength(1));
   expect(bodies[0]).not.toHaveProperty("quality_profile_id");
+});
+
+it("words a failed search the way every failed load is worded", async () => {
+  server.use(http.get("/api/v1/metadata/search", () => HttpResponse.error()));
+  await openAndSearch();
+
+  expect(
+    await screen.findByText(
+      "Transpondarr didn’t respond. Check that it’s running.",
+      undefined,
+      { timeout: 3000 },
+    ),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Couldn’t search AniList")).toBeInTheDocument();
 });
 
 it("sends both choices when they are made", async () => {
