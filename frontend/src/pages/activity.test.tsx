@@ -583,6 +583,14 @@ describe("fixing a deferred import", () => {
         "Couldn’t list the files in this download. Transpondarr didn’t respond. Check that it’s running.",
       ),
     ).toBeInTheDocument();
+    // The instructions and the "no files in the payload" label both describe a
+    // payload that loaded, so neither may survive a load that failed.
+    expect(
+      screen.getByText("Nothing can be assigned until the files load."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/which file is which episode/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry import" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
 
     await userEvent.click(screen.getByRole("button", { name: /Try again/ }));
     expect(

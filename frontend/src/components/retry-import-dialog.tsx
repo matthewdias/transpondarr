@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, TriangleAlert } from "lucide-react";
 import {
   api,
   type PayloadArchive,
@@ -126,9 +126,11 @@ export function RetryImportDialog({
         <DialogHeader>
           <DialogTitle>Fix import</DialogTitle>
           <DialogDescription>
-            {files.length === 0 && archives.length > 0
-              ? "Nothing here can be imported as it stands."
-              : "Say which file is which episode. Anything left on “Skip” is not imported."}
+            {payload.isError
+              ? "Nothing can be assigned until the files load."
+              : files.length === 0 && archives.length > 0
+                ? "Nothing here can be imported as it stands."
+                : "Say which file is which episode. Anything left on “Skip” is not imported."}
           </DialogDescription>
         </DialogHeader>
 
@@ -140,7 +142,10 @@ export function RetryImportDialog({
         ) : payload.isError ? (
           // Plain text, not LoadError: a card inside a dialog is a box in a box.
           <div className="flex items-start gap-3">
-            <p className="min-w-0 flex-1 text-sm text-destructive">
+            {/* Muted beside the amber triangle, as LoadError is: red is this app's
+                colour for the library's own state, not for a load that failed. */}
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-dl" />
+            <p className="min-w-0 flex-1 text-sm text-muted-foreground">
               Couldn’t list the files in this download.{" "}
               {errorReason(payload.error)}
             </p>
@@ -242,7 +247,7 @@ export function RetryImportDialog({
                 having none — labelling it empty before it lands flickers the label. */}
             {retry.isPending
               ? "Importing…"
-              : !payload.isPending && files.length === 0
+              : !payload.isPending && !payload.isError && files.length === 0
                 ? "Retry import"
                 : "Import"}
           </Button>

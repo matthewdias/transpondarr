@@ -89,9 +89,11 @@ All notable changes to this project are documented here. The format is based on
   wanted. Each one stays visible however long the series is.
 - **The episodes tab's *Search all wanted* button is now *Search all*,** since
   the search it opens was never limited to wanted episodes.
-- **The episodes tab's *Search all* button is no longer greyed out when the only
-  episodes left are *Import blocked*,** so you can pick a different release for an
-  import that keeps failing.
+- **The episodes tab's *Search all* button is never greyed out now.** It needed an
+  episode that was wanted, batch downloaded or import blocked, so a title already
+  complete in the library, one that has not started airing, or one with monitoring
+  switched off could not be searched from there — while the *Search* button on each
+  episode row could.
 - **The add dialog now says which episodes it will monitor**, in both choices and
   before you pick one — *All 12 episodes will be monitored*, or *6 of 12
   episodes will be monitored, from episode 7*. When a choice would monitor
@@ -111,8 +113,10 @@ All notable changes to this project are documented here. The format is based on
 - **A lost connection is now worded the same way on every screen.** The *Fix import*
   dialog, the add dialog's AniList search and a title's *Profile unavailable*
   explanation showed the browser's own message, such as *Failed to fetch*. They
-  now show that Transpondarr didn't respond, like every other failed load, and
-  *Fix import* has a **Try again** button.
+  now show that Transpondarr didn't respond, like every other failed load.
+- **The *Fix import* dialog recovers when it cannot list a download's files.** It
+  offers **Try again**, and it no longer asks which file is which episode above a
+  line saying the files could not be listed.
 - **On a phone, the Titles list and Cutoff Unmet show the names again.** At 320px
   every title read `Placehol…` beside a Monitored column that said the same thing on
   every row, and a held release name shrank to `[S…`. Titles now drops that column on
