@@ -110,6 +110,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **Wanted now says why a grab failed, instead of only that it did.** A *Last grab
+  failed* item gave no reason on any install, so there was nothing to tell you
+  whether the release had no seeders, the download client had errored, or the
+  episode was not in what arrived. The reason is on the badge now, and it is
+  the same sentence the title's history shows.
 - **A lost connection is now worded the same way on every screen.** The *Fix import*
   dialog, the add dialog's AniList search and a title's *Profile unavailable*
   explanation showed the browser's own message, such as *Failed to fetch*. They

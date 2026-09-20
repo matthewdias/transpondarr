@@ -280,11 +280,65 @@ func (q *Queries) ListCutoffTitlesPage(ctx context.Context, arg ListCutoffTitles
 	return items, nil
 }
 
+const listFailureDetailsByTitle = `-- name: ListFailureDetailsByTitle :many
+SELECT e.wanted_item_id, e.detail
+FROM grab_events e
+JOIN grabs g ON g.wanted_item_id = e.wanted_item_id
+WHERE e.series_id IN (/*SLICE:title_ids*/?)
+  AND e.event = 'failed'
+  AND g.status = 'failed'
+ORDER BY e.created_at DESC, e.id DESC
+`
+
+type ListFailureDetailsByTitleRow struct {
+	WantedItemID int64  `json:"wanted_item_id"`
+	Detail       string `json:"detail"`
+}
+
+// Why each listed item's grab row failed, for one results page of title groups.
+// The reason comes from history because SetGrabStatus clears last_error in the
+// statement that settles the row. Newest first, and the caller keeps the first
+// one it sees per item. That ordering is what makes the answer the current
+// attempt's rather than an earlier one's: a re-grab replaces the grab row, and
+// every failure appends its own event. Scoped on series_id because grab_events
+// is indexed on it.
+func (q *Queries) ListFailureDetailsByTitle(ctx context.Context, titleIds []int64) ([]ListFailureDetailsByTitleRow, error) {
+	query := listFailureDetailsByTitle
+	var queryParams []interface{}
+	if len(titleIds) > 0 {
+		for _, v := range titleIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:title_ids*/?", strings.Repeat(",?", len(titleIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:title_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFailureDetailsByTitleRow{}
+	for rows.Next() {
+		var i ListFailureDetailsByTitleRow
+		if err := rows.Scan(&i.WantedItemID, &i.Detail); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMissingItemsByTitle = `-- name: ListMissingItemsByTitle :many
 SELECT w.id, w.series_id, w.kind, w.number, w.title, w.in_library, w.airs_at, w.held_release_title, w.monitored,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
-       g.last_error    AS grab_last_error,
        g.created_at    AS grab_created_at,
        p.outcome       AS pass_outcome,
        p.source        AS pass_source,
@@ -322,7 +376,6 @@ type ListMissingItemsByTitleRow struct {
 	Monitored        int64          `json:"monitored"`
 	GrabStatus       sql.NullString `json:"grab_status"`
 	GrabReleaseTitle sql.NullString `json:"grab_release_title"`
-	GrabLastError    sql.NullString `json:"grab_last_error"`
 	GrabCreatedAt    sql.NullString `json:"grab_created_at"`
 	PassOutcome      sql.NullString `json:"pass_outcome"`
 	PassSource       sql.NullString `json:"pass_source"`
@@ -340,6 +393,10 @@ type ListMissingItemsByTitleRow struct {
 // Both joins are 1:1, so neither multiplies item rows. The grab's created_at is
 // selected because the reason column ranks a stored pass outcome against it: an
 // answer older than the grab is one the grab has already superseded.
+// last_error is deliberately absent: settling a grab row sets it to NULL, so
+// every grab row this query returns has none. ListFailureDetailsByTitle below
+// reads the reason from history instead. That empty column was the Missing
+// screen's always-empty grab-failed detail (#273).
 func (q *Queries) ListMissingItemsByTitle(ctx context.Context, arg ListMissingItemsByTitleParams) ([]ListMissingItemsByTitleRow, error) {
 	query := listMissingItemsByTitle
 	var queryParams []interface{}
@@ -374,7 +431,6 @@ func (q *Queries) ListMissingItemsByTitle(ctx context.Context, arg ListMissingIt
 			&i.Monitored,
 			&i.GrabStatus,
 			&i.GrabReleaseTitle,
-			&i.GrabLastError,
 			&i.GrabCreatedAt,
 			&i.PassOutcome,
 			&i.PassSource,

@@ -258,15 +258,15 @@ func nothingYet() title {
 		it := item{number: n, airsIn: time.Duration(n-3)*week + 12*time.Hour, dated: true}
 		switch n {
 		case 1:
-			// Settling a grab row sets last_error to NULL, so a failed one never has
-			// a reason attached; it is in the event row and the blocklist entry below.
+			// Settling a grab row sets last_error to NULL, so the reason is in the
+			// event row below, in failGrab's own words: the Missing screen shows it (#273).
 			it.grab = &grab{
 				status: "failed", hash: "aa03000000000000000000000000000000000003",
 				release: "[RipCrew] Placeholder Horizon - 01 [1080p]",
 				agedBy:  2 * day,
 				events: []event{
 					{kind: "grabbed", detail: "RipCrew 1080p", agedBy: 2*day + time.Hour},
-					{kind: "failed", detail: "download client reported an error", agedBy: 2 * day},
+					{kind: "failed", detail: "the download client reported an error", agedBy: 2 * day},
 				},
 			}
 		case 2:

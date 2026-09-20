@@ -255,6 +255,10 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 	if err != nil {
 		return nil, storeError("load the Missing list", err)
 	}
+	failures, err := h.failureDetails(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	itemsByTitle := make(map[int64][]missingItemDTO, len(titleRows))
 	for _, r := range itemRows {
 		if len(itemsByTitle[r.SeriesID]) == acquire.ItemsPerGroup {
@@ -292,7 +296,7 @@ func (h *wantedHandler) listMissing(ctx context.Context, in *wantedPageInput) (*
 				HeldUntil:    storedTimeRFC3339(r.PassHeldUntil),
 			}
 		case reason == reasonGrabFailed:
-			item.ReasonDetail = r.GrabLastError.String
+			item.ReasonDetail = failures[r.ID]
 		}
 		itemsByTitle[r.SeriesID] = append(itemsByTitle[r.SeriesID], item)
 	}
@@ -505,6 +509,22 @@ func (h *wantedHandler) resetSelected(ctx context.Context, ids []int64) error {
 		return storeError("queue the search", err)
 	}
 	return nil
+}
+
+// failureDetails is why each listed item's grab row failed, keyed on wanted item
+// id. Rows arrive newest first, so the first one per item is the current grab's.
+func (h *wantedHandler) failureDetails(ctx context.Context, ids []int64) (map[int64]string, error) {
+	rows, err := h.deps.store.Q.ListFailureDetailsByTitle(ctx, ids)
+	if err != nil {
+		return nil, storeError("load the Missing list", err)
+	}
+	details := make(map[int64]string, len(rows))
+	for _, r := range rows {
+		if _, seen := details[r.WantedItemID]; !seen {
+			details[r.WantedItemID] = r.Detail
+		}
+	}
+	return details, nil
 }
 
 // blockedCounts is how many releases each title currently blocks, keyed for

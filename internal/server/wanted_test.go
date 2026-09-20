@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/matthewdias/transpondarr/internal/core/download"
 	"github.com/matthewdias/transpondarr/internal/core/jobs"
 	"github.com/matthewdias/transpondarr/internal/core/settings"
 	"github.com/matthewdias/transpondarr/internal/coretest"
@@ -91,7 +92,14 @@ type queueSearchResponse struct {
 // reason reflects the row under test rather than a global blocker.
 func wantedHarness(t *testing.T) *harness {
 	t.Helper()
-	h := newHarness(t, &coretest.FakeIndexer{}, nil)
+	return wantedHarnessWithDownload(t, nil)
+}
+
+// wantedHarnessWithDownload is wantedHarness with a download client, for a test
+// that settles a grab by running the import scan instead of writing the status.
+func wantedHarnessWithDownload(t *testing.T, dl *coretest.FakeDownload) *harness {
+	t.Helper()
+	h := newHarness(t, &coretest.FakeIndexer{}, dl)
 	if err := h.settings.UpdateAutomation(t.Context(), settings.AutomationConfig{
 		Mode: settings.AutomationOn,
 	}); err != nil {
@@ -157,6 +165,112 @@ func TestMissingListsOnlyWhatIsStillWanted(t *testing.T) {
 	}
 	if out.GlobalReason != "" {
 		t.Errorf("global_reason = %q, want none: automation is on and an indexer is set", out.GlobalReason)
+	}
+}
+
+// A settled grab's last_error is cleared by the same statement that settles it
+// (#273), so the Missing screen's detail has to come from the history row
+// settle() wrote at the same moment. This drives the real failure -- the client
+// reporting an error, through the scan -- rather than writing the end state,
+// because a fixture that wrote last_error by hand made the old dead read look
+// alive.
+func TestMissingGrabFailedDetailSurvivesSettling(t *testing.T) {
+	dl := &coretest.FakeDownload{}
+	h := wantedHarnessWithDownload(t, dl)
+	ctx := t.Context()
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 4)
+	if _, err := h.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
+		WantedItemID: itemID(t, h.store, titleID, 3),
+		InfoHash:     "hashF",
+		ReleaseTitle: "[ExampleSubs] Placeholder Saga - 03 [1080p]",
+		Status:       "grabbed",
+	}); err != nil {
+		t.Fatalf("record grab: %v", err)
+	}
+	dl.Statuses = []download.Status{{Hash: "hashF", State: download.StateError}}
+	if err := h.importer.ScanOnce(ctx); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	grabs, err := h.store.Q.ListGrabsByTitle(ctx, titleID)
+	if err != nil {
+		t.Fatalf("list grabs: %v", err)
+	}
+	if len(grabs) != 1 || grabs[0].Status != "failed" {
+		t.Fatalf("grabs = %+v, want the one grab settled as failed", grabs)
+	}
+	// Without this the test could pass on the column the screen used to read.
+	if grabs[0].LastError.Valid {
+		t.Fatalf("last_error = %q, want NULL: settling clears it", grabs[0].LastError.String)
+	}
+
+	var out missingResponse
+	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
+		t.Fatalf("GET missing = %d, want 200", code)
+	}
+	var failed missingItem
+	for _, g := range out.Groups {
+		for _, it := range g.Items {
+			if it.Number == 3 {
+				failed = it
+			}
+		}
+	}
+	if failed.Reason != "grab_failed" {
+		t.Fatalf("episode 3 = %+v, want grab_failed", failed)
+	}
+	if failed.ReasonDetail != "the download client reported an error" {
+		t.Errorf("episode 3 detail = %q, want the reason settle() recorded", failed.ReasonDetail)
+	}
+}
+
+// An item can fail, revert to wanted and fail again, and the reason shown has to
+// be the current grab's. An earlier attempt's sentence presented as this one's is
+// the same confusion SetGrabStatus's clearing prevents (#273). Both failures are
+// settled by the scan, so the two history rows are the ones settle() wrote.
+func TestMissingGrabFailedDetailIsTheCurrentGrabs(t *testing.T) {
+	dl := &coretest.FakeDownload{}
+	h := wantedHarnessWithDownload(t, dl)
+	ctx := t.Context()
+	titleID := seedTitle(t, h.store, "Placeholder Saga", 4)
+	id := itemID(t, h.store, titleID, 3)
+
+	failGrab := func(hash, release string, state download.State) {
+		t.Helper()
+		if _, err := h.store.Q.UpsertGrab(ctx, db.UpsertGrabParams{
+			WantedItemID: id, InfoHash: hash, ReleaseTitle: release, Status: "grabbed",
+		}); err != nil {
+			t.Fatalf("record grab %s: %v", hash, err)
+		}
+		dl.Statuses = []download.Status{{Hash: hash, State: state}}
+		if err := h.importer.ScanOnce(ctx); err != nil {
+			t.Fatalf("scan %s: %v", hash, err)
+		}
+	}
+	failGrab("hashOld", "[ExampleSubs] Placeholder Saga - 03 [1080p]", download.StateError)
+	// Both timestamps are SQLite's datetime('now'), which resolves to the second,
+	// so the re-grab has to land in a later one or nothing can tell the attempts
+	// apart. A real install takes minutes to get here.
+	time.Sleep(1100 * time.Millisecond)
+	failGrab("hashNew", "[OtherSubs] Placeholder Saga - 03 [720p]", download.StateDataMissing)
+
+	var out missingResponse
+	if code := h.get(t, "/api/v1/wanted/missing", &out); code != http.StatusOK {
+		t.Fatalf("GET missing = %d, want 200", code)
+	}
+	var failed missingItem
+	for _, g := range out.Groups {
+		for _, it := range g.Items {
+			if it.Number == 3 {
+				failed = it
+			}
+		}
+	}
+	if failed.Reason != "grab_failed" {
+		t.Fatalf("episode 3 = %+v, want grab_failed", failed)
+	}
+	if failed.ReasonDetail != "the download client no longer has the data" {
+		t.Errorf("episode 3 detail = %q, want the second grab's reason, not the first's", failed.ReasonDetail)
 	}
 }
 
@@ -771,7 +885,12 @@ func holdItem(t *testing.T, st *store.Store, titleID int64, number int, releaseT
 	}
 }
 
-func grabItem(t *testing.T, st *store.Store, titleID int64, number int, status, lastError string) {
+// grabItem records a grab already in the state under test, with reason as why
+// the attempt has gone wrong. Where the reason is stored follows the status,
+// because the two are stored in different places: a grabbed row keeps its import
+// error in last_error, and a settled one cannot, since the statement that settles
+// it clears the column. So a settled reason goes where settle() puts it (#273).
+func grabItem(t *testing.T, st *store.Store, titleID int64, number int, status, reason string) {
 	t.Helper()
 	ctx := t.Context()
 	id := itemID(t, st, titleID, number)
@@ -781,11 +900,21 @@ func grabItem(t *testing.T, st *store.Store, titleID int64, number int, status, 
 	if err != nil {
 		t.Fatalf("record grab for item %d: %v", number, err)
 	}
-	if lastError == "" {
+	switch {
+	case reason == "":
 		return
-	}
-	if _, err := st.DB.ExecContext(ctx,
-		`UPDATE grabs SET last_error = ? WHERE id = ?`, lastError, g.ID); err != nil {
-		t.Fatalf("set last_error: %v", err)
+	case status == "grabbed":
+		if err := st.Q.SetGrabLastError(ctx, db.SetGrabLastErrorParams{
+			LastError: sql.NullString{String: reason, Valid: true}, ID: g.ID,
+		}); err != nil {
+			t.Fatalf("set last_error for item %d: %v", number, err)
+		}
+	default:
+		if err := st.Q.AppendGrabEvent(ctx, db.AppendGrabEventParams{
+			SeriesID: titleID, WantedItemID: id, ItemNumber: int64(number), ItemKind: "episode",
+			InfoHash: "hash", ReleaseTitle: "[ExampleSubs] release", Event: status, Detail: reason,
+		}); err != nil {
+			t.Fatalf("append %s event for item %d: %v", status, number, err)
+		}
 	}
 }

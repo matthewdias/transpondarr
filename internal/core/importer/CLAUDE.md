@@ -21,6 +21,13 @@ item. The root `CLAUDE.md` covers everything above this layer.
   property). They stay in the scan for missing-from-client reconciliation, so a
   vanished payload still frees its item. Only an explicit `RetryImport` reopens
   one, optionally naming the file.
+- **A settled grab row's reason survives only in `grab_events`.** `SetGrabStatus`
+  writes `last_error = NULL` in the statement that settles the row, so the
+  sentence `settle()` recorded is readable afterwards from history and nowhere
+  else. There are two readers: `RetryImport` passes it to the toast in memory,
+  and the Missing screen queries it (`ListFailureDetailsByTitle`). Reading
+  `grabs.last_error` for a settled row returns the empty string, which is what
+  the Missing screen's *Last grab failed* detail showed for a round (#273).
 
 ## The payload walk
 
