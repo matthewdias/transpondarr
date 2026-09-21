@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -93,6 +93,36 @@ async function openWithResults() {
   await screen.findByText("Placeholder Saga", undefined, { timeout: 3000 });
   return user;
 }
+
+// #321: cover art the image host cannot serve falls back to the letter. Only
+// this test gives a result cover art, so the rest keep the shape they assert on.
+it("falls back to the letter placeholder for a cover that fails to load", async () => {
+  server.use(
+    http.get("/api/v1/metadata/search", () =>
+      HttpResponse.json({
+        results: [
+          {
+            provider: "anilist",
+            provider_id: 21,
+            romaji: "Placeholder Saga",
+            format: "TV",
+            episodes: 1202,
+            status: "RELEASING",
+            year: 1999,
+            cover_url: "https://cdn.example/gone.jpg",
+          },
+        ],
+      }),
+    ),
+  );
+  await openWithResults();
+
+  const cover = () => screen.getByRole("dialog").querySelector("img");
+  fireEvent.error(cover()!);
+
+  expect(cover()).toBeNull();
+  expect(screen.getByText("P")).toBeInTheDocument();
+});
 
 // Every add-time decision now belongs to the title it is about, so the row
 // button opens a form rather than adding on the spot -- and the search behind

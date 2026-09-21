@@ -31,6 +31,7 @@ import {
   stepSeasonClamped,
   YEAR_FLOOR,
 } from "@/lib/season";
+import { useCoverFallback } from "@/hooks/use-cover-fallback";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { AddTitleDialog } from "@/components/add-title-form";
 import { AniListLink } from "@/components/anilist-link";
@@ -302,6 +303,7 @@ function FilterSelect({
 
 function SeasonCard({ entry }: { entry: SeasonEntry }) {
   const queryClient = useQueryClient();
+  const { showCover, onCoverError } = useCoverFallback(entry.cover_url);
   const [detailOpen, setDetailOpen] = useState(false);
   // The actions render on both the card and the detail, so the form's open
   // state is kept here and mounted once.
@@ -371,11 +373,12 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
     </>
   );
 
-  const cover = entry.cover_url ? (
+  const cover = showCover ? (
     <img
       src={entry.cover_url}
       alt=""
       loading="lazy"
+      onError={onCoverError}
       className="aspect-[2/3] w-full border-b object-cover"
     />
   ) : (
@@ -473,6 +476,7 @@ function SeasonDetail({
   onOpenChange: (open: boolean) => void;
 }) {
   const isMobile = useIsMobile();
+  const { showCover, onCoverError } = useCoverFallback(entry.cover_url);
   const synopsis = plainDescription(entry.description);
   const english =
     entry.english && entry.english !== title ? entry.english : null;
@@ -481,10 +485,11 @@ function SeasonDetail({
   const body = (
     <>
       <div className="flex gap-4">
-        {entry.cover_url ? (
+        {showCover ? (
           <img
             src={entry.cover_url}
             alt=""
+            onError={onCoverError}
             className="h-44 w-[118px] flex-none rounded-md border object-cover"
           />
         ) : (

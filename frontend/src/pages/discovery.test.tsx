@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -276,6 +282,38 @@ describe("DiscoveryPage", () => {
     expect(screen.getByText(/^Premieres /)).toBeInTheDocument();
     expect(screen.queryByText(/Ep 1/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\bin \d+[mhd]\b/)).not.toBeInTheDocument();
+  });
+
+  // #321: the card and the detail each render their own cover art, so each
+  // needs its own fallback.
+  it("falls back to the letter placeholder for a cover that fails to load", async () => {
+    server.use(
+      chartHandler([
+        entry({
+          provider_id: 101,
+          romaji: "Alpha Adventure",
+          cover_url: "https://cdn.example/gone.jpg",
+        }),
+      ]),
+    );
+
+    const { container } = renderPage();
+    expect(await screen.findByText("Alpha Adventure")).toBeInTheDocument();
+
+    // The detail is portalled out of the container, so this stays the card's.
+    const cardCover = () => container.querySelector("img");
+    fireEvent.error(cardCover()!);
+    expect(cardCover()).toBeNull();
+    expect(screen.getByText("A")).toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /alpha adventure/i }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const detailCover = () => dialog.querySelector("img");
+    fireEvent.error(detailCover()!);
+    expect(detailCover()).toBeNull();
+    expect(within(dialog).getByText("A")).toBeInTheDocument();
   });
 
   it("says the season is empty, and offers to retry a chart that failed", async () => {

@@ -121,6 +121,10 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **Cover art that fails to load now shows the letter placeholder.** When
+  AniList's image host was unreachable, or a stored URL had gone stale, a title's
+  header became an empty box and every Discovery card a tall blank frame. Both
+  now show the same initial-letter placeholder as a title with no cover art.
 - **Wanted now says why a grab failed, instead of only that it did.** A *Last grab
   failed* item gave no reason on any install, so there was nothing to tell you
   whether the release had no seeders, the download client had errored, or the
