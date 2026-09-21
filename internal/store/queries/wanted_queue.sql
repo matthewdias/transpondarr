@@ -48,10 +48,13 @@ LIMIT ?;
 -- Both joins are 1:1, so neither multiplies item rows. The grab's created_at is
 -- selected because the reason column ranks a stored pass outcome against it: an
 -- answer older than the grab is one the grab has already superseded.
+-- last_error is deliberately absent: settling a grab row sets it to NULL, so
+-- every grab row this query returns has none. ListFailureDetailsByTitle below
+-- reads the reason from history instead. That empty column was the Missing
+-- screen's always-empty grab-failed detail (#273).
 SELECT w.*,
        g.status        AS grab_status,
        g.release_title AS grab_release_title,
-       g.last_error    AS grab_last_error,
        g.created_at    AS grab_created_at,
        p.outcome       AS pass_outcome,
        p.source        AS pass_source,
@@ -68,6 +71,35 @@ WHERE w.series_id IN (sqlc.slice('title_ids'))
   AND (? = 1 OR w.monitored = 1)
   AND (? = 1 OR w.kind = 'movie' OR w.airs_at IS NULL OR w.airs_at <= ?)
 ORDER BY w.series_id, w.number;
+
+-- name: ListFailureDetailsByTitle :many
+-- Why each listed item's grab row failed, for one results page of title groups.
+-- The reason comes from history because SetGrabStatus clears last_error in the
+-- statement that settles the row. Scoped on series_id because grab_events is
+-- indexed on it.
+--
+-- Picking the current attempt takes two conditions. The date check drops an
+-- event from a previous attempt, because a re-grab resets grabs.created_at;
+-- without it, a settle() whose best-effort AppendGrabEvent failed would show the
+-- attempt before it. It also keeps this to about one row per item rather than an
+-- item's whole failure history. Newest first then decides between what is left.
+-- That is the re-grab landing in the same second as the previous failure, which
+-- the date check cannot separate.
+--
+-- The two status filters look redundant and are not. Each is unreachable only
+-- because a different file states the same rule: ListMissingItemsByTitle already
+-- narrows the screen to items whose grab row failed, and placeUnclaimedFile
+-- upserts a grab row to imported before appending its events. So a mutation on
+-- either survives, and deleting them on that evidence would tie this query to
+-- two rules it does not state.
+SELECT e.wanted_item_id, e.detail
+FROM grab_events e
+JOIN grabs g ON g.wanted_item_id = e.wanted_item_id
+WHERE e.series_id IN (sqlc.slice('title_ids'))
+  AND e.event = 'failed'
+  AND g.status = 'failed'
+  AND e.created_at >= g.created_at
+ORDER BY e.created_at DESC, e.id DESC;
 
 -- name: ListCutoffTitlesPage :many
 -- Candidate title groups for Cutoff Unmet: titles on an upgrading profile with

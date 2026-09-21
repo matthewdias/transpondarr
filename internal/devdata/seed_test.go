@@ -435,8 +435,59 @@ func TestSeedRefusesAFixtureNamingAnUnknownProfile(t *testing.T) {
 // in pass_outcomes: an outcome on an item the Missing page never lists shows nothing.
 func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 	st := seeded(t)
-	ctx := t.Context()
+	_, items := missingPage(t, st)
+	got := map[string]bool{}
+	for _, r := range items {
+		if r.PassOutcome.Valid {
+			got[r.PassOutcome.String] = true
+		}
+	}
+	for _, want := range []string{acquire.OutcomeNoMatch, acquire.OutcomeDeclined, acquire.OutcomePinHeld, acquire.OutcomeWouldGrab} {
+		if !got[want] {
+			t.Errorf("no listed missing item stores the %q outcome; the reason column cannot render it", want)
+		}
+	}
+}
 
+// The Missing screen reads a failed grab's reason out of grab_events, since
+// settling the row clears last_error (#273). A seeded failed grab with no event
+// beside it renders the empty detail this issue was about.
+func TestSeedProducesTheMissingScreensGrabFailedDetail(t *testing.T) {
+	st := seeded(t)
+	ids, items := missingPage(t, st)
+	details, err := st.Q.ListFailureDetailsByTitle(t.Context(), ids)
+	if err != nil {
+		t.Fatalf("ListFailureDetailsByTitle: %v", err)
+	}
+	// First wins, as wanted_routes.go's failureDetails does: the rows are newest
+	// first, so keeping the last one would assert a sentence the screen does not
+	// show as soon as an item has two failures.
+	byItem := make(map[int64]string, len(details))
+	for _, r := range details {
+		if _, seen := byItem[r.WantedItemID]; !seen {
+			byItem[r.WantedItemID] = r.Detail
+		}
+	}
+	var failed int
+	for _, r := range items {
+		if !r.GrabStatus.Valid {
+			continue
+		}
+		failed++
+		if byItem[r.ID] == "" {
+			t.Errorf("listed item %d has a failed grab and no reason to show for it", r.ID)
+		}
+	}
+	if failed == 0 {
+		t.Error("no listed missing item has a failed grab; the detail cannot render")
+	}
+}
+
+// missingPage is one results page of the Missing screen, fetched the way the
+// handler fetches it: the title groups, then the items behind them.
+func missingPage(t *testing.T, st *store.Store) ([]int64, []db.ListMissingItemsByTitleRow) {
+	t.Helper()
+	ctx := t.Context()
 	titles, err := st.Q.ListMissingTitlesPage(ctx, db.ListMissingTitlesPageParams{
 		Column1:  0,
 		Column2:  0,
@@ -465,17 +516,7 @@ func TestSeedProducesTheMissingScreensReasonColumn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListMissingItemsByTitle: %v", err)
 	}
-	got := map[string]bool{}
-	for _, r := range items {
-		if r.PassOutcome.Valid {
-			got[r.PassOutcome.String] = true
-		}
-	}
-	for _, want := range []string{acquire.OutcomeNoMatch, acquire.OutcomeDeclined, acquire.OutcomePinHeld, acquire.OutcomeWouldGrab} {
-		if !got[want] {
-			t.Errorf("no listed missing item stores the %q outcome; the reason column cannot render it", want)
-		}
-	}
+	return ids, items
 }
 
 // Variants are Romaji, English and Native deduped (catalog.dedupeNonEmpty), so a

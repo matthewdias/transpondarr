@@ -258,15 +258,15 @@ func nothingYet() title {
 		it := item{number: n, airsIn: time.Duration(n-3)*week + 12*time.Hour, dated: true}
 		switch n {
 		case 1:
-			// Settling a grab row sets last_error to NULL, so a failed one never has
-			// a reason attached; it is in the event row and the blocklist entry below.
+			// Settling a grab row sets last_error to NULL, so the reason is in the
+			// event row below, in failGrab's own words: the Missing screen shows it (#273).
 			it.grab = &grab{
 				status: "failed", hash: "aa03000000000000000000000000000000000003",
 				release: "[RipCrew] Placeholder Horizon - 01 [1080p]",
 				agedBy:  2 * day,
 				events: []event{
 					{kind: "grabbed", detail: "RipCrew 1080p", agedBy: 2*day + time.Hour},
-					{kind: "failed", detail: "download client reported an error", agedBy: 2 * day},
+					{kind: "failed", detail: "the download client reported an error", agedBy: 2 * day},
 				},
 			}
 		case 2:
@@ -287,7 +287,7 @@ func nothingYet() title {
 	// the other four already show the reason column, so a fifth row would be one
 	// more fixture to keep true for nothing a reader has not already seen.
 	t.blocklist = []blockEntry{
-		{release: "[RipCrew] Placeholder Horizon - 01 [1080p]", hash: "aa03000000000000000000000000000000000003", reason: "download client reported an error", failures: 1, expiresIn: day},
+		{release: "[RipCrew] Placeholder Horizon - 01 [1080p]", hash: "aa03000000000000000000000000000000000003", reason: "the download client reported an error", failures: 1, expiresIn: day},
 		{release: "[RipCrew] Placeholder Horizon - 02 [1080p]", reason: "no peers had the data", failures: 2, expiresIn: week},
 		{release: "[LowSeed] Placeholder Horizon - 01-12 [480p][Batch]", reason: "payload did not contain what it claimed", failures: 3, permanent: true},
 		{release: "[OldGrp] Placeholder Horizon - 03 [1080p]", reason: "download client reported an error", failures: 1, expiresIn: -2 * day},
