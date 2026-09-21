@@ -164,3 +164,25 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/* tw-animate-css's enter and exit keyframes read these custom properties, so
+   resetting them leaves opacity as the only thing that still changes. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    --tw-enter-blur: initial !important;
+    --tw-enter-rotate: initial !important;
+    --tw-enter-scale: initial !important;
+    --tw-enter-translate-x: initial !important;
+    --tw-enter-translate-y: initial !important;
+    --tw-exit-blur: initial !important;
+    --tw-exit-rotate: initial !important;
+    --tw-exit-scale: initial !important;
+    --tw-exit-translate-x: initial !important;
+    --tw-exit-translate-y: initial !important;
+    /* !important overrides Vaul's and dnd-kit's inline transitions, and 0.01ms
+       rather than 0s keeps a transitionend event firing. */
+    transition-duration: 0.01ms !important;
+  }
+}
