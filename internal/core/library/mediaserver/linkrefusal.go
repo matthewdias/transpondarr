@@ -45,9 +45,9 @@ func (t *Target) hardlinkRefusalAttrs(src string, linkErr error) []any {
 	return protectedHardlinkAttrs(f, l)
 }
 
-// protectedHardlinkAttrs reports the conditions fs.protected_hardlinks refuses on,
-// which are necessary for that refusal and not sufficient: a mount with no hardlinks
-// returns the same EPERM on the same file, so neither result is proof (#303).
+// protectedHardlinkAttrs reports the conditions fs.protected_hardlinks refuses on.
+// They are necessary for that refusal and not sufficient, since a mount with no
+// hardlinks returns the same EPERM, so neither result is proof (the copy fallback, #303).
 func protectedHardlinkAttrs(f fileOwner, l linker) []any {
 	if !l.boundByFileOwner || !f.mode.IsRegular() || f.uid == l.euid || canReadWrite(f, l) {
 		return nil
@@ -81,9 +81,9 @@ const (
 	capFowner      = 3
 )
 
-// boundByFileOwnerFrom reports whether a process whose /proc/self/status is what read
-// returns is checked against file ownership like anyone else. Every unreadable case
-// reports false, for canBypassFileOwner's reason.
+// boundByFileOwnerFrom reports whether the process described by what read returns is
+// checked against file ownership like anyone else. Every unreadable case reports
+// false, for canBypassFileOwner's reason.
 func boundByFileOwnerFrom(read func() ([]byte, error)) bool {
 	status, err := read()
 	if err != nil {

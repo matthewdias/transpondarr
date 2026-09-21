@@ -21,9 +21,9 @@ func refuseLink(target *Target, errno syscall.Errno) {
 	}
 }
 
-// ownedByAnother makes every source file look like a download qBittorrent saved
-// under its own user, which is what fs.protected_hardlinks refuses a link to. A
-// test process can't create one, since only root can give a file away.
+// ownedByAnother makes every source file look like a download qBittorrent saved under
+// its own user. That is the shape fs.protected_hardlinks rejects, and a test process
+// can't create one, since only root can give a file away.
 func ownedByAnother(target *Target) {
 	target.identify = func(string) (fileOwner, linker, bool) {
 		return fileOwner{uid: 1000, gid: 1000, mode: 0o644}, linker{euid: 1001, egid: 1001, boundByFileOwner: true}, true
@@ -70,8 +70,8 @@ func TestAutoModeWarnsWhenAHardlinkFallsBackToACopy(t *testing.T) {
 	if !strings.Contains(got[0], dest) {
 		t.Errorf("fallback line should name the destination; got %q", got[0])
 	}
-	// This target keeps the real linkIdentities, and the test user owns the source,
-	// so the diagnosis must not fire.
+	// This target keeps the real linkIdentities, and the test user owns the source
+	// file, so the diagnosis must not fire.
 	if strings.Contains(got[0], "likely=") {
 		t.Errorf("a source we own is not an fs.protected_hardlinks refusal; got %q", got[0])
 	}
@@ -153,8 +153,8 @@ func TestRepeatedFallbacksDropBelowWarn(t *testing.T) {
 	}
 }
 
-// A failed copy takes no disk space, so reporting one would be false — and would
-// spend the single warning on an attempt the importer is about to retry.
+// A failed copy takes no disk space, so reporting one would be false — and would use
+// up the single warning on an attempt the importer is about to retry.
 func TestAFailedCopyFallbackReportsNothing(t *testing.T) {
 	src := writeSource(t, "raw.mkv")
 	root := t.TempDir()
@@ -171,7 +171,7 @@ func TestAFailedCopyFallbackReportsNothing(t *testing.T) {
 		t.Fatalf("a failed copy should report nothing, got %q", buf.String())
 	}
 
-	// The warning is still unspent, so the retry that succeeds gets it.
+	// The warning is still unused, so the retry that succeeds gets it.
 	if _, err := target.Place(t.Context(), req(src, "Placeholder Saga", 5)); err != nil {
 		t.Fatalf("retry Place: %v", err)
 	}
@@ -301,9 +301,9 @@ func renderAttrs(t *testing.T, attrs []any) map[string]string {
 	return out
 }
 
-// One target covers both library roots, so a Movies root on a second disk falls
-// back on EXDEV forever. Keying the one-shot on the target would let that
-// permanent, benign case spend the only warning the fixable EPERM had.
+// One target covers both library roots, so a Movies root on a second disk falls back
+// on EXDEV forever. Keyed on the target, that permanent and unfixable case would use
+// up the only warning the fixable EPERM had.
 func TestEachKindOfRefusalWarnsOnce(t *testing.T) {
 	var buf bytes.Buffer
 	target := New(Roots{Series: t.TempDir(), Movies: t.TempDir()}, LayoutSeasonFolders, "auto", logTo(&buf))
@@ -359,8 +359,8 @@ func TestCanBypassFileOwner(t *testing.T) {
 		{"the example compose's cap_add, which cannot hardlink", "\t00000000000000c5", false},
 		{"cap_drop: ALL, which cannot hardlink", "\t0000000000000000", false},
 		{"docker's default set for root, which can", "\t00000000a80425fb", true},
-		// DAC_OVERRIDE alone restores the hardlink: it makes the file readable and
-		// writable, which is the second of the two conditions may_linkat() accepts.
+		// DAC_OVERRIDE alone restores the hardlink by making the file readable and
+		// writable. That is the second of the two conditions may_linkat() accepts.
 		{"DAC_OVERRIDE alone, which can", "\t0000000000000002", true},
 		{"FOWNER alone, which satisfies the ownership check", "\t0000000000000008", true},
 		{"unparseable, so we can't say", "\tnot-a-number", true},
@@ -374,7 +374,7 @@ func TestCanBypassFileOwner(t *testing.T) {
 }
 
 // Two EPERMs are not the same refusal when only one of them names a cause: the
-// undiagnosed one must not spend the warning the actionable one needs.
+// undiagnosed one must not use up the warning the actionable one needs.
 func TestAnUndiagnosedRefusalDoesNotSpendTheDiagnosedOnesWarning(t *testing.T) {
 	var buf bytes.Buffer
 	target := New(Roots{Series: t.TempDir()}, LayoutSeasonFolders, "auto", logTo(&buf))
@@ -400,8 +400,9 @@ func TestAnUndiagnosedRefusalDoesNotSpendTheDiagnosedOnesWarning(t *testing.T) {
 	}
 }
 
-// Whether this process is checked against file ownership decides whether #303's
-// diagnosis appears at all, so every way of reading it wrong is pinned here.
+// Whether this process is checked against file ownership decides whether the copy
+// fallback's diagnosis (#303) appears at all, so every way of reading it wrong is
+// pinned here.
 func TestBoundByFileOwnerFrom(t *testing.T) {
 	const unprivileged = "Name:\tserver\nCapEff:\t0000000000000000\nSeccomp:\t2\n"
 	for _, tc := range []struct {
@@ -429,7 +430,7 @@ func TestBoundByFileOwnerFrom(t *testing.T) {
 var errNoProc = errors.New("open /proc/self/status: no such file or directory")
 
 // A process that can bypass the ownership check is never refused by
-// fs.protected_hardlinks, so an EPERM it sees is the mount rather than that setting.
+// fs.protected_hardlinks, so an EPERM it gets is the mount rather than that setting.
 func TestAPrivilegedProcessIsNotDiagnosed(t *testing.T) {
 	root := fileOwner{uid: 1000, gid: 1000, mode: 0o644}
 	capable := linker{euid: 0, egid: 0, groups: []int{0}}

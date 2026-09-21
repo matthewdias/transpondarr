@@ -7,8 +7,8 @@ import (
 	"syscall"
 )
 
-// linkIdentities reads the owner of src and the identity of this process. Unix only:
-// syscall.Stat_t has no Uid field on Windows, which .goreleaser.yaml also builds.
+// linkIdentities reads the owner of src and the identity of this process. Unix only,
+// since syscall.Stat_t has no Uid field on Windows — a target .goreleaser.yaml builds.
 func linkIdentities(src string) (fileOwner, linker, bool) {
 	info, err := os.Stat(src)
 	if err != nil {

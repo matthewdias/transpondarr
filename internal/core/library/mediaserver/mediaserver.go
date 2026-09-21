@@ -383,8 +383,8 @@ func (t *Target) transfer(ctx context.Context, src, dest string) error {
 	}
 }
 
-// refusal is what a fallback line would say, which is what the one-shot warning is
-// keyed on. Two EPERMs differ when only one of them names fs.protected_hardlinks.
+// refusal is what a fallback line would say. The one-shot warning is keyed on it, so
+// two EPERMs differ when only one of them names fs.protected_hardlinks.
 type refusal struct {
 	errno     syscall.Errno
 	diagnosed bool
@@ -408,7 +408,7 @@ func (t *Target) copyFallback(ctx context.Context, src, dest string, linkErr err
 }
 
 // firstOfItsKind records this refusal and reports whether it is new to this target.
-// Keyed on the refusal, never the target, which covers both library roots.
+// The key is the refusal, never the target: one target covers both library roots.
 func (t *Target) firstOfItsKind(linkErr error, diagnosed bool) bool {
 	var errno syscall.Errno
 	_ = errors.As(linkErr, &errno)
@@ -444,11 +444,12 @@ func syncLinked(dest string) error {
 }
 
 // isUnsupportedLink reports whether a hardlink failure means trying again would not
-// help, so auto import mode should fall back to a copy: a different device (EXDEV), or
-// a mount that doesn't permit/support hardlinks (EPERM/ENOTSUP/EOPNOTSUPP — common on
-// SMB/CIFS, FUSE, mergerfs/rclone, and some Docker volumes). Other errors (a missing
-// source, a full disk) are real and must surface. EPERM stays even though it can also
-// be a permissions mismatch a user could fix: the two look identical here (#303).
+// help, so auto import mode should fall back to a copy. Two cases qualify: a different
+// device (EXDEV), and a mount that doesn't permit or support hardlinks (EPERM/ENOTSUP/
+// EOPNOTSUPP — common on SMB/CIFS, FUSE, mergerfs/rclone, and some Docker volumes).
+// Other errors (a missing source path, a full disk) are real and must surface. EPERM
+// stays despite also being a fixable permissions mismatch: nothing here distinguishes
+// the two (the copy fallback, #303).
 func isUnsupportedLink(err error) bool {
 	return errors.Is(err, syscall.EXDEV) ||
 		errors.Is(err, syscall.EPERM) ||
