@@ -71,7 +71,7 @@ All notable changes to this project are documented here. The format is based on
 - **Dialogs, sliding panels and the sidebar no longer move when you turn on
   reduced motion.** The setting did nothing before: a dialog zoomed open, a panel
   slid in from the edge, and the sidebar animated its width. Each one now fades
-  instead, and the loading spinners keep turning.
+  or appears in place instead, and the loading spinners keep turning.
 - **Empty lists and failed loads look the same on every page.** An empty
   list shows one kind of card, whether it fills a page or a tab, and a load that
   fails shows a one-line banner with **Try again**. Before, the Calendar, Discovery and a

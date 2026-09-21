@@ -184,5 +184,14 @@
     /* !important overrides Vaul's and dnd-kit's inline transitions, and 0.01ms
        rather than 0s keeps a transitionend event firing. */
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* The sheet panel slides without a fade of its own, so zeroing its movement
+     would otherwise leave its 300ms exit animating nothing, in place. */
+  [data-slot="sheet-content"] {
+    --tw-enter-opacity: 0 !important;
+    --tw-exit-opacity: 0 !important;
   }
 }
