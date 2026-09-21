@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, delay, http } from "msw";
 import { setupServer } from "msw/node";
@@ -670,7 +670,7 @@ describe("TitleDetailPage movie surface", () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    render(
+    return render(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={["/titles/7"]}>
           <SidebarProvider>
@@ -682,6 +682,21 @@ describe("TitleDetailPage movie surface", () => {
       </QueryClientProvider>,
     );
   }
+
+  // #321: cover art that fails to load left the header an empty bordered box.
+  it("falls back to the letter placeholder for a cover that fails to load", async () => {
+    const { container } = renderPage({
+      title: "Placeholder Film",
+      cover_url: "https://cdn.example/gone.jpg",
+    });
+
+    const cover = () => container.querySelector("img");
+    await waitFor(() => expect(cover()).not.toBeNull());
+    fireEvent.error(cover()!);
+
+    expect(cover()).toBeNull();
+    expect(screen.getByText("P")).toBeInTheDocument();
+  });
 
   it("gives a film a status card and its year, never an episodes table", async () => {
     renderPage({ format: "MOVIE", title: "Placeholder Film", year: 2019 });
