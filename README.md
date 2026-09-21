@@ -182,7 +182,7 @@ integration left unconfigured is disabled, and the server still starts.
 ## Docker deployment
 
 For a real deployment alongside qBittorrent and a media server, use
-[`docker-compose.yml`](docker-compose.yml) as a template. Four things matter:
+[`docker-compose.yml`](docker-compose.yml) as a template. Five things matter:
 
 - **Imports hardlink from the path qBittorrent reports.** Mount your shared
   downloads/library volume into Transpondarr at the _same path_ qBittorrent uses,
@@ -209,16 +209,23 @@ For a real deployment alongside qBittorrent and a media server, use
   and in Docker Desktop. With it on, a hardlink to a file fails with "operation not
   permitted" unless the user making it owns the file or can both read and write it.
   qBittorrent normally saves downloads writable only by its own user, so a
-  different `PUID` can't hardlink them. In `auto` import mode, Transpondarr then
-  copies every file instead, using twice the disk space and logging nothing. In
+  different `PUID` can't hardlink them. In `auto` import mode, Transpondarr copies
+  every file instead, using twice the disk space, and logs the link error on each
+  import. The first import to hit a given failure logs it as a warning, and a
+  restart or any save under Settings → Library arms that warning again. In
   `hardlink` import mode, the grab waits in the Activity queue with an "operation
   not permitted" error, and the importer retries it every 15 seconds until the
-  permissions change.
-  If you need a `PUID` other than qBittorrent's, give both containers the same
-  `PGID` and make both library roots writable by that group. Then set
-  qBittorrent's umask to `002` (eg. `UMASK=002` in the linuxserver image), so new
-  downloads are group-writable. Files downloaded before the umask change stay
-  read-only to the group until you `chmod g+w` them.
+  permissions change. `PUID=0` is affected too: `cap_drop: ALL` in
+  [`docker-compose.yml`](docker-compose.yml) leaves root subject to the same check
+  as anyone else, and it can't write into a library folder another user created
+  either — see [SECURITY.md](SECURITY.md).
+- **To run as a `PUID` other than qBittorrent's, share a group instead.** Put both
+  containers in the same group and make both library roots writable by it. `PGID`
+  does that, except under `PUID=0`: that skips the privilege drop, which is what
+  applies `PGID`, so set the group on the container itself (`user: "0:1000"`, or
+  `group_add`). Then set qBittorrent's umask to `002` (eg. `UMASK=002` in the
+  linuxserver image), so new downloads are group-writable. Files downloaded before
+  the umask change stay read-only to the group until you `chmod g+w` them.
 - **Who owns imported files.** The container starts as root, fixes `/config`
   ownership, and drops to `PUID`/`PGID` before serving. The folders Transpondarr
   creates in a library root, and any file it copies there (`copy` import mode, or

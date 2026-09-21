@@ -25,8 +25,12 @@ services:
     ports:
       - "9797:9797"
     environment:
-      # qBittorrent's uid:gid, or Linux blocks hardlinking its downloads and auto mode copies (README).
-      # Owner of library folders and copies Transpondarr makes; a hardlink keeps the download's owner.
+      # Set these to qBittorrent's uid:gid: that user owns the downloads, so it can hardlink
+      # them into the library. Another user usually can't, and auto import mode copies instead
+      # (README). PUID=0 is no exception, since cap_drop below leaves root subject to the
+      # same checks, for writes into another user's folders as well (SECURITY.md).
+      # This user also owns the library folders and anything Transpondarr copies into them;
+      # a hardlink keeps the download's owner.
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
       # --- server ---

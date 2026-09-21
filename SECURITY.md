@@ -68,7 +68,9 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
 
 - **Run as the data owner, not root.** The container starts as root only to fix
   ownership of `/config`, then drops to `PUID`/`PGID` (default `1000:1000`) before
-  serving. Set those two variables to the account that owns your media volume.
+  serving. Set those two variables to the UID:GID qBittorrent runs as, which is the
+  user that can hardlink its downloads (README explains why, and what to do when
+  you need a different one).
   `PUID=0` skips the drop and keeps the server running as root. If you set `user:` (or `--user`) instead, the root phase is skipped and
   `PUID`/`PGID` are ignored, so `/config` must already be writable by that user.
   Docker creates a missing bind-mount directory owned by root, and the server then
@@ -77,6 +79,40 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   `DAC_READ_SEARCH` added back, as [`docker-compose.yml`](docker-compose.yml) does;
   the drop clears them before serving. `PUID=0` has no drop, so the server keeps
   all four for as long as it runs: remove `cap_add` if you run as root.
+
+  **Running as root costs you hardlinks under this compose file.** The Linux kernel
+  setting `fs.protected_hardlinks`, on by default, refuses a hardlink to a file the
+  caller neither owns nor can both read and write (README explains what that means
+  for imports). Under `cap_drop: ALL` the kernel checks root against both of those
+  like anyone else, so the server can't hardlink a download qBittorrent owns.
+  Removing `cap_add` doesn't restore it — that leaves no capabilities at all.
+  `auto` import mode copies each file instead, at twice the disk space; in
+  `hardlink` import mode the grab row waits in the Activity queue with an "operation
+  not permitted" error.
+
+  **Running as root also costs you writes into folders another user owns.** A
+  library folder qBittorrent's user created is `0755`, so an import into it fails
+  with "permission denied" — `DAC_READ_SEARCH` grants read and search, not write.
+  The `PGID` workaround README describes doesn't reach this: `PUID=0` skips the
+  privilege drop, and the drop is what would have applied `PGID`, so the server
+  keeps the group Docker started it with. Apply it at the Docker level instead —
+  `user: "0:1000"` or `group_add` — and make the library folders `0775`, and the
+  writes work.
+
+  **Do the group fix completely and you need no capability at all, hardlinks
+  included.** Set qBittorrent's `UMASK=002` so new downloads are group-writable:
+  root is then in the owning group and can read and write the download, which is
+  the other condition `fs.protected_hardlinks` accepts. Downloads saved before the
+  umask change are still `0644` and still refused — `chmod g+w` over them fixes
+  that, and is what to reach for first.
+
+  **`cap_add: DAC_OVERRIDE` is the answer only if you skip the umask step.** It
+  lets the server read and write every file on the mount, which satisfies
+  `fs.protected_hardlinks` the same way the group fix does. The difference is scope:
+  every file for as long as the server runs, rather than the ones you chose.
+  `CAP_FOWNER` is not a substitute — on its own the directory write fails first.
+  Running as qBittorrent's user needs none of this, which is why it's the
+  recommendation above.
 
 ## Known limitations (deferred hardening)
 
