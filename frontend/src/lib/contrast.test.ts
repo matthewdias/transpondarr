@@ -20,6 +20,7 @@ function themeTokens(selector: string): Record<string, string> {
 }
 
 const themes = { light: themeTokens(":root"), dark: themeTokens(".dark") };
+type Theme = keyof typeof themes;
 
 function hex(value: string): RGB {
   return [1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16)) as RGB;
@@ -38,10 +39,14 @@ function contrast(a: RGB, b: RGB): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+// `text-white` is a Tailwind literal rather than a token, so `themeTokens` never reads it.
+const literalColors: Record<string, string> = { white: "#ffffff" };
+
 function resolve(tokens: Record<string, string>, surface: Surface): RGB {
   const color = (name: string) => {
-    if (!tokens[name]) throw new Error(`index.css has no --${name}`);
-    return hex(tokens[name]);
+    const value = literalColors[name] ?? tokens[name];
+    if (!value) throw new Error(`index.css has no --${name}`);
+    return hex(value);
   };
   if (typeof surface === "string") return color(surface);
   const [fg, bg] = [color(surface.token), color(surface.over)];
@@ -83,7 +88,6 @@ const filledPairs: [Surface, Surface][] = [
   ["destructive", { token: "destructive", alpha: 0.15, over: "card" }],
   ["destructive", { token: "destructive", alpha: 0.05, over: "background" }],
   ["primary-foreground", "primary"],
-  ["destructive-foreground", "destructive"],
   ["sidebar-foreground", "sidebar"],
   // Popover content: the badge explanations and the release score breakdown.
   ["popover-foreground", "popover"],
@@ -103,7 +107,6 @@ const nonTextPairs: [Surface, Surface][] = [
 
 // A focus ring beside a fill of its own colour stays translucent, so it reads as a
 // halo apart from that fill. `fills` lists every opacity that fill takes while focused.
-type Theme = keyof typeof themes;
 type Halo = { token: string; alpha: number; fills: number[] };
 const halos: Record<Theme, Halo[]> = {
   light: [
@@ -116,16 +119,28 @@ const halos: Record<Theme, Halo[]> = {
   ],
 };
 
-const pairs: [Surface, Surface][] = [
+const sharedPairs: [Surface, Surface][] = [
   ...copyTokens.flatMap((t) =>
     plainSurfaces.map((s): [Surface, Surface] => [t, s]),
   ),
   ...filledPairs,
 ];
 
-function below(list: [Surface, Surface][], min: number): string[] {
+// The destructive button and badge draw `text-white` on a fill that `dark:bg-destructive/60`
+// changes per theme, so no single pair measures what both themes draw.
+const pairs: Record<Theme, [Surface, Surface][]> = {
+  light: [...sharedPairs, ["white", "destructive"]],
+  dark: [
+    ...sharedPairs,
+    ["white", { token: "destructive", alpha: 0.6, over: "card" }],
+  ],
+};
+
+type PairList = [Surface, Surface][] | Record<Theme, [Surface, Surface][]>;
+
+function below(list: PairList, min: number): string[] {
   return Object.entries(themes).flatMap(([theme, tokens]) =>
-    list
+    (Array.isArray(list) ? list : list[theme as Theme])
       .map(([fg, bg]) => ({
         pair: `${theme}: ${label(fg)} on ${label(bg)}`,
         ratio: contrast(resolve(tokens, fg), resolve(tokens, bg)),
@@ -346,15 +361,17 @@ describe("contrast", () => {
     const used = new Set(
       sources((f) => f.endsWith(".tsx") && !f.endsWith(".test.tsx"))
         .flatMap((text) => [...text.matchAll(/\btext-([a-z-]+)\/(\d+)\b/g)])
-        .filter((m) => m[1] in themes.light)
+        .filter((m) => m[1] in themes.light || m[1] in literalColors)
         .map((m) => `${m[1]}/${m[2]}`),
     );
     const listed = new Set(
-      pairs.flatMap(([fg]) =>
-        typeof fg === "string"
-          ? []
-          : [`${fg.token}/${Math.round(fg.alpha * 100)}`],
-      ),
+      Object.values(pairs)
+        .flat()
+        .flatMap(([fg]) =>
+          typeof fg === "string"
+            ? []
+            : [`${fg.token}/${Math.round(fg.alpha * 100)}`],
+        ),
     );
     expect([...used].filter((u) => !listed.has(u))).toEqual([]);
   });
