@@ -39,6 +39,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Changed
 
+- **The sidebar's theme control now offers Light, Dark and System.** It was one
+  button that flipped between light and dark: on screen it was labelled with the
+  theme you were in, while to a screen reader it was the theme it would switch
+  to. The three choices now sit side by side as a sun, a moon and a monitor, with
+  the current one marked. System — follow the operating system — is a choice
+  again, rather than only the setting a new install starts in.
 - **An import that copies instead of hardlinking now says so in the log.** In
   `auto` import mode, a hardlink Linux won't permit falls back to a copy that uses
   twice the disk space, and the only line written afterwards reported the file as
