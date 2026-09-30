@@ -16,6 +16,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cardRowDense } from "@/lib/card-row";
+import { cn } from "@/lib/utils";
 import { LoadError } from "@/components/load-error";
 import { EmptyState } from "@/components/empty-state";
 
@@ -62,8 +64,11 @@ export function TitleListPage() {
                     <TableHead className="hidden sm:table-cell">
                       Monitored
                     </TableHead>
-                    <TableHead className="sm:w-[200px]">Progress</TableHead>
-                    <TableHead className="hidden w-8 sm:table-cell" />
+                    {/* Below sm the chevron column is hidden, so Progress takes the edge padding. */}
+                    <TableHead className="pr-4 sm:w-[200px] sm:pr-2">
+                      Progress
+                    </TableHead>
+                    <TableHead className="hidden w-10 sm:table-cell" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -98,7 +103,7 @@ export function TitleListPage() {
                       <TableCell className="hidden sm:table-cell">
                         <MonitoredBadge monitored={s.monitored} />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="pr-4 sm:pr-2">
                         <LibraryProgress
                           format={s.format}
                           inLibrary={s.in_library}
@@ -128,10 +133,7 @@ function TitleTableSkeleton() {
   return (
     <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-3 border-b px-4 py-3 last:border-b-0"
-        >
+        <div key={i} className={cn("flex items-center gap-3", cardRowDense)}>
           <Skeleton className="h-12 w-[34px] rounded-sm" />
           <Skeleton className="h-4 w-48" />
           <Skeleton className="ml-auto h-5 w-16 rounded-full" />

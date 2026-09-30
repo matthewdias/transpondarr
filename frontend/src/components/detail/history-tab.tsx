@@ -7,6 +7,7 @@ import { GrabEventRow } from "@/components/grab-event-row";
 import { blocklistQuery, grabsQuery } from "@/lib/queries";
 import { countdownOrDate, plural, timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { cardRow } from "@/lib/card-row";
 import { EmptyState } from "@/components/empty-state";
 import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
@@ -43,10 +44,7 @@ export function HistoryTab({
     return (
       <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
         {Array.from({ length: 2 }).map((_, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-3 border-b px-3.5 py-3 last:border-b-0"
-          >
+          <div key={i} className={cn("flex items-center gap-3", cardRow)}>
             <Skeleton className="size-8 rounded-lg" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-3.5 w-40" />
@@ -71,7 +69,7 @@ export function HistoryTab({
           width="section"
         />
       ) : (
-        <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
+        <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm">
           {events.map((e) => (
             <GrabEventRow key={e.id} event={e} />
           ))}
@@ -223,7 +221,7 @@ function BlockedList({
   entries: BlocklistEntry[];
 }) {
   return (
-    <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
+    <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm">
       {entries.map((e) => (
         <BlockedRow key={e.id} titleId={titleId} entry={e} />
       ))}
@@ -257,7 +255,7 @@ function BlockedRow({
   });
 
   return (
-    <Item className="gap-3">
+    <Item className={cn("gap-3", cardRow)}>
       <ItemMedia>
         <span
           className={cn(

@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import type { GrabEvent } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { cardRow } from "@/lib/card-row";
 import {
   Item,
   ItemActions,
@@ -52,7 +53,7 @@ export function GrabEventRow({
 }) {
   const { verb, icon: Icon, tone } = presentGrabEvent(event);
   return (
-    <Item className="gap-3">
+    <Item className={cn("gap-3", cardRow)}>
       <ItemMedia>
         <span className={cn("grid size-8 place-items-center rounded-lg", tone)}>
           <Icon className="size-4" />

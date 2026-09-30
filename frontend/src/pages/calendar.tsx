@@ -32,6 +32,7 @@ import {
 import { calendarQuery } from "@/lib/queries";
 import { airDate, pad2 } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { cardRow } from "@/lib/card-row";
 import { MOBILE_BREAKPOINT } from "@/hooks/use-mobile";
 import { SIDEBAR_WIDTH_PX } from "@/components/ui/sidebar";
 import { ItemStatusBadge } from "@/components/badges";
@@ -470,12 +471,15 @@ function Agenda({
               })}
               {key === todayKey && " · Today"}
             </h3>
-            <div className="divide-y overflow-hidden rounded-lg border bg-card">
+            <div className="overflow-hidden rounded-lg border bg-card">
               {(buckets.get(key) ?? []).map((item) => (
                 <Link
                   key={item.id}
                   to={`/titles/${item.title_id}`}
-                  className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 hover:bg-panel-2/50"
+                  className={cn(
+                    "flex flex-wrap items-center gap-x-3 gap-y-1 hover:bg-panel-2/50",
+                    cardRow,
+                  )}
                 >
                   <span className="w-16 whitespace-nowrap text-xs tabular-nums text-muted-foreground">
                     {isPremiere(item) ? "" : timeLabel(item.airs_at)}

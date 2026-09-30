@@ -40,6 +40,7 @@ import {
 import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 import { cn } from "@/lib/utils";
+import { cardRowDense } from "@/lib/card-row";
 import { badgeBase, ItemStatusBadge } from "@/components/badges";
 import { Toggletip } from "@/components/toggletip";
 import { MonitorToggle } from "@/components/monitor-toggle";
@@ -282,7 +283,7 @@ function GroupSection({
       <header
         className={cn(
           // The panel background is opaque because item rows scroll under it while stuck.
-          "sticky top-topbar z-[5] bg-panel-2 px-3.5 py-2.5",
+          "sticky top-topbar z-[5] bg-panel-2 px-4 py-2.5",
           !collapsed && "border-b",
           // A toggletip's popover paints in this header's layer, so lift it over the next sticky header.
           "has-[[data-state=open]]:z-[6]",
@@ -354,7 +355,7 @@ function OverflowRow({ titleId, label }: { titleId: number; label: string }) {
   return (
     <Link
       to={`/titles/${titleId}`}
-      className="flex items-center justify-between px-3.5 py-2 text-xs hover:bg-panel-2/40 focus-visible:-outline-offset-2"
+      className="flex items-center justify-between px-4 py-2 text-xs hover:bg-panel-2/40 focus-visible:-outline-offset-2"
     >
       <span className="text-faint">{label}</span>
       <span className="inline-flex items-center gap-1 font-medium text-primary">
@@ -434,7 +435,12 @@ function MissingRow({
 }) {
   const film = isFilm(format);
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40 @min-[48rem]/inset:flex-nowrap">
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-1 hover:bg-panel-2/40 @min-[48rem]/inset:flex-nowrap",
+        cardRowDense,
+      )}
+    >
       <span className="w-8 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
         {pad2(item.number)}
       </span>
@@ -707,7 +713,12 @@ function CutoffRow({
 }) {
   const own = ownGoals(item, shared);
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-3.5 py-2 last:border-b-0 hover:bg-panel-2/40 md:flex-nowrap">
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-1 hover:bg-panel-2/40 md:flex-nowrap",
+        cardRowDense,
+      )}
+    >
       <span className="w-8 shrink-0 text-right font-mono text-xs text-faint tabular-nums">
         {pad2(item.number)}
       </span>
@@ -835,14 +846,12 @@ function ListSkeleton() {
   return (
     <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-3 border-b px-3.5 py-3 last:border-b-0"
-        >
+        <div key={i} className={cn("flex items-center gap-3", cardRowDense)}>
           <Skeleton className="size-3.5" />
           <Skeleton className="h-3.5 w-8" />
           <Skeleton className="h-3.5 flex-1" />
           <Skeleton className="h-5 w-24 rounded-full" />
+          <Skeleton className="h-8 w-20" />
         </div>
       ))}
     </div>

@@ -87,6 +87,11 @@ All notable changes to this project are documented here. The format is based on
   hint, was a slightly different size on each page. Each
   kind of text now has one size everywhere, and badges and the paragraphs above
   lists are a touch larger.
+- **Lists line up across pages.** Rows in Titles, Activity, Wanted, the Calendar
+  agenda and a title's tabs now start the same distance from the edge of their
+  card. Before, that distance ran from 8 to 17 pixels depending on the page. A
+  list's loading placeholder now uses the same spacing as the rows that replace
+  it.
 - **Page layouts are steadier on every screen size.** The bar at the top of each
   page is one height everywhere, so it no longer jumps when you switch pages, and
   Wanted's title headings stay flush under it while you scroll. The notification
@@ -131,6 +136,8 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **Activity and a title's History tab now draw a line between rows.** The lines
+  were meant to be there but never showed, so one download ran into the next.
 - **Cover art that fails to load now shows the letter placeholder.** When
   AniList's image host was unreachable, or a stored URL had gone stale, a title's
   header became an empty box and every Discovery card a tall blank frame. Both
