@@ -136,6 +136,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Fixed
 
+- **Countdowns and "ago" times now keep counting while a page is open.** They
+  changed only when the page's data did, so a Calendar countdown could still
+  read *in 32m* an hour later, and the Background jobs card never marked a
+  stalled job *overdue*. What depends on the time moves with it too: an episode
+  that airs joins the episodes tab's counts, and a release whose block runs out
+  moves to the expired blocks.
 - **Activity and a title's History tab now draw a line between rows.** The lines
   were meant to be there but never showed, so one download ran into the next.
 - **Cover art that fails to load now shows the letter placeholder.** When

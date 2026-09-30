@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { HistoryTab } from "@/components/detail/history-tab";
 import { GrabEventRow } from "@/components/grab-event-row";
 import type { BlocklistEntry, GrabEvent } from "@/lib/api";
+import { advanceClock, fakeClock } from "@/test/clock";
 
 function event(overrides: Partial<GrabEvent>): GrabEvent {
   return {
@@ -42,6 +43,20 @@ describe("GrabEventRow", () => {
     expect(
       screen.getByText("the download vanished from the client"),
     ).toBeInTheDocument();
+  });
+
+  it("keeps its age counting while the page sits open", () => {
+    fakeClock();
+    render(
+      <GrabEventRow
+        event={event({
+          created_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+        })}
+      />,
+    );
+    expect(screen.getByText("5m ago")).toBeInTheDocument();
+    advanceClock(60_000);
+    expect(screen.getByText("6m ago")).toBeInTheDocument();
   });
 });
 
@@ -201,6 +216,51 @@ describe("HistoryTab blocked releases", () => {
     expect(await screen.findByText(/block expired/i)).toBeInTheDocument();
     expect(screen.getByText(/2 failures/)).toBeInTheDocument();
     expect(screen.queryByText(/^unblocks/i)).not.toBeInTheDocument();
+  });
+
+  // The server computes `active` when the tab loads and the tab doesn't poll, so
+  // a block that runs out while it is open moves when the clock ticks (#144).
+  it("moves a block that runs out while the tab is open to expired", async () => {
+    fakeClock();
+    renderTab(
+      [],
+      [
+        blocklistEntry({
+          blocked_until: new Date(Date.now() + 3600_000).toISOString(),
+        }),
+      ],
+    );
+    expect(await screen.findByText("Unblocks in 1h")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Unblock all" }),
+    ).toBeInTheDocument();
+
+    advanceClock(2 * 3600_000);
+    expect(screen.getByText("Block expired 1h ago")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /1 expired block/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Unblock all" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // The server computes expiry on its own clock, so a browser clock running
+  // behind must not bring back a block the server already reported expired.
+  it("keeps a block the server expired expired, whatever the browser clock says", async () => {
+    renderTab(
+      [],
+      [
+        blocklistEntry({
+          active: false,
+          blocked_until: new Date(Date.now() + 3600_000).toISOString(),
+        }),
+      ],
+    );
+    expect(
+      await screen.findByRole("button", { name: /1 expired block/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Unblocks/)).not.toBeInTheDocument();
   });
 
   // The near-term expiry is a countdown, so the label has to read as a sentence

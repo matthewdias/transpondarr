@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api, type BlocklistSummary, errorReason } from "@/lib/api";
 import { blocklistSummaryQuery } from "@/lib/queries";
 import { plural, timeAgo } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SectionShell } from "../section-shell";
@@ -16,6 +17,7 @@ import { LoadError } from "@/components/load-error";
  * faulty rather than left to infer it from a blocklist that stopped growing.
  */
 function BreakerNotice({ breaker }: { breaker: BlocklistSummary["breaker"] }) {
+  const now = useNow();
   return (
     <div
       role="status"
@@ -29,8 +31,8 @@ function BreakerNotice({ breaker }: { breaker: BlocklistSummary["breaker"] }) {
         <p className="mt-0.5 text-muted-foreground">
           {plural(breaker.items, "different item")} failed on unrelated releases
           in the last {breaker.window_minutes} minutes
-          {breaker.since && `, starting ${timeAgo(breaker.since)}`}. That many
-          at once is the download client or the disk, not the releases, so
+          {breaker.since && `, starting ${timeAgo(breaker.since, now)}`}. That
+          many at once is the download client or the disk, not the releases, so
           blocking them would only take a healthy candidate pool out of
           circulation. Grabbing continues; this clears itself once failures
           stop.

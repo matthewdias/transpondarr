@@ -31,6 +31,7 @@ import {
 } from "@/lib/calendar";
 import { calendarQuery } from "@/lib/queries";
 import { airDate, pad2 } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { cn } from "@/lib/utils";
 import { cardRow } from "@/lib/card-row";
 import { MOBILE_BREAKPOINT } from "@/hooks/use-mobile";
@@ -110,7 +111,8 @@ export function CalendarPage() {
   const cal = useQuery(calendarQuery(range.start, range.end, unmonitored));
 
   const buckets = useMemo(() => bucketByDay(cal.data?.items ?? []), [cal.data]);
-  const todayKey = dayKey(new Date());
+  const now = useNow();
+  const todayKey = dayKey(new Date(now));
 
   const label =
     view === "month"
@@ -210,7 +212,12 @@ export function CalendarPage() {
                 <WeekGrid days={days} buckets={buckets} todayKey={todayKey} />
               )}
               {view === "agenda" && (
-                <Agenda days={days} buckets={buckets} todayKey={todayKey} />
+                <Agenda
+                  days={days}
+                  buckets={buckets}
+                  todayKey={todayKey}
+                  now={now}
+                />
               )}
 
               <UnscheduledNote
@@ -437,10 +444,12 @@ function Agenda({
   days,
   buckets,
   todayKey,
+  now,
 }: {
   days: Date[];
   buckets: Map<string, CalendarItem[]>;
   todayKey: string;
+  now: number;
 }) {
   const withItems = days.filter((d) => buckets.has(dayKey(d)));
   if (withItems.length === 0) {
@@ -493,7 +502,7 @@ function Agenda({
                   {/* airDate counts down in hours within a week, which is the
                       precision a premiere may not have. */}
                   <span className="hidden text-xs text-faint sm:block">
-                    {isPremiere(item) ? "" : airDate(item.airs_at)}
+                    {isPremiere(item) ? "" : airDate(item.airs_at, now)}
                   </span>
                   <ItemStatusBadge
                     status={item.status}

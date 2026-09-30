@@ -41,12 +41,13 @@ function absoluteDate(at: number, locale?: string): string {
 /** A future instant: a countdown while within a week, an absolute date beyond. */
 export function countdownOrDate(
   input: string | undefined,
+  now: number,
   locale?: string,
 ): string {
   if (!input) return "—";
   const at = parseTimestamp(input);
   if (Number.isNaN(at)) return "—";
-  const secs = (at - Date.now()) / 1000;
+  const secs = (at - now) / 1000;
   return countdown(secs) ?? absoluteDate(at, locale);
 }
 
@@ -54,8 +55,12 @@ export function countdownOrDate(
  * Broadcast time for an episode row. AniList publishes no schedule for many
  * older titles, so an absent date renders as a placeholder rather than an error.
  */
-export function airDate(input: string | undefined, locale?: string): string {
-  return countdownOrDate(input, locale);
+export function airDate(
+  input: string | undefined,
+  now: number,
+  locale?: string,
+): string {
+  return countdownOrDate(input, now, locale);
 }
 
 /**
@@ -81,13 +86,14 @@ export function premiereDate(
 export function nextEpisodeLabel(
   number: number | undefined,
   airsAt: string | undefined,
+  now: number,
   locale?: string,
 ): string | null {
   if (!airsAt) return null;
   const at = parseTimestamp(airsAt);
   if (Number.isNaN(at)) return null;
   const ep = number ? `Ep ${number}` : "Next ep";
-  const secs = (at - Date.now()) / 1000;
+  const secs = (at - now) / 1000;
   if (secs <= 0) return `${ep} aired`;
   const rel = countdown(secs);
   return rel ? `${ep} ${rel}` : `${ep} on ${absoluteDate(at, locale)}`;
@@ -100,20 +106,21 @@ export function nextEpisodeLabel(
  */
 export function premiereLabel(
   airsAt: string | undefined,
+  now: number,
   locale?: string,
 ): string | null {
   if (!airsAt) return null;
   const at = parseTimestamp(airsAt);
   if (Number.isNaN(at)) return null;
-  const verb = at > Date.now() ? "Premieres" : "Released";
+  const verb = at > now ? "Premieres" : "Released";
   return `${verb} ${absoluteDate(at, locale)}`;
 }
 
 /** Compact relative time from an ISO/SQLite timestamp, e.g. "2h ago". */
-export function timeAgo(input: string): string {
+export function timeAgo(input: string, now: number): string {
   const then = parseTimestamp(input);
   if (Number.isNaN(then)) return input;
-  const secs = Math.max(0, (Date.now() - then) / 1000);
+  const secs = Math.max(0, (now - then) / 1000);
   if (secs < 60) return "just now";
   const mins = Math.floor(secs / 60);
   if (mins < 60) return `${mins}m ago`;

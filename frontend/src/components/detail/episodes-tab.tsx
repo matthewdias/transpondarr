@@ -1,9 +1,11 @@
 import { memo, useCallback, useMemo, useRef } from "react";
 import { Eye, EyeOff, Search } from "lucide-react";
 import type { TitleDetail, WantedItem } from "@/lib/api";
-import { airDate, pad2, parseTimestamp } from "@/lib/format";
+import { pad2, parseTimestamp } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { barSegments } from "@/lib/bar-segments";
 import { cn } from "@/lib/utils";
+import { AirDate } from "@/components/air-date";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -63,13 +65,13 @@ export function EpisodesTab({
   onSetMonitored: (ids: number[], monitored: boolean) => void;
 }) {
   const items = detail.items;
+  const now = useNow();
 
   // Memoized because a 1,200-row series recomputes these on every selection
   // change otherwise, and none of them depend on the selection.
   const counts = useMemo(() => {
     // Exactly ListTitlesWithProgress's definition of tracked, so this strip and
     // the titles-list bar can never differ on the same title.
-    const now = Date.now();
     const aired = (i: WantedItem) =>
       !i.airs_at || parseTimestamp(i.airs_at) <= now;
     const tracked = items.filter((i) => i.monitored && aired(i));
@@ -91,7 +93,7 @@ export function EpisodesTab({
       deferred,
       wanted: tracked.length - inLibrary - downloading - stuck - deferred,
     };
-  }, [items]);
+  }, [items, now]);
   const {
     total,
     unaired,
@@ -365,7 +367,7 @@ const EpisodeRow = memo(function EpisodeRow({
         title={item.airs_at}
       >
         {item.airs_at ? (
-          airDate(item.airs_at)
+          <AirDate at={item.airs_at} />
         ) : (
           <span className="text-faint">—</span>
         )}

@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
 import type { WantedItem } from "@/lib/api";
 import { premiereLabel } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { Button } from "@/components/ui/button";
 import { ItemStatusBadge, UnmonitoredItemBadge } from "@/components/badges";
 import { MonitorToggle } from "@/components/monitor-toggle";
@@ -19,6 +20,7 @@ export function MovieStatusCard({
   onSetMonitored: (ids: number[], monitored: boolean) => void;
 }) {
   const unmonitoredWanted = !item.monitored && item.status === "wanted";
+  const now = useNow();
   return (
     <div className="rounded-lg border bg-card shadow-sm">
       <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4">
@@ -37,7 +39,7 @@ export function MovieStatusCard({
             )}
             {item.airs_at && (
               <span className="text-sm text-muted-foreground">
-                {premiereLabel(item.airs_at)}
+                {premiereLabel(item.airs_at, now)}
               </span>
             )}
           </div>

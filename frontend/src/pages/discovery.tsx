@@ -22,6 +22,7 @@ import {
 import { browseSeasonQuery, titlesQuery } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { nextEpisodeLabel, premiereLabel } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import {
   currentSeason,
   seasonLabel,
@@ -323,13 +324,6 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
     entry.studio,
   ].filter(Boolean) as string[];
 
-  // A film has no next episode: its date is a premiere, and may be the date-only
-  // placeholder, so it is stated as a date and never counted down.
-  const airing =
-    entry.format === "MOVIE"
-      ? premiereLabel(entry.next_airs_at)
-      : nextEpisodeLabel(entry.next_episode, entry.next_airs_at);
-
   // One definition, rendered on both the card and the detail view.
   // Button is shrink-0, which pushed the AniList link past a narrow card's edge; the
   // 6rem basis wraps that link onto its own line instead of squeezing the label.
@@ -416,11 +410,11 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
             {entry.genres.join(" · ")}
           </div>
         )}
-        {airing && (
-          <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="size-3" /> {airing}
-          </div>
-        )}
+        <AiringLine
+          entry={entry}
+          className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground"
+          iconClassName="size-3"
+        />
 
         <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-2">
           {actions}
@@ -431,7 +425,6 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
         entry={entry}
         title={title}
         meta={meta}
-        airing={airing}
         actions={actions}
         open={detailOpen}
         onOpenChange={setDetailOpen}
@@ -456,13 +449,37 @@ function SeasonCard({ entry }: { entry: SeasonEntry }) {
   );
 }
 
+// Its own component so the clock tick re-renders this line, not the whole card.
+function AiringLine({
+  entry,
+  className,
+  iconClassName,
+}: {
+  entry: SeasonEntry;
+  className: string;
+  iconClassName: string;
+}) {
+  const now = useNow();
+  // A film has no next episode: its date is a premiere, and may be the date-only
+  // placeholder, so it is stated as a date and never counted down.
+  const airing =
+    entry.format === "MOVIE"
+      ? premiereLabel(entry.next_airs_at, now)
+      : nextEpisodeLabel(entry.next_episode, entry.next_airs_at, now);
+  if (!airing) return null;
+  return (
+    <div className={className}>
+      <Clock className={iconClassName} /> {airing}
+    </div>
+  );
+}
+
 // The full record for one entry - everything the card compresses, in a dialog
 // (drawer on mobile) so an expanded synopsis never reflows the grid.
 function SeasonDetail({
   entry,
   title,
   meta,
-  airing,
   actions,
   open,
   onOpenChange,
@@ -470,7 +487,6 @@ function SeasonDetail({
   entry: SeasonEntry;
   title: string;
   meta: string[];
-  airing: string | null;
   actions: React.ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -509,11 +525,11 @@ function SeasonDetail({
           {entry.genres.length > 0 && (
             <div className="text-faint">{entry.genres.join(" · ")}</div>
           )}
-          {airing && (
-            <div className="flex items-center gap-1 text-muted-foreground">
-              <Clock className="size-3.5" /> {airing}
-            </div>
-          )}
+          <AiringLine
+            entry={entry}
+            className="flex items-center gap-1 text-muted-foreground"
+            iconClassName="size-3.5"
+          />
           <div className="flex max-w-56 items-center gap-1.5 pt-1">
             {actions}
           </div>

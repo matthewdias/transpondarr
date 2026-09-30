@@ -30,17 +30,18 @@ import {
 } from "@/lib/api";
 import { wantedCutoffQuery, wantedMissingQuery } from "@/lib/queries";
 import {
-  airDate,
   countdownOrDate,
   pad2,
   plural,
   premiereDate,
   timeAgo,
 } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { searchQueuedToast } from "@/lib/search-queued-toast";
 import { goalLine, ownGoals, sharedGoals } from "@/lib/unmet-goals";
 import { cn } from "@/lib/utils";
 import { cardRowDense } from "@/lib/card-row";
+import { AirDate } from "@/components/air-date";
 import { badgeBase, ItemStatusBadge } from "@/components/badges";
 import { Toggletip } from "@/components/toggletip";
 import { MonitorToggle } from "@/components/monitor-toggle";
@@ -452,7 +453,7 @@ function MissingRow({
           film ? (
             premiereDate(item.airs_at)
           ) : (
-            airDate(item.airs_at)
+            <AirDate at={item.airs_at} />
           )
         ) : (
           <span
@@ -484,11 +485,12 @@ function MissingRow({
 }
 
 function TitleReasonBadge({ group }: { group: MissingGroup }) {
+  const now = useNow();
   const detail =
     group.reason === "blocklisted"
       ? plural(group.blocked_releases ?? 0, "release")
       : group.reason === "search_backoff"
-        ? `Next search ${countdownOrDate(group.next_search_at)}`
+        ? `Next search ${countdownOrDate(group.next_search_at, now)}`
         : undefined;
   return (
     <ReasonBadge
@@ -544,7 +546,7 @@ function ReasonBadge({
 // Pass reasons are the only ones on this page that can go stale, so each is
 // always shown with its age: a past-tense verb next to "2h ago" cannot read as
 // a fact about now. The tooltip shows what the pass acted on.
-function itemReasonTitle(item: MissingItem): string | undefined {
+function itemReasonTitle(item: MissingItem, now: number): string | undefined {
   const pass = item.last_pass;
   if (!pass) {
     return item.reason === "grab_failed" ? item.reason_detail : undefined;
@@ -555,7 +557,7 @@ function itemReasonTitle(item: MissingItem): string | undefined {
     // countdownOrDate returns "in 4h" or a date, so the phrasing has to read
     // with both -- "Held until in 4h" is what a bare "until" gives you.
     item.reason === "pin_held" && pass.held_until
-      ? `Grabbable ${countdownOrDate(pass.held_until)}`
+      ? `Grabbable ${countdownOrDate(pass.held_until, now)}`
       : undefined,
     pass.source === "feed"
       ? "Decided by a feed poll"
@@ -568,6 +570,7 @@ function itemReasonTitle(item: MissingItem): string | undefined {
 // A row shows a reason only when it has its own story; most rows are
 // explained by their group header and stay quiet.
 function ItemReasonBadge({ item, film }: { item: MissingItem; film: boolean }) {
+  const now = useNow();
   if (!item.reason) return null;
   // The badge is right either way; only the word is episodic. A film has a
   // release date, not a broadcast.
@@ -577,12 +580,12 @@ function ItemReasonBadge({ item, film }: { item: MissingItem; film: boolean }) {
       : itemReasonLabel[item.reason];
   return (
     <ReasonBadge
-      detail={itemReasonTitle(item)}
+      detail={itemReasonTitle(item, now)}
       tone={itemReasonTone[item.reason]}
       // Aligns under the episode name, past the number column.
       narrowIndent="@max-[48rem]/inset:pl-11"
     >
-      {item.last_pass ? `${label} · ${timeAgo(item.last_pass.at)}` : label}
+      {item.last_pass ? `${label} · ${timeAgo(item.last_pass.at, now)}` : label}
     </ReasonBadge>
   );
 }

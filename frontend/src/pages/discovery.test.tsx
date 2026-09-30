@@ -15,6 +15,7 @@ import type { SeasonEntry } from "@/lib/api";
 import { currentSeason, seasonLabel } from "@/lib/season";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { DiscoveryPage } from "@/pages/discovery";
+import { advanceClock, fakeClock } from "@/test/clock";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -76,6 +77,43 @@ const chartHandler = (entries: SeasonEntry[]) =>
   });
 
 describe("DiscoveryPage", () => {
+  // The chart doesn't poll and is cached server-side for hours, so only the
+  // clock can move a card from a countdown to aired (#144).
+  it("moves a card to aired, and a film to released, while the page sits open", async () => {
+    fakeClock();
+    const inOneHour = new Date(Date.now() + 1.5 * 3600_000).toISOString();
+    server.use(
+      profilesHandler,
+      settingsHandler,
+      chartHandler([
+        entry({
+          provider_id: 101,
+          romaji: "Alpha Adventure",
+          format: "TV",
+          status: "RELEASING",
+          next_episode: 6,
+          next_airs_at: inOneHour,
+        }),
+        entry({
+          provider_id: 103,
+          romaji: "Gamma Film",
+          format: "MOVIE",
+          status: "NOT_YET_RELEASED",
+          next_airs_at: inOneHour,
+        }),
+      ]),
+    );
+    renderPage();
+
+    expect(await screen.findByText("Ep 6 in 1h")).toBeInTheDocument();
+    expect(screen.getByText(/^Premieres /)).toBeInTheDocument();
+
+    advanceClock(2 * 3600_000);
+    expect(screen.getByText("Ep 6 aired")).toBeInTheDocument();
+    expect(screen.getByText(/^Released /)).toBeInTheDocument();
+    expect(screen.queryByText(/^Premieres /)).not.toBeInTheDocument();
+  });
+
   it("renders the chart with tracked AniList entries marked and countdowns clamped", async () => {
     const inTwoDays = new Date(Date.now() + 2.5 * 86400_000).toISOString();
     const threeHoursAgo = new Date(Date.now() - 3 * 3600_000).toISOString();

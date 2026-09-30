@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { EpisodesTab } from "@/components/detail/episodes-tab";
 import type { TitleDetail, WantedItem } from "@/lib/api";
+import { advanceClock, fakeClock } from "@/test/clock";
 
 const item = (over: Partial<WantedItem>): WantedItem => ({
   id: 1,
@@ -247,6 +248,25 @@ describe("EpisodesTab monitoring", () => {
 
     expect(screen.getByText("1 / 3")).toBeInTheDocument();
     expect(screen.getByText(/2 not yet aired/i)).toBeInTheDocument();
+  });
+
+  // The title detail doesn't poll, so an episode airing while the page is open
+  // joins the denominator when the clock ticks (#144).
+  it("counts an episode as aired, and stops counting down to it, once it airs", () => {
+    fakeClock();
+    const soon = new Date(Date.now() + 1.5 * 3600_000).toISOString();
+    renderStrip([
+      item({ id: 1, number: 1, airs_at: past }),
+      item({ id: 2, number: 2, airs_at: soon }),
+    ]);
+    expect(screen.getByText("0 / 1")).toBeInTheDocument();
+    expect(screen.getByText(/1 not yet aired/i)).toBeInTheDocument();
+    expect(screen.getByText("in 1h")).toBeInTheDocument();
+
+    advanceClock(2 * 3600_000);
+    expect(screen.getByText("0 / 2")).toBeInTheDocument();
+    expect(screen.queryByText(/not yet aired/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^in \d/)).not.toBeInTheDocument();
   });
 
   // The three categories partition every item, so a reader can add them up.
