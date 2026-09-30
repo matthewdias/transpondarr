@@ -28,6 +28,7 @@ import {
   parseTimestamp,
   timeAgo,
 } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { cn } from "@/lib/utils";
 import { cardRow } from "@/lib/card-row";
 import { GrabEventRow } from "@/components/grab-event-row";
@@ -166,15 +167,16 @@ const clientStateLabel: Record<string, string> = {
 // 0m" and an absolute date would read like a plan rather than an imminent one.
 // Past countdownOrDate's own week-long cliff it renders a bare date, which needs
 // the preposition a countdown does not.
-function abandonLabel(at: string): string {
-  const secs = (parseTimestamp(at) - Date.now()) / 1000;
+function abandonLabel(at: string, now: number): string {
+  const secs = (parseTimestamp(at) - now) / 1000;
   if (secs <= 0) return "giving up shortly";
-  return `giving up ${secs >= 7 * 86400 ? "on " : ""}${countdownOrDate(at)}`;
+  return `giving up ${secs >= 7 * 86400 ? "on " : ""}${countdownOrDate(at, now)}`;
 }
 
 function QueueRow({ item }: { item: QueueItem }) {
   const { icon: Icon, tone } = queueTone(item);
   const [fixing, setFixing] = useState(false);
+  const now = useNow();
   return (
     <Item className={cn("gap-3", cardRow)}>
       <ItemMedia>
@@ -209,7 +211,9 @@ function QueueRow({ item }: { item: QueueItem }) {
         )}
       </ItemContent>
       <ItemActions className="flex-col items-end gap-1 self-start">
-        <span className="text-xs text-faint">{timeAgo(item.created_at)}</span>
+        <span className="text-xs text-faint">
+          {timeAgo(item.created_at, now)}
+        </span>
         {item.status === "deferred" && (
           <>
             <Button variant="outline" size="sm" onClick={() => setFixing(true)}>
@@ -232,7 +236,7 @@ function QueueRow({ item }: { item: QueueItem }) {
             )}
             {item.abandon_at && (
               <span className="text-faint">
-                {` · ${abandonLabel(item.abandon_at)}`}
+                {` · ${abandonLabel(item.abandon_at, now)}`}
               </span>
             )}
           </span>
@@ -293,6 +297,7 @@ function UnmatchedRow({
   item: UnmatchedDownload;
   onConfirming: (open: boolean) => void;
 }) {
+  const now = useNow();
   return (
     <Item className={cn("gap-3", cardRow)}>
       <ItemMedia>
@@ -305,7 +310,7 @@ function UnmatchedRow({
         <div className="text-xs text-faint">
           <span className="font-mono">{item.infohash}</span>
           {item.size > 0 && <> · {formatBytes(item.size)}</>}
-          {item.added_at && <> · added {timeAgo(item.added_at)}</>}
+          {item.added_at && <> · added {timeAgo(item.added_at, now)}</>}
         </div>
       </ItemContent>
       <ItemActions className="flex-col items-end gap-1">

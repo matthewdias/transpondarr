@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { expect, it, vi } from "vitest";
 import type { WantedItem } from "@/lib/api";
 import { MovieStatusCard } from "@/components/detail/movie-status-card";
+import { advanceClock, fakeClock } from "@/test/clock";
 
 const item = (over: Partial<WantedItem> = {}): WantedItem => ({
   id: 3,
@@ -73,6 +74,17 @@ it("still shows released once the date has passed", () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+// The title detail doesn't poll, so a film premiering while its page is open
+// reads as released once the clock ticks past its date (#144).
+it("moves a film from premieres to released while the page sits open", () => {
+  fakeClock(new Date("2026-03-15T11:00:00Z"));
+  renderCard({ airs_at: "2026-03-15T12:00:00Z" });
+  expect(screen.getByText(/^Premieres /)).toBeInTheDocument();
+
+  advanceClock(2 * 3600_000);
+  expect(screen.getByText(/^Released /)).toBeInTheDocument();
 });
 
 // Substituted rather than qualified, as the episode row does it.

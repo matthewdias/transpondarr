@@ -2,6 +2,7 @@ import { Check, CircleX, Download, FolderClock } from "lucide-react";
 import { Link } from "react-router";
 import type { GrabEvent } from "@/lib/api";
 import { timeAgo } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { cn } from "@/lib/utils";
 import { cardRow } from "@/lib/card-row";
 import {
@@ -52,6 +53,7 @@ export function GrabEventRow({
   title?: { id: number; name: string };
 }) {
   const { verb, icon: Icon, tone } = presentGrabEvent(event);
+  const now = useNow();
   return (
     <Item className={cn("gap-3", cardRow)}>
       <ItemMedia>
@@ -89,7 +91,9 @@ export function GrabEventRow({
         )}
       </ItemContent>
       <ItemActions className="self-start">
-        <span className="text-xs text-faint">{timeAgo(event.created_at)}</span>
+        <span className="text-xs text-faint">
+          {timeAgo(event.created_at, now)}
+        </span>
       </ItemActions>
     </Item>
   );

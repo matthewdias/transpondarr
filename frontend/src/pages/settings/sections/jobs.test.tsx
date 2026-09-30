@@ -14,6 +14,7 @@ import {
 } from "vitest";
 import type { JobStatus } from "@/lib/api";
 import { JobsSection, JobsTable } from "@/pages/settings/sections/jobs";
+import { advanceClock, fakeClock, settle } from "@/test/clock";
 
 function job(over: Partial<JobStatus> = {}): JobStatus {
   return {
@@ -227,6 +228,7 @@ afterAll(() => server.close());
 function renderSection(
   jobs: JobStatus[],
   automationMode: "off" | "notify_only" | "on" | "unreadable",
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
 ) {
   const runs: string[] = [];
   server.use(
@@ -243,9 +245,6 @@ function renderSection(
       return new HttpResponse(null, { status: 202 });
     }),
   );
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
   render(
     <QueryClientProvider client={client}>
       <JobsSection />
@@ -309,6 +308,34 @@ describe("JobsSection", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
     expect(runs).toEqual([]);
+  });
+
+  // A runner that stops scheduling freezes the polled payload, and an identical
+  // poll re-renders nothing, so only the clock can mark the job overdue (#144).
+  it("calls a frozen snapshot overdue on schedule, and keeps its last run counting", async () => {
+    fakeClock();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    renderSection(
+      [job({ last_run: minutesFromNow(0), next_run: minutesFromNow(1.5) })],
+      "on",
+      client,
+    );
+    const row = within(
+      await screen.findByRole("listitem", { name: "Wanted search" }),
+    );
+    expect(row.getByText("in 1m")).toBeInTheDocument();
+    expect(row.getByText("just now")).toBeInTheDocument();
+
+    // Due at 90s, and OVERDUE_GRACE_MS allows 30s more for a stale poll.
+    advanceClock(90_000);
+    expect(row.queryByText("overdue")).not.toBeInTheDocument();
+
+    advanceClock(30_000);
+    expect(row.getByText("overdue")).toHaveClass("text-destructive");
+    expect(row.getByText("2m ago")).toBeInTheDocument();
+    await settle(client);
   });
 
   // Only the two jobs that grab are gated; the rest are unaffected by the switch.

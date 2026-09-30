@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { BlocklistSummary } from "@/lib/api";
 import { FailureMemorySection } from "@/pages/settings/sections/failure-memory";
+import { advanceClock, fakeClock, settle } from "@/test/clock";
 
 const summary = (over: Partial<BlocklistSummary> = {}): BlocklistSummary => ({
   blocked: 4,
@@ -19,11 +20,11 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-function renderSection(body: BlocklistSummary) {
+function renderSection(
+  body: BlocklistSummary,
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   server.use(http.get("/api/v1/blocklist", () => HttpResponse.json(body)));
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
   return render(
     <QueryClientProvider client={client}>
       <FailureMemorySection />
@@ -48,6 +49,10 @@ describe("FailureMemorySection", () => {
   // to a wall of failures needs to be told the client looks faulty, not left to
   // infer it from the blocklist.
   it("shows when the breaker has suppressed failure memory", async () => {
+    fakeClock();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     renderSection(
       summary({
         breaker: {
@@ -58,11 +63,18 @@ describe("FailureMemorySection", () => {
           since: new Date(Date.now() - 5 * 60_000).toISOString(),
         },
       }),
+      client,
     );
     expect(await screen.findByRole("status")).toHaveTextContent(
       /not remembering/i,
     );
     expect(screen.getByText(/7 .*items/i)).toBeInTheDocument();
+
+    // The summary polls, but an unchanged one re-renders nothing (#144).
+    expect(screen.getByRole("status")).toHaveTextContent("starting 5m ago");
+    advanceClock(60_000);
+    expect(screen.getByRole("status")).toHaveTextContent("starting 6m ago");
+    await settle(client);
   });
 
   it("stays quiet about the breaker while it is closed", async () => {

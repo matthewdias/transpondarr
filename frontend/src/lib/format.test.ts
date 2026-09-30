@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   airDate,
   formatBytes,
@@ -8,6 +8,10 @@ import {
   plural,
   timeAgo,
 } from "@/lib/format";
+
+// `now` is passed explicitly and differs from the runner's clock, so a formatter
+// that read Date.now() instead would fail here.
+const at = (iso: string) => Date.parse(iso);
 
 describe("formatBytes", () => {
   it("renders a placeholder for zero or negative sizes", () => {
@@ -36,36 +40,29 @@ describe("formatBytes", () => {
 });
 
 describe("timeAgo", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  const freeze = (iso: string) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(iso));
-  };
-
   it("treats a bare SQLite timestamp as UTC", () => {
-    freeze("2026-07-23T12:00:00Z");
-    expect(timeAgo("2026-07-23 10:00:00")).toBe("2h ago");
+    const now = at("2026-07-23T12:00:00Z");
+    expect(timeAgo("2026-07-23 10:00:00", now)).toBe("2h ago");
   });
 
   it("steps through the coarser units", () => {
-    freeze("2026-07-23T12:00:00Z");
-    expect(timeAgo("2026-07-23T11:59:30Z")).toBe("just now");
-    expect(timeAgo("2026-07-23T11:15:00Z")).toBe("45m ago");
-    expect(timeAgo("2026-07-20T12:00:00Z")).toBe("3d ago");
-    expect(timeAgo("2026-05-23T12:00:00Z")).toBe("2mo ago");
-    expect(timeAgo("2024-07-23T12:00:00Z")).toBe("2y ago");
+    const now = at("2026-07-23T12:00:00Z");
+    expect(timeAgo("2026-07-23T11:59:30Z", now)).toBe("just now");
+    expect(timeAgo("2026-07-23T11:15:00Z", now)).toBe("45m ago");
+    expect(timeAgo("2026-07-20T12:00:00Z", now)).toBe("3d ago");
+    expect(timeAgo("2026-05-23T12:00:00Z", now)).toBe("2mo ago");
+    expect(timeAgo("2024-07-23T12:00:00Z", now)).toBe("2y ago");
   });
 
   it("clamps future timestamps to just now", () => {
-    freeze("2026-07-23T12:00:00Z");
-    expect(timeAgo("2026-07-23T13:00:00Z")).toBe("just now");
+    const now = at("2026-07-23T12:00:00Z");
+    expect(timeAgo("2026-07-23T13:00:00Z", now)).toBe("just now");
   });
 
   it("returns unparseable input unchanged", () => {
-    expect(timeAgo("not a timestamp")).toBe("not a timestamp");
+    expect(timeAgo("not a timestamp", at("2026-07-23T12:00:00Z"))).toBe(
+      "not a timestamp",
+    );
   });
 });
 
@@ -82,114 +79,90 @@ describe("pad2", () => {
 });
 
 describe("airDate", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  const freeze = (iso: string) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(iso));
-  };
-
   it("renders an absolute date for an episode that has aired", () => {
-    freeze("2026-07-23T12:00:00Z");
-    expect(airDate("2026-01-04T15:30:00Z", "en-GB")).toBe("4 Jan 2026");
+    const now = at("2026-07-23T12:00:00Z");
+    expect(airDate("2026-01-04T15:30:00Z", now, "en-GB")).toBe("4 Jan 2026");
   });
 
   it("counts down to an upcoming episode instead of dating it", () => {
-    freeze("2026-07-23T12:00:00Z");
-    expect(airDate("2026-07-23T13:30:00Z")).toBe("in 1h");
-    expect(airDate("2026-07-26T12:00:00Z")).toBe("in 3d");
-    expect(airDate("2026-07-23T12:00:30Z")).toBe("any moment");
+    const now = at("2026-07-23T12:00:00Z");
+    expect(airDate("2026-07-23T13:30:00Z", now)).toBe("in 1h");
+    expect(airDate("2026-07-26T12:00:00Z", now)).toBe("in 3d");
+    expect(airDate("2026-07-23T12:00:30Z", now)).toBe("any moment");
   });
 
   it("stops counting down past a week out", () => {
-    freeze("2026-07-23T12:00:00Z");
-    expect(airDate("2026-09-01T12:00:00Z", "en-GB")).toBe("1 Sept 2026");
+    const now = at("2026-07-23T12:00:00Z");
+    expect(airDate("2026-09-01T12:00:00Z", now, "en-GB")).toBe("1 Sept 2026");
   });
 
   // AniList publishes no schedule for many older titles, so an absent date is a
   // normal row rather than an error.
   it("renders a placeholder for a missing or unparseable date", () => {
-    expect(airDate(undefined)).toBe("—");
-    expect(airDate("")).toBe("—");
-    expect(airDate("not a timestamp")).toBe("—");
+    const now = at("2026-07-23T12:00:00Z");
+    expect(airDate(undefined, now)).toBe("—");
+    expect(airDate("", now)).toBe("—");
+    expect(airDate("not a timestamp", now)).toBe("—");
   });
 });
 
 describe("nextEpisodeLabel", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  const freeze = (iso: string) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(iso));
-  };
-
   it("returns null without a scheduled time", () => {
-    expect(nextEpisodeLabel(6, undefined)).toBeNull();
-    expect(nextEpisodeLabel(6, "garbage")).toBeNull();
+    const now = at("2026-07-23T12:00:00Z");
+    expect(nextEpisodeLabel(6, undefined, now)).toBeNull();
+    expect(nextEpisodeLabel(6, "garbage", now)).toBeNull();
   });
 
   it("counts down to an upcoming episode", () => {
-    freeze("2026-07-23T12:00:00Z");
-    expect(nextEpisodeLabel(6, "2026-07-26T12:30:00Z")).toBe("Ep 6 in 3d");
-    expect(nextEpisodeLabel(2, "2026-07-23T13:30:00Z")).toBe("Ep 2 in 1h");
+    const now = at("2026-07-23T12:00:00Z");
+    expect(nextEpisodeLabel(6, "2026-07-26T12:30:00Z", now)).toBe("Ep 6 in 3d");
+    expect(nextEpisodeLabel(2, "2026-07-23T13:30:00Z", now)).toBe("Ep 2 in 1h");
   });
 
   it("clamps a stale timestamp to aired instead of a negative countdown", () => {
     // The season cache can lag ~6h behind a broadcast.
-    freeze("2026-07-23T12:00:00Z");
-    expect(nextEpisodeLabel(6, "2026-07-23T09:00:00Z")).toBe("Ep 6 aired");
+    const now = at("2026-07-23T12:00:00Z");
+    expect(nextEpisodeLabel(6, "2026-07-23T09:00:00Z", now)).toBe("Ep 6 aired");
   });
 
   it("falls back to an absolute date beyond a week out", () => {
-    freeze("2026-07-01T12:00:00Z");
-    expect(nextEpisodeLabel(13, "2026-08-20T12:00:00Z", "en-US")).toBe(
+    const now = at("2026-07-01T12:00:00Z");
+    expect(nextEpisodeLabel(13, "2026-08-20T12:00:00Z", now, "en-US")).toBe(
       "Ep 13 on Aug 20, 2026",
     );
   });
 
   it("handles a missing episode number", () => {
-    freeze("2026-07-23T12:00:00Z");
-    expect(nextEpisodeLabel(undefined, "2026-07-26T12:30:00Z")).toBe(
+    const now = at("2026-07-23T12:00:00Z");
+    expect(nextEpisodeLabel(undefined, "2026-07-26T12:30:00Z", now)).toBe(
       "Next ep in 3d",
     );
   });
 });
 
 describe("premiereLabel", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  const freeze = (iso: string) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(iso));
-  };
-
   it("returns null without a date", () => {
-    expect(premiereLabel(undefined)).toBeNull();
-    expect(premiereLabel("garbage")).toBeNull();
+    const now = at("2026-03-15T08:00:00Z");
+    expect(premiereLabel(undefined, now)).toBeNull();
+    expect(premiereLabel("garbage", now)).toBeNull();
   });
 
   // A film's stored date may be a date-only release set to noon UTC, so a
   // countdown would state precision that was never published.
   it("never counts down, however close the date", () => {
-    freeze("2026-03-15T08:00:00Z");
-    expect(premiereLabel("2026-03-15T12:00:00Z", "en-US")).toBe(
+    const now = at("2026-03-15T08:00:00Z");
+    expect(premiereLabel("2026-03-15T12:00:00Z", now, "en-US")).toBe(
       "Premieres Mar 15, 2026",
     );
-    expect(premiereLabel("2026-03-18T12:00:00Z", "en-US")).toBe(
+    expect(premiereLabel("2026-03-18T12:00:00Z", now, "en-US")).toBe(
       "Premieres Mar 18, 2026",
     );
   });
 
   // "Released" beside a future date is wrong on its own terms.
   it("tenses on the date rather than calling a future release past", () => {
-    freeze("2026-06-01T12:00:00Z");
-    expect(premiereLabel("2026-03-15T12:00:00Z", "en-US")).toBe(
+    const now = at("2026-06-01T12:00:00Z");
+    expect(premiereLabel("2026-03-15T12:00:00Z", now, "en-US")).toBe(
       "Released Mar 15, 2026",
     );
   });

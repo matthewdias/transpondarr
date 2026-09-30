@@ -4,6 +4,7 @@ import { ListChecks, Play } from "lucide-react";
 import { toast } from "sonner";
 import { api, type JobStatus, errorReason } from "@/lib/api";
 import { countdownOrDate, parseTimestamp, timeAgo } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { JOBS_POLL_MS, jobsQuery, settingsQuery } from "@/lib/queries";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,13 +49,16 @@ const OVERDUE_GRACE_MS = 2 * JOBS_POLL_MS;
  * nextRun before a run starts, so a job outlasting its own interval is working
  * rather than late.
  */
-function jobNextRun(j: JobStatus): { text: string; overdue: boolean } {
+function jobNextRun(
+  j: JobStatus,
+  now: number,
+): { text: string; overdue: boolean } {
   if (!j.next_run) return { text: "—", overdue: false };
   const at = parseTimestamp(j.next_run);
   if (Number.isNaN(at)) return { text: "—", overdue: false };
-  if (at > Date.now())
-    return { text: countdownOrDate(j.next_run), overdue: false };
-  if (j.running || Date.now() - at < OVERDUE_GRACE_MS) {
+  if (at > now)
+    return { text: countdownOrDate(j.next_run, now), overdue: false };
+  if (j.running || now - at < OVERDUE_GRACE_MS) {
     return { text: "—", overdue: false };
   }
   return { text: "overdue", overdue: true };
@@ -69,6 +73,7 @@ export function JobsTable({
   onRun?: (name: string) => void;
   busy?: boolean;
 }) {
+  const now = useNow();
   if (jobs.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">
@@ -80,7 +85,7 @@ export function JobsTable({
     <ul className="divide-y">
       {jobs.map((j) => {
         const label = jobLabel(j.name);
-        const next = jobNextRun(j);
+        const next = jobNextRun(j, now);
         return (
           <li
             key={j.name}
@@ -97,7 +102,7 @@ export function JobsTable({
                 )}
               </span>
               <span className="flex flex-none items-baseline gap-2 font-mono text-xs text-muted-foreground">
-                <span>{j.last_run ? timeAgo(j.last_run) : "Never"}</span>
+                <span>{j.last_run ? timeAgo(j.last_run, now) : "Never"}</span>
                 <span
                   className={next.overdue ? "text-destructive" : "text-faint"}
                 >

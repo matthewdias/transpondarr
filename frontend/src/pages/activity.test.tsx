@@ -13,6 +13,7 @@ import type {
 } from "@/lib/api";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ActivityPage } from "@/pages/activity";
+import { advanceClock, fakeClock, settle } from "@/test/clock";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -171,6 +172,53 @@ describe("ActivityPage", () => {
     // Two deadlines, on the two rows that have one: a stall with bytes on disk
     // is not going to be given up on however long it stays.
     expect(screen.getAllByText(/giving up/)).toHaveLength(2);
+  });
+
+  // Both sections poll, but an unchanged payload re-renders nothing, so a
+  // stalled queue would otherwise freeze on its last countdown (#144).
+  it("keeps queue and orphan ages and the give-up countdown moving while the page sits open", async () => {
+    fakeClock();
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60_000).toISOString();
+    useHandlers(
+      {
+        client_ok: true,
+        items: [
+          queueItem({
+            created_at: fiveMinutesAgo,
+            client_state: "stalled",
+            progress: 0,
+            abandon_at: new Date(Date.now() + 1.5 * 3600_000).toISOString(),
+          }),
+        ],
+      },
+      { "": { events: [] } },
+      undefined,
+      {
+        ...noUnmatched,
+        items: [
+          {
+            infohash: "eeee5555",
+            name: "[FakeGroup] Signal Anomaly - 04 (1080p) [ABCD1234]",
+            client_state: "downloading",
+            progress: 0.25,
+            save_path: "/downloads",
+            size: 734003200,
+            added_at: fiveMinutesAgo,
+          },
+        ],
+      },
+    );
+    const client = renderPage();
+
+    expect(await screen.findByText(/giving up in 1h/)).toBeInTheDocument();
+    expect(screen.getByText("5m ago")).toBeInTheDocument();
+    expect(await screen.findByText(/added 5m ago/)).toBeInTheDocument();
+
+    advanceClock(2 * 3600_000);
+    expect(screen.getByText(/giving up shortly/)).toBeInTheDocument();
+    expect(screen.getByText("2h ago")).toBeInTheDocument();
+    expect(screen.getByText(/added 2h ago/)).toBeInTheDocument();
+    await settle(client);
   });
 
   it("shows queue rows with live client state and history rows with details", async () => {

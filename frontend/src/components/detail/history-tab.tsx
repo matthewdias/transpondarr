@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import { api, type BlocklistEntry, errorReason } from "@/lib/api";
 import { GrabEventRow } from "@/components/grab-event-row";
 import { blocklistQuery, grabsQuery } from "@/lib/queries";
-import { countdownOrDate, plural, timeAgo } from "@/lib/format";
+import { countdownOrDate, parseTimestamp, plural, timeAgo } from "@/lib/format";
+import { useNow } from "@/hooks/use-now";
 import { cn } from "@/lib/utils";
 import { cardRow } from "@/lib/card-row";
 import { EmptyState } from "@/components/empty-state";
@@ -102,6 +103,7 @@ export function BlockedReleases({
   // render does not have yet.
   const [showExpired, setShowExpired] = useState<boolean | null>(null);
   const clear = useClearBlocklist(titleId);
+  const now = useNow();
 
   if (isError) {
     return (
@@ -117,8 +119,9 @@ export function BlockedReleases({
   }
   if (!entries || entries.length === 0) return null;
 
-  const blocking = entries.filter((e) => e.active);
-  const expired = entries.filter((e) => !e.active);
+  const current = entries.map((e) => ({ ...e, active: activeAt(e, now) }));
+  const blocking = current.filter((e) => e.active);
+  const expired = current.filter((e) => !e.active);
   // Expanded by default only when there is nothing else in the section to read.
   const expandExpired = showExpired ?? blocking.length === 0;
 
@@ -143,7 +146,7 @@ export function BlockedReleases({
             Releases that failed and are skipped when ranking. Each repeat
             failure blocks for longer; the third blocks permanently.
           </p>
-          <BlockedList titleId={titleId} entries={blocking} />
+          <BlockedList titleId={titleId} entries={blocking} now={now} />
         </>
       )}
       {expired.length > 0 && (
@@ -172,7 +175,7 @@ export function BlockedReleases({
                 overwrites the failed grab row, and the failure count still
                 escalates if the release fails again.
               </p>
-              <BlockedList titleId={titleId} entries={expired} />
+              <BlockedList titleId={titleId} entries={expired} now={now} />
               <Button
                 variant="ghost"
                 size="sm"
@@ -216,14 +219,16 @@ function useClearBlocklist(titleId: number) {
 function BlockedList({
   titleId,
   entries,
+  now,
 }: {
   titleId: number;
   entries: BlocklistEntry[];
+  now: number;
 }) {
   return (
     <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm">
       {entries.map((e) => (
-        <BlockedRow key={e.id} titleId={titleId} entry={e} />
+        <BlockedRow key={e.id} titleId={titleId} entry={e} now={now} />
       ))}
     </ItemGroup>
   );
@@ -232,9 +237,11 @@ function BlockedList({
 function BlockedRow({
   titleId,
   entry,
+  now,
 }: {
   titleId: number;
   entry: BlocklistEntry;
+  now: number;
 }) {
   const queryClient = useQueryClient();
   const unblock = useMutation({
@@ -276,7 +283,7 @@ function BlockedRow({
           {entry.reason}
           {entry.failures > 1 && ` · ${entry.failures} failures`}
         </div>
-        <div className="text-xs text-faint">{blockWindow(entry)}</div>
+        <div className="text-xs text-faint">{blockWindow(entry, now)}</div>
       </ItemContent>
       <ItemActions>
         <Button
@@ -294,8 +301,16 @@ function BlockedRow({
 
 // "Unblocks", not "Blocked until": the near-term form is a countdown ("in 20h"),
 // which only reads as English after a verb.
-function blockWindow(entry: BlocklistEntry): string {
+function blockWindow(entry: BlocklistEntry, now: number): string {
   if (!entry.blocked_until) return "Blocked permanently";
-  if (!entry.active) return `Block expired ${timeAgo(entry.blocked_until)}`;
-  return `Unblocks ${countdownOrDate(entry.blocked_until)}`;
+  if (!entry.active)
+    return `Block expired ${timeAgo(entry.blocked_until, now)}`;
+  return `Unblocks ${countdownOrDate(entry.blocked_until, now)}`;
+}
+
+// The server's `active` is as of the request and this list doesn't poll, so the
+// clock can retire a block, but a browser clock running behind never revives one.
+function activeAt(entry: BlocklistEntry, now: number): boolean {
+  if (!entry.active || !entry.blocked_until) return entry.active;
+  return parseTimestamp(entry.blocked_until) > now;
 }

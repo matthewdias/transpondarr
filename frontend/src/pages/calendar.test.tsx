@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { CalendarItem, UnscheduledTitle } from "@/lib/api";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { CalendarPage } from "@/pages/calendar";
+import { advanceClock, fakeClock } from "@/test/clock";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -165,6 +166,37 @@ describe("CalendarPage", () => {
     const week = await screen.findByRole("link", { name: /backlog kaiju/i });
     expect(week).toHaveTextContent("library offline");
     expect(screen.queryByTitle("library offline")).toBeNull();
+  });
+
+  // The calendar doesn't poll, so only the clock can move a countdown or the
+  // today marker (#144).
+  it("keeps counting down, and moves the today marker at midnight, while the page sits open", async () => {
+    // A Wednesday evening in the pinned zone, with Thursday in the same week.
+    fakeClock(new Date(2026, 6, 22, 22, 0));
+    server.use(
+      calendarHandler([
+        item({ id: 1, airs_at: new Date(2026, 6, 22, 12, 0).toISOString() }),
+        item({
+          id: 2,
+          number: 5,
+          airs_at: new Date(2026, 6, 23, 0, 45).toISOString(),
+        }),
+      ]),
+    );
+    renderPage();
+    await userEvent.click(await screen.findByRole("tab", { name: "Agenda" }));
+
+    const thursday = await screen.findByRole("link", { name: /Ep 5/ });
+    expect(thursday).toHaveTextContent("in 2h");
+    expect(screen.getByText(/Wednesday.*· Today/)).toBeInTheDocument();
+
+    advanceClock(60 * 60_000);
+    expect(thursday).toHaveTextContent("in 1h");
+
+    advanceClock(60 * 60_000);
+    expect(thursday).toHaveTextContent("in 45m");
+    expect(screen.getByText(/Thursday.*· Today/)).toBeInTheDocument();
+    expect(screen.queryByText(/Wednesday.*· Today/)).not.toBeInTheDocument();
   });
 
   // Colour alone can't convey status (WCAG 1.4.1): each month entry names it in

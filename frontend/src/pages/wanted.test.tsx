@@ -19,6 +19,7 @@ import {
 } from "@/test/responsive";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { WantedPage } from "@/pages/wanted";
+import { advanceClock, fakeClock } from "@/test/clock";
 
 const server = setupServer();
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -262,6 +263,57 @@ it("dates what the last pass decided and names the release", async () => {
   // Episode 4 has no story of its own; its group shows it.
   expect(screen.queryAllByText(/Releases declined · 2h ago/)).toHaveLength(1);
   expect(screen.getByText("Episode 4")).toBeInTheDocument();
+});
+
+// The Missing list doesn't poll, so a countdown to a broadcast and the age of a
+// pass reason move only when the clock ticks (#144).
+it("keeps air-date countdowns and pass ages moving while the page sits open", async () => {
+  fakeClock();
+  useHandlers({
+    pages: {
+      "": {
+        groups: [
+          group(
+            {
+              reason: "search_backoff",
+              next_search_at: new Date(
+                Date.now() + 4.5 * 3600_000,
+              ).toISOString(),
+            },
+            [
+              missing({
+                id: 1,
+                number: 4,
+                airs_at: new Date(Date.now() + 2.5 * 3600_000).toISOString(),
+              }),
+              missing({
+                id: 2,
+                number: 5,
+                reason: "no_match",
+                last_pass: {
+                  source: "sweep",
+                  at: new Date(Date.now() - 2 * 3600_000).toISOString(),
+                },
+              }),
+            ],
+          ),
+        ],
+      },
+    },
+  });
+  renderPage();
+
+  expect(await screen.findByText("Nothing matched · 2h ago")).toBeVisible();
+  expect(screen.getByText("in 2h")).toBeInTheDocument();
+  await userEvent.click(
+    screen.getByRole("button", { name: "Search backing off" }),
+  );
+  expect(await waitFor(announced)).toHaveTextContent("Next search in 4h");
+
+  advanceClock(3600_000);
+  expect(screen.getByText("Nothing matched · 3h ago")).toBeVisible();
+  expect(screen.getByText("in 1h")).toBeInTheDocument();
+  expect(announced()).toHaveTextContent("Next search in 3h");
 });
 
 // A hold names what it is waiting for and how long is left, which is how the
