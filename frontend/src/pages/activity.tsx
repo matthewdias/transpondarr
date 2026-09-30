@@ -29,6 +29,7 @@ import {
   timeAgo,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { cardRow } from "@/lib/card-row";
 import { GrabEventRow } from "@/components/grab-event-row";
 import { RemoveUnmatchedDialog } from "@/components/remove-unmatched-dialog";
 import { RetryImportDialog } from "@/components/retry-import-dialog";
@@ -62,10 +63,7 @@ function SectionSkeleton() {
   return (
     <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
       {Array.from({ length: 2 }).map((_, i) => (
-        <div
-          key={i}
-          className="flex items-center gap-3 border-b px-3.5 py-3 last:border-b-0"
-        >
+        <div key={i} className={cn("flex items-center gap-3", cardRow)}>
           <Skeleton className="size-8 rounded-lg" />
           <div className="flex-1 space-y-1.5">
             <Skeleton className="h-3.5 w-40" />
@@ -117,7 +115,7 @@ function QueueSection() {
               Check its connection in Settings.
             </p>
           )}
-          <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
+          <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm">
             {data.items.map((item) => (
               <QueueRow key={item.id} item={item} />
             ))}
@@ -178,7 +176,7 @@ function QueueRow({ item }: { item: QueueItem }) {
   const { icon: Icon, tone } = queueTone(item);
   const [fixing, setFixing] = useState(false);
   return (
-    <Item className="gap-3">
+    <Item className={cn("gap-3", cardRow)}>
       <ItemMedia>
         <span className={cn("grid size-8 place-items-center rounded-lg", tone)}>
           <Icon className="size-4" />
@@ -271,7 +269,7 @@ function UnmatchedSection() {
             downloads a later grab replaced, and downloads kept when their title
             was deleted. Removing one is up to you.
           </p>
-          <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
+          <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm">
             {data?.items.map((item) => (
               <UnmatchedRow
                 key={item.infohash}
@@ -296,7 +294,7 @@ function UnmatchedRow({
   onConfirming: (open: boolean) => void;
 }) {
   return (
-    <Item className="gap-3">
+    <Item className={cn("gap-3", cardRow)}>
       <ItemMedia>
         <span className="grid size-8 place-items-center rounded-lg bg-panel-2 text-muted-foreground">
           <FileQuestion className="size-4" />
@@ -353,7 +351,7 @@ function HistorySection() {
         />
       ) : (
         <>
-          <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm [&>*+*]:border-t">
+          <ItemGroup className="overflow-hidden rounded-lg border bg-card shadow-sm">
             {events.map((e) => (
               <GrabEventRow
                 key={e.id}

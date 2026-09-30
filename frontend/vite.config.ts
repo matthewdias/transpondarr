@@ -18,6 +18,7 @@ if (process.env.VITEST) process.env.TZ = "America/New_York";
 const unitTests = [
   "src/lib/bar-segments.test.ts",
   "src/lib/calendar.test.ts",
+  "src/lib/card-row.test.ts",
   "src/lib/chart.test.ts",
   "src/lib/contrast.test.ts",
   "src/lib/format.test.ts",
