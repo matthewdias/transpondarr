@@ -17,7 +17,7 @@ disclosure is appreciated.
 ## Security model & deployment notes
 
 Transpondarr is self-hosted software intended to run on a trusted home/LAN network,
-typically behind a reverse proxy. Keep these in mind when exposing it:
+typically behind a reverse proxy.
 
 - **Authentication.** Humans log in (username + argon2id password) and get an httpOnly
   session cookie; machine clients (dashboards, scripts) use the `X-Api-Key` header.
@@ -42,7 +42,8 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   website someone on your LAN opens can address Transpondarr by its IP directly.
   Such a request has an IP literal in `Host` and a private peer address, so the
   bypass applies to it. Read "every device on your LAN" as including "every website
-  anyone on your LAN visits".
+  anyone on your LAN visits". The `Origin` check in the next point rejects such a
+  page's writes, but not its reads.
 
 - **Transpondarr rejects a request that changes something when it comes from another
   website.** Browsers attach an `Origin` header to every request that is not a plain
@@ -66,12 +67,13 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   the port the proxy listens on, which differs from the published port whenever a
   container maps ports.
 
-- **Run as the data owner, not root.** The container starts as root only to fix
-  ownership of `/config`, then drops to `PUID`/`PGID` (default `1000:1000`) before
-  serving. Set those two variables to the UID:GID qBittorrent runs as, which is the
-  user that can hardlink its downloads (README explains why, and what to do when
-  you need a different one).
-  `PUID=0` skips the drop and keeps the server running as root. If you set `user:` (or `--user`) instead, the root phase is skipped and
+- **Run as qBittorrent's user, not root.** The container starts as root only to
+  fix ownership of `/config`, then drops to `PUID`/`PGID` (default `1000:1000`)
+  before serving. Set those two variables to the UID:GID qBittorrent runs as, which
+  is the user that can hardlink its downloads (README explains why, and what to do
+  when you need a different one).
+  `PUID=0` skips the drop and keeps the server running as root. If you set a
+  non-root `user:` (or `--user`) instead, the root phase is skipped and
   `PUID`/`PGID` are ignored, so `/config` must already be writable by that user.
   Docker creates a missing bind-mount directory owned by root, and the server then
   exits at startup with an error naming the uid it runs as.
@@ -93,7 +95,7 @@ typically behind a reverse proxy. Keep these in mind when exposing it:
   **Running as root also costs you writes into folders another user owns.** A
   library folder qBittorrent's user created is `0755`, so an import into it fails
   with "permission denied" — `DAC_READ_SEARCH` grants read and search, not write.
-  The `PGID` workaround README describes doesn't reach this: `PUID=0` skips the
+  The `PGID` workaround README describes doesn't apply here: `PUID=0` skips the
   privilege drop, and the drop is what would have applied `PGID`, so the server
   keeps the group Docker started it with. Apply it at the Docker level instead —
   `user: "0:1000"` or `group_add` — and make the library folders `0775`, and the
