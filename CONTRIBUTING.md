@@ -10,9 +10,8 @@
 
 ## Toolchain
 
-Transpondarr pins its toolchain in `mise.toml` so builds are reproducible. **mise
-is optional**: it installs the same tools you'd otherwise install yourself, at the
-pinned versions.
+Transpondarr pins its toolchain in `mise.toml` so builds are reproducible, but
+**mise is optional**: you can install the same tools yourself.
 
 ### With mise (recommended)
 
@@ -25,8 +24,7 @@ pinned versions.
 
 ### Without mise
 
-Install these yourself (versions are what CI uses; the pinned versions are in
-`mise.toml`):
+Install these yourself. CI runs the exact versions pinned in `mise.toml`.
 
 | Tool                        | Version | Install                                                                      |
 | --------------------------- | ------- | ---------------------------------------------------------------------------- |
@@ -60,9 +58,10 @@ make dev     # live-reload API (air)
 
 ### Tests
 
-`make test` runs the Go suite under the race detector. The race runtime links via
-cgo on Linux, so the race detector needs a C toolchain (`gcc` or `clang`). The
-shipped binary is still built `CGO_ENABLED=0` and stays pure Go.
+`make test` runs the frontend suite and the Go suite, the Go suite under the race
+detector. The race runtime links via cgo on Linux, so the race detector needs a
+C toolchain (`gcc` or `clang`). The shipped binary is still built
+`CGO_ENABLED=0` and stays pure Go.
 
 The frontend suite is split into two vitest projects: `unit` runs the pure-logic
 suites listed in `frontend/vite.config.ts` without a DOM, and `dom` runs
@@ -97,17 +96,18 @@ A `.env` file in the working directory is loaded on startup (see
 [`.env.example`](.env.example)); real environment variables override it. Copy
 `.env.example` to `.env` to pin a dev API key and integration values.
 
-`.env.local` is read first and so outranks `.env`. Use it for per-checkout values:
-put anything true of *this* working copy alone there — a port, a stub endpoint —
-and keep `.env` for what every checkout shares. Neither file is committed. The
-split matters most in a git worktree, where `.env` is often shared with the main
-checkout, so editing it would change every checkout at once.
+`.env.local` is read first and so outranks `.env`. Put anything true of *this*
+working copy alone there — a port, a stub endpoint — and keep `.env` for what
+every checkout shares. Neither file is committed. The split matters most in a git
+worktree, where `.env` is often shared with the main checkout, so editing it would
+change every checkout at once.
 
 ## Seeding a dev database
 
 Layout bugs show up in a library that has been running for weeks, not in two
 hand-added titles and a lot of empty states. `make seed` builds a database like
-that, and serves the AniList and Torznab stubs the two live-fetching screens need:
+that, and serves the AniList and Torznab stubs that the Releases and Discovery
+screens fetch from:
 
 ```
 make seed                      # seed ./data and serve the stubs until ctrl-c
@@ -139,17 +139,17 @@ There is deliberately no fake download client. The seeded grab rows produce
 every status the Activity queue derives — downloading, stuck and deferred — and
 every status the History tab lists. They can't produce the queue's live columns:
 progress, client state and the abandon countdown are all read from a download
-client, so those stay empty. For the same reason the printed environment block
-sets `TRANSPONDARR_QBIT_URL` to nothing. If the importer connected to a real
-qBittorrent it would find none of the seeded info hashes and fail every seeded
-grab row after five minutes. If your `.env.local` already sets that variable,
-blank it yourself — devseed won't overwrite an existing `.env.local`.
+client, so those stay empty. The printed environment block sets
+`TRANSPONDARR_QBIT_URL` to nothing, because an importer connected to a real
+qBittorrent would find none of the seeded info hashes and fail every seeded grab
+row after five minutes. If your `.env.local` already sets that variable, blank it
+yourself — devseed won't overwrite an existing `.env.local`.
 
 ### The calendar after startup
 
-One seeded calendar state doesn't survive the server starting. The calendar
-footer separates a title the provider hasn't been asked about from one the
-provider publishes no dates for. `airing-sync` runs at startup and stamps the
+One seeded calendar case doesn't survive the server starting. The calendar
+footer separates a title the metadata provider hasn't been asked about from one
+the provider publishes no dates for. `airing-sync` runs at startup and stamps the
 unasked title as asked, so after its first run every seeded title shows as asked.
 The stamp is the job doing its work, not a gap in the fixtures: `--seed-only`
 leaves the unasked title in place, and `TestSeedProducesBothCalendarAbsences`
@@ -159,10 +159,12 @@ reads it there.
 
 - **Content-type-agnostic core** (`internal/core/domain`): the pipeline is keyed
   on `WantedItem`, so a film (`domain.FormatMovie`) is a title with a single item
-  and goes through the same pipeline as an episode.
+  and goes through the same pipeline as an episode. Don't hardcode "episode" in
+  the pipeline.
 - **Pluggable interfaces:** `Indexer` (Torznab only; native integrations are
   planned), `download.Client` (qBittorrent), `library.Target` (media-server
-  layout now; a drop-folder later).
+  layout now; a drop-folder later). Add a new indexer, download client or library
+  target behind its existing interface.
 
 ## Layout
 
@@ -210,7 +212,7 @@ frontend/               Vite + React + TypeScript source
 `CHANGELOG.md` is not a summary written at release time — it **is** the release
 notes. `scripts/release-notes.sh` extracts the tag's section verbatim for the
 GitHub Release, and the release workflow fails a tag with no matching section.
-That check proves a section *exists*; only you can make it complete.
+That check proves a section *exists*, not that it's complete.
 
 So add the entry in the PR that changes the behaviour, under `[Unreleased]`:
 
@@ -234,9 +236,3 @@ Before tagging a release, read the whole `[Unreleased]` section back:
    drop anything that turned out to be internal.
 3. Rename the heading to the version and date, and open the release with a short
    paragraph on the theme — see the `0.5.0` and `0.4.0` entries.
-
-## Conventions
-
-- Keep new indexers / download clients / library targets behind their existing
-  interfaces.
-- Don't hardcode "episode" in the pipeline — use `domain.WantedItem`.

@@ -1,15 +1,17 @@
 # Transpondarr
 
-An anime-focused PVR — Sonarr's job, built around anime-native tooling and
-metadata. It monitors anime series and films, finds releases on anime indexers,
-drives a download client, and organizes the results into a media library.
+An anime-focused PVR: it does Sonarr's job, with AniList metadata and a parser
+built for anime release names. Add a series or a film from AniList, and
+Transpondarr searches your anime indexers for what you monitor. It scores each
+release against your quality profile, grabs the highest-ranked one through
+qBittorrent, and hardlinks the finished download into a Plex/Jellyfin-ready
+library.
 
-> **Status:** Beta. The acquisition loop runs end-to-end and unattended. Add a
-> series or a film from AniList, and what you monitor is searched, graded against
-> your quality profile, grabbed via qBittorrent, and hardlinked into a
-> Plex/Jellyfin-ready library. Automation ships off by default; flip it on in
-> Settings, or set it to **notify-only** first to watch what it would grab
-> without grabbing anything. Indexing is via Torznab/Prowlarr for now.
+> **Status:** Beta. The acquisition loop runs end-to-end and unattended.
+> Automation has one global switch, off / notify-only / on, and ships off. Turn it
+> on in Settings, or start with **notify-only**, which runs real searches and real
+> decisions and reports what it would grab instead of grabbing it. Indexing is
+> Torznab/Prowlarr only for now.
 
 ## Why not use Sonarr?
 
@@ -21,59 +23,61 @@ that comes from AniList/AniDB rather than TVDB.
 
 **Today:**
 
-- **AniList-native metadata** — add series and films from AniList search, browse
-  a seasonal discovery chart, and see upcoming episodes and film premieres on an
+- **AniList metadata** — add series and films from AniList search, browse a
+  seasonal discovery chart, and see upcoming episodes and film premieres on an
   airing calendar keyed to Japanese broadcast times.
-- **Series and films, each handled as itself** — an episode is matched by number
-  and filed under its show; a film is matched by its name and release year and
-  filed into a movies library as `Placeholder Film (2019)/Placeholder Film
-  (2019).mkv`. Plex and Jellyfin use separate libraries for films and shows, so
-  each library gets its own root in Transpondarr. Until the movies root is set, a
-  grabbed film stays in the Activity queue instead of being imported into the
-  wrong library. Which handling a title gets depends on its format, never its
-  episode count, so a one-episode OVA is a series and files with them. A film's
-  year is what automation matches on, so automation doesn't grab a film until its
-  year is published; searching and grabbing by hand work throughout.
-- **Automated acquisition** — recent-feed polling grabs new releases within
-  minutes of them appearing, and a scheduled search sweep queries the indexer for
-  everything that already existed. Monitoring is per title **and per episode**:
-  choose at add time whether to search for a whole back catalogue or only what
-  airs next, and unmonitor anything you don't want searched for. Automation runs
-  under a global off / notify-only / on switch (off until you enable it).
-  **Notify-only** rehearses the whole pipeline — real searches and real
-  decisions, reported instead of grabbed. Requests can be filtered to specific
-  indexer categories, and if a feed poll misses a page, the series that aired
-  inside the gap go back to the front of the search queue.
+- **Series and films, matched and filed differently** — a release is matched to
+  an episode by number and filed under its show; a film's release is matched by
+  name and release year and filed into a movies library as `Placeholder Film
+  (2019)/Placeholder Film (2019).mkv`. Plex and Jellyfin keep films and shows in
+  separate libraries, so Transpondarr has a library root for each. Until the
+  movies root is set, a grabbed film stays in the Activity queue instead of being
+  imported into the wrong library. Which handling a title gets depends on its
+  format, never its episode count, so a one-episode OVA is handled as a series.
+  Automation matches a film on its year, so it doesn't grab a film until the year
+  is published; searching and grabbing by hand don't need the year.
+- **Automated acquisition** — Transpondarr polls the indexer's recent feed to grab
+  new releases within minutes of them appearing, and a scheduled search sweep
+  queries the indexer for older releases. If a feed poll misses a feed page, the
+  titles that aired inside the gap go back to the front of the search queue.
+  Monitoring is per title **and per episode**: choose at add time whether to
+  search for a whole back catalogue or only what airs next, and unmonitor
+  anything you don't want searched for. Indexer requests can be limited to
+  specific Newznab categories.
 - **A Wanted queue that shows why** — everything still missing across the
   library, and everything you have that scores below its profile's cutoff, each
   with the reason it hasn't been grabbed: automation off, unmonitored, queued for
-  search, blocklisted — or the release the last pass found and declined, and why.
-- **Notifications and an activity feed** — Discord, generic webhook, and ntfy,
-  with per-event toggles and a test button each; an Activity page collects the
+  search, blocklisted — or the release the last search found and declined, and
+  why.
+- **Notifications and an Activity page** — Discord, generic webhook, and ntfy,
+  with per-event toggles and a test button each. The Activity page lists the
   in-flight queue, the grab/import history across every title, and any download
-  left in the client that no grab is linked to.
-- **Anime-aware quality profiles** — release group is the dominant axis, then
+  left in the client that isn't linked to a grab.
+- **Anime-aware quality profiles** — release group counts most, then
   resolution/release source, dual audio, and sub preferences, with a minimum
   score and hard excludes. A profile is chosen when you add a title and can be
-  reassigned from its page later. A per-title **pinned group** can also mean
+  reassigned from its page later. A per-title **pinned release group** outranks
+  every score. With a pin delay set, globally or per title, the pin also means
   *wait for*: automation holds new episodes for the pinned release group's
-  release before taking another group's. Opt a profile into **upgrades** and an
-  episode you already have is re-grabbed while its file scores below the cutoff.
-  Once the file meets the cutoff, automation takes only a v2 or repack of that
-  release, from the same release group at the same resolution. **Still take v2s
-  and repacks after cutoff** is on by default; turn it off to leave the file alone
-  for good.
+  release before taking another group's.
+- **Upgrades** — opt a profile into upgrades and an episode you already have is
+  re-grabbed while its file scores below the cutoff. Once the file meets the
+  cutoff, automation takes only a v2 or repack of that release, from the same
+  release group at the same resolution. **Still take v2s and repacks after
+  cutoff** is on by default; turn it off to leave the file alone for good.
 - **Failure memory** — a failed release is blocklisted with escalating expiry
-  instead of re-grabbed forever. If many grabs fail within minutes of each other,
-  a breaker treats the failures as an environmental fault and stops blocklisting,
-  so one bad afternoon doesn't blocklist the library. Everything is visible in
-  the UI, and a blocklisted release can be unblocked there.
-- **Manual control** — search and grab by hand, with an episode's Search opening
-  the release list focused on that episode. Your quality profile never blocks a
+  instead of being grabbed again forever. If grabs for many different items fail
+  within minutes of each other, the cause is more likely the download client or
+  the disk than the releases. A breaker then stops blocklisting until the failures
+  stop, so one bad afternoon doesn't blocklist the library. You can see and
+  unblock a title's blocklisted releases on its History tab, and Settings →
+  Failure memory shows when the breaker has tripped.
+- **Manual control** — search and grab by hand; an episode's Search opens the
+  release list focused on that episode. Your quality profile never blocks a
   manual grab: profiles are advisory on manual actions and enforced only on
-  automation. A release that doesn't match any of the title's episodes, or isn't
-  the film, is still refused (eg. another show's release, or an episode number
-  past the title's last episode).
+  automation. Transpondarr still won't grab a release that matches none of the
+  title's episodes, or isn't the film (eg. another show's release, or an episode
+  number past the title's last episode).
 - **Seeding-safe library import** — hardlink (or copy) into Plex/Jellyfin-ready
   naming, without breaking the seeding torrent. Episodes file into season
   folders or flat, whichever suits your media server's scanner. Season packs
@@ -83,19 +87,19 @@ that comes from AniList/AniDB rather than TVDB.
   a reason listing what to extract, and extracting it in place then retrying
   from **Fix import** completes the import.
 - **Self-hosted, single binary** — embedded web UI, login + API key auth, REST
-  API with an OpenAPI spec, observable background jobs, and live-editable
-  settings — no restarts.
+  API with an OpenAPI spec, background jobs you can watch under Settings →
+  Background jobs, and settings that apply without a restart.
 
-**Planned** (tracked in the
+**Planned after 1.0** (tracked in the
 [milestones](https://github.com/matthewdias/transpondarr/milestones)):
 
-- Post-1.0: AniList account sync (auto-monitor your Watching list), adopting a
-  pre-existing library and detecting when it changes on disk, more indexers and
-  download clients with per-title routing between them, and Sonarr-API
-  compatibility for existing dashboard/mobile apps.
-- Post-1.0: first-class handling for series whose releases aren't numbered the way
-  AniList numbers them — continuously-airing long-runners, fan re-cuts, and a
-  per-series override for when the automatic mapping is wrong.
+- AniList account sync: auto-monitor your Watching list.
+- Adopting a pre-existing library, and detecting when it changes on disk.
+- More indexers and download clients, with per-title routing between them.
+- Sonarr-API compatibility, for existing dashboard and mobile apps.
+- Handling for series whose releases aren't numbered the way AniList numbers
+  them: continuously-airing long-runners, fan re-cuts, and a per-series override
+  for when the automatic mapping is wrong.
 
 ## Install
 
@@ -170,19 +174,21 @@ integration left unconfigured is disabled, and the server still starts.
 | `TRANSPONDARR_LIBRARY_SERIES_LAYOUT`       | `season_folders`          | Path shape inside the series root: `season_folders` \| `flat`. Films are unaffected, and switching applies to future imports only. |
 | `TRANSPONDARR_IMPORT_MODE`                 | `auto`                    | `auto` (hardlink, copy across filesystems) \| `hardlink` \| `copy`.                                       |
 | `TRANSPONDARR_AUTOMATION_ENABLED`          | `false`                   | `off` \| `notify_only` \| `on` (bools also accepted). `notify_only` rehearses: it reports what automation would grab, without grabbing. |
-| `TRANSPONDARR_PIN_DELAY_HOURS`             | `0`                       | Hours automation holds a grab for a series' pinned release group before taking another group's release; per-series overrides in the UI. |
+| `TRANSPONDARR_PIN_DELAY_HOURS`             | `0`                       | Hours automation holds a grab for a title's pinned release group before taking another group's release; per-title overrides in the UI. |
 | `PUID` / `PGID`                            | `1000` / `1000`           | Docker only: the uid:gid the container drops to after fixing `/config` ownership on start.                |
 
 > **Auth & reverse proxies.** The `local` auth mode skips login only for requests
 > from loopback/private addresses **with no forwarding headers**. A reverse proxy
-> sets `X-Forwarded-For`, so reverse-proxied requests always require login, and a
-> same-host proxy can't turn the `local` bypass into open access. Session cookies
-> are marked `Secure` automatically when the proxy sets `X-Forwarded-Proto: https`.
+> normally adds one (eg. `X-Forwarded-For`), so reverse-proxied requests require
+> login, and a same-host proxy can't turn the `local` bypass into open access.
+> Session cookies are marked `Secure` automatically when the proxy sets
+> `X-Forwarded-Proto: https`. Read [SECURITY.md](SECURITY.md) before choosing
+> `local`: it skips login for every device on your LAN.
 
 ## Docker deployment
 
-For a real deployment alongside qBittorrent and a media server, use
-[`docker-compose.yml`](docker-compose.yml) as a template. Five things matter:
+Use [`docker-compose.yml`](docker-compose.yml) as a template, then check its paths
+and permissions against these points:
 
 - **Imports hardlink from the path qBittorrent reports.** Mount your shared
   downloads/library volume into Transpondarr at the _same path_ qBittorrent uses,
@@ -197,13 +203,6 @@ For a real deployment alongside qBittorrent and a media server, use
   so check that separately. If an import can't write into a folder, it fails with
   "permission denied" and waits in the Activity queue; `auto` import mode doesn't
   copy instead.
-  If you change `PUID` on an existing install, the folders the previous user
-  created are writable only by that user, so the next episode of a title already
-  in the library fails with "permission denied". Give the new user those folders,
-  running this against the library roots' host paths:
-  `find /data/media /data/media-movies -type d -exec chown <PUID>:<PGID> {} +`.
-  Change only the folders: a file in a library root may be a hardlink, and
-  changing its owner changes the download's owner too.
 - **On Linux, `PUID` needs permission to hardlink qBittorrent's downloads.** The
   kernel setting `fs.protected_hardlinks` is on by default on most distributions
   and in Docker Desktop. With it on, a hardlink to a file fails with "operation not
@@ -211,26 +210,34 @@ For a real deployment alongside qBittorrent and a media server, use
   qBittorrent normally saves downloads writable only by its own user, so a
   different `PUID` can't hardlink them. In `auto` import mode, Transpondarr copies
   every file instead, using twice the disk space, and logs the link error on each
-  import. The first import to hit a given failure logs it as a warning, and a
-  restart or any save under Settings → Library arms that warning again. In
-  `hardlink` import mode, the grab waits in the Activity queue with an "operation
-  not permitted" error, and the importer retries it every 15 seconds until the
-  permissions change. `PUID=0` is affected too: `cap_drop: ALL` in
+  import. Only the first import to hit a given failure logs it as a warning, and
+  later ones log it as info until a restart or any save under Settings → Library.
+  In `hardlink` import mode, the import waits in the Activity queue with an
+  "operation not permitted" error, and the importer retries it every 15 seconds
+  until the permissions change. `PUID=0` is affected too: `cap_drop: ALL` in
   [`docker-compose.yml`](docker-compose.yml) leaves root subject to the same check
   as anyone else, and it can't write into a library folder another user created
   either — see [SECURITY.md](SECURITY.md).
 - **To run as a `PUID` other than qBittorrent's, share a group instead.** Put both
   containers in the same group and make both library roots writable by it. `PGID`
-  does that, except under `PUID=0`: that skips the privilege drop, which is what
-  applies `PGID`, so set the group on the container itself (`user: "0:1000"`, or
-  `group_add`). Then set qBittorrent's umask to `002` (eg. `UMASK=002` in the
-  linuxserver image), so new downloads are group-writable. Files downloaded before
-  the umask change stay read-only to the group until you `chmod g+w` them.
-- **Who owns imported files.** The container starts as root, fixes `/config`
-  ownership, and drops to `PUID`/`PGID` before serving. The folders Transpondarr
-  creates in a library root, and any file it copies there (`copy` import mode, or
-  `auto` when a hardlink isn't possible), are owned by that user. A hardlink is the
-  downloaded file under a second name, so it has the same owner as the download.
+  sets Transpondarr's group, except under `PUID=0`, which skips the privilege drop
+  that applies `PGID`. Under `PUID=0`, set the group in the container's Docker
+  config (`user: "0:1000"`, or `group_add`). Then set qBittorrent's umask to `002` (eg.
+  `UMASK=002` in the linuxserver image), so new downloads are group-writable.
+  Files downloaded before the umask change stay read-only to the group until you
+  `chmod g+w` them.
+- **Who owns imported files.** The folders Transpondarr creates in a library root,
+  and any file it copies there (`copy` import mode, or `auto` when a hardlink isn't
+  possible), are owned by the user Transpondarr runs as (normally
+  `PUID`/`PGID`). A hardlink is the downloaded file under a second name, so it has
+  the same owner as the download.
+- **Changing `PUID` on an existing install.** The folders the previous user
+  created are writable only by that user, so the next episode of a title already
+  in the library fails with "permission denied". Give the new user those folders,
+  running this against the library roots' host paths:
+  `find /data/media /data/media-movies -type d -exec chown <PUID>:<PGID> {} +`.
+  Change only the folders: a file in a library root may be a hardlink, and
+  changing its owner changes the download's owner too.
 
 Persist the `/config` volume (it contains the SQLite DB).
 
