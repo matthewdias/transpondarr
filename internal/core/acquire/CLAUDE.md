@@ -43,6 +43,25 @@ a pass records about what it decided.
   implementations (Sonarr keys on the download URL for that reason), and a feed
   publishing no dates dedupes on ids alone.
 
+## Aliases (#345)
+
+- **A title's aliases are stored in its own `series` row and read from it.** The
+  search sweep and feed poll both load titles with `SELECT s.*`, so an alias costs
+  no query. The feed poll reads aliases on a metadata cache miss too, where the
+  provider's names are unavailable (the feed poll's no-provider-request rule, #139).
+- **`decide` receives an alias as one more variant.** So a season marker in an alias
+  sets the season the title matches, exactly as one in the title's own name does
+  (decided on #345).
+- **Each alias is searched as well as the first term, and the results merged.**
+  Putting aliases first would make adding one stop the search finding releases
+  under the provider's name. Appending them as a zero-result fallback would never
+  ask for an alias once a provider name returns anything. The cost is one search
+  per alias per pass, bounded by `catalog.MaxAliases`.
+- **The merge drops only exact repeats of release name and URL together.** Jackett
+  and Prowlarr list one AnimeBytes torrent under each of its names with the same
+  URL. A URL-only key would keep whichever copy was listed first, which can be the
+  one whose name doesn't match.
+
 ## Feed gap detection
 
 - **A feed page proves coverage only by containing the mark's own instant.**

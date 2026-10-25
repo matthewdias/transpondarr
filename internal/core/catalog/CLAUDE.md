@@ -91,3 +91,16 @@ How a title enters the app, what identifies it, and how many items it gets.
   long-runner back at the front of the search queue on every sync.
 - **Refresh still clears the airing stamp on *any* insert**, since the air-date
   sync ignores monitoring.
+
+## Aliases (#345)
+
+- **An alias is what a person entered, so nothing derived from the provider
+  writes it.** `SetTitleAliases` is the only query that writes the column, called
+  by `catalog.SetAliases` and the dev seed. A metadata refresh leaves it alone.
+- **Setting aliases resets the title's search cadence**, as pinning a release
+  group does. The feed's dedupe is one-shot, so a feed entry evaluated under the old
+  names is never evaluated again. The search sweep finds those releases, and without
+  the reset it would first wait out a backoff the old names accrued.
+- **`SetAliases` returns an `AliasError` for an alias with no Latin letter or
+  digit** (`decide.Matchable`). Matching compares only ASCII letters and digits, so
+  such an alias could never match a release name.

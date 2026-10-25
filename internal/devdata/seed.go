@@ -112,6 +112,13 @@ func seedTitle(ctx context.Context, st *store.Store, cache *dbcache.Cache, t tit
 			return fmt.Errorf("set pinned group: %w", err)
 		}
 	}
+	if len(t.aliases) > 0 {
+		if _, err := st.Q.SetTitleAliases(ctx, db.SetTitleAliasesParams{
+			Aliases: store.EncodeAliases(t.aliases), ID: row.ID,
+		}); err != nil {
+			return fmt.Errorf("set aliases: %w", err)
+		}
+	}
 	if t.monitorNewFrom > 0 {
 		if err := st.Q.SetTitleMonitorNewFrom(ctx, db.SetTitleMonitorNewFromParams{
 			MonitorNewFrom: sql.NullInt64{Int64: int64(t.monitorNewFrom), Valid: true},

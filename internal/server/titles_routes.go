@@ -114,6 +114,7 @@ type titleDetailReadDTO struct {
 	QualityProfileID int64           `json:"quality_profile_id"`
 	PinnedGroup      string          `json:"pinned_group,omitempty" doc:"Release group pinned above profile scoring; absent when none"`
 	PinDelayHours    *int            `json:"pin_delay_hours,omitempty" doc:"Per-title override of how long the search sweep waits for the pinned group; absent means the global default"`
+	Aliases          []string        `json:"aliases" doc:"Names this title's releases may use besides the provider's; matched and searched like them"`
 	Items            []detailItemDTO `json:"items"`
 }
 
@@ -146,6 +147,21 @@ type setPinnedGroupInput struct {
 		// maximum mirrors acquire.MaxPinDelayHours, which a struct tag cannot
 		// reference: past it the duration multiply wraps and the wait vanishes.
 		DelayHours *int `json:"delay_hours,omitempty" minimum:"0" maximum:"8760" doc:"Hours the scheduled search sweep waits for this release group before taking another (max 8760); omit to use the global default"`
+	}
+}
+
+// maxItems mirrors catalog.MaxAliases, which a struct tag cannot reference.
+type setAliasesInput struct {
+	ID   int64 `path:"id" doc:"Title id"`
+	Body struct {
+		Aliases []string `json:"aliases" required:"true" maxItems:"5" doc:"Every alias the title should have, replacing the current ones; empty clears them. Up to 5, each up to 200 characters with at least one Latin letter or digit"`
+	}
+}
+
+type setAliasesOutput struct {
+	Body struct {
+		TitleID int64    `json:"title_id"`
+		Aliases []string `json:"aliases" doc:"The aliases as stored, whitespace collapsed"`
 	}
 }
 
@@ -287,6 +303,14 @@ func registerTitleRoutes(api huma.API, deps routeDeps) {
 		Summary:     "Pin a release group for a title (it outranks any profile score)",
 		Tags:        []string{"titles"},
 	}, h.setPinnedGroup)
+
+	huma.Register(api, huma.Operation{
+		OperationID: "set-title-aliases",
+		Method:      http.MethodPut,
+		Path:        "/api/v1/titles/{id}/aliases",
+		Summary:     "Replace the names a title's releases may use besides the provider's",
+		Tags:        []string{"titles"},
+	}, h.setAliases)
 
 	huma.Register(api, huma.Operation{
 		OperationID:   "set-title-item-count",
@@ -442,6 +466,7 @@ func (h *titleHandler) getTitle(ctx context.Context, in *getTitleInput) (*getTit
 		Monitored:        title.Monitored == 1,
 		QualityProfileID: title.QualityProfileID,
 		PinnedGroup:      title.PinnedGroup.String,
+		Aliases:          store.TitleAliases(title.Aliases),
 		Items:            make([]detailItemDTO, 0, len(rows)),
 	}
 	if title.PinDelayHours.Valid {
@@ -569,6 +594,23 @@ func (h *titleHandler) setItemCount(ctx context.Context, in *setItemCountInput) 
 	}
 	out := &setItemCountOutput{}
 	out.Body.Created = int(created)
+	return out, nil
+}
+
+func (h *titleHandler) setAliases(ctx context.Context, in *setAliasesInput) (*setAliasesOutput, error) {
+	aliases, err := h.catalog.SetAliases(ctx, in.ID, in.Body.Aliases)
+	var aliasErr *catalog.AliasError
+	switch {
+	case errors.As(err, &aliasErr):
+		return nil, huma.Error422UnprocessableEntity(aliasErr.Error())
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, huma.Error404NotFound(titleGoneDetail)
+	case err != nil:
+		return nil, storeError("save the aliases", err)
+	}
+	out := &setAliasesOutput{}
+	out.Body.TitleID = in.ID
+	out.Body.Aliases = aliases
 	return out, nil
 }
 

@@ -337,8 +337,9 @@ export function ReleasesTab({
                   {shown.map((r) => (
                     <TableRow
                       // Never the index: the filter changes what row an index
-                      // names, and the release name is stable where a URL is missing.
-                      key={r.download_url || r.title}
+                      // names. Never the URL alone: one torrent can be listed
+                      // under several names.
+                      key={`${r.title}\u0000${r.download_url}`}
                       className={cn(
                         !r.matched && "opacity-60",
                         isMobile && "cursor-pointer",
