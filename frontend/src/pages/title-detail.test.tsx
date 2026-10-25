@@ -277,6 +277,10 @@ describe("AliasesChip", () => {
     const save = screen.getByRole("button", { name: /save/i });
     expect(screen.getByText("Old Name")).toBeInTheDocument();
     expect(save).toBeDisabled();
+    // Focus lands in the field, not on a remove button one keypress from deleting.
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /alias/i })).toHaveFocus(),
+    );
 
     // A spelling that differs only in case or spacing is the same alias.
     const input = screen.getByRole("textbox", { name: /alias/i });

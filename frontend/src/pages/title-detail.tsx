@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -583,6 +583,7 @@ export function AliasesChip({ detail }: { detail: TitleDetail }) {
   const [draft, setDraft] = useState("");
   const inputId = useId();
   const hintId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const current = detail.aliases;
   const typed = draft.trim().replace(/\s+/g, " ");
   const duplicate = aliases.some(
@@ -630,7 +631,15 @@ export function AliasesChip({ detail }: { detail: TitleDetail }) {
             : "Add alias"}
         </button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent
+        className="sm:max-w-sm"
+        // Radix focuses the first control, a remove button one keypress from
+        // deleting an alias; the field is what someone opening this came to use.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          inputRef.current?.focus();
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Aliases</DialogTitle>
           <DialogDescription>
@@ -676,11 +685,12 @@ export function AliasesChip({ detail }: { detail: TitleDetail }) {
           </label>
           <div className="flex gap-2">
             <Input
+              ref={inputRef}
               id={inputId}
               aria-describedby={hintId}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="As it appears in release names"
+              placeholder="As in release names"
               disabled={full}
             />
             <Button
