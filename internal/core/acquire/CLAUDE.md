@@ -57,6 +57,11 @@ a pass records about what it decided.
   under the provider's name. Appending them as a zero-result fallback would never
   ask for an alias once a provider name returns anything. The cost is one search
   per alias per pass, bounded by `catalog.MaxAliases`.
+- **A failed alias search is logged and skipped, while a failed provider-name
+  search fails the pass (decided on #345).** `ErrIndexerSearch` skips the title's
+  backoff, so if a failed alias failed the pass, a term that always errors would
+  block what the provider's name found on every pass. A cancelled context still
+  stops the pass.
 - **The merge drops only exact repeats of release name and URL together.** Jackett
   and Prowlarr list one AnimeBytes torrent under each of its names with the same
   URL. A URL-only key would keep whichever copy was listed first, which can be the

@@ -300,7 +300,13 @@ func (s *Service) search(ctx context.Context, idx indexer.Indexer, variants, ali
 		}
 		found, err := ask(t)
 		if err != nil {
-			return nil, "", err
+			if ctx.Err() != nil {
+				return nil, "", err
+			}
+			// ErrIndexerSearch skips backoff, so failing the pass here would repeat
+			// every pass for a term that always errors (#345).
+			s.log.Warn("alias search failed; continuing without it", "term", t, "err", err)
+			continue
 		}
 		if len(releases) == 0 && len(found) > 0 {
 			term = t

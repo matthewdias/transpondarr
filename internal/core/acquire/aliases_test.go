@@ -1,11 +1,15 @@
 package acquire_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/matthewdias/transpondarr/internal/core/acquire"
 	"github.com/matthewdias/transpondarr/internal/core/indexer"
 	"github.com/matthewdias/transpondarr/internal/coretest"
 	"github.com/matthewdias/transpondarr/internal/store"
@@ -259,5 +263,58 @@ func TestMatchTitle_AliasSeasonMarkerMatchesThatSeason(t *testing.T) {
 	}
 	if matched[s1.Title] {
 		t.Errorf("season 1 release matched, want the alias's marker to refuse it: %+v", m.Candidates)
+	}
+}
+
+// Decided on #345: a failed alias search is skipped for the pass. An indexer error
+// skips the title's backoff, so one term that keeps erroring must not cost the
+// releases the provider's name found, pass after pass.
+func TestMatchTitle_AliasSearchErrorKeepsOtherResults(t *testing.T) {
+	idx := &coretest.FakeIndexer{
+		ByTerm:    map[string][]indexer.Release{providerTerm: {aliasRelease("Starlight Knight 2026", 3, "magnet:?xt=urn:btih:prov03")}},
+		ErrByTerm: map[string]error{aliasName: errors.New("torznab: 400 bad query")},
+	}
+	st := coretest.NewStore(t)
+	rec := &levelRecorder{counts: map[slog.Level]int{}}
+	svc := acquire.New(st, newRegistry(idx, nil), fakeTitles{}, fakeConfig{}, slog.New(rec), nil)
+	id := seedTitle(t, st, providerName, 12)
+	setAliases(t, st, id, aliasName)
+
+	m, err := svc.MatchTitle(t.Context(), id)
+	if err != nil {
+		t.Fatalf("MatchTitle: %v, want the failed alias skipped", err)
+	}
+	if len(m.Candidates) != 1 || !m.Candidates[0].Matched {
+		t.Errorf("candidates = %+v, want the provider-named release matched", m.Candidates)
+	}
+	if rec.count(slog.LevelWarn) != 1 {
+		t.Errorf("logged %d warnings, want 1 naming the skipped alias", rec.count(slog.LevelWarn))
+	}
+}
+
+// Shutdown is not a failed alias: a cancelled pass stops instead of grabbing on
+// partial results, and logs nothing.
+func TestMatchTitle_AliasSearchCancelledStopsThePass(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	idx := &coretest.FakeIndexer{
+		ByTerm:    map[string][]indexer.Release{providerTerm: {aliasRelease("Starlight Knight 2026", 3, "magnet:?xt=urn:btih:prov03")}},
+		ErrByTerm: map[string]error{aliasName: context.Canceled},
+		SearchHook: func(q indexer.Query) {
+			if q.Term == aliasName {
+				cancel()
+			}
+		},
+	}
+	st := coretest.NewStore(t)
+	rec := &levelRecorder{counts: map[slog.Level]int{}}
+	svc := acquire.New(st, newRegistry(idx, nil), fakeTitles{}, fakeConfig{}, slog.New(rec), nil)
+	id := seedTitle(t, st, providerName, 12)
+	setAliases(t, st, id, aliasName)
+
+	if _, err := svc.MatchTitle(ctx, id); !errors.Is(err, context.Canceled) {
+		t.Fatalf("MatchTitle err = %v, want the cancellation", err)
+	}
+	if rec.count(slog.LevelWarn) != 0 {
+		t.Errorf("logged %d warnings for a shutdown, want none", rec.count(slog.LevelWarn))
 	}
 }
