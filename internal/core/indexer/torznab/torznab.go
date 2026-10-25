@@ -5,6 +5,7 @@ package torznab
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -71,6 +72,15 @@ func (i *Indexer) Recent(ctx context.Context) ([]indexer.FeedEntry, error) {
 	return parseEntries(body, i.name)
 }
 
+// withoutURL drops the request URL net/http repeats in a *url.Error, since it
+// contains the apikey and callers log the error.
+func withoutURL(err error) error {
+	if ue, ok := errors.AsType[*url.Error](err); ok {
+		return ue.Err
+	}
+	return err
+}
+
 // fetch runs one Torznab request and returns the raw feed body.
 func (i *Indexer) fetch(ctx context.Context, q indexer.Query) ([]byte, error) {
 	reqURL, err := i.searchURL(q)
@@ -86,7 +96,7 @@ func (i *Indexer) fetch(ctx context.Context, q indexer.Query) ([]byte, error) {
 
 	resp, err := i.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("torznab: request: %w", err)
+		return nil, fmt.Errorf("torznab: request: %w", withoutURL(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
