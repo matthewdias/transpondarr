@@ -6,7 +6,7 @@ require (
 	github.com/alexedwards/argon2id v1.0.0
 	github.com/autobrr/go-qbittorrent v1.16.0
 	github.com/danielgtaylor/huma/v2 v2.39.0
-	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/go-chi/httprate v0.16.0
 	github.com/nssteinbrenner/anitogo v1.0.0
 	github.com/pressly/goose/v3 v3.27.2
