@@ -6,8 +6,18 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-10-26
+
+More control over title matching, safer connections, and an interface that works
+better on phones and with a keyboard. Titles can have release-name aliases, and
+a missing episode count can be supplied by hand. This release also fixes three
+ways credentials or access could be exposed, improves acquisition and calendar
+reliability, and makes status details and failures easier to understand.
+
 ### Security
 
+- **The binaries and container image now use Go 1.26.10**, including the Go
+  security fixes that the release vulnerability scan requires.
 - **Your indexer's API key no longer appears in the log when a search can't reach
   the indexer.** A dropped or refused connection was logged with the full request
   address, and that address includes the key. The log line still names the
@@ -278,6 +288,12 @@ All notable changes to this project are documented here. The format is based on
 
 ### Upgrade notes
 
+- **API clients must send complete settings and quality-profile bodies.** Fields
+  that were silently defaulted when omitted are now required; incomplete requests
+  return 422. The web UI already sends complete bodies.
+- **Update scripts that read notifications or logs.** Stuck-import notifications
+  are now headed *Import blocked*, notify-only reports *Notify only*, and log
+  filters should use the `title` key instead of `series`.
 - **If the web UI starts saying *cross-origin request refused*, your reverse proxy is
   sending Transpondarr the wrong address.** In a normal browser only that produces it.
   Set `X-Forwarded-Host` to the address you type in the browser, or leave it unset and
@@ -1295,7 +1311,8 @@ The initial release: the full anime acquisition loop, end to end.
 - A torrent removed from the client out-of-band is not yet reconciled (a torrent that
   _errors_ in the client is marked failed and the item becomes grabbable again).
 
-[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/matthewdias/transpondarr/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/matthewdias/transpondarr/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/matthewdias/transpondarr/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/matthewdias/transpondarr/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/matthewdias/transpondarr/compare/v0.6.0...v0.7.0
