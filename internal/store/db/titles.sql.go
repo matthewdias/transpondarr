@@ -24,7 +24,7 @@ func (q *Queries) ClearTitleAiringSyncedAt(ctx context.Context, id int64) error 
 const createTitle = `-- name: CreateTitle :one
 INSERT INTO series (provider, provider_id, title, format, monitored, year)
 VALUES (?, ?, ?, ?, ?, ?)
-RETURNING id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year
+RETURNING id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year, aliases
 `
 
 type CreateTitleParams struct {
@@ -66,6 +66,7 @@ func (q *Queries) CreateTitle(ctx context.Context, arg CreateTitleParams) (Serie
 		&i.SearchEpoch,
 		&i.MonitorNewFrom,
 		&i.Year,
+		&i.Aliases,
 	)
 	return i, err
 }
@@ -83,7 +84,7 @@ func (q *Queries) DeleteTitle(ctx context.Context, id int64) (int64, error) {
 }
 
 const getTitle = `-- name: GetTitle :one
-SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year, aliases
 FROM series
 WHERE id = ?
 LIMIT 1
@@ -110,12 +111,13 @@ func (q *Queries) GetTitle(ctx context.Context, id int64) (Series, error) {
 		&i.SearchEpoch,
 		&i.MonitorNewFrom,
 		&i.Year,
+		&i.Aliases,
 	)
 	return i, err
 }
 
 const getTitleByProviderID = `-- name: GetTitleByProviderID :one
-SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year, aliases
 FROM series
 WHERE provider = ? AND provider_id = ?
 LIMIT 1
@@ -148,6 +150,7 @@ func (q *Queries) GetTitleByProviderID(ctx context.Context, arg GetTitleByProvid
 		&i.SearchEpoch,
 		&i.MonitorNewFrom,
 		&i.Year,
+		&i.Aliases,
 	)
 	return i, err
 }
@@ -215,7 +218,7 @@ func (q *Queries) ListMovieItemStates(ctx context.Context) ([]ListMovieItemState
 }
 
 const listTitles = `-- name: ListTitles :many
-SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year
+SELECT id, provider, provider_id, title, format, monitored, created_at, quality_profile_id, airing_synced_at, pinned_group, last_searched_at, search_backoff, next_search_at, pin_delay_hours, search_epoch, monitor_new_from, year, aliases
 FROM series
 ORDER BY title
 `
@@ -247,6 +250,7 @@ func (q *Queries) ListTitles(ctx context.Context) ([]Series, error) {
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
 			&i.Year,
+			&i.Aliases,
 		); err != nil {
 			return nil, err
 		}
@@ -262,7 +266,7 @@ func (q *Queries) ListTitles(ctx context.Context) ([]Series, error) {
 }
 
 const listTitlesDueAiringSync = `-- name: ListTitlesDueAiringSync :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year, s.aliases
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.provider = ?
@@ -328,6 +332,7 @@ func (q *Queries) ListTitlesDueAiringSync(ctx context.Context, arg ListTitlesDue
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
 			&i.Year,
+			&i.Aliases,
 		); err != nil {
 			return nil, err
 		}
@@ -343,7 +348,7 @@ func (q *Queries) ListTitlesDueAiringSync(ctx context.Context, arg ListTitlesDue
 }
 
 const listTitlesDueMetadataRefresh = `-- name: ListTitlesDueMetadataRefresh :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year, s.aliases
 FROM series s
 LEFT JOIN metadata_cache m ON m.provider = s.provider AND m.provider_id = s.provider_id
 WHERE s.provider = ?
@@ -412,6 +417,7 @@ func (q *Queries) ListTitlesDueMetadataRefresh(ctx context.Context, arg ListTitl
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
 			&i.Year,
+			&i.Aliases,
 		); err != nil {
 			return nil, err
 		}
@@ -428,7 +434,7 @@ func (q *Queries) ListTitlesDueMetadataRefresh(ctx context.Context, arg ListTitl
 
 const listTitlesWithProgress = `-- name: ListTitlesWithProgress :many
 SELECT
-    s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year,
+    s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year, s.aliases,
     COUNT(w.id)                            AS total_items,
     CAST(COALESCE(SUM(w.monitored = 1), 0) AS INTEGER) AS monitored_items,
     CAST(COALESCE(SUM(
@@ -466,6 +472,7 @@ type ListTitlesWithProgressRow struct {
 	SearchEpoch      int64          `json:"search_epoch"`
 	MonitorNewFrom   sql.NullInt64  `json:"monitor_new_from"`
 	Year             int64          `json:"year"`
+	Aliases          string         `json:"aliases"`
 	TotalItems       int64          `json:"total_items"`
 	MonitoredItems   int64          `json:"monitored_items"`
 	TrackedItems     int64          `json:"tracked_items"`
@@ -509,6 +516,7 @@ func (q *Queries) ListTitlesWithProgress(ctx context.Context, arg ListTitlesWith
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
 			&i.Year,
+			&i.Aliases,
 			&i.TotalItems,
 			&i.MonitoredItems,
 			&i.TrackedItems,
@@ -607,6 +615,24 @@ type SetTitleAiringSyncedAtParams struct {
 func (q *Queries) SetTitleAiringSyncedAt(ctx context.Context, arg SetTitleAiringSyncedAtParams) error {
 	_, err := q.db.ExecContext(ctx, setTitleAiringSyncedAt, arg.ID, arg.AiringSyncedAt)
 	return err
+}
+
+const setTitleAliases = `-- name: SetTitleAliases :execrows
+UPDATE series SET aliases = ? WHERE id = ?
+`
+
+type SetTitleAliasesParams struct {
+	Aliases string `json:"aliases"`
+	ID      int64  `json:"id"`
+}
+
+// The whole list is replaced; execrows lets the handler 404 an unknown title.
+func (q *Queries) SetTitleAliases(ctx context.Context, arg SetTitleAliasesParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setTitleAliases, arg.Aliases, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setTitleMonitorNewFrom = `-- name: SetTitleMonitorNewFrom :exec

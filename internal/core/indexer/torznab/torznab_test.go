@@ -383,3 +383,24 @@ func TestSearchHTTPErrorStatus(t *testing.T) {
 		t.Fatal("expected an error on HTTP 500")
 	}
 }
+
+// A transport error's text repeats the request URL, apikey included, and callers
+// log it (the search sweep's failure, a skipped alias search), so fetch strips it.
+func TestSearchTransportErrorOmitsTheAPIKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err == nil {
+			_ = conn.Close()
+		}
+	}))
+	defer srv.Close()
+	i := New("jackett", srv.URL+"/api", "SECRETKEY", "")
+
+	_, err := i.Search(t.Context(), indexer.Query{Term: "Placeholder Saga"})
+	if err == nil {
+		t.Fatal("Search against a dropped connection returned no error")
+	}
+	if strings.Contains(err.Error(), "SECRETKEY") {
+		t.Errorf("error %q contains the API key", err)
+	}
+}

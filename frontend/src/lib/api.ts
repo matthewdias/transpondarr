@@ -657,4 +657,13 @@ export const api = {
             : { group, delay_hours: delayHours },
       })
       .then(unwrap),
+
+  // PUT-replace: the list sent is every alias the title keeps (#345).
+  setTitleAliases: (titleId: number, aliases: string[]) =>
+    client
+      .PUT("/api/v1/titles/{id}/aliases", {
+        params: { path: { id: titleId } },
+        body: { aliases },
+      })
+      .then(unwrap),
 };

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -206,7 +207,8 @@ func (s *Service) pollOneTitle(ctx context.Context, title db.Series, releases []
 	if err != nil {
 		return err
 	}
-	m, err := s.evaluate(ctx, title, passItems(sweep), s.cachedVariants(ctx, title), "", releases, parses)
+	variants := slices.Concat(s.cachedVariants(ctx, title), store.TitleAliases(title.Aliases))
+	m, err := s.evaluate(ctx, title, passItems(sweep), variants, "", releases, parses)
 	if err != nil {
 		return err
 	}

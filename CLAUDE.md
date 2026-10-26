@@ -299,8 +299,9 @@ Concretely, in `internal/core/decide`:
   per-episode metadata** — cache aggressively, and degrade to absolute numbering
   rather than depending on TVDB.
 - **The indexer is the scheduled search sweep's scarce resource.** A pass costs one
-  search per title (two when the zero-result title-variant fallback fires), so
-  `titlesPerPass` × the job interval sets the whole search rate.
+  search per title (two when the zero-result title-variant fallback fires), plus
+  one per alias the title has (#345), so `titlesPerPass` × the job interval sets
+  the whole search rate.
 - **Search cost scales with titles carrying *unfilled* items, not library size.** The
   due query's `EXISTS` drops a title as soon as nothing is wanted. So a complete
   library is free, and a satisfied title leaves the queue instead of taking a second

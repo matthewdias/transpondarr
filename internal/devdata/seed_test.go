@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -590,5 +591,35 @@ func TestAStoredRefusalDetailAgreesWithItsOwnProfile(t *testing.T) {
 	}
 	if checked == 0 {
 		t.Error("no stored refusal names a profile minimum; the screen has no threshold to be wrong about")
+	}
+}
+
+// The title header's Aliases chip (#345) shows what the detail route decodes from
+// GetTitle, so the seed needs one title whose aliases arrive through that read.
+func TestSeedProducesATitleWithAnAlias(t *testing.T) {
+	st := seeded(t)
+	var withAliases int
+	for _, ti := range fixtures() {
+		if len(ti.aliases) == 0 {
+			continue
+		}
+		withAliases++
+		found, err := st.Q.GetTitleByProviderID(t.Context(), db.GetTitleByProviderIDParams{
+			Provider:   sql.NullString{String: providerName, Valid: true},
+			ProviderID: sql.NullInt64{Int64: ti.providerID, Valid: true},
+		})
+		if err != nil {
+			t.Fatalf("find title %d: %v", ti.providerID, err)
+		}
+		row, err := st.Q.GetTitle(t.Context(), found.ID)
+		if err != nil {
+			t.Fatalf("load title %d: %v", ti.providerID, err)
+		}
+		if got := store.TitleAliases(row.Aliases); !slices.Equal(got, ti.aliases) {
+			t.Errorf("title %d aliases = %q, want the fixture's %q", ti.providerID, got, ti.aliases)
+		}
+	}
+	if withAliases == 0 {
+		t.Error("no fixture declares an alias; the Aliases chip has nothing to show")
 	}
 }

@@ -630,6 +630,10 @@ func normalizeVariants(variants []string) []string {
 	return out
 }
 
+// Matchable reports whether a name leaves anything for titleBelongs to compare: a
+// name in only CJK or symbols normalizes to nothing and matches no release.
+func Matchable(name string) bool { return normalize(name) != "" }
+
 // normalize lowercases and strips everything but ASCII letters and digits, so
 // titles that differ only in punctuation/spacing/romanization glyphs compare
 // equal. foldTitle first, so what SearchTerm finds this can match (#107).

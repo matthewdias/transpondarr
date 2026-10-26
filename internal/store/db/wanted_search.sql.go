@@ -11,7 +11,7 @@ import (
 )
 
 const listBackedOffTitlesWantedInWindow = `-- name: ListBackedOffTitlesWantedInWindow :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year, s.aliases
 FROM series s
 WHERE s.monitored = 1
   AND s.next_search_at IS NOT NULL
@@ -78,6 +78,7 @@ func (q *Queries) ListBackedOffTitlesWantedInWindow(ctx context.Context, arg Lis
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
 			&i.Year,
+			&i.Aliases,
 		); err != nil {
 			return nil, err
 		}
@@ -93,7 +94,7 @@ func (q *Queries) ListBackedOffTitlesWantedInWindow(ctx context.Context, arg Lis
 }
 
 const listTitlesDueWantedSearch = `-- name: ListTitlesDueWantedSearch :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year, s.aliases
 FROM series s
 WHERE s.monitored = 1
   AND (s.next_search_at IS NULL OR s.next_search_at <= ?)
@@ -152,6 +153,7 @@ func (q *Queries) ListTitlesDueWantedSearch(ctx context.Context, arg ListTitlesD
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
 			&i.Year,
+			&i.Aliases,
 		); err != nil {
 			return nil, err
 		}
@@ -167,7 +169,7 @@ func (q *Queries) ListTitlesDueWantedSearch(ctx context.Context, arg ListTitlesD
 }
 
 const listTitlesWithWantedItems = `-- name: ListTitlesWithWantedItems :many
-SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year
+SELECT s.id, s.provider, s.provider_id, s.title, s.format, s.monitored, s.created_at, s.quality_profile_id, s.airing_synced_at, s.pinned_group, s.last_searched_at, s.search_backoff, s.next_search_at, s.pin_delay_hours, s.search_epoch, s.monitor_new_from, s.year, s.aliases
 FROM series s
 JOIN quality_profiles qp ON qp.id = s.quality_profile_id
 WHERE s.monitored = 1
@@ -239,6 +241,7 @@ func (q *Queries) ListTitlesWithWantedItems(ctx context.Context, airsAt sql.Null
 			&i.SearchEpoch,
 			&i.MonitorNewFrom,
 			&i.Year,
+			&i.Aliases,
 		); err != nil {
 			return nil, err
 		}

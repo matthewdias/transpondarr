@@ -442,6 +442,31 @@ describe("ReleasesTab episode focus", () => {
   });
 });
 
+// Jackett and Prowlarr list one torrent under each of its names with one URL, and
+// a title's aliases (#345) make the search return both copies routinely.
+describe("ReleasesTab one torrent under two names", () => {
+  it("renders a row for each name without a duplicate key", async () => {
+    const url = "magnet:?xt=urn:btih:same03";
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    renderReleases(null, false, "TV", [
+      release({ title: "[Grp] Hoshi no Kishi 2026 - 03", download_url: url }),
+      release({ title: "[Grp] Starlight Knight 2026 - 03", download_url: url }),
+    ]);
+
+    expect(
+      await screen.findByText("[Grp] Hoshi no Kishi 2026 - 03"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("[Grp] Starlight Knight 2026 - 03"),
+    ).toBeInTheDocument();
+    const keyWarnings = errors.mock.calls.filter((c) =>
+      String(c[0]).includes("same key"),
+    );
+    errors.mockRestore();
+    expect(keyWarnings).toEqual([]);
+  });
+});
+
 describe("ReleasesTab empty state", () => {
   // Format alone (#208): a single-episode OVA is a series and keeps this wording.
   it("shows series for a series", async () => {

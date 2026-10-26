@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pin, RefreshCw, TriangleAlert } from "lucide-react";
+import { Pin, RefreshCw, Tags, TriangleAlert, X } from "lucide-react";
 import {
   api,
   ApiError,
@@ -572,6 +572,160 @@ export function PinnedGroupChip({ detail }: { detail: TitleDetail }) {
   );
 }
 
+const maxAliases = 5;
+
+// AliasesChip edits the other names a title's releases go by (#345), each one
+// matched and searched like the title's own.
+export function AliasesChip({ detail }: { detail: TitleDetail }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [aliases, setAliases] = useState<string[]>([]);
+  const [draft, setDraft] = useState("");
+  const inputId = useId();
+  const hintId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const current = detail.aliases;
+  const typed = draft.trim().replace(/\s+/g, " ");
+  const duplicate = aliases.some(
+    (a) => a.toLowerCase() === typed.toLowerCase(),
+  );
+  const full = aliases.length >= maxAliases;
+  const unchanged =
+    aliases.length === current.length &&
+    aliases.every((a, i) => a === current[i]);
+
+  const save = useMutation({
+    mutationFn: (next: string[]) => api.setTitleAliases(detail.id, next),
+    onSuccess: () => {
+      toast.success("Aliases saved");
+      queryClient.invalidateQueries({
+        queryKey: titleDetailQuery(detail.id).queryKey,
+      });
+      queryClient.invalidateQueries({
+        queryKey: releasesQuery(detail.id).queryKey,
+      });
+      setOpen(false);
+    },
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (o) {
+          setAliases(current);
+          setDraft("");
+          save.reset();
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className={cn(chipClass, "hover:text-accent-foreground")}
+        >
+          <Tags className="size-3" aria-hidden />
+          {current.length
+            ? plural(current.length, "alias", "aliases")
+            : "Add alias"}
+        </button>
+      </DialogTrigger>
+      <DialogContent
+        className="sm:max-w-sm"
+        // Radix focuses the first control, a remove button one keypress from
+        // deleting an alias; the field is what someone opening this came to use.
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          inputRef.current?.focus();
+        }}
+      >
+        <DialogHeader>
+          <DialogTitle>Aliases</DialogTitle>
+          <DialogDescription>
+            Other names this title&apos;s releases use. Each one is matched and
+            searched like the title&apos;s own name.
+          </DialogDescription>
+        </DialogHeader>
+        {aliases.length > 0 && (
+          <ul className="space-y-1.5">
+            {aliases.map((a) => (
+              <li
+                key={a}
+                className="flex items-center justify-between gap-2 rounded-md border border-border bg-panel-2 py-1 pl-2.5 pr-1 text-sm"
+              >
+                <span className="min-w-0 break-words">{a}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 flex-none"
+                  aria-label={`Remove ${a}`}
+                  onClick={() => setAliases(aliases.filter((x) => x !== a))}
+                >
+                  <X className="size-3.5" aria-hidden />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!typed || duplicate || full) return;
+            setAliases([...aliases, typed]);
+            setDraft("");
+          }}
+        >
+          <label
+            htmlFor={inputId}
+            className="mb-1 block text-xs font-medium text-muted-foreground"
+          >
+            New alias
+          </label>
+          <div className="flex gap-2">
+            <Input
+              ref={inputRef}
+              id={inputId}
+              aria-describedby={hintId}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="As in release names"
+              disabled={full}
+            />
+            <Button
+              type="submit"
+              variant="outline"
+              disabled={!typed || duplicate || full}
+            >
+              Add
+            </Button>
+          </div>
+          <p id={hintId} className="mt-1 text-xs text-muted-foreground">
+            {duplicate
+              ? "Already in the list."
+              : `Up to ${maxAliases}. A short alias also matches other shows whose names contain it.`}
+          </p>
+        </form>
+        {save.isError && (
+          <p role="alert" className="text-sm text-destructive">
+            {errorReason(save.error)}
+          </p>
+        )}
+        <DialogFooter>
+          <Button
+            type="button"
+            disabled={save.isPending || unchanged}
+            onClick={() => save.mutate(aliases)}
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /**
  * Monitoring switch. Monitored now means "will be searched and grabbed
  * automatically", so the global kill switch makes that label false — the only
@@ -705,6 +859,7 @@ function DetailHeader({
           ) : null}
           <ProfilePicker detail={detail} />
           <PinnedGroupChip detail={detail} />
+          <AliasesChip detail={detail} />
         </div>
       </div>
     </div>

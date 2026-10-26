@@ -8,6 +8,7 @@ import type { TitleDetail } from "@/lib/api";
 import { Link, MemoryRouter, Route, Routes } from "react-router";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import {
+  AliasesChip,
   MonitoringToggle,
   PinnedGroupChip,
   ProfilePicker,
@@ -25,6 +26,7 @@ const detail = (over: Partial<TitleDetail>): TitleDetail => ({
   format: "TV",
   monitored: true,
   quality_profile_id: 1,
+  aliases: [],
   items: [],
   ...over,
 });
@@ -241,6 +243,98 @@ describe("PinnedGroupChip", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
     );
+  });
+});
+
+describe("AliasesChip", () => {
+  function renderAliases(d: TitleDetail) {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={client}>
+        <AliasesChip detail={d} />
+      </QueryClientProvider>,
+    );
+  }
+
+  // #345: Save sends the whole list, so a removal is as much an edit as an add.
+  it("adds and removes aliases, then saves the whole list", async () => {
+    let sent: unknown;
+    server.use(
+      http.put("/api/v1/titles/7/aliases", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({
+          title_id: 7,
+          aliases: ["Hoshi no Kishi 2026"],
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAliases(detail({ aliases: ["Old Name"] }));
+
+    await user.click(screen.getByRole("button", { name: /1 alias/i }));
+    const save = screen.getByRole("button", { name: /save/i });
+    expect(screen.getByText("Old Name")).toBeInTheDocument();
+    expect(save).toBeDisabled();
+    // Focus lands in the field, not on a remove button one keypress from deleting.
+    await waitFor(() =>
+      expect(screen.getByRole("textbox", { name: /alias/i })).toHaveFocus(),
+    );
+
+    // A spelling that differs only in case or spacing is the same alias.
+    const input = screen.getByRole("textbox", { name: /alias/i });
+    await user.type(input, "old  NAME");
+    expect(screen.getByRole("button", { name: /^add$/i })).toBeDisabled();
+    expect(screen.getByText(/already in the list/i)).toBeInTheDocument();
+    await user.clear(input);
+
+    await user.type(
+      screen.getByRole("textbox", { name: /alias/i }),
+      "  Hoshi no Kishi 2026 ",
+    );
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+    expect(screen.getByText("Hoshi no Kishi 2026")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /alias/i })).toHaveValue("");
+    await user.click(screen.getByRole("button", { name: /remove old name/i }));
+    expect(screen.queryByText("Old Name")).not.toBeInTheDocument();
+
+    await user.click(save);
+    await waitFor(() =>
+      expect(sent).toEqual({ aliases: ["Hoshi no Kishi 2026"] }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("keeps the dialog open with the server's reason when an alias is refused", async () => {
+    const reason =
+      'The alias "魔法騎士" has no Latin letters or digits, so it can\'t match a release name.';
+    server.use(
+      http.put("/api/v1/titles/7/aliases", () =>
+        HttpResponse.json(
+          { status: 422, title: "Unprocessable Entity", detail: reason },
+          {
+            status: 422,
+            headers: { "Content-Type": "application/problem+json" },
+          },
+        ),
+      ),
+    );
+    const user = userEvent.setup();
+    renderAliases(detail({}));
+
+    await user.click(screen.getByRole("button", { name: /add alias/i }));
+    await user.type(
+      screen.getByRole("textbox", { name: /alias/i }),
+      "魔法騎士",
+    );
+    await user.click(screen.getByRole("button", { name: /^add$/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(reason);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });
 

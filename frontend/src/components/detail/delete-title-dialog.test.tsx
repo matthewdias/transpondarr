@@ -37,6 +37,7 @@ const detail: TitleDetail = {
   format: "TV",
   monitored: true,
   quality_profile_id: 1,
+  aliases: [],
   items: [
     item(1, "in_library"),
     item(2, "in_library"),

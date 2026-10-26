@@ -8,6 +8,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Security
 
+- **Your indexer's API key no longer appears in the log when a search can't reach
+  the indexer.** A dropped or refused connection was logged with the full request
+  address, and that address includes the key. The log line still names the
+  failure; only the address is gone.
+
 - **A website you visit can no longer drive Transpondarr without you knowing.** With
   `TRANSPONDARR_AUTH_REQUIRED=local`, any page open in a browser on your network could
   send the API requests at its address and act as you. It needed no login, and nothing
@@ -25,6 +30,11 @@ All notable changes to this project are documented here. The format is based on
 
 ### Added
 
+- **A title can have aliases: other names its releases go by.** A show whose
+  releases use a different name from AniList's was never matched, so nothing was
+  grabbed and a manual grab failed. Magic Knight Rayearth (2026), for one, is
+  released as *Mahou Kishi Rayearth 2026*. Add the release name as an alias on the
+  title's page, and it is matched and searched for like the title's own name.
 - **A `.env.local` file, read ahead of `.env`.** A development convenience for
   running from a checkout: what is true of one working copy alone — a port, a
   local endpoint — goes there, leaving `.env` for what every checkout shares. A

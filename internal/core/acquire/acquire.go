@@ -8,7 +8,7 @@
 // enough to run on a short tick. The sweep (#100) covers what already existed
 // before the feed started — back-catalog, anything that scrolled off the feed
 // page, a title added after an entry was seen — and covers everything when no
-// feed is configured, at one search per title.
+// feed is configured, at one search per title plus one per alias it has.
 //
 // Cadence follows that division: with a feed configured the sweep drops the
 // airing-window reset and its next search is due on the backoff interval. Grab
@@ -36,6 +36,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -216,11 +217,12 @@ func (s *Service) loadItems(ctx context.Context, id int64) (db.Series, []passIte
 // reusing one matcher.
 func (s *Service) match(ctx context.Context, idx indexer.Indexer, title db.Series, items []passItem) (Match, error) {
 	variants := s.variants(ctx, title)
-	releases, term, err := s.search(ctx, idx, variants)
+	aliases := store.TitleAliases(title.Aliases)
+	releases, term, err := s.search(ctx, idx, variants, aliases)
 	if err != nil {
 		return Match{}, err
 	}
-	return s.evaluate(ctx, title, items, variants, term, releases, nil)
+	return s.evaluate(ctx, title, items, slices.Concat(variants, aliases), term, releases, nil)
 }
 
 // variants are the names the matcher will accept for a title (romaji/english/
@@ -263,28 +265,73 @@ func (s *Service) cachedVariants(ctx context.Context, title db.Series) []string 
 	return variants
 }
 
-// search queries the indexer for one title, reporting the term that returned
-// releases. Sanitized title first, then each variant as a zero-result fallback
-// (#107): a romaji term can be unsearchable even sanitized, and one extra
-// request is cheap next to reporting nothing.
-func (s *Service) search(ctx context.Context, idx indexer.Indexer, variants []string) ([]indexer.Release, string, error) {
+// search reports the term that returned releases. Provider names fall back on zero
+// results, as a romaji term can be unsearchable even sanitized (#107); each alias
+// is searched as well and merged in (#345), so adding one never loses a result.
+func (s *Service) search(ctx context.Context, idx indexer.Indexer, variants, aliases []string) ([]indexer.Release, string, error) {
+	asked := make(map[string]bool)
+	ask := func(t string) ([]indexer.Release, error) {
+		asked[strings.ToLower(t)] = true
+		releases, err := idx.Search(ctx, indexer.Query{Term: t})
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrIndexerSearch, err)
+		}
+		return releases, nil
+	}
+
 	var releases []indexer.Release
 	term := ""
 	for _, t := range decide.SearchTerms(variants) {
 		if term == "" {
 			term = t
 		}
-		var err error
-		releases, err = idx.Search(ctx, indexer.Query{Term: t})
+		found, err := ask(t)
 		if err != nil {
-			return nil, "", fmt.Errorf("%w: %w", ErrIndexerSearch, err)
+			return nil, "", err
 		}
-		if len(releases) > 0 {
-			term = t
+		if len(found) > 0 {
+			releases, term = found, t
 			break
 		}
 	}
+	for _, t := range decide.SearchTerms(aliases) {
+		if asked[strings.ToLower(t)] {
+			continue
+		}
+		found, err := ask(t)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, "", err
+			}
+			// ErrIndexerSearch skips backoff, so failing the pass here would repeat
+			// every pass for a term that always errors (#345).
+			s.log.Warn("alias search failed; continuing without it", "term", t, "err", err)
+			continue
+		}
+		if len(releases) == 0 && len(found) > 0 {
+			term = t
+		}
+		releases = mergeReleases(releases, found)
+	}
 	return releases, term, nil
+}
+
+// mergeReleases drops only exact repeats: Jackett and Prowlarr list one torrent
+// under each of its names with one URL, and the copy whose name matches must stay.
+func mergeReleases(have, more []indexer.Release) []indexer.Release {
+	type key struct{ title, url string }
+	seen := make(map[key]bool, len(have)+len(more))
+	for _, r := range have {
+		seen[key{r.Title, r.DownloadURL}] = true
+	}
+	for _, r := range more {
+		k := key{r.Title, r.DownloadURL}
+		if !seen[k] {
+			seen[k] = true
+			have = append(have, r)
+		}
+	}
+	return have
 }
 
 // evaluate ranks already-fetched releases against a title. It is split from the

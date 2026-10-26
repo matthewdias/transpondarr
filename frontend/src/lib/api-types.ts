@@ -557,6 +557,23 @@ export interface paths {
         patch: operations["set-title-monitored"];
         trace?: never;
     };
+    "/api/v1/titles/{id}/aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Replace the names a title's releases may use besides the provider's */
+        put: operations["set-title-aliases"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/titles/{id}/blocklist": {
         parameters: {
             query?: never;
@@ -1825,6 +1842,28 @@ export interface components {
             title_id?: number;
             tracked: boolean;
         };
+        SetAliasesInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetAliasesInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Every alias the title should have, replacing the current ones; empty clears them. Up to 5, each up to 200 characters with at least one Latin letter or digit */
+            aliases: string[];
+        };
+        SetAliasesOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example https://example.com/schemas/SetAliasesOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description The aliases as stored, whitespace collapsed */
+            aliases: string[];
+            /** Format: int64 */
+            title_id: number;
+        };
         SetItemCountInputBody: {
             /**
              * Format: uri
@@ -2037,6 +2076,8 @@ export interface components {
              * @example https://example.com/schemas/TitleDetailReadDTO.json
              */
             readonly $schema?: string;
+            /** @description Names this title's releases may use besides the provider's; matched and searched like them */
+            aliases: string[];
             cover_url?: string;
             english?: string;
             format: string;
@@ -3326,6 +3367,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetMonitoredOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "set-title-aliases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Title id */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetAliasesInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetAliasesOutputBody"];
                 };
             };
             /** @description Error */

@@ -125,6 +125,7 @@ type Series struct {
 	SearchEpoch      int64          `json:"search_epoch"`
 	MonitorNewFrom   sql.NullInt64  `json:"monitor_new_from"`
 	Year             int64          `json:"year"`
+	Aliases          string         `json:"aliases"`
 }
 
 type Session struct {

@@ -97,6 +97,10 @@ DELETE FROM series WHERE id = ?;
 -- so PUT-replacing one must replace the other.
 UPDATE series SET pinned_group = ?, pin_delay_hours = ? WHERE id = ?;
 
+-- name: SetTitleAliases :execrows
+-- The whole list is replaced; execrows lets the handler 404 an unknown title.
+UPDATE series SET aliases = ? WHERE id = ?;
+
 -- name: ListTitlesDueAiringSync :many
 -- Titles whose broadcast schedule has never been synced or has gone stale. A
 -- finished title's aired times are immutable, so it uses the long cutoff

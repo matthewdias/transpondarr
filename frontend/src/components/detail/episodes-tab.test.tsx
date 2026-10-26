@@ -21,6 +21,7 @@ const detail = (items: WantedItem[]): TitleDetail => ({
   format: "TV",
   monitored: true,
   quality_profile_id: 1,
+  aliases: [],
   items,
 });
 

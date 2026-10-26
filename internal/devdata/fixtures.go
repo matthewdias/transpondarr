@@ -50,6 +50,7 @@ type title struct {
 	monitored       bool
 	profile         string // profile name; empty uses the built-in Default
 	pinnedGroup     string
+	aliases         []string
 	monitorNewFrom  int // 0 leaves the schema default
 	scheduleChecked bool
 	items           []item
@@ -181,6 +182,7 @@ func partlyFilled() title {
 		format:   domain.FormatTV, year: 2026, status: "RELEASING", episodes: 12,
 		cover:     "https://s4.anilist.co/file/anilistcdn/media/anime/cover/medium/placeholder-990101.jpg",
 		monitored: true, profile: "Anime 1080p", pinnedGroup: "SubGroupA",
+		aliases:         []string{"Kariire Frontier 2026"},
 		scheduleChecked: true,
 	}
 	for n := 1; n <= 12; n++ {
