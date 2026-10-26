@@ -14,7 +14,7 @@ RUN npm run build
 # --- backend build ---
 # Build on the native platform and cross-compile to the target arch. CGO is off,
 # so Go cross-compiles cleanly and we avoid emulating the whole build under QEMU.
-FROM --platform=$BUILDPLATFORM golang:1.26 AS backend
+FROM --platform=$BUILDPLATFORM golang:1.26.10 AS backend
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
